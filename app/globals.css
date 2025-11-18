@@ -39,3 +39,49 @@ body {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* Universal custom scrollbar */
+.custom-scrollbar {
+  /* Firefox */
+  scrollbar-width: thin; /* Firefox will still make it a minimum ~8px */
+  scrollbar-color: rgba(85, 86, 88, 0.3) transparent; /* subtle thumb, invisible track */
+}
+
+/* WebKit browsers (Chrome, Safari, Opera, Brave, Opera GX) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px; /* ultra-thin vertical scrollbar */
+  height: 4px; /* ultra-thin horizontal scrollbar */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent; /* invisible track */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(107, 114, 128, 0.2); /* very subtle thumb */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(107, 114, 128, 0.4); /* slightly darker on hover */
+}
+
+/* Small thumb for Chrome, Safari, Edge */
+input.slider-thumb-sm::-webkit-slider-thumb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e; /* Tailwind green-500 */
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+/* Small thumb for Firefox */
+input.slider-thumb-sm::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  cursor: pointer;
+  border: none;
+}

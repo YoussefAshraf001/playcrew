@@ -24,7 +24,6 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   const { profile, loading, user } = useUser();
-  // const [collapsed, setCollapsed] = useState(true);
 
   const { playerVisible, togglePlayerVisible } = useMusic();
 
@@ -108,7 +107,7 @@ export default function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                         stiffness: 300,
                         damping: 20,
                       }}
-                      className="absolute left-full top-1/2 -translate-y-1/2 bg-black text-white px-2 py-1 rounded-lg shadow-lg whitespace-nowrap pointer-events-none text-sm font-medium"
+                      className="absolute left-full top-1/2 -translate-y-1/2  text-white px-2 py-1 rounded-lg shadow-lg whitespace-nowrap pointer-events-none text-sm font-medium"
                     >
                       {label}
                     </motion.span>

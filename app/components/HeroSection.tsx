@@ -1,250 +1,299 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
-interface Game {
-  id: number;
-  name: string;
-  background_image: string;
-  details?: {
-    description_raw?: string;
-    metacritic?: number;
-    genres?: { name: string }[];
-    clip?: {
-      clip: string; // sometimes RAWG provides this, but often not
-    };
-    trailers?: { data: { max: string } }[]; // in case future support
-    youtube?: string; // <-- You can store YouTube ID in your trending array
-  };
-}
+// Firebase
+import { db } from "../lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+// User context
+import { useUser } from "../context/UserContext";
+import ConfirmModal from "./ConfirmModal";
+import { Game } from "../types/game";
+import { FaCalendarAlt } from "react-icons/fa";
 
 interface HeroSectionProps {
   trending: Game[];
-  activeIndex: number;
-  setActiveIndex: React.Dispatch<React.SetStateAction<number>>;
 }
 
-export default function HeroSection({
-  trending,
-  activeIndex,
-  setActiveIndex,
-}: HeroSectionProps) {
+export default function HeroSection({ trending }: HeroSectionProps) {
+  const router = useRouter();
+  const { user } = useUser();
+
+  const [savedGames, setSavedGames] = useState<Record<number, string>>({});
+  const [loadingSave, setLoadingSave] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [gameToRemove, setGameToRemove] = useState<Game | null>(null);
   const intervalRef = useRef<number | null>(null);
-
-  // -------------------------------------------------------------
-  // Auto carousel cycle
-  // -------------------------------------------------------------
-  useEffect(() => {
-    if (trending.length === 0) return;
-
-    intervalRef.current = window.setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % trending.length);
-    }, 7000);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [trending]);
-
-  const handleSetActiveIndex = (i: number) => {
-    setActiveIndex(i);
-
-    // reset timer after manual click
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = window.setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % trending.length);
-    }, 7000);
-  };
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const activeGame = trending[activeIndex];
   if (!activeGame) return null;
 
-  // -------------------------------------------------------------
-  // Prefer YouTube trailer -> RAWG clip -> fallback image
-  // -------------------------------------------------------------
-  const youtubeId = activeGame.details?.youtube;
-  const rawgClip = activeGame.details?.clip?.clip;
+  // --------------------------------------------------------------------
+  // Load all tracked statuses from Firestore
+  // --------------------------------------------------------------------
+  useEffect(() => {
+    if (!user) return;
+
+    (async () => {
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      const trackedGames = snap.exists() ? snap.data()?.trackedGames || {} : {};
+      const results: Record<number, string> = {};
+
+      for (const g of trending) {
+        if (trackedGames[g.id]?.status) {
+          results[g.id] = trackedGames[g.id].status;
+        }
+      }
+
+      setSavedGames(results);
+    })();
+  }, [user, trending]);
+
+  // --------------------------------------------------------------------
+  // Auto-rotate hero
+  // --------------------------------------------------------------------
+  const startInterval = () => {
+    if (!trending.length) return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    intervalRef.current = window.setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % trending.length);
+    }, 10000);
+  };
+
+  const stopInterval = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+  };
+
+  useEffect(() => {
+    startInterval();
+    return () => stopInterval();
+  }, [trending]);
+
+  const handleManualSwitch = (i: number) => {
+    setActiveIndex(i);
+    stopInterval();
+    startInterval();
+  };
+
+  // --------------------------------------------------------------------
+  // Save / Remove for Later
+  // --------------------------------------------------------------------
+  const handleSaveClick = (game: Game) => {
+    const status = savedGames[game.id];
+    if (status) {
+      // Game already tracked → open modal for removal
+      setGameToRemove(game);
+      setModalOpen(true);
+      stopInterval();
+    } else {
+      toggleSaveForLater(game);
+    }
+  };
+
+  const toggleSaveForLater = async (game: Game) => {
+    if (!user) {
+      toast.error("You must be logged in to save games");
+      return;
+    }
+
+    setLoadingSave(true);
+    stopInterval();
+
+    try {
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      const trackedGames = snap.exists() ? snap.data()?.trackedGames || {} : {};
+
+      const updated = {
+        ...trackedGames,
+        [game.id]: {
+          gameId: game.id.toString(),
+          gameName: game.name,
+          status: "Want to Play",
+          updatedAt: new Date().toISOString(),
+        },
+      };
+
+      await setDoc(ref, { trackedGames: updated }, { merge: true });
+
+      setSavedGames((prev) => ({ ...prev, [game.id]: "Want to Play" }));
+      toast.success(
+        "Saved for Later! You will find it in your Want to Play section"
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update saved status");
+    } finally {
+      setLoadingSave(false);
+      startInterval();
+    }
+  };
+
+  const removeTrackedGame = async () => {
+    if (!user || !gameToRemove) return;
+
+    setLoadingSave(true);
+    try {
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      const trackedGames = snap.exists() ? snap.data()?.trackedGames || {} : {};
+
+      delete trackedGames[gameToRemove.id];
+
+      await setDoc(ref, { trackedGames }, { merge: true });
+
+      setSavedGames((prev) => {
+        const newState = { ...prev };
+        delete newState[gameToRemove.id];
+        return newState;
+      });
+
+      toast.success("Game removed from your list");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to remove game");
+    } finally {
+      setLoadingSave(false);
+      setModalOpen(false);
+      setGameToRemove(null);
+      startInterval();
+    }
+  };
 
   return (
-    <section className="relative w-full h-[55vh] rounded-2xl overflow-hidden mb-20">
-      {/* Background Video */}
-      {youtubeId ? (
-        <iframe
-          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&loop=1&controls=0&playlist=${youtubeId}`}
-          className="absolute inset-0 w-full h-full object-cover"
-          allow="autoplay; encrypted-media"
-        />
-      ) : rawgClip ? (
-        <video
-          src={rawgClip}
-          autoPlay
-          muted
-          loop
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <Image
-          src={activeGame.background_image}
-          alt={activeGame.name}
-          fill
-          priority
-          className="object-cover opacity-80"
-        />
-      )}
+    <section className="relative mx-auto w-[65%] h-[50vh] overflow-hidden mb-20">
+      {/* Background fade transition */}
+      <div
+        className="absolute inset-0 cursor-pointer"
+        onClick={() => router.push(`/game/${activeGame.id}`)}
+      >
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeGame.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={activeGame.background_image}
+              alt={activeGame.name}
+              fill
+              priority
+              className="object-cover"
+            />
+          </motion.div>
+        </AnimatePresence>
+      </div>
 
-      {/* Dark gradient overlays */}
+      {/* Edge fade overlay */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-y-0 left-0 w-32 bg-linear-to-r from-black to-transparent" />
+        <div className="absolute inset-y-0 right-0 w-32 bg-linear-to-l from-black to-transparent" />
+      </div>
+
+      {/* Gradient */}
       <div className="absolute inset-0 bg-linear-to-r from-black via-black/40 to-transparent" />
-      <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
 
       {/* Tags */}
-      <div className="absolute top-6 left-8 flex gap-3">
-        {(activeGame.details?.genres || []).slice(0, 4).map((g) => (
+      <div className="absolute top-4 left-4 flex flex-wrap gap-2 z-10">
+        {activeGame.tags?.slice(0, 5).map((tag) => (
           <span
-            key={g.name}
-            className="px-3 py-1 text-sm bg-white/10 border border-white/20 rounded-full backdrop-blur-sm"
+            key={tag.id}
+            className="text-xs font-medium bg-white/10 text-white px-2 py-1 rounded-full hover:bg-white/20 transition"
           >
-            {g.name}
+            {tag.name}
           </span>
         ))}
       </div>
 
       {/* Content */}
-      <div className="absolute left-8 bottom-16 max-w-xl">
+      <div className="absolute left-8 bottom-16 max-w-lg">
         <motion.h1
           key={activeGame.id}
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7 }}
-          className="text-5xl font-extrabold mb-3"
+          transition={{ duration: 0.6 }}
+          className="text-4xl font-bold mb-3"
         >
           {activeGame.name}
         </motion.h1>
 
-        <p className="text-gray-300 line-clamp-3 mb-6 text-sm max-w-md">
-          {activeGame.details?.description_raw || ""}
+        <p className="text-gray-400 text-sm my-4 flex items-center gap-2">
+          Realesed In:
+          <span>
+            {activeGame.released
+              ? new Date(activeGame.released).getFullYear()
+              : "TBA"}
+          </span>
         </p>
 
         <div className="flex items-center gap-4">
-          <button className="px-6 py-3 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 transition">
-            Buy now <span className="text-green-500">$24.00</span>
+          {/* Explore */}
+          <button
+            onClick={() => router.push(`/game/${activeGame.id}`)}
+            className="px-6 py-3 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 hover:scale-105 transition transform"
+          >
+            Explore
           </button>
 
-          <button className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition">
-            ❤️
+          {/* Save for Later / Remove */}
+          <button
+            onClick={() => handleSaveClick(activeGame)}
+            className={`px-4 py-3 rounded-xl border transition transform hover:scale-105 ${
+              savedGames[activeGame.id]
+                ? "bg-green-600 border-green-500"
+                : "bg-white/10 hover:bg-white/20 border-white/20"
+            }`}
+            disabled={loadingSave}
+          >
+            {loadingSave ? (
+              <span className="loading loading-spinner loading-sm" />
+            ) : savedGames[activeGame.id] ? (
+              `Tracked (${savedGames[activeGame.id]})`
+            ) : (
+              "Mark for Later"
+            )}
           </button>
         </div>
       </div>
 
-      {/* Bottom indicators */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3">
+      {/* Indicators */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-3">
         {trending.map((_, i) => (
           <button
             key={i}
-            onClick={() => handleSetActiveIndex(i)}
+            onClick={() => handleManualSwitch(i)}
             className={`w-3 h-3 rounded-full transition ${
               i === activeIndex ? "bg-white scale-125" : "bg-gray-600"
             }`}
-          ></button>
+          />
         ))}
       </div>
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        open={modalOpen}
+        title="Remove Game?"
+        message={`Are you sure you want to remove "${gameToRemove?.name}" from your list?`}
+        onConfirm={removeTrackedGame}
+        onCancel={() => {
+          setModalOpen(false);
+          setGameToRemove(null);
+          startInterval();
+        }}
+        confirmText="Remove"
+        cancelText="Cancel"
+      />
     </section>
   );
 }
-
-// "use client";
-
-// import { useEffect, useRef } from "react";
-// import Image from "next/image";
-// import { motion } from "framer-motion";
-
-// interface Game {
-//   id: number;
-//   name: string;
-//   background_image: string;
-// }
-
-// interface HeroSectionProps {
-//   trending: Game[];
-//   activeIndex: number;
-//   setActiveIndex: React.Dispatch<React.SetStateAction<number>>;
-// }
-
-// export default function HeroSection({
-//   trending,
-//   activeIndex,
-//   setActiveIndex,
-// }: HeroSectionProps) {
-//   const intervalRef = useRef<number | null>(null);
-
-//   // Auto-cycle hero every 6s
-//   useEffect(() => {
-//     if (trending.length === 0) return;
-
-//     intervalRef.current = window.setInterval(() => {
-//       setActiveIndex((prev) => (prev + 1) % trending.length);
-//     }, 6000);
-
-//     return () => {
-//       if (intervalRef.current) clearInterval(intervalRef.current);
-//     };
-//   }, [trending, setActiveIndex]);
-
-//   const handleSetActiveIndex = (i: number) => {
-//     setActiveIndex(i);
-
-//     // Reset interval
-//     if (intervalRef.current) clearInterval(intervalRef.current);
-//     intervalRef.current = window.setInterval(() => {
-//       setActiveIndex((prev) => (prev + 1) % trending.length);
-//     }, 6000);
-//   };
-
-//   const activeGame = trending[activeIndex];
-//   if (!activeGame) return null;
-
-//   return (
-//     <section className="relative w-full h-[45vh] overflow-hidden mb-20">
-//       <Image
-//         src={activeGame.background_image}
-//         alt={activeGame.name}
-//         fill
-//         priority
-//         className="object-cover opacity-70 transition-all duration-1000"
-//       />
-//       <div className="absolute inset-0 bg-linear-to-t from-black via-black/50 to-transparent" />
-
-//       <div className="absolute bottom-12 left-12 max-w-2xl">
-//         <motion.h1
-//           key={activeGame.id}
-//           initial={{ opacity: 0, y: 30 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           transition={{ duration: 0.8 }}
-//           className="text-5xl font-extrabold mb-4"
-//         >
-//           {activeGame.name}
-//         </motion.h1>
-//         <motion.button
-//           whileHover={{ scale: 1.05 }}
-//           className="px-6 py-3 bg-cyan-500 text-black font-semibold rounded-full hover:bg-cyan-400 transition"
-//         >
-//           Explore Now
-//         </motion.button>
-//       </div>
-
-//       {/* Dots */}
-//       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3">
-//         {trending.map((_, i) => (
-//           <button
-//             key={i}
-//             onClick={() => handleSetActiveIndex(i)}
-//             className={`w-3 h-3 rounded-full transition-all duration-300 cursor-pointer ${
-//               i === activeIndex ? "bg-cyan-400 scale-125" : "bg-zinc-600"
-//             }`}
-//           />
-//         ))}
-//       </div>
-//     </section>
-//   );
-// }

@@ -21,6 +21,7 @@ export interface Game {
   }[];
   ratings?: { id: number; title: string; count: number; percent: number }[];
   reviews_count?: number;
+  metacritic?: number;
   tags?: { id: number; name: string; slug: string }[];
   added_by_status?: {
     yet?: number;
