@@ -11,6 +11,7 @@ interface AppLoaderProps {
 
 export default function AppLoader({ children }: AppLoaderProps) {
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500);
@@ -51,7 +52,7 @@ export default function AppLoader({ children }: AppLoaderProps) {
             initial="hidden"
             animate="visible"
           >
-            <Sidebar />
+            <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
           </motion.div>
 
           <motion.main
