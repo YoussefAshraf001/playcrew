@@ -38,9 +38,9 @@ export default function ConfirmModal({
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <h2 className="text-xl font-bold">{title}</h2>
-            <div>{message}</div>
-            <div className="flex justify-end gap-3">
+            <h2 className="text-center text-xl font-bold">{title}</h2>
+            <div className="text-center">{message}</div>
+            <div className="flex justify-center gap-6">
               <button
                 onClick={onCancel}
                 className="px-4 py-2 rounded-lg border border-gray-600 hover:bg-gray-800 transition"

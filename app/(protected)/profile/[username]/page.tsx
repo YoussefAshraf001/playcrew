@@ -4,7 +4,7 @@ import { useEffect, useState, ChangeEvent, useRef } from "react";
 import AvatarEditor from "react-avatar-editor";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { updateProfile } from "firebase/auth";
 import { doc, updateDoc } from "firebase/firestore";
 import { useUser } from "../../../context/UserContext";
@@ -16,8 +16,6 @@ export default function EditProfilePage() {
   const { user, profile, setProfile, loading } = useUser();
 
   const [isEditing, setIsEditing] = useState(false);
-
-  // Avatar modal state
   const [showModal, setShowModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [scale, setScale] = useState(1);
@@ -25,28 +23,15 @@ export default function EditProfilePage() {
   const editorRef = useRef<AvatarEditor>(null);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push("/login");
-    }
+    if (!loading && !user) router.push("/login");
   }, [loading, user, router]);
 
-  if (loading || !profile) {
+  if (loading || !profile)
     return (
-      <motion.div
-        className="flex flex-col items-center gap-4 min-h-screen justify-center bg-black text-white"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <motion.div
-          className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full"
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-        />
-      </motion.div>
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <LoadingSpinner />
+      </div>
     );
-  }
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -117,200 +102,192 @@ export default function EditProfilePage() {
       .slice(0, 2);
   };
 
-  if (loading) return <LoadingSpinner />;
-
   return (
     <motion.main
-      className="min-h-screen bg-black flex justify-center items-start px-6 py-12"
+      className="min-h-screen bg-black flex justify-center items-center p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.6 }}
     >
-      <div className="w-full max-w-5xl bg-zinc-900 rounded-2xl p-8 flex flex-col gap-6 shadow-neon">
-        {/* Edit / Cancel Button */}
-        <div className="flex justify-end mb-4">
+      <div className="w-full max-w-4xl bg-gray-900 rounded-3xl p-10 shadow-2xl flex flex-col gap-8">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-white">Edit Profile</h1>
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="bg-cyan-500 text-black px-4 py-2 rounded-lg font-bold hover:bg-cyan-400 transition"
+            className="px-5 py-2 rounded-full font-semibold bg-linear-to-r from-cyan-500 to-blue-500 text-black hover:from-cyan-400 hover:to-blue-400 transition"
           >
             {isEditing ? "Cancel" : "Edit"}
           </button>
         </div>
 
-        <div className="flex gap-8">
-          {/* Left: Avatar */}
-          <div className="flex flex-col items-center w-1/3 relative">
-            <label
-              className={`cursor-pointer group ${
-                !isEditing ? "pointer-events-none opacity-50" : ""
-              }`}
-            >
-              {profile.avatarBase64 ? (
-                <img
-                  src={profile.avatarBase64}
-                  alt="Avatar"
-                  className="w-40 h-40 rounded-full border-4 border-cyan-500 shadow-glow object-cover"
-                />
-              ) : profile.avatarUrl ? (
-                <img
-                  src={profile.avatarUrl}
-                  alt="Avatar"
-                  className="w-40 h-40 rounded-full border-4 border-cyan-500 shadow-glow object-cover"
-                />
-              ) : (
-                <div className="w-40 h-40 rounded-full bg-cyan-500 flex items-center justify-center text-5xl font-bold text-black border-4 border-cyan-400 shadow-glow">
-                  {getInitials(profile.displayName || profile.username)}
-                </div>
-              )}
+        <div className="flex flex-col md:flex-row gap-10 items-center">
+          {/* Avatar */}
+          <div className="relative">
+            {profile.avatarBase64 || profile.avatarUrl ? (
+              <img
+                src={profile.avatarBase64 || profile.avatarUrl!}
+                alt="Avatar"
+                className="w-40 h-40 rounded-full border-4 border-cyan-500 shadow-lg object-cover"
+              />
+            ) : (
+              <div className="w-40 h-40 rounded-full bg-cyan-500 flex items-center justify-center text-5xl font-bold text-black border-4 border-cyan-400 shadow-lg">
+                {getInitials(profile.displayName || profile.username)}
+              </div>
+            )}
 
-              {isEditing && (
-                <>
+            {isEditing && (
+              <div className="absolute inset-0 flex flex-col justify-center items-center gap-2 rounded-full bg-black/50">
+                <label className="cursor-pointer w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center hover:bg-cyan-400 transition">
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={handleFileChange}
                   />
-                  <span className="absolute bottom-2 right-2 bg-cyan-600 text-black font-bold text-xs px-2 py-1 rounded opacity-100 transition">
-                    Change
-                  </span>
-                </>
-              )}
-            </label>
-
-            {isEditing && profile.avatarBase64 && (
-              <button
-                onClick={handleRemoveAvatar}
-                className="mt-2 px-4 py-1 bg-red-500 text-black rounded-lg font-bold text-xs hover:bg-red-400 transition"
-              >
-                Remove Avatar
-              </button>
+                  <svg
+                    className="w-5 h-5 text-black"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M4 5a2 2 0 012-2h2a2 2 0 012 2h4a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" />
+                  </svg>
+                </label>
+                {profile.avatarBase64 && (
+                  <button
+                    onClick={handleRemoveAvatar}
+                    className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-400 transition"
+                  >
+                    <svg
+                      className="w-5 h-5 text-black"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M6 6a1 1 0 011-1h6a1 1 0 011 1v10a1 1 0 01-1 1H7a1 1 0 01-1-1V6z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
             )}
-
-            <p className="text-zinc-400 text-center text-sm mt-2">
-              Recommended: 98x98px, 2MB max, PNG or JPG.
-            </p>
           </div>
 
-          {/* Right: Profile Fields */}
-          <div className="flex-1 flex flex-col gap-6">
-            {/* Username */}
-            <div>
-              <label className="text-zinc-400 text-sm">Username</label>
-              <input
-                type="text"
-                name="username"
-                value={profile.username || ""}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className={`w-full bg-zinc-800 border-2 border-cyan-500 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                  !isEditing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              />
-            </div>
-
-            {/* Display Name */}
-            <div>
-              <label className="text-zinc-400 text-sm">Display Name</label>
-              <input
-                type="text"
-                name="displayName"
-                value={profile.displayName || ""}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className={`w-full bg-zinc-800 border-2 border-cyan-500 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                  !isEditing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              />
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="text-zinc-400 text-sm">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={profile.email || ""}
-                onChange={handleChange}
-                disabled={!isEditing}
-                className={`w-full bg-zinc-800 border-2 border-cyan-500 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                  !isEditing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              />
-            </div>
+          {/* Profile Fields */}
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { label: "Username", name: "username", type: "text" },
+              { label: "Display Name", name: "displayName", type: "text" },
+              { label: "Email", name: "email", type: "email" },
+            ].map((field) => (
+              <div key={field.name} className="relative">
+                <input
+                  type={field.type}
+                  name={field.name}
+                  value={profile[field.name] || ""}
+                  onChange={handleChange}
+                  disabled={!isEditing}
+                  className={`w-full px-4 pt-5 pb-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition peer ${
+                    !isEditing ? "opacity-60 cursor-not-allowed" : ""
+                  }`}
+                  placeholder=" "
+                />
+                <label className="absolute left-4 top-2 text-gray-400 text-sm transition-all peer-placeholder-shown:top-5 peer-placeholder-shown:text-gray-500 peer-placeholder-shown:text-base peer-focus:top-2 peer-focus:text-sm peer-focus:text-cyan-400">
+                  {field.label}
+                </label>
+              </div>
+            ))}
 
             {/* Bio */}
-            <div>
-              <label className="text-zinc-400 text-sm">Bio</label>
+            <div className="relative md:col-span-2">
               <textarea
                 name="bio"
                 value={profile.bio || ""}
                 onChange={handleChange}
                 disabled={!isEditing}
-                className={`w-full bg-zinc-800 border-2 border-cyan-500 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400 resize-none ${
-                  !isEditing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
                 rows={3}
+                className={`w-full px-4 pt-5 pb-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 resize-none transition peer ${
+                  !isEditing ? "opacity-60 cursor-not-allowed" : ""
+                }`}
+                placeholder=" "
               />
+              <label className="absolute left-4 top-2 text-gray-400 text-sm transition-all peer-placeholder-shown:top-5 peer-placeholder-shown:text-gray-500 peer-placeholder-shown:text-base peer-focus:top-2 peer-focus:text-sm peer-focus:text-cyan-400">
+                Bio
+              </label>
             </div>
-
-            {/* Save Button */}
-            {isEditing && (
-              <button
-                onClick={handleSave}
-                className="self-start bg-cyan-500 text-black px-6 py-2 rounded-lg font-bold hover:bg-cyan-400 transition"
-              >
-                Save
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Save Button */}
+        {isEditing && (
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={handleSave}
+              className="px-6 py-2 rounded-full bg-linear-to-r from-cyan-500 to-blue-500 text-black font-semibold hover:from-cyan-400 hover:to-blue-400 transition"
+            >
+              Save
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Avatar Modal */}
-      {showModal && selectedFile && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fadeIn">
-          <div className="bg-zinc-900 p-6 rounded-xl flex flex-col items-center gap-4 animate-scaleIn">
-            <AvatarEditor
-              ref={editorRef}
-              image={selectedFile}
-              width={200}
-              height={200}
-              border={50}
-              borderRadius={100}
-              scale={scale}
-            />
-            <input
-              type="range"
-              min="1"
-              max="2"
-              step="0.01"
-              value={scale}
-              onChange={(e) => setScale(parseFloat(e.target.value))}
-              className="w-full mt-2"
-            />
-            <div className="flex gap-4 mt-2">
-              <button
-                onClick={handleAvatarSave}
-                disabled={uploading}
-                className="px-4 py-2 bg-cyan-500 text-black rounded-lg font-bold"
-              >
-                {uploading ? "Saving..." : "Save"}
-              </button>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setSelectedFile(null);
-                }}
-                className="px-4 py-2 bg-red-500 text-black rounded-lg font-bold"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showModal && selectedFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.9 }}
+              className="bg-gray-800 p-6 md:p-10 rounded-2xl flex flex-col items-center gap-4"
+            >
+              <AvatarEditor
+                ref={editorRef}
+                image={selectedFile}
+                width={250}
+                height={250}
+                border={60}
+                borderRadius={125}
+                scale={scale}
+              />
+              <input
+                type="range"
+                min="1"
+                max="2"
+                step="0.01"
+                value={scale}
+                onChange={(e) => setScale(parseFloat(e.target.value))}
+                className="w-full mt-2"
+              />
+              <div className="flex gap-4 mt-2">
+                <button
+                  onClick={handleAvatarSave}
+                  disabled={uploading}
+                  className="px-5 py-2 rounded-full bg-linear-to-r from-cyan-500 to-blue-500 text-black font-semibold hover:from-cyan-400 hover:to-blue-400 transition"
+                >
+                  {uploading ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setSelectedFile(null);
+                  }}
+                  className="px-5 py-2 rounded-full bg-red-500 hover:bg-red-400 text-black font-semibold transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.main>
   );
 }

@@ -5,6 +5,8 @@ import { auth } from "../../lib/firebase";
 import { onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -60,13 +62,8 @@ export default function LoginPage() {
     }
   };
 
-  // Prevent showing the form briefly before redirecting
   if (checkingAuth) {
-    return (
-      <main className="flex items-center justify-center min-h-screen bg-black text-white">
-        <p>Checking session...</p>
-      </main>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -98,10 +95,20 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full p-3 rounded-md bg-cyan-300 text-black font-bold"
+          className="w-full p-3 rounded-md bg-cyan-300 text-black font-bold hover:scale-105 ease-in-out transition-all duration-300 cursor-pointer"
         >
-          {loading ? "Loading..." : "Login"}
+          {loading ? (
+            <span className="loading loading-spinner loading-sm" />
+          ) : (
+            <>{loading ? "Logging in" : "Login"}</>
+          )}
         </button>
+        <p className="text-center text-sm">
+          New Here?{" "}
+          <Link className="text-cyan-500" href="/signup">
+            Sign Up
+          </Link>
+        </p>
       </form>
     </main>
   );

@@ -10,7 +10,7 @@ import {
 } from "react";
 import { auth, db } from "@/app/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 
 interface UserProfile {
   uid: string;
@@ -26,7 +26,7 @@ interface UserContextType {
   user: any | null;
   profile: UserProfile | null;
   loading: boolean;
-  setProfile: (profile: UserProfile) => void; // expose setter
+  setProfile: (profile: UserProfile) => void;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -42,22 +42,35 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+    // Listen to auth state changes
+    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+    });
 
-      if (currentUser) {
-        const docRef = doc(db, "users", currentUser.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setProfile(docSnap.data() as UserProfile);
-        }
+    return () => unsubAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const docRef = doc(db, "users", user.uid);
+
+    // Listen to realtime updates from Firestore
+    const unsubProfile = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setProfile(docSnap.data() as UserProfile);
       }
-
       setLoading(false);
     });
 
-    return () => unsub();
-  }, []);
+    return () => unsubProfile();
+  }, [user]);
 
   return (
     <UserContext.Provider value={{ user, profile, loading, setProfile }}>

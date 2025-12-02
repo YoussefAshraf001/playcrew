@@ -15,7 +15,7 @@ export interface Track {
   id: number;
   src: string;
   title: string;
-  artist?: string;
+  artist?: string | string[];
   cover?: string;
 }
 
@@ -31,6 +31,8 @@ interface MusicContextType {
   playerVisible: boolean;
   togglePlayerVisible: () => void;
 
+  isLoadingTrack: boolean;
+
   isRepeating: boolean;
   toggleRepeat: () => void;
 
@@ -42,7 +44,7 @@ const MusicContext = createContext<MusicContextType | undefined>(undefined);
 
 export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const repeatRef = useRef(false); // NEW: ref to store repeat
+  const repeatRef = useRef(false);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [trackIndex, setTrackIndex] = useState(0);
@@ -51,67 +53,96 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
   const [duration, setDuration] = useState(0);
   const [playerVisible, setPlayerVisible] = useState(true);
   const [isRepeating, setIsRepeating] = useState(false);
+  const [isLoadingTrack, setIsLoadingTrack] = useState(false);
   const [volume, setVolume] = useState(0.5);
 
-  const toggleRepeat = () => {
-    setIsRepeating((r) => {
-      const newVal = !r;
-      repeatRef.current = newVal; // update ref
-      return newVal;
-    });
-  };
+  // -------------------
+  // Persisted settings
+  // -------------------
+  useEffect(() => {
+    const storedVolume = localStorage.getItem("music-volume");
+    if (storedVolume) setVolume(Number(storedVolume));
 
-  const togglePlayerVisible = () => setPlayerVisible((v) => !v);
+    const storedRepeat = localStorage.getItem("music-repeat");
+    if (storedRepeat) {
+      const repeatState = storedRepeat === "true";
+      setIsRepeating(repeatState);
+      repeatRef.current = repeatState;
+    }
 
+    const storedvisability = localStorage.getItem("music-visability");
+    if (storedvisability) {
+      const visabilityState = storedvisability === "true";
+      setPlayerVisible(visabilityState);
+    }
+
+    const storedIsPlaying = localStorage.getItem("music-isPlaying");
+    if (storedIsPlaying) {
+      const musicIsPlaying = storedIsPlaying === "true";
+      setIsPlaying(musicIsPlaying);
+      if (audioRef.current) {
+        if (musicIsPlaying) {
+          audioRef.current.play().catch(() => {});
+        } else {
+          audioRef.current.pause();
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("music-volume", volume.toString());
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    localStorage.setItem("music-repeat", isRepeating.toString());
+  }, [isRepeating]);
+
+  useEffect(() => {
+    localStorage.setItem("music-isPlaying", isPlaying.toString());
+  }, [isPlaying]);
+
+  useEffect(() => {
+    localStorage.setItem("music-visability", playerVisible.toString());
+  }, [playerVisible]);
+
+  // Current track
   const currentTrack = useMemo(
     () => tracks[trackIndex] || null,
     [tracks, trackIndex]
   );
 
-  // Load track list
+  // Load tracks
   useEffect(() => {
     fetch("/api/music")
       .then((res) => res.json())
       .then((data: Track[]) => {
         const shuffled = [...data].sort(() => Math.random() - 0.5);
         setTracks(shuffled);
-        setTrackIndex(0);
       })
       .catch(() => toast("Failed to load tracks"));
   }, []);
 
-  // Setup audio
+  // Audio setup
   useEffect(() => {
     if (!currentTrack) return;
 
-    if (audioRef.current) audioRef.current.pause();
+    setIsLoadingTrack(true);
 
+    // Pause old audio if exists
+    audioRef.current?.pause();
+
+    // Create new audio
     const audio = new Audio(currentTrack.src);
     audioRef.current = audio;
     audio.volume = volume;
     audio.preload = "metadata";
 
-    // Only fetch metadata if artist is missing
-    const fetchMetadata = async () => {
-      if (!currentTrack.artist) {
-        try {
-          const res = await fetch(currentTrack.src);
-          const blob = await res.blob();
-          const metadata = await parseBlob(blob);
+    // Play immediately if already playing
+    if (isPlaying) audio.play().catch(() => {});
 
-          const artist = metadata.common.artist || "Unknown Artist";
-
-          setTracks((prevTracks) =>
-            prevTracks.map((t, i) => (i === trackIndex ? { ...t, artist } : t))
-          );
-        } catch (err) {
-          console.error("Error reading metadata:", err);
-        }
-      }
-    };
-
-    fetchMetadata();
-
+    // Update progress and duration
     const updateProgress = () => setProgress(audio.currentTime);
     const updateDuration = () => setDuration(audio.duration || 0);
 
@@ -128,7 +159,40 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("ended", onEnded);
 
-    audio.play().then(() => setIsPlaying(true));
+    // Fetch metadata asynchronously
+    (async () => {
+      try {
+        const res = await fetch(currentTrack.src);
+        const blob = await res.blob();
+        const metadata = await parseBlob(blob);
+
+        const artist = metadata.common.artist;
+        let cover: string | undefined;
+
+        if (metadata.common.picture?.length) {
+          const picture = metadata.common.picture[0];
+          const bytes = picture.data;
+          let binary = "";
+          const chunkSize = 0x8000;
+
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize);
+            binary += String.fromCharCode(...chunk);
+          }
+
+          cover = `data:${picture.format};base64,${window.btoa(binary)}`;
+        }
+
+        // Update track info **without blocking playback**
+        setTracks((prev) =>
+          prev.map((t, i) => (i === trackIndex ? { ...t, artist, cover } : t))
+        );
+      } catch (err) {
+        console.error("Failed to read metadata", err);
+      } finally {
+        setIsLoadingTrack(false);
+      }
+    })();
 
     return () => {
       audio.pause();
@@ -138,12 +202,17 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [currentTrack?.src]);
 
-  // Volume
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-  }, [volume]);
-
   // Controls
+  const toggleRepeat = () => {
+    setIsRepeating((r) => {
+      const newVal = !r;
+      repeatRef.current = newVal;
+      return newVal;
+    });
+  };
+
+  const togglePlayerVisible = () => setPlayerVisible((v) => !v);
+
   const togglePlay = () => {
     if (!audioRef.current) return;
     if (audioRef.current.paused) {
@@ -157,6 +226,7 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
 
   const playNext = () =>
     setTrackIndex((i) => (tracks.length ? (i + 1) % tracks.length : 0));
+
   const playPrev = () =>
     setTrackIndex((i) =>
       tracks.length ? (i - 1 + tracks.length) % tracks.length : 0
@@ -175,6 +245,7 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
         isPlaying,
         togglePlay,
         currentTrack,
+        isLoadingTrack,
         progress,
         duration,
         playNext,
@@ -200,184 +271,3 @@ export const useMusic = () => {
   if (!ctx) throw new Error("useMusic must be used inside MusicProvider");
   return ctx;
 };
-
-// "use client";
-
-// import React, {
-//   createContext,
-//   useContext,
-//   useState,
-//   useEffect,
-//   useRef,
-// } from "react";
-// import toast from "react-hot-toast";
-// import { parseBlob } from "music-metadata-browser";
-
-// export interface Track {
-//   src: string;
-//   title: string;
-//   artist?: string;
-//   cover?: string;
-// }
-
-// interface MusicContextType {
-//   isMuted: boolean;
-//   toggleMute: () => void;
-//   isPlaying: boolean;
-//   togglePlay: () => void;
-//   currentTrack: Track | null;
-//   progress: number;
-//   duration: number;
-//   playNext: () => void;
-//   playPrev: () => void;
-//   seek: (time: number) => void;
-//   playerVisible: boolean;
-//   togglePlayerVisible: () => void;
-// }
-
-// const MusicContext = createContext<MusicContextType | undefined>(undefined);
-
-// export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
-//   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-//   const [tracks, setTracks] = useState<Track[]>([]);
-//   const [trackIndex, setTrackIndex] = useState(0);
-//   const [isMuted, setIsMuted] = useState(false);
-//   const [isPlaying, setIsPlaying] = useState(false);
-//   const [progress, setProgress] = useState(0);
-//   const [duration, setDuration] = useState(0);
-//   const [playerVisible, setPlayerVisible] = useState(true);
-
-//   const currentTrack = tracks[trackIndex] || null;
-//   const togglePlayerVisible = () => setPlayerVisible((v) => !v);
-
-//   // --- Load tracks ---
-//   useEffect(() => {
-//     fetch("/api/music")
-//       .then((res) => res.json())
-//       .then((data: Track[]) => {
-//         const shuffled = [...data].sort(() => Math.random() - 0.5);
-//         setTracks(shuffled);
-//         setTrackIndex(0);
-//       })
-//       .catch(() => toast("Failed to load tracks", { duration: 3000 }));
-//   }, []);
-
-//   // --- Setup audio & read metadata ---
-//   useEffect(() => {
-//     if (!currentTrack) return;
-
-//     // Only fetch metadata if artist is missing
-//     const fetchMetadata = async () => {
-//       if (!currentTrack.artist) {
-//         try {
-//           const res = await fetch(currentTrack.src);
-//           const blob = await res.blob();
-//           const metadata = await parseBlob(blob);
-
-//           const artist = metadata.common.artist || "Unknown Artist";
-
-//           setTracks((prevTracks) =>
-//             prevTracks.map((t, i) => (i === trackIndex ? { ...t, artist } : t))
-//           );
-//         } catch (err) {
-//           console.error("Error reading metadata:", err);
-//         }
-//       }
-//     };
-
-//     fetchMetadata();
-
-//     // --- Setup audio ---
-//     if (audioRef.current) audioRef.current.pause();
-
-//     const audio = new Audio(currentTrack.src);
-//     audio.preload = "metadata";
-//     audio.volume = 0.5;
-//     audio.muted = isMuted;
-//     audioRef.current = audio;
-
-//     const updateProgress = () => setProgress(audio.currentTime);
-//     const updateDuration = () => setDuration(audio.duration || 0);
-//     const handleEnded = () => playNext();
-
-//     audio.addEventListener("timeupdate", updateProgress);
-//     audio.addEventListener("loadedmetadata", updateDuration);
-//     audio.addEventListener("ended", handleEnded);
-
-//     audio
-//       .play()
-//       .then(() => setIsPlaying(true))
-//       .catch(() => toast("Enjoy your vibes", { duration: 2000 }));
-
-//     return () => {
-//       audio.pause();
-//       audio.removeEventListener("timeupdate", updateProgress);
-//       audio.removeEventListener("loadedmetadata", updateDuration);
-//       audio.removeEventListener("ended", handleEnded);
-//     };
-//   }, [currentTrack?.src]); // only depend on src to avoid infinite loops
-
-//   // --- Controls ---
-//   const toggleMute = () => {
-//     setIsMuted((prev) => {
-//       if (audioRef.current) audioRef.current.muted = !prev;
-//       return !prev;
-//     });
-//   };
-
-//   const togglePlay = () => {
-//     if (!audioRef.current) return;
-
-//     if (audioRef.current.paused) {
-//       audioRef.current.play().then(() => setIsPlaying(true));
-//     } else {
-//       audioRef.current.pause();
-//       setIsPlaying(false);
-//     }
-//   };
-
-//   const playNext = () => {
-//     setTrackIndex((prev) => (tracks.length ? (prev + 1) % tracks.length : 0));
-//   };
-
-//   const playPrev = () => {
-//     setTrackIndex((prev) =>
-//       tracks.length ? (prev - 1 + tracks.length) % tracks.length : 0
-//     );
-//   };
-
-//   const seek = (time: number) => {
-//     if (audioRef.current) {
-//       audioRef.current.currentTime = time;
-//       setProgress(time);
-//     }
-//   };
-
-//   return (
-//     <MusicContext.Provider
-//       value={{
-//         isMuted,
-//         toggleMute,
-//         isPlaying,
-//         togglePlay,
-//         currentTrack,
-//         progress,
-//         duration,
-//         playNext,
-//         playPrev,
-//         seek,
-//         playerVisible,
-//         togglePlayerVisible,
-//       }}
-//     >
-//       {children}
-//     </MusicContext.Provider>
-//   );
-// };
-
-// export const useMusic = () => {
-//   const context = useContext(MusicContext);
-//   if (!context) throw new Error("useMusic must be used within MusicProvider");
-//   return context;
-// };

@@ -18,15 +18,16 @@ import {
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
-import { GiWantedReward } from "react-icons/gi";
+import { GiMouthWatering } from "react-icons/gi";
 import { MdBookmarkRemove } from "react-icons/md";
 import { TbBucketDroplet } from "react-icons/tb";
 import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { IoBanOutline } from "react-icons/io5";
 
+import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import ScreenshotsCarousel from "@/app/components/Screenshots";
-import { db } from "@/app/lib/firebase";
-import NotesModal from "@/app/components/Notes";
+import GameTrackingModal from "@/app/components/GameTrackingModal";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
@@ -44,8 +45,13 @@ const statuses = [
     color: "bg-green-500",
   },
   {
+    label: "Not Interested",
+    icon: <IoBanOutline size={20} />,
+    color: "bg-green-500",
+  },
+  {
     label: "Want to Play",
-    icon: <GiWantedReward size={20} />,
+    icon: <GiMouthWatering size={20} />,
     color: "bg-green-500",
   },
 ];
@@ -62,8 +68,11 @@ export default function GamePage() {
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [loadingGame, setLoadingGame] = useState(false);
+  const [savingTracking, setSavingTracking] = useState(false);
 
   const [aboutOpen, setAboutOpen] = useState(false);
+
+  const [hltbModalOpen, setHltbModalOpen] = useState(false);
 
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -71,9 +80,16 @@ export default function GamePage() {
   const [progress, setProgress] = useState(0);
   const [playtime, setPlaytime] = useState(0);
 
-  const [youtubeTrailerId, setYoutubeTrailerId] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const requireLogin = () => {
+    if (!user) {
+      toast.error("You must be logged in to use this feature");
+      return false;
+    }
+    return true;
+  };
 
   // Fetch game data
   useEffect(() => {
@@ -84,7 +100,6 @@ export default function GamePage() {
           `https://api.rawg.io/api/games/${id}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
         );
         const data = await res.json();
-        console.log(data);
 
         const screenshotsRes = await fetch(
           `https://api.rawg.io/api/games/${id}/screenshots?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
@@ -100,23 +115,6 @@ export default function GamePage() {
     };
     fetchGame();
   }, [id]);
-
-  // Fetch trailer
-  useEffect(() => {
-    if (!game?.name) return;
-    const fetchYoutubeTrailer = async () => {
-      try {
-        const res = await fetch(
-          `/api/getTrailer?game=${encodeURIComponent(game.name)}`
-        );
-        const data = await res.json();
-        setYoutubeTrailerId(data.id);
-      } catch (err) {
-        console.error("Failed to fetch trailer", err);
-      }
-    };
-    fetchYoutubeTrailer();
-  }, [game?.name]);
 
   // Fetch user tracked data
   useEffect(() => {
@@ -161,6 +159,10 @@ export default function GamePage() {
 
   const handleFavoriteToggle = async () => {
     if (!game) return;
+    if (!user) {
+      toast.error(<>You must be logged to use this feature.</>);
+      return;
+    }
     try {
       setLoadingFavorite(true);
       const newFav = !isFavorited;
@@ -184,8 +186,19 @@ export default function GamePage() {
 
   const handleChangeStatus = async (status: string) => {
     if (!game) return;
+    if (!user) {
+      toast.error(<>You must be logged to use this feature.</>);
+      return;
+    }
+
     if (currentStatus?.trim().toLowerCase() === status.toLowerCase()) {
-      toast("Status unchanged");
+      toast.error(
+        <>
+          Game is already set as{" "}
+          <span className={`text-red-600 pl-1`}>{currentStatus}</span>
+        </>
+      );
+
       return;
     }
     try {
@@ -310,7 +323,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="relative min-h-screen text-white bg-transparent">
+    <div className="relative min-h-screen text-white bg-transparent pt-15 lg:pt-8">
       {/* HERO BACKGROUND */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -318,20 +331,11 @@ export default function GamePage() {
         transition={{ duration: 0.6 }}
         className="absolute inset-0 z-0"
       >
-        {youtubeTrailerId ? (
-          <iframe
-            src={`https://www.youtube.com/embed/${youtubeTrailerId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${youtubeTrailerId}&modestbranding=1&rel=0`}
-            className="w-full h-full object-cover"
-            frameBorder="0"
-            allow="autoplay; encrypted-media"
-            allowFullScreen
-          />
-        ) : (
-          <img
-            src={game.background_image}
-            className="w-full h-full object-cover brightness-[0.45] blur-xl"
-          />
-        )}
+        <img
+          src={game.background_image}
+          className="w-full h-full object-cover brightness-[0.45] blur-xl"
+        />
+
         <div className="absolute inset-0 bg-linear-to-b from-black/20 to-black" />
       </motion.div>
 
@@ -344,7 +348,7 @@ export default function GamePage() {
         transition={{ duration: 0.6, ease: "easeInOut" }}
       >
         {/* Center content */}
-        <div className="flex-1 flex flex-col gap-8">
+        <div className="flex-1 flex flex-col gap-8 just">
           {/* Poster + Header */}
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
             <motion.img
@@ -355,12 +359,14 @@ export default function GamePage() {
             />
 
             <div className="flex-1 space-y-4">
-              <h1 className="text-5xl md:text-6xl font-extrabold drop-shadow-xl">
-                {game.name}
-              </h1>
+              <div className="flex items-center gap-4">
+                <h1 className="text-5xl md:text-6xl font-extrabold drop-shadow-xl">
+                  {game.name}
+                </h1>
+              </div>
 
               {/* Favorite */}
-              <div>
+              <div className="flex justify-center lg:block">
                 <button
                   onClick={handleFavoriteToggle}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-base border border-white/10 hover:bg-red-500 hover:scale-105 transition cursor-pointer ${
@@ -408,14 +414,20 @@ export default function GamePage() {
               {/* Notes & Delete */}
               <div className="flex gap-3 mt-2 justify-between">
                 <button
-                  onClick={() => setNotesModalOpen(true)}
+                  onClick={() => {
+                    if (!requireLogin()) return;
+                    setNotesModalOpen(true);
+                  }}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 transition font-semibold text-base cursor-pointer hover:scale-105"
                 >
                   📝 Notes
                 </button>
 
                 <button
-                  onClick={() => setDeleteModalOpen(true)}
+                  onClick={() => {
+                    if (!requireLogin()) return;
+                    setDeleteModalOpen(true);
+                  }}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 transition font-semibold text-base cursor-pointer hover:scale-105"
                 >
                   <MdBookmarkRemove size={20} /> Remove
@@ -423,22 +435,28 @@ export default function GamePage() {
               </div>
 
               {/* About */}
-              <div className="bg-white/5 border border-white/10 p-6 rounded-2xl">
+              <div
+                onClick={() => setAboutOpen(true)}
+                className="bg-white/5 border border-white/10 p-6 rounded-2xl text-white/80 hover:text-white"
+              >
                 <h2 className="text-2xl font-bold mb-3">About</h2>
 
-                <p
-                  className="text-white/80 text-base leading-relaxed cursor-pointer hover:text-white transition"
-                  onClick={() => setAboutOpen(true)}
-                >
-                  {truncate(game.description_raw, 400)}
+                <p className=" text-base leading-relaxed transition">
+                  {game.description_raw ? (
+                    truncate(game.description_raw, 400)
+                  ) : (
+                    <span>No Description found</span>
+                  )}
                 </p>
 
-                <p
-                  className="text-cyan-300 mt-2 text-sm cursor-pointer hover:underline"
-                  onClick={() => setAboutOpen(true)}
-                >
-                  Read more
-                </p>
+                {game.description_raw && (
+                  <p
+                    className="text-cyan-300 mt-2 text-sm cursor-pointer hover:underline"
+                    onClick={() => setAboutOpen(true)}
+                  >
+                    Read more
+                  </p>
+                )}
               </div>
 
               <AnimatePresence>
@@ -490,7 +508,7 @@ export default function GamePage() {
                 <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                   <div className="text-sm opacity-70">Rating</div>
                   <div className="flex justify-center items-center gap-1 text-xl font-bold">
-                    {game.rating} <FaStar className="text-amber-300" />
+                    {game.rating} / 5 <FaStar className="text-amber-300" />
                   </div>
                 </div>
                 <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
@@ -535,10 +553,13 @@ export default function GamePage() {
         {/* Right column: Stores & repacks */}
         <div className="w-full md:w-80 shrink-0 space-y-6 sticky top-28">
           <div className="bg-white/5 border border-white/10 p-6 rounded-2xl space-y-4">
-            <h2 className="text-lg font-bold mb-2">
-              Where to Get / Download Game
-            </h2>
+            <h2 className="text-center text-lg font-bold mb-2">Stores</h2>
+
+            {/* Divider */}
+            <hr className="w-full border-zinc-700" />
+
             <div className="flex flex-col gap-2">
+              <h3>Official</h3>
               {normalizeParentPlatforms(game.parent_platforms).map(
                 (platform) => (
                   <a
@@ -554,12 +575,17 @@ export default function GamePage() {
                 )
               )}
 
+              <h3 className="pt-2">Cracked</h3>
+
               {/* FitGirl */}
               <a
                 target="_blank"
                 rel="noopener noreferrer"
-                href={`https://fitgirl-repacks.site/?s=${encodeURIComponent(
+                href={`https://fitgirl-repacks.site/${encodeURIComponent(
                   game.name
+                    .toLowerCase() // Convert to lowercase
+                    .replace(/\s+/g, "-") // Replace spaces with hyphens
+                    .replace(/[^a-z0-9-]/g, "") // Remove any non-alphanumeric characters except hyphen
                 )}`}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 hover:scale-105 transition text-sm"
               >
@@ -575,8 +601,11 @@ export default function GamePage() {
               <a
                 target="_blank"
                 rel="noopener noreferrer"
-                href={`https://dodi-repacks.site/?s=${encodeURIComponent(
+                href={`https://dodi-repacks.site/${encodeURIComponent(
                   game.name
+                    .toLowerCase() // Convert to lowercase
+                    .replace(/\s+/g, "-") // Replace spaces with hyphens
+                    .replace(/[^a-z0-9-]/g, "") // Remove any non-alphanumeric characters except hyphen
                 )}`}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:scale-105  hover:bg-white/20 transition text-sm"
               >
@@ -616,7 +645,7 @@ export default function GamePage() {
                 href={`https://gamedrive.org/?s=${encodeURIComponent(
                   game.name
                 )}`}
-                className="flex items-center gap-2 px-2 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition text-sm"
+                className="flex items-center gap-2 px-2 py-2 rounded-lg bg-white/10 hover:scale-105 hover:bg-white/20 transition text-sm"
               >
                 <img
                   src={`https://www.google.com/s2/favicons?domain=gamedrive.org&sz=64`}
@@ -625,30 +654,68 @@ export default function GamePage() {
 
                 <span>GameDrive</span>
               </a>
+
+              {/* Divider */}
+              <hr className="mt-3 w-full border-zinc-700" />
+
+              <h2 className="text-center text-lg font-bold mb-2">Mods</h2>
+              <a
+                key="nexus"
+                target="_blank"
+                rel="noopener noreferrer"
+                href={`https://www.nexusmods.com/games/${encodeURIComponent(
+                  game.name
+                    .toLowerCase() // Convert to lowercase
+                    .replace(/\s+/g, "") // Remove spaces
+                    .replace(/[^a-z0-9-]/g, "") // Remove any non-alphanumeric characters (except hyphen)
+                )}`}
+                className="flex items-center gap-2 px-2 py-2 rounded-lg bg-white/10 hover:scale-105 hover:bg-white/20 transition text-sm"
+              >
+                <img
+                  src={`https://www.google.com/s2/favicons?domain=nexusmods.com/&sz=64`}
+                  className="w-5 h-5 rounded-full"
+                />
+
+                <span>Nexus Mods</span>
+              </a>
             </div>
           </div>
         </div>
       </motion.main>
 
       {/* Notes Modal */}
-      <NotesModal
+      <GameTrackingModal
         open={notesModalOpen}
         initialNotes={notes || ""}
         initialRating={rating || 0}
         initialProgress={progress || 0}
         initialPlaytime={playtime || 0}
+        initialFavorite={isFavorited}
+        initialStatus={currentStatus || ""}
+        showFavorite={false}
+        showStatus={false}
+        saving={savingTracking}
         onClose={() => setNotesModalOpen(false)}
         onSave={async (newNotes, newRating, newProgress, newPlaytime) => {
-          const merged = await updateTrackedGame({
-            notes: newNotes,
-            rating: newRating,
-            progress: newProgress,
-            playtime: newPlaytime,
-          });
-          setNotes(merged.notes || "");
-          setRating(merged.rating || 0);
-          setProgress(merged.progress || 0);
-          setPlaytime(merged.playtime || 0);
+          try {
+            setSavingTracking(true);
+
+            const merged = await updateTrackedGame({
+              notes: newNotes,
+              rating: newRating,
+              progress: newProgress,
+              playtime: newPlaytime,
+            });
+
+            setNotes(merged.notes || "");
+            setRating(merged.rating || 0);
+            setProgress(merged.progress || 0);
+            setPlaytime(merged.playtime || 0);
+          } catch (err) {
+            toast.error("Failed to save tracking.");
+          } finally {
+            setSavingTracking(false);
+          }
         }}
       />
 

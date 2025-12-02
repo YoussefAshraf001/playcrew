@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import GenreRow from "@/app/components/GenreRow";
-import SearchBar from "@/app/components/SearchBar";
 import { motion } from "framer-motion";
 import HeroSection from "@/app/components/HeroSection";
 
@@ -108,13 +107,8 @@ export default function ExplorePage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeInOut" }}
     >
-      {/* Search Bar */}
-      <div className="w-full flex py-4 justify-center">
-        <SearchBar />
-      </div>
-
       {/* Content */}
-      <div className="flex w-full gap-8 max-w-screen overflow-hidden">
+      <div className="flex w-full gap-8 max-w-screen overflow-hidden pt-14">
         <div className="flex-1 min-w-0 overflow-y-auto space-y-16 pb-20">
           {/* Hero Section */}
           {trending.length > 0 && <HeroSection trending={trending} />}

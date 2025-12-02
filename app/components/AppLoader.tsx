@@ -2,7 +2,7 @@
 
 import { ReactNode, useState, useEffect } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
-import Sidebar from "./Sidebar";
+import Navbar from "./Navbar";
 import LoadingSpinner from "./LoadingSpinner";
 
 interface AppLoaderProps {
@@ -11,7 +11,6 @@ interface AppLoaderProps {
 
 export default function AppLoader({ children }: AppLoaderProps) {
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500);
@@ -19,7 +18,7 @@ export default function AppLoader({ children }: AppLoaderProps) {
   }, []);
 
   // Correctly typed Variants
-  const sidebarVariants: Variants = {
+  const navbarVariants: Variants = {
     hidden: { scaleY: 0, opacity: 0, originY: 0 },
     visible: {
       scaleY: 1,
@@ -48,11 +47,11 @@ export default function AppLoader({ children }: AppLoaderProps) {
         <div className="flex min-h-screen">
           <motion.div
             className="z-50"
-            variants={sidebarVariants}
+            variants={navbarVariants}
             initial="hidden"
             animate="visible"
           >
-            <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+            <Navbar />
           </motion.div>
 
           <motion.main

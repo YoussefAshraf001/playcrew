@@ -1,10 +1,28 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+@font-face {
+  font-family: "Gamify";
+  src: url("/fonts/PressStart2P.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SoloLevelDemo";
+  src: url("/fonts/SoloLevelDemo.otf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 html,
 body {
+  font-family: "PressStart2P", monospace;
   margin: 0;
   padding: 0;
+  background-color: black;
 }
 
 @keyframes fadeIn {
