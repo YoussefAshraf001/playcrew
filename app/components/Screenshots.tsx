@@ -78,7 +78,7 @@ export default function ScreenshotsCarousel({
     setActiveIndex((prev) => (prev + 1) % screenshots.length);
 
   const allScreenshots =
-    screenshots.length > 0 ? [...screenshots, ...screenshots] : [];
+    screenshots.length > 1 ? [...screenshots, ...screenshots] : screenshots;
 
   // ✅ NEW: If no screenshots → show centered placeholder
   if (screenshots.length === 0) {

@@ -7,26 +7,25 @@ import { useUser } from "../context/UserContext";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import toast from "react-hot-toast";
-import ConfirmModal from "./ConfirmModal";
 
 interface GameActionsDropdownProps {
   game: any;
   trackedGames: Record<string, any>;
   openEditModal: (game: any) => void;
+  openConfirmModal: (
+    message: string,
+    action: () => void | Promise<void>
+  ) => void; // NEW
 }
 
 export default function GameActionsDropdown({
   game,
   trackedGames,
   openEditModal,
+  openConfirmModal,
 }: GameActionsDropdownProps) {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<
-    () => Promise<void> | void
-  >(() => {});
-  const [confirmMessage, setConfirmMessage] = useState("");
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -65,7 +64,6 @@ export default function GameActionsDropdown({
     const ref = doc(db, "users", user.uid);
     const updatedGames = { ...trackedGames };
     delete updatedGames[game.id];
-
     await updateDoc(ref, { trackedGames: updatedGames });
     toast.success(`Removed ${game.name}`);
   };
@@ -106,16 +104,6 @@ export default function GameActionsDropdown({
     }
   };
 
-  const handleActionWithConfirm = (
-    action: () => Promise<void>,
-    message: string
-  ) => {
-    setConfirmAction(() => action);
-    setConfirmMessage(message);
-    setConfirmOpen(true);
-    setOpen(false);
-  };
-
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Trigger button */}
@@ -148,9 +136,9 @@ export default function GameActionsDropdown({
             </button>
             <button
               onClick={() =>
-                handleActionWithConfirm(
-                  removeGame,
-                  `Are you sure you want to remove "${game.name}"?`
+                openConfirmModal(
+                  `Are you sure you want to remove "${game.name}"?`,
+                  removeGame
                 )
               }
               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
@@ -159,9 +147,9 @@ export default function GameActionsDropdown({
             </button>
             <button
               onClick={() =>
-                handleActionWithConfirm(
-                  refreshGame,
-                  `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`
+                openConfirmModal(
+                  `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`,
+                  refreshGame
                 )
               }
               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
@@ -171,19 +159,6 @@ export default function GameActionsDropdown({
           </motion.div>
         )}
       </AnimatePresence>
-
-      <ConfirmModal
-        open={confirmOpen}
-        title="Confirm Action"
-        message={confirmMessage}
-        onConfirm={async () => {
-          setConfirmOpen(false);
-          await confirmAction();
-        }}
-        onCancel={() => setConfirmOpen(false)}
-        confirmText="Confirm"
-        cancelText="Cancel"
-      />
     </div>
   );
 }

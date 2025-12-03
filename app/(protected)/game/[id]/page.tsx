@@ -15,6 +15,7 @@ import {
   FaPause,
   FaPlay,
   FaCrown,
+  FaLinux,
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
@@ -71,8 +72,6 @@ export default function GamePage() {
   const [savingTracking, setSavingTracking] = useState(false);
 
   const [aboutOpen, setAboutOpen] = useState(false);
-
-  const [hltbModalOpen, setHltbModalOpen] = useState(false);
 
   const [notesModalOpen, setNotesModalOpen] = useState(false);
   const [notes, setNotes] = useState("");
@@ -266,6 +265,8 @@ export default function GamePage() {
         return <FaApple />;
       case "android":
         return <FaAndroid />;
+      case "linux":
+        return <FaLinux />;
       default:
         return <IoLogoGameControllerA />;
     }
@@ -342,7 +343,7 @@ export default function GamePage() {
       {/* MAIN CONTENT */}
 
       <motion.main
-        className="relative flex flex-col md:flex-row gap-12 z-10 p-6 md:p-12 max-w-[1800px] mx-auto"
+        className="relative flex flex-col lg:flex-row gap-12 z-10 p-6 md:p-12 max-w-[1800px] mx-auto"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -504,24 +505,23 @@ export default function GamePage() {
               </AnimatePresence>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
+              <div className="w-full flex flex-col sm:flex-row justify-center items-center gap-4">
+                {/* Rating */}
+                <div className="flex-1 sm:flex-none p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                   <div className="text-sm opacity-70">Rating</div>
                   <div className="flex justify-center items-center gap-1 text-xl font-bold">
                     {game.rating} / 5 <FaStar className="text-amber-300" />
                   </div>
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
+
+                {/* Release */}
+                <div className="flex-1 sm:flex-none p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                   <div className="text-sm opacity-70">Release</div>
                   <div className="text-base font-semibold">{game.released}</div>
                 </div>
-                <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                  <div className="text-sm opacity-70">Metacritic</div>
-                  <div className="text-xl font-bold">
-                    {game.metacritic ?? "N/A"}
-                  </div>
-                </div>
-                <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
+
+                {/* Screenshots */}
+                <div className="flex-1 sm:flex-none p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                   <div className="text-sm opacity-70">Screenshots</div>
                   <div className="text-xl font-bold">
                     {game.short_screenshots?.length}
@@ -551,7 +551,7 @@ export default function GamePage() {
         </div>
 
         {/* Right column: Stores & repacks */}
-        <div className="w-full md:w-80 shrink-0 space-y-6 sticky top-28">
+        <div className="w-full lg:w-80 shrink-0 space-y-6 lg:sticky lg:top-28">
           <div className="bg-white/5 border border-white/10 p-6 rounded-2xl space-y-4">
             <h2 className="text-center text-lg font-bold mb-2">Stores</h2>
 

@@ -16,6 +16,9 @@ import HoldToRefreshButton from "@/app/components/HoldToRefreshButton";
 import { MdEdit } from "react-icons/md";
 import toast from "react-hot-toast";
 import Image from "next/image";
+import RefreshButton from "@/app/components/HoldToRefreshButton";
+import GameActionsDropdown from "@/app/components/GameActionsDropdown";
+import ConfirmModal from "@/app/components/ConfirmModal";
 
 const STATUSES = [
   "All",
@@ -75,6 +78,12 @@ export default function GamesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<TrackedGame | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState("");
+  const [confirmAction, setConfirmAction] = useState<
+    () => void | Promise<void>
+  >(() => {});
 
   // Firestore subscription
   useEffect(() => {
@@ -329,6 +338,15 @@ export default function GamesPage() {
     }
   };
 
+  const openConfirmModal = (
+    message: string,
+    action: () => void | Promise<void>
+  ) => {
+    setConfirmMessage(message);
+    setConfirmAction(() => action);
+    setConfirmOpen(true);
+  };
+
   if (!user) {
     return (
       <motion.main
@@ -517,15 +535,13 @@ export default function GamesPage() {
                     className="group relative rounded-2xl bg-zinc-900 shadow-lg overflow-hidden min-h-[350px]"
                     whileHover={{ scale: 1.03 }}
                   >
-                    {/* Hold-to-refresh button */}
-                    <div className="absolute top-2 left-2 z-40">
-                      <HoldToRefreshButton
-                        gameId={game.id}
-                        gameName={game.name}
-                        trackedGames={localProfile!.trackedGames}
-                        size={40} // optional, default 40
-                      />
-                    </div>
+                    <GameActionsDropdown
+                      game={game}
+                      trackedGames={localProfile!.trackedGames}
+                      openEditModal={openEditModal}
+                      openConfirmModal={openConfirmModal}
+                    />
+
                     {/* Entire card clickable */}
                     <Link href={`/game/${game.id}`} prefetch={false}>
                       <div className="relative w-full h-56 cursor-pointer">
@@ -548,22 +564,6 @@ export default function GamesPage() {
                         )}
                       </div>
                     </Link>
-
-                    {/* Edit button */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        openEditModal(game);
-                      }}
-                      className="absolute top-2 right-2 z-30 px-2 py-2 bg-black/40 text-white/80 rounded-full cursor-pointer hover:bg-black/60 hover:scale-110 transition-all duration-300 group"
-                    >
-                      <MdEdit
-                        size={18}
-                        className="group-hover:animate-[wiggle_0.8s_infinite]"
-                      />
-                    </button>
 
                     {/* Game Info clickable */}
                     <Link href={`/game/${game.id}`} prefetch={false}>
@@ -716,6 +716,18 @@ export default function GamesPage() {
           showFavorite={true}
         />
       )}
+      <ConfirmModal
+        open={confirmOpen}
+        title="Confirm Action"
+        message={confirmMessage}
+        onConfirm={async () => {
+          setConfirmOpen(false);
+          await confirmAction();
+        }}
+        onCancel={() => setConfirmOpen(false)}
+        confirmText="Confirm"
+        cancelText="Cancel"
+      />
     </motion.main>
   );
 }
