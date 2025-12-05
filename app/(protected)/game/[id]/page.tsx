@@ -51,7 +51,7 @@ const statuses = [
     color: "bg-green-500",
   },
   {
-    label: "Want to Play",
+    label: "Want To Play",
     icon: <GiMouthWatering size={20} />,
     color: "bg-green-500",
   },

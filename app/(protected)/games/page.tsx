@@ -11,12 +11,9 @@ import { useUser } from "../../context/UserContext";
 import PosterImage from "@/app/components/PosterImages";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
-import HoldToRefreshButton from "@/app/components/HoldToRefreshButton";
 
-import { MdEdit } from "react-icons/md";
 import toast from "react-hot-toast";
 import Image from "next/image";
-import RefreshButton from "@/app/components/HoldToRefreshButton";
 import GameActionsDropdown from "@/app/components/GameActionsDropdown";
 import ConfirmModal from "@/app/components/ConfirmModal";
 
@@ -27,7 +24,7 @@ const STATUSES = [
   "On Hold",
   "Dropped",
   "Not Interested",
-  "Want to Play",
+  "Want To Play",
 ];
 
 const sortOrder = "newest";
@@ -128,11 +125,11 @@ export default function GamesPage() {
       "On Hold": [],
       Dropped: [],
       "Not Interested": [],
-      "Want to Play": [],
+      "Want To Play": [],
     };
 
     allGames.forEach((g) => {
-      const status = g.status && map[g.status] ? g.status : "Want to Play";
+      const status = g.status && map[g.status] ? g.status : "Want To Play";
       map[status].push(g);
       map.All.push(g);
     });
@@ -222,12 +219,12 @@ export default function GamesPage() {
     () => allGames.filter((g) => g.status === "Dropped").length,
     [allGames]
   );
-  const wantCount = useMemo(
-    () => allGames.filter((g) => g.status === "Want to Play").length,
-    [allGames]
-  );
   const notInterstedCount = useMemo(
     () => allGames.filter((g) => g.status === "Not Interested").length,
+    [allGames]
+  );
+  const wantCount = useMemo(
+    () => allGames.filter((g) => g.status === "Want To Play").length,
     [allGames]
   );
 
@@ -263,7 +260,6 @@ export default function GamesPage() {
     setCurrentPage(1);
   }, [debouncedSearch, selectedStatus]);
 
-  //Update Fields
   const openEditModal = (game: TrackedGame) => {
     setEditingGame(game);
     setModalOpen(true);
@@ -433,7 +429,7 @@ export default function GamesPage() {
                   ["Playing", playingCount],
                   ["Dropped", droppedCount],
                   ["Not Intersted", notInterstedCount],
-                  ["Want to Play", wantCount],
+                  ["Want To Play", wantCount],
                 ].map(([label, value]) => (
                   <div
                     key={label?.toString()}
@@ -544,24 +540,11 @@ export default function GamesPage() {
 
                     {/* Entire card clickable */}
                     <Link href={`/game/${game.id}`} prefetch={false}>
-                      <div className="relative w-full h-56 cursor-pointer">
+                      <div className={`relative w-full h-56 cursor-pointer`}>
                         <PosterImage
                           src={game.background_image || "/placeholder-game.jpg"}
                           alt={game.name}
                         />
-
-                        {game.screenshots && game.screenshots.length > 0 && (
-                          <motion.div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex overflow-x-auto p-2 bg-black bg-opacity-50 rounded-2xl">
-                            {game.screenshots.map((img, idx) => (
-                              <img
-                                key={idx}
-                                src={img}
-                                alt={`Screenshot ${idx + 1}`}
-                                className="h-full w-auto object-cover mx-1 rounded-md"
-                              />
-                            ))}
-                          </motion.div>
-                        )}
                       </div>
                     </Link>
 
@@ -571,20 +554,31 @@ export default function GamesPage() {
                         <h3 className="font-bold text-lg truncate">
                           {game.name}
                         </h3>
+
                         <p className="text-sm text-zinc-400">
                           Playtime:
-                          <span className="pl-1">
-                            {game.playtime
-                              ? `
-                              ${Math.floor(game.playtime)}h 
+                          <span className="text-zinc-200">
+                            {game.playtime ? (
+                              `
+                              ${Math.floor(game.playtime)}h
                               ${Math.round((game.playtime % 1) * 60)}m
                               `
-                              : "0h 0m"}
+                            ) : (
+                              <span className="pl-1">0h 0m</span>
+                            )}
                           </span>
                         </p>
                         <p className="text-sm text-yellow-400">
                           Rating: {Math.round(game.rating ?? 0)} / 5
                         </p>
+                        {selectedStatus === "All" && (
+                          <p className="text-sm ">
+                            Status:
+                            <span className="text-cyan-400 pl-1">
+                              {game.status}
+                            </span>
+                          </p>
+                        )}
                       </div>
                     </Link>
                   </motion.div>
