@@ -20,7 +20,6 @@ import {
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
 import { GiMouthWatering } from "react-icons/gi";
-import { MdBookmarkRemove } from "react-icons/md";
 import { TbBucketDroplet } from "react-icons/tb";
 import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { IoBanOutline } from "react-icons/io5";
@@ -28,8 +27,6 @@ import { IoBanOutline } from "react-icons/io5";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import ScreenshotsCarousel from "@/app/components/Screenshots";
-import GameTrackingModal from "@/app/components/GameTrackingModal";
-import ConfirmModal from "@/app/components/ConfirmModal";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 const statuses = [
@@ -69,18 +66,8 @@ export default function GamePage() {
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [loadingGame, setLoadingGame] = useState(false);
-  const [savingTracking, setSavingTracking] = useState(false);
 
   const [aboutOpen, setAboutOpen] = useState(false);
-
-  const [notesModalOpen, setNotesModalOpen] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [rating, setRating] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [playtime, setPlaytime] = useState(0);
-
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const requireLogin = () => {
     if (!user) {
@@ -125,10 +112,6 @@ export default function GamePage() {
       if (tracked) {
         setIsFavorited(Boolean(tracked.favorite));
         setCurrentStatus(tracked.status || null);
-        setNotes(tracked.notes || "");
-        setRating(tracked.rating || 0);
-        setProgress(tracked.progress || 0);
-        setPlaytime(tracked.playtime || 0);
       }
     };
     fetchUserTracked();
@@ -394,7 +377,10 @@ export default function GamePage() {
                   return (
                     <button
                       key={s.label}
-                      onClick={() => handleChangeStatus(s.label)}
+                      onClick={() => {
+                        if (!requireLogin()) return;
+                        handleChangeStatus(s.label);
+                      }}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg text-base border border-white/10 transition cursor-pointer hover:scale-105 ${
                         isSelected ? s.color : "bg-white/10 hover:bg-white/20"
                       }`}
@@ -410,29 +396,6 @@ export default function GamePage() {
                     </button>
                   );
                 })}
-              </div>
-
-              {/* Notes & Delete */}
-              <div className="flex gap-3 mt-2 justify-between">
-                <button
-                  onClick={() => {
-                    if (!requireLogin()) return;
-                    setNotesModalOpen(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500 hover:bg-purple-400 transition font-semibold text-base cursor-pointer hover:scale-105"
-                >
-                  📝 Notes
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (!requireLogin()) return;
-                    setDeleteModalOpen(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 transition font-semibold text-base cursor-pointer hover:scale-105"
-                >
-                  <MdBookmarkRemove size={20} /> Remove
-                </button>
               </div>
 
               {/* About */}
@@ -682,93 +645,6 @@ export default function GamePage() {
           </div>
         </div>
       </motion.main>
-
-      {/* Notes Modal */}
-      <GameTrackingModal
-        open={notesModalOpen}
-        initialNotes={notes || ""}
-        initialRating={rating || 0}
-        initialProgress={progress || 0}
-        initialPlaytime={playtime || 0}
-        initialFavorite={isFavorited}
-        initialStatus={currentStatus || ""}
-        showFavorite={false}
-        showStatus={false}
-        saving={savingTracking}
-        onClose={() => setNotesModalOpen(false)}
-        onSave={async (newNotes, newRating, newProgress, newPlaytime) => {
-          try {
-            setSavingTracking(true);
-
-            const merged = await updateTrackedGame({
-              notes: newNotes,
-              rating: newRating,
-              progress: newProgress,
-              playtime: newPlaytime,
-            });
-
-            setNotes(merged.notes || "");
-            setRating(merged.rating || 0);
-            setProgress(merged.progress || 0);
-            setPlaytime(merged.playtime || 0);
-          } catch (err) {
-            toast.error("Failed to save tracking.");
-          } finally {
-            setSavingTracking(false);
-          }
-        }}
-      />
-
-      {/* Delete Modal */}
-      <ConfirmModal
-        open={deleteModalOpen}
-        title="Delete Game"
-        message={
-          <p>
-            Are you sure you want to remove{" "}
-            <span className="font-semibold">{game?.name}</span> from your game
-            list?
-          </p>
-        }
-        onCancel={() => setDeleteModalOpen(false)}
-        onConfirm={async () => {
-          setDeleting(true);
-          if (!user || !game) return;
-
-          try {
-            const ref = doc(db, "users", user.uid);
-            const snap = await getDoc(ref);
-            const trackedGames = snap.data()?.trackedGames || {};
-            delete trackedGames[String(game.id)];
-            await updateDoc(ref, { trackedGames });
-
-            setCurrentStatus(null);
-            setIsFavorited(false);
-            setNotes("");
-            setRating(0);
-            setProgress(0);
-            setPlaytime(0);
-
-            toast.success(`${game.name} removed from tracked games`);
-            setDeleteModalOpen(false);
-          } catch (err) {
-            console.error(err);
-            toast.error("Failed to remove game.");
-          } finally {
-            setDeleting(false);
-          }
-        }}
-        confirmText={
-          deleting ? (
-            <span className="flex items-center gap-2">
-              <span className="loading loading-spinner loading-sm" /> Deleting
-            </span>
-          ) : (
-            "Delete"
-          )
-        }
-        cancelText="Cancel"
-      />
     </div>
   );
 }

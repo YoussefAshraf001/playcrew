@@ -29,6 +29,15 @@ const STATUSES = [
 
 const sortOrder = "newest";
 
+interface CategoryRatings {
+  graphics: number;
+  gameplay: number;
+  story: number;
+  ost: number;
+  artStyle: number;
+  voiceActing: number;
+}
+
 interface TrackedGame {
   id: number;
   name: string;
@@ -42,6 +51,7 @@ interface TrackedGame {
   progress?: number;
   lastUpdated?: any;
   notes?: string;
+  categoryRatings?: CategoryRatings;
 }
 
 interface UserProfile {
@@ -261,9 +271,22 @@ export default function GamesPage() {
   }, [debouncedSearch, selectedStatus]);
 
   const openEditModal = (game: TrackedGame) => {
-    setEditingGame(game);
+    setEditingGame({
+      ...game,
+      rating: game.rating ?? 0,
+      progress: game.progress ?? 0,
+      playtime: game.playtime ?? 0,
+      notes: game.notes ?? "",
+      categoryRatings: game.categoryRatings ?? {
+        graphics: 0,
+        gameplay: 0,
+        story: 0,
+        ost: 0,
+        artStyle: 0,
+        voiceActing: 0,
+      },
+    });
     setModalOpen(true);
-    console.log("Editing game:", game);
   };
 
   const updateTrackedGame = async (
@@ -275,10 +298,15 @@ export default function GamesPage() {
     const snap = await getDoc(ref);
     const trackedGames = snap.exists() ? snap.data().trackedGames || {} : {};
 
+    // const merged = {
+    //   ...(trackedGames[String(gameId)] || {}),
+    //   ...patch,
+    //   id: gameId,
+    // };
     const merged = {
-      ...(trackedGames[String(gameId)] || {}),
-      ...patch,
       id: gameId,
+      ...trackedGames[String(gameId)],
+      ...patch,
     };
 
     await updateDoc(ref, {
@@ -294,23 +322,33 @@ export default function GamesPage() {
     progress: number,
     playtime: number,
     status: string,
-    favorite: boolean
+    favorite: boolean,
+    categoryRatings: CategoryRatings
   ) => {
-    if (!editingGame || saving) return; // prevent double saves
+    if (!editingGame || saving) return;
 
-    setSaving(true); // start page-level saving
+    setSaving(true);
     try {
+      const safeCategoryRatings = {
+        graphics: categoryRatings.graphics ?? 0,
+        gameplay: categoryRatings.gameplay ?? 0,
+        story: categoryRatings.story ?? 0,
+        ost: categoryRatings.ost ?? 0,
+        artStyle: categoryRatings.artStyle ?? 0,
+        voiceActing: categoryRatings.voiceActing ?? 0,
+      };
+
       const updatedGame = await updateTrackedGame(editingGame.id, {
         rating,
         progress,
         playtime,
-        notes,
         status,
         favorite,
+        notes,
+        categoryRatings: safeCategoryRatings,
         lastUpdated: new Date(),
       });
 
-      // Update local profile to refresh UI
       setLocalProfile((prev) => {
         if (!prev) return prev;
         return {
@@ -324,11 +362,12 @@ export default function GamesPage() {
           },
         };
       });
-      toast.success("Notes Saved!");
+
+      toast.success("Game saved!");
       setModalOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save notes.");
+      toast.error("Failed to save game.");
     } finally {
       setSaving(false);
     }
@@ -569,7 +608,7 @@ export default function GamesPage() {
                           </span>
                         </p>
                         <p className="text-sm text-yellow-400">
-                          Rating: {Math.round(game.rating ?? 0)} / 5
+                          Rating: {Math.round(game.rating ?? 0)} / 10
                         </p>
                         {selectedStatus === "All" && (
                           <p className="text-sm ">
@@ -700,8 +739,10 @@ export default function GamesPage() {
           onClose={() => setModalOpen(false)}
           onSave={handleSaveModal}
           saving={saving}
+          game={editingGame}
           initialNotes={editingGame.notes ?? ""}
           initialRating={editingGame.rating ?? 0}
+          initialCategoryRatings={editingGame.categoryRatings}
           initialProgress={editingGame.progress ?? 0}
           initialPlaytime={editingGame.playtime ?? 0}
           initialStatus={editingGame.status ?? "Playing"}
@@ -710,6 +751,7 @@ export default function GamesPage() {
           showFavorite={true}
         />
       )}
+
       <ConfirmModal
         open={confirmOpen}
         title="Confirm Action"
