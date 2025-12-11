@@ -130,6 +130,7 @@ export default function GamePage() {
       name: game.name,
       background_image: game.background_image,
       my_rating: game.rating,
+      released: game.released,
     };
 
     await updateDoc(ref, {

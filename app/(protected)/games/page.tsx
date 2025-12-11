@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import Image from "next/image";
 import GameActionsDropdown from "@/app/components/GameActionsDropdown";
 import ConfirmModal from "@/app/components/ConfirmModal";
+import { refreshGameData } from "@/app/utils/refreshGame";
 
 const STATUSES = [
   "All",
@@ -52,6 +53,7 @@ interface TrackedGame {
   lastUpdated?: any;
   notes?: string;
   categoryRatings?: CategoryRatings;
+  released: string;
 }
 
 interface UserProfile {
@@ -85,6 +87,7 @@ export default function GamesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<TrackedGame | null>(null);
   const [saving, setSaving] = useState(false);
+  const [selectedGames, setSelectedGames] = useState<Set<number>>(new Set());
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -316,6 +319,54 @@ export default function GamesPage() {
     return merged;
   };
 
+  const toggleSelectGame = (id: number) => {
+    setSelectedGames((prev) => {
+      const updated = new Set(prev);
+      if (updated.has(id)) updated.delete(id);
+      else updated.add(id);
+      return updated;
+    });
+  };
+
+  const selectAllVisible = () => {
+    setSelectedGames(
+      new Set([...selectedGames, ...visibleGames.map((g) => g.id)])
+    );
+  };
+
+  const clearSelection = () => setSelectedGames(new Set());
+
+  const bulkRefresh = async () => {
+    if (!user) return;
+
+    const total = selectedGames.size;
+    if (total === 0) {
+      toast.error("No games selected");
+      return;
+    }
+
+    let completed = 0;
+    const toastId = toast.loading(`Refreshing games... 0/${total}`);
+
+    for (const id of selectedGames) {
+      const game = localProfile!.trackedGames[String(id)];
+      if (!game) continue;
+
+      await refreshGameData(user.uid, game);
+      completed++;
+
+      // Update the toast with live progress
+      toast.loading(`Refreshing games... ${completed}/${total}`, {
+        id: toastId,
+      });
+    }
+
+    // Final toast when done
+    toast.success(`All ${total} games refreshed!`, { id: toastId });
+
+    setSelectedGames(new Set());
+  };
+
   const handleSaveModal = async (
     notes: string,
     rating: number,
@@ -502,6 +553,29 @@ export default function GamesPage() {
 
           {/* Main Content */}
           <div className="flex-1 px-6 lg:px-0">
+            {/* <div className="flex justify-evenly gap-4 mb-6">
+              <div
+                onClick={bulkRefresh}
+                className="flex items-center  justify-center bg-zinc-900 rounded-2xl shadow-lg"
+              >
+                <button className="px-4 py-2 rounded-full font-semibold  text-white transition mr-2" />
+                Refresh Selected ({selectedGames.size})
+              </div>
+              <div
+                onClick={clearSelection}
+                className="flex items-center  justify-center bg-zinc-900 rounded-2xl shadow-lg"
+              >
+                <button className="px-4 py-2 rounded-full font-semibold  text-white transition mr-2" />
+                Clear Selected
+              </div>
+              <div
+                onClick={selectAllVisible}
+                className="flex items-center  justify-center bg-zinc-900 rounded-2xl shadow-lg"
+              >
+                <button className="px-4 py-2 rounded-full font-semibold  text-white transition mr-2" />
+                Select All ({selectedGames.size})
+              </div>
+            </div> */}
             {/* Tabs */}
             <div className="flex flex-wrap justify-center gap-3 mb-5">
               {STATUSES.map((status) => (
@@ -570,6 +644,16 @@ export default function GamesPage() {
                     className="group relative rounded-2xl bg-zinc-900 shadow-lg overflow-hidden min-h-[350px]"
                     whileHover={{ scale: 1.03 }}
                   >
+                    {/* Checkbox for bulk selection */}
+                    <div className="absolute top-2 left-2 z-20">
+                      <input
+                        type="checkbox"
+                        checked={selectedGames.has(game.id)}
+                        onChange={() => toggleSelectGame(game.id)}
+                        className="w-5 h-5 accent-cyan-500"
+                      />
+                    </div>
+
                     <GameActionsDropdown
                       game={game}
                       trackedGames={localProfile!.trackedGames}
@@ -589,36 +673,49 @@ export default function GamesPage() {
 
                     {/* Game Info clickable */}
                     <Link href={`/game/${game.id}`} prefetch={false}>
-                      <div className="p-4 flex flex-col gap-1 text-white cursor-pointer">
-                        <h3 className="font-bold text-lg truncate">
-                          {game.name}
-                        </h3>
+                      <div className="p-4 flex flex-row justify-between text-white cursor-pointer gap-4">
+                        {/* LEFT SIDE */}
+                        <div className="flex flex-col gap-2 flex-1">
+                          <h3 className="font-bold text-lg truncate max-w-[300px]">
+                            {game.name}
+                          </h3>
 
-                        <p className="text-sm text-zinc-400">
-                          Playtime:
-                          <span className="text-zinc-200">
-                            {game.playtime ? (
-                              `
-                              ${Math.floor(game.playtime)}h
-                              ${Math.round((game.playtime % 1) * 60)}m
-                              `
-                            ) : (
-                              <span className="pl-1">0h 0m</span>
-                            )}
-                          </span>
-                        </p>
-                        <p className="text-sm text-yellow-400">
-                          Rating: {Math.round(game.rating ?? 0)} / 10
-                        </p>
-                        {selectedStatus === "All" && (
-                          <p className="text-sm ">
-                            Status:
-                            <span className="text-cyan-400 pl-1">
-                              {game.status}
+                          <p className="text-sm text-zinc-400">
+                            Playtime:
+                            <span className="text-zinc-200 pl-1">
+                              {game.playtime
+                                ? `${Math.floor(game.playtime)}h ${Math.round(
+                                    (game.playtime % 1) * 60
+                                  )}m`
+                                : "0h 0m"}
                             </span>
                           </p>
-                        )}
+
+                          <p className="text-sm text-yellow-400">
+                            Rating: {Math.round(game.rating ?? 0)} / 10
+                          </p>
+
+                          {selectedStatus === "All" && (
+                            <p className="text-sm">
+                              Status:
+                              <span className="text-cyan-400 pl-1">
+                                {game.status}
+                              </span>
+                            </p>
+                          )}
+
+                          <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
+                            {game.released}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* <div className="flex justify-center items-center pb-3">
+                        <BigProgressWheel
+                          value={game.progress ?? 0}
+                          size={70}
+                        />
+                      </div> */}
                     </Link>
                   </motion.div>
                 ))

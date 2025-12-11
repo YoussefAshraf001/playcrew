@@ -4,9 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { MdMoreVert, MdEdit, MdDelete, MdRefresh } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../context/UserContext";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import toast from "react-hot-toast";
+import { refreshGameData } from "../utils/refreshGame";
 
 interface GameActionsDropdownProps {
   game: any;
@@ -56,77 +57,7 @@ export default function GameActionsDropdown({
     const toastId = toast.loading(`Refreshing ${game.name}...`);
 
     try {
-      // 1. ---- RAWG Search ----
-      const searchRes = await fetch(
-        `https://api.rawg.io/api/games?search=${encodeURIComponent(
-          game.name
-        )}&key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-      );
-      if (!searchRes.ok) throw new Error("RAWG search failed");
-
-      const searchData = await searchRes.json();
-      const first = searchData.results?.[0];
-      if (!first) throw new Error("Game not found on RAWG");
-
-      // 2. ---- RAWG Full Game Data ----
-      const rawgRes = await fetch(
-        `https://api.rawg.io/api/games/${first.slug}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-      );
-      if (!rawgRes.ok) throw new Error("RAWG fetch failed");
-
-      const rawg = await rawgRes.json();
-
-      // 3. ---- Load existing user game fields ----
-      const ref = doc(db, "users", user.uid);
-      const snap = await getDoc(ref);
-      const currentGames = snap.exists() ? snap.data().trackedGames || {} : {};
-      const existing = currentGames[String(game.id)] || {};
-
-      // USER fields you want to preserve:
-      const preservedUserFields = {
-        playtime: existing.playtime || 0,
-        progress: existing.progress || 0,
-        my_rating: existing.my_rating || 0,
-        favorite: existing.favorite || false,
-        status: existing.status || "",
-        notes: existing.notes || "",
-        categoryRatings: existing.categoryRatings || {
-          graphics: 0,
-          gameplay: 0,
-          story: 0,
-          fun: 0,
-        },
-      };
-
-      // 4. ---- RAWG fields you want to refresh ----
-      const rawgFields = {
-        name: rawg.name,
-        slug: rawg.slug,
-        released: rawg.released,
-        background_image: rawg.background_image || "/placeholder-game.jpg",
-        background_image_additional: rawg.background_image_additional || null,
-        metacritic: rawg.metacritic,
-        genres: rawg.genres,
-        platforms: rawg.platforms,
-        publishers: rawg.publishers,
-      };
-
-      // 5. ---- Merge RAWG + User Fields ----
-      const merged = {
-        ...existing,
-        ...rawgFields,
-        ...preservedUserFields,
-        id: game.id,
-      };
-
-      // 6. ---- Save to Firebase ----
-      await updateDoc(ref, {
-        trackedGames: {
-          ...currentGames,
-          [String(game.id)]: merged,
-        },
-      });
-
+      await refreshGameData(user.uid, game);
       toast.success(`${game.name} updated!`, { id: toastId });
     } catch (err) {
       console.error(err);
@@ -236,24 +167,6 @@ export default function GameActionsDropdown({
 //     return () => document.removeEventListener("mousedown", handleClickOutside);
 //   }, []);
 
-//   const updateTrackedGame = async (patch: Partial<any>) => {
-//     if (!user) return;
-//     const ref = doc(db, "users", user.uid);
-//     const snap = await getDoc(ref);
-//     const currentGames = snap.exists() ? snap.data().trackedGames || {} : {};
-
-//     const merged = {
-//       ...(currentGames[String(game.id)] || {}),
-//       ...patch,
-//       id: game.id,
-//     };
-
-//     await updateDoc(ref, {
-//       trackedGames: { ...currentGames, [String(game.id)]: merged },
-//     });
-//     return merged;
-//   };
-
 //   const removeGame = async () => {
 //     if (!user) return;
 //     const ref = doc(db, "users", user.uid);
@@ -264,38 +177,86 @@ export default function GameActionsDropdown({
 //   };
 
 //   const refreshGame = async () => {
-//     if (!game.background_image || game.background_image === "") {
-//       const toastId = toast.loading(`Refreshing ${game.name}...`);
-//       try {
-//         const searchRes = await fetch(
-//           `https://api.rawg.io/api/games?search=${encodeURIComponent(
-//             game.name
-//           )}&key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-//         );
-//         if (!searchRes.ok) throw new Error("RAWG search failed");
+//     if (!user) return;
 
-//         const searchData = await searchRes.json();
-//         const firstResult = searchData.results?.[0];
-//         if (!firstResult) throw new Error("Game not found on RAWG");
+//     const toastId = toast.loading(`Refreshing ${game.name}...`);
 
-//         const res = await fetch(
-//           `https://api.rawg.io/api/games/${firstResult.slug}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-//         );
-//         if (!res.ok) throw new Error("RAWG fetch failed");
+//     try {
+//       // 1. ---- RAWG Search ----
+//       const searchRes = await fetch(
+//         `https://api.rawg.io/api/games?search=${encodeURIComponent(
+//           game.name
+//         )}&key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
+//       );
+//       if (!searchRes.ok) throw new Error("RAWG search failed");
 
-//         const rawgData = await res.json();
-//         await updateTrackedGame({
-//           background_image:
-//             rawgData.background_image || "/placeholder-game.jpg",
-//         });
+//       const searchData = await searchRes.json();
+//       const first = searchData.results?.[0];
+//       if (!first) throw new Error("Game not found on RAWG");
 
-//         toast.success(`${game.name} image refreshed!`, { id: toastId });
-//       } catch (err) {
-//         console.error(err);
-//         toast.error(`Failed to refresh ${game.name}`, { id: toastId });
-//       }
-//     } else {
-//       toast.success(`${game.name} already has an image`);
+//       // 2. ---- RAWG Full Game Data ----
+//       const rawgRes = await fetch(
+//         `https://api.rawg.io/api/games/${first.slug}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
+//       );
+//       if (!rawgRes.ok) throw new Error("RAWG fetch failed");
+
+//       const rawg = await rawgRes.json();
+
+//       // 3. ---- Load existing user game fields ----
+//       const ref = doc(db, "users", user.uid);
+//       const snap = await getDoc(ref);
+//       const currentGames = snap.exists() ? snap.data().trackedGames || {} : {};
+//       const existing = currentGames[String(game.id)] || {};
+
+//       // USER fields you want to preserve:
+//       const preservedUserFields = {
+//         playtime: existing.playtime || 0,
+//         progress: existing.progress || 0,
+//         my_rating: existing.my_rating || 0,
+//         favorite: existing.favorite || false,
+//         status: existing.status || "",
+//         notes: existing.notes || "",
+//         categoryRatings: existing.categoryRatings || {
+//           graphics: 0,
+//           gameplay: 0,
+//           story: 0,
+//           fun: 0,
+//         },
+//       };
+
+//       // 4. ---- RAWG fields you want to refresh ----
+//       const rawgFields = {
+//         name: rawg.name,
+//         slug: rawg.slug,
+//         released: rawg.released || "TBA",
+//         background_image: rawg.background_image || "/placeholder-game.jpg",
+//         background_image_additional: rawg.background_image_additional || null,
+//         metacritic: rawg.metacritic,
+//         genres: rawg.genres,
+//         platforms: rawg.platforms,
+//         publishers: rawg.publishers,
+//       };
+
+//       // 5. ---- Merge RAWG + User Fields ----
+//       const merged = {
+//         ...existing,
+//         ...rawgFields,
+//         ...preservedUserFields,
+//         id: game.id,
+//       };
+
+//       // 6. ---- Save to Firebase ----
+//       await updateDoc(ref, {
+//         trackedGames: {
+//           ...currentGames,
+//           [String(game.id)]: merged,
+//         },
+//       });
+
+//       toast.success(`${game.name} updated!`, { id: toastId });
+//     } catch (err) {
+//       console.error(err);
+//       toast.error(`Failed to refresh ${game.name}`, { id: toastId });
 //     }
 //   };
 
