@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
@@ -16,7 +16,6 @@ import toast from "react-hot-toast";
 import Image from "next/image";
 import GameActionsDropdown from "@/app/components/GameActionsDropdown";
 import ConfirmModal from "@/app/components/ConfirmModal";
-import { refreshGameData } from "@/app/utils/refreshGame";
 
 const STATUSES = [
   "All",
@@ -73,6 +72,9 @@ export default function GamesPage() {
   const { profile: userProfile, loading: userLoading, user } = useUser();
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("Playing");
+  const [releaseFilter, setReleaseFilter] = useState<
+    "All" | "Released" | "Unreleased"
+  >("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
@@ -87,7 +89,6 @@ export default function GamesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<TrackedGame | null>(null);
   const [saving, setSaving] = useState(false);
-  const [selectedGames, setSelectedGames] = useState<Set<number>>(new Set());
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -170,7 +171,22 @@ export default function GamesPage() {
       );
     }
 
-    // Safe sorting
+    // Filter by release
+    if (releaseFilter !== "All") {
+      const now = new Date();
+      games = games.filter((g) => {
+        if (!g.released) return false;
+
+        if (releaseFilter === "Released") {
+          const releasedDate = new Date(g.released);
+          return releasedDate <= now;
+        }
+
+        // Unreleased includes future dates or TBA
+        return g.released === "TBA" || new Date(g.released) > now;
+      });
+    }
+
     games.sort((a, b) => {
       const aTime = a.lastUpdated?.toMillis?.() ?? 0;
       const bTime = b.lastUpdated?.toMillis?.() ?? 0;
@@ -178,7 +194,7 @@ export default function GamesPage() {
     });
 
     return games;
-  }, [gamesByStatus, selectedStatus, debouncedSearch]);
+  }, [gamesByStatus, selectedStatus, debouncedSearch, releaseFilter]);
 
   //Games Pages
   const validGames = filteredGames.filter((g) => g.name);
@@ -271,7 +287,7 @@ export default function GamesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, selectedStatus]);
+  }, [debouncedSearch, selectedStatus, releaseFilter]);
 
   const openEditModal = (game: TrackedGame) => {
     setEditingGame({
@@ -301,11 +317,6 @@ export default function GamesPage() {
     const snap = await getDoc(ref);
     const trackedGames = snap.exists() ? snap.data().trackedGames || {} : {};
 
-    // const merged = {
-    //   ...(trackedGames[String(gameId)] || {}),
-    //   ...patch,
-    //   id: gameId,
-    // };
     const merged = {
       id: gameId,
       ...trackedGames[String(gameId)],
@@ -317,54 +328,6 @@ export default function GamesPage() {
     });
 
     return merged;
-  };
-
-  const toggleSelectGame = (id: number) => {
-    setSelectedGames((prev) => {
-      const updated = new Set(prev);
-      if (updated.has(id)) updated.delete(id);
-      else updated.add(id);
-      return updated;
-    });
-  };
-
-  const selectAllVisible = () => {
-    setSelectedGames(
-      new Set([...selectedGames, ...visibleGames.map((g) => g.id)])
-    );
-  };
-
-  const clearSelection = () => setSelectedGames(new Set());
-
-  const bulkRefresh = async () => {
-    if (!user) return;
-
-    const total = selectedGames.size;
-    if (total === 0) {
-      toast.error("No games selected");
-      return;
-    }
-
-    let completed = 0;
-    const toastId = toast.loading(`Refreshing games... 0/${total}`);
-
-    for (const id of selectedGames) {
-      const game = localProfile!.trackedGames[String(id)];
-      if (!game) continue;
-
-      await refreshGameData(user.uid, game);
-      completed++;
-
-      // Update the toast with live progress
-      toast.loading(`Refreshing games... ${completed}/${total}`, {
-        id: toastId,
-      });
-    }
-
-    // Final toast when done
-    toast.success(`All ${total} games refreshed!`, { id: toastId });
-
-    setSelectedGames(new Set());
   };
 
   const handleSaveModal = async (
@@ -479,7 +442,7 @@ export default function GamesPage() {
       ) : (
         <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
           {/* Left Panel (Stats) */}
-          <div className="w-full lg:w-81 flex flex-col p-4 max-h-[90vh]">
+          <div className="w-full lg:w-81 flex-shrink-0 flex flex-col p-4">
             <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
               {/* Avatar */}
               <Link href={`/profile/${userProfile!.username}`}>
@@ -552,46 +515,67 @@ export default function GamesPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 px-6 lg:px-0">
-            {/* <div className="flex justify-evenly gap-4 mb-6">
-              <div
-                onClick={bulkRefresh}
-                className="flex items-center  justify-center bg-zinc-900 rounded-2xl shadow-lg"
-              >
-                <button className="px-4 py-2 rounded-full font-semibold  text-white transition mr-2" />
-                Refresh Selected ({selectedGames.size})
-              </div>
-              <div
-                onClick={clearSelection}
-                className="flex items-center  justify-center bg-zinc-900 rounded-2xl shadow-lg"
-              >
-                <button className="px-4 py-2 rounded-full font-semibold  text-white transition mr-2" />
-                Clear Selected
-              </div>
-              <div
-                onClick={selectAllVisible}
-                className="flex items-center  justify-center bg-zinc-900 rounded-2xl shadow-lg"
-              >
-                <button className="px-4 py-2 rounded-full font-semibold  text-white transition mr-2" />
-                Select All ({selectedGames.size})
-              </div>
-            </div> */}
+          <div className="flex-1 relative px-6 lg:px-0">
             {/* Tabs */}
-            <div className="flex flex-wrap justify-center gap-3 mb-5">
+            <motion.div
+              className="flex flex-wrap gap-3 mb-5 items-center relative"
+              initial={false}
+              animate={{
+                // Shift left by filter width when Want To Play is selected
+                marginLeft: selectedStatus === "Want To Play" ? "0px" : "120px", // adjust 120px based on filter width
+              }}
+              transition={{ type: "spring", stiffness: 200, damping: 30 }}
+            >
               {STATUSES.map((status) => (
-                <button
-                  key={status}
-                  className={`px-4 py-2 rounded-full font-semibold transition ${
-                    selectedStatus === status
-                      ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                      : "bg-zinc-800 text-white hover:bg-zinc-700"
-                  }`}
-                  onClick={() => handleTabChange(status)}
-                >
-                  {status}
-                </button>
+                <div key={status} className="relative flex items-center gap-2">
+                  <button
+                    className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
+                      selectedStatus === status
+                        ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
+                        : "bg-zinc-800 text-white hover:bg-zinc-700"
+                    }`}
+                    onClick={() => {
+                      handleTabChange(status);
+                      if (status !== "Want To Play") setReleaseFilter("All");
+                    }}
+                    disabled={selectedStatus === status}
+                  >
+                    {status}
+                  </button>
+
+                  {/* Sub-filters */}
+                  <AnimatePresence>
+                    {status === "Want To Play" &&
+                      selectedStatus === "Want To Play" && (
+                        <motion.div
+                          key="release-filter"
+                          className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
+                         lg:bg-zinc-900 lg:rounded-xl lg:p-1 lg:shadow-lg
+                         relative lg:absolute lg:left-full lg:ml-2"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          {["All", "Released", "Unreleased"].map((filter) => (
+                            <button
+                              key={filter}
+                              className={`px-3 py-1 rounded-full text-sm font-semibold transition whitespace-nowrap ${
+                                releaseFilter === filter
+                                  ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
+                                  : "bg-zinc-800 text-white hover:bg-zinc-700"
+                              }`}
+                              onClick={() => setReleaseFilter(filter as any)}
+                            >
+                              {filter}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                  </AnimatePresence>
+                </div>
               ))}
-            </div>
+            </motion.div>
 
             {/* Pagination and Search */}
             <div className="flex justify-between my-8 gap-4 items-center">
@@ -644,16 +628,6 @@ export default function GamesPage() {
                     className="group relative rounded-2xl bg-zinc-900 shadow-lg overflow-hidden min-h-[350px]"
                     whileHover={{ scale: 1.03 }}
                   >
-                    {/* Checkbox for bulk selection */}
-                    {/* <div className="absolute top-2 left-2 z-20">
-                      <input
-                        type="checkbox"
-                        checked={selectedGames.has(game.id)}
-                        onChange={() => toggleSelectGame(game.id)}
-                        className="w-5 h-5 accent-cyan-500"
-                      />
-                    </div> */}
-
                     <GameActionsDropdown
                       game={game}
                       trackedGames={localProfile!.trackedGames}
@@ -724,7 +698,7 @@ export default function GamesPage() {
           </div>
 
           {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="w-full lg:w-80 shrink-0 mt-6 lg:mt-0 flex flex-col gap-6">
+          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
             {/* Favorites */}
             <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
               <h3 className="font-bold text-xl mb-4 text-white/90">
