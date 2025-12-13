@@ -43,7 +43,6 @@ export default function Navbar() {
     { href: "/dashboard", icon: FaHome, label: "Dashboard" },
     { href: "/explore", icon: MdExplore, label: "Explore" },
     { href: "/games", icon: FaGamepad, label: "My Games" },
-    { href: "/screenshots", icon: FaRegImages, label: "Screenshots" },
     {
       href: null,
       icon: FaSearch,
@@ -143,14 +142,14 @@ export default function Navbar() {
                 {href ? (
                   <Link
                     href={href}
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10"
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer"
                   >
                     <Icon className="text-xl" />
                   </Link>
                 ) : (
                   <button
                     onClick={onClick}
-                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10"
+                    className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer"
                   >
                     <Icon className="text-xl" />
                   </button>

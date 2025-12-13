@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import GenreRow from "@/app/components/GenreRow";
 import { motion } from "framer-motion";
 import HeroSection from "@/app/components/HeroSection";
+import { Helmet } from "react-helmet-async";
 
 const API_KEY = process.env.NEXT_PUBLIC_RAWG_API_KEY;
 
@@ -101,24 +102,29 @@ export default function ExplorePage() {
   }
 
   return (
-    <motion.main
-      className="min-h-screen bg-black text-white overflow-hidden"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.6, ease: "easeInOut" }}
-    >
-      {/* Content */}
-      <div className="flex w-full gap-8 max-w-screen overflow-hidden pt-14">
-        <div className="flex-1 min-w-0 overflow-y-auto space-y-16 pb-20">
-          {/* Hero Section */}
-          {trending.length > 0 && <HeroSection trending={trending} />}
+    <>
+      <Helmet>
+        <title>PlayCrew</title>
+      </Helmet>
+      <motion.main
+        className="min-h-screen bg-black text-white overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeInOut" }}
+      >
+        {/* Content */}
+        <div className="flex w-full gap-8 max-w-screen overflow-hidden pt-14">
+          <div className="flex-1 min-w-0 overflow-y-auto space-y-16 pb-20">
+            {/* Hero Section */}
+            {trending.length > 0 && <HeroSection trending={trending} />}
 
-          {/* Genre Rows */}
-          {Object.entries(sections).map(([genre, games]) => (
-            <GenreRow key={genre} title={genre} games={games} />
-          ))}
+            {/* Genre Rows */}
+            {Object.entries(sections).map(([genre, games]) => (
+              <GenreRow key={genre} title={genre} games={games} />
+            ))}
+          </div>
         </div>
-      </div>
-    </motion.main>
+      </motion.main>
+    </>
   );
 }

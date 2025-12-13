@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import Image from "next/image";
 import GameActionsDropdown from "@/app/components/GameActionsDropdown";
 import ConfirmModal from "@/app/components/ConfirmModal";
+import { Helmet } from "react-helmet-async";
 
 const STATUSES = [
   "All",
@@ -74,7 +75,7 @@ export default function GamesPage() {
   const [selectedStatus, setSelectedStatus] = useState("Playing");
   const [releaseFilter, setReleaseFilter] = useState<
     "All" | "Released" | "Unreleased"
-  >("All");
+  >("Released");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
@@ -431,351 +432,314 @@ export default function GamesPage() {
   }
 
   return (
-    <motion.main
-      className={`min-h-screen bg-black text-white`}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.6, ease: "easeInOut" }}
-    >
-      {loading || userLoading ? (
-        <LoadingSpinner />
-      ) : (
-        <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
-          {/* Left Panel (Stats) */}
-          <div className="w-full lg:w-81 shrink-0 flex flex-col p-4">
-            <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
-              {/* Avatar */}
-              <Link href={`/profile/${userProfile!.username}`}>
-                {localProfile?.avatarBase64 || localProfile?.avatarUrl ? (
-                  <img
-                    src={localProfile.avatarBase64 ?? localProfile.avatarUrl}
-                    alt={localProfile?.username ?? "User"}
-                    className="w-36 h-36 rounded-full object-cover shadow-lg"
+    <>
+      <Helmet>
+        <title>PlayCrew</title>
+      </Helmet>
+
+      <motion.main
+        className={`min-h-screen bg-black text-white`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, ease: "easeInOut" }}
+      >
+        {loading || userLoading ? (
+          <LoadingSpinner />
+        ) : (
+          <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
+            {/* Left Panel (Stats) */}
+            <div className="w-full lg:w-81 shrink-0 flex flex-col p-4">
+              <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
+                {/* Avatar */}
+                <Link href={`/profile/${userProfile!.username}`}>
+                  {localProfile?.avatarBase64 || localProfile?.avatarUrl ? (
+                    <img
+                      src={localProfile.avatarBase64 ?? localProfile.avatarUrl}
+                      alt={localProfile?.username ?? "User"}
+                      className="w-36 h-36 rounded-full object-cover shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-36 h-36 rounded-full bg-zinc-700 flex items-center justify-center text-5xl text-zinc-400 border-4 border-cyan-400 shadow-lg">
+                      {localProfile?.username?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </Link>
+
+                {/* Username / Email */}
+                <div className="text-center mt-4">
+                  <h3 className="font-extrabold text-3xl text-white">
+                    {localProfile?.username}
+                  </h3>
+                  <p className="cursor-default text-sm text-zinc-300 mt-1 blur-sm hover:blur-none transition">
+                    {localProfile?.email}
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <hr className="my-6 w-full border-zinc-700" />
+
+                {/* Stats */}
+                <div className="w-full flex flex-col gap-4 text-sm text-zinc-300 overflow-y-auto px-2">
+                  {[
+                    ["Member Since", formattedDate],
+                    ["Total Games", allGames.length],
+                    ["Completed", completedCount],
+                    ["On Hold", onHoldCount],
+                    ["Playing", playingCount],
+                    ["Dropped", droppedCount],
+                    ["Not Intersted", notInterstedCount],
+                    ["Want To Play", wantCount],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label?.toString()}
+                      className="flex justify-between w-full px-2 py-1 rounded-lg hover:bg-white/10 transition-colors duration-200"
+                    >
+                      <span className="font-medium">{label}</span>
+                      <span className="font-semibold text-white">{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <hr className="my-6 w-full border-zinc-700" />
+
+                {/* Level / Badge */}
+                <div className="flex flex-col items-center gap-3">
+                  <h3 className="flex flex-col font-extrabold text-2xl text-center text-white">
+                    領域展開
+                    <span>(Ryōiki Tenkai)</span>
+                  </h3>
+                  <Image
+                    src="/maxLevelSign.png"
+                    alt="Max Level"
+                    width={80}
+                    height={80}
+                    className=""
                   />
-                ) : (
-                  <div className="w-36 h-36 rounded-full bg-zinc-700 flex items-center justify-center text-5xl text-zinc-400 border-4 border-cyan-400 shadow-lg">
-                    {localProfile?.username?.[0]?.toUpperCase()}
-                  </div>
-                )}
-              </Link>
-
-              {/* Username / Email */}
-              <div className="text-center mt-4">
-                <h3 className="font-extrabold text-3xl text-white">
-                  {localProfile?.username}
-                </h3>
-                <p className="cursor-default text-sm text-zinc-300 mt-1 blur-sm hover:blur-none transition">
-                  {localProfile?.email}
-                </p>
-              </div>
-
-              {/* Divider */}
-              <hr className="my-6 w-full border-zinc-700" />
-
-              {/* Stats */}
-              <div className="w-full flex flex-col gap-4 text-sm text-zinc-300 overflow-y-auto px-2">
-                {[
-                  ["Member Since", formattedDate],
-                  ["Total Games", allGames.length],
-                  ["Completed", completedCount],
-                  ["On Hold", onHoldCount],
-                  ["Playing", playingCount],
-                  ["Dropped", droppedCount],
-                  ["Not Intersted", notInterstedCount],
-                  ["Want To Play", wantCount],
-                ].map(([label, value]) => (
-                  <div
-                    key={label?.toString()}
-                    className="flex justify-between w-full px-2 py-1 rounded-lg hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <span className="font-medium">{label}</span>
-                    <span className="font-semibold text-white">{value}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Divider */}
-              <hr className="my-6 w-full border-zinc-700" />
-
-              {/* Level / Badge */}
-              <div className="flex flex-col items-center gap-3">
-                <h3 className="flex flex-col font-extrabold text-2xl text-center text-white">
-                  領域展開
-                  <span>(Ryōiki Tenkai)</span>
-                </h3>
-                <Image
-                  src="/maxLevelSign.png"
-                  alt="Max Level"
-                  width={80}
-                  height={80}
-                  className=""
-                />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Main Content */}
-          <div className="flex-1 relative px-6 lg:px-0">
-            {/* Tabs */}
-            <motion.div
-              className="flex flex-wrap gap-3 mb-5 items-center relative"
-              initial={false}
-              animate={{
-                // Shift left by filter width when Want To Play is selected
-                marginLeft: selectedStatus === "Want To Play" ? "0px" : "120px", // adjust 120px based on filter width
-              }}
-              transition={{ type: "spring", stiffness: 200, damping: 30 }}
-            >
-              {STATUSES.map((status) => (
-                <div key={status} className="relative flex items-center gap-2">
-                  <button
-                    className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
-                      selectedStatus === status
-                        ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                        : "bg-zinc-800 text-white hover:bg-zinc-700"
-                    }`}
-                    onClick={() => {
-                      handleTabChange(status);
-                      if (status !== "Want To Play") setReleaseFilter("All");
-                    }}
-                    disabled={selectedStatus === status}
+            {/* Main Content */}
+            <div className="flex-1 relative px-6 lg:px-0">
+              {/* Tabs */}
+              <motion.div
+                className="flex flex-wrap gap-3 mb-5 items-center relative"
+                initial={false}
+                animate={{
+                  // Shift left by filter width when Want To Play is selected
+                  marginLeft:
+                    selectedStatus === "Want To Play" ? "0px" : "120px", // adjust 120px based on filter width
+                }}
+                transition={{ type: "spring", stiffness: 200, damping: 30 }}
+              >
+                {STATUSES.map((status) => (
+                  <div
+                    key={status}
+                    className="relative flex items-center gap-2"
                   >
-                    {status}
-                  </button>
+                    <button
+                      className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
+                        selectedStatus === status
+                          ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
+                          : "bg-zinc-800 text-white hover:bg-zinc-700"
+                      }`}
+                      onClick={() => {
+                        handleTabChange(status);
+                        if (status !== "Want To Play") setReleaseFilter("All");
+                      }}
+                      disabled={selectedStatus === status}
+                    >
+                      {status}
+                    </button>
 
-                  {/* Sub-filters */}
-                  <AnimatePresence>
-                    {status === "Want To Play" &&
-                      selectedStatus === "Want To Play" && (
-                        <motion.div
-                          key="release-filter"
-                          className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
+                    {/* Sub-filters */}
+                    <AnimatePresence>
+                      {status === "Want To Play" &&
+                        selectedStatus === "Want To Play" && (
+                          <motion.div
+                            key="release-filter"
+                            className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
                          lg:bg-zinc-900 lg:rounded-xl lg:p-1 lg:shadow-lg
                          relative lg:absolute lg:left-full lg:ml-2"
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -10 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          {["All", "Released", "Unreleased"].map((filter) => (
-                            <button
-                              key={filter}
-                              className={`px-3 py-1 rounded-full text-sm font-semibold transition whitespace-nowrap ${
-                                releaseFilter === filter
-                                  ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                                  : "bg-zinc-800 text-white hover:bg-zinc-700"
-                              }`}
-                              onClick={() => setReleaseFilter(filter as any)}
-                            >
-                              {filter}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                  </AnimatePresence>
-                </div>
-              ))}
-            </motion.div>
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {["All", "Released", "Unreleased"].map((filter) => (
+                              <button
+                                key={filter}
+                                className={`px-3 py-1 rounded-full text-sm font-semibold transition whitespace-nowrap ${
+                                  releaseFilter === filter
+                                    ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
+                                    : "bg-zinc-800 text-white hover:bg-zinc-700"
+                                }`}
+                                onClick={() => setReleaseFilter(filter as any)}
+                              >
+                                {filter}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                    </AnimatePresence>
+                  </div>
+                ))}
+              </motion.div>
 
-            {/* Pagination and Search */}
-            <div className="flex justify-between my-8 gap-4 items-center">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((prev) => prev - 1)}
-                className={`cursor-pointer px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
-                  currentPage === 1
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-zinc-700"
-                }`}
-              >
-                Prev
-              </button>
+              {/* Pagination and Search */}
+              <div className="flex justify-between my-8 gap-4 items-center">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => prev - 1)}
+                  className={`cursor-pointer px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
+                    currentPage === 1
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-zinc-700"
+                  }`}
+                >
+                  Prev
+                </button>
 
-              <input
-                type="text"
-                placeholder={`Search for a game in ${selectedStatus}`}
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="px-4 py-2 rounded-full bg-zinc-800 text-white w-1/2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              />
+                <input
+                  type="text"
+                  placeholder={`Search for a game in ${selectedStatus}`}
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="px-4 py-2 rounded-full bg-zinc-800 text-white w-1/2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
 
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((prev) => prev + 1)}
-                className={`cursor-pointer px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
-                  currentPage === totalPages
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-zinc-700"
-                }`}
-              >
-                Next
-              </button>
-            </div>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((prev) => prev + 1)}
+                  className={`cursor-pointer px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
+                    currentPage === totalPages
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-zinc-700"
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
 
-            {/* Game Grid */}
-            <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gamesLoading && filteredGames.length > 0 ? (
-                renderSkeletons(Math.min(PAGE_SIZE, filteredGames.length))
-              ) : visibleGames.length === 0 ? (
-                <p className="text-center text-zinc-400 col-span-full mt-10">
-                  No games found.
-                </p>
-              ) : (
-                visibleGames.map((game, idx) => (
-                  <motion.div
-                    key={game.id}
-                    ref={idx === visibleGames.length - 1 ? lastCardRef : null}
-                    className="group relative rounded-2xl bg-zinc-900 shadow-lg overflow-hidden min-h-[350px]"
-                    whileHover={{ scale: 1.03 }}
-                  >
-                    <GameActionsDropdown
-                      game={game}
-                      trackedGames={localProfile!.trackedGames}
-                      openEditModal={openEditModal}
-                      openConfirmModal={openConfirmModal}
-                    />
+              {/* Game Grid */}
+              <motion.div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {gamesLoading && filteredGames.length > 0 ? (
+                  renderSkeletons(Math.min(PAGE_SIZE, filteredGames.length))
+                ) : visibleGames.length === 0 ? (
+                  <p className="text-center text-zinc-400 col-span-full mt-10">
+                    No games found.
+                  </p>
+                ) : (
+                  visibleGames.map((game, idx) => (
+                    <motion.div
+                      key={game.id}
+                      ref={idx === visibleGames.length - 1 ? lastCardRef : null}
+                      className="group relative rounded-2xl bg-zinc-900 shadow-lg overflow-hidden min-h-[350px]"
+                      whileHover={{ scale: 1.03 }}
+                    >
+                      <GameActionsDropdown
+                        game={game}
+                        trackedGames={localProfile!.trackedGames}
+                        openEditModal={openEditModal}
+                        openConfirmModal={openConfirmModal}
+                      />
 
-                    {/* Entire card clickable */}
-                    <Link href={`/game/${game.id}`} prefetch={false}>
-                      <div className={`relative w-full h-56 cursor-pointer`}>
-                        <PosterImage
-                          src={game.background_image || "/placeholder-game.jpg"}
-                          alt={game.name}
-                        />
-                      </div>
-                    </Link>
+                      {/* Entire card clickable */}
+                      <Link href={`/game/${game.id}`} prefetch={false}>
+                        <div className={`relative w-full h-56 cursor-pointer`}>
+                          <PosterImage
+                            src={
+                              game.background_image || "/placeholder-game.jpg"
+                            }
+                            alt={game.name}
+                          />
+                        </div>
+                      </Link>
 
-                    {/* Game Info clickable */}
-                    <Link href={`/game/${game.id}`} prefetch={false}>
-                      <div className="p-4 flex flex-row justify-between text-white cursor-pointer gap-4">
-                        {/* LEFT SIDE */}
-                        <div className="flex flex-col gap-2 flex-1">
-                          <h3 className="font-bold text-lg truncate max-w-[300px]">
-                            {game.name}
-                          </h3>
+                      {/* Game Info clickable */}
+                      <Link href={`/game/${game.id}`} prefetch={false}>
+                        <div className="p-4 flex flex-row justify-between text-white cursor-pointer gap-4">
+                          {/* LEFT SIDE */}
+                          <div className="flex flex-col gap-2 flex-1">
+                            <h3 className="font-bold text-lg truncate max-w-[300px]">
+                              {game.name}
+                            </h3>
 
-                          <p className="text-sm text-zinc-400">
-                            Playtime:
-                            <span className="text-zinc-200 pl-1">
-                              {game.playtime
-                                ? `${Math.floor(game.playtime)}h ${Math.round(
-                                    (game.playtime % 1) * 60
-                                  )}m`
-                                : "0h 0m"}
-                            </span>
-                          </p>
-
-                          <p className="text-sm text-yellow-400">
-                            Rating: {Math.round(game.rating ?? 0)} / 10
-                          </p>
-
-                          {selectedStatus === "All" && (
-                            <p className="text-sm">
-                              Status:
-                              <span className="text-cyan-400 pl-1">
-                                {game.status}
+                            <p className="text-sm text-zinc-400">
+                              Playtime:
+                              <span className="text-zinc-200 pl-1">
+                                {game.playtime
+                                  ? `${Math.floor(game.playtime)}h ${Math.round(
+                                      (game.playtime % 1) * 60
+                                    )}m`
+                                  : "0h 0m"}
                               </span>
                             </p>
-                          )}
 
-                          <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
-                            {game.released}
-                          </p>
+                            <p className="text-sm text-yellow-400">
+                              Rating: {Math.round(game.rating ?? 0)} / 10
+                            </p>
+
+                            {selectedStatus === "All" && (
+                              <p className="text-sm">
+                                Status:
+                                <span className="text-cyan-400 pl-1">
+                                  {game.status}
+                                </span>
+                              </p>
+                            )}
+
+                            <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
+                              {game.released}
+                            </p>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* <div className="flex justify-center items-center pb-3">
+                        {/* <div className="flex justify-center items-center pb-3">
                         <BigProgressWheel
                           value={game.progress ?? 0}
                           size={70}
                         />
                       </div> */}
-                    </Link>
-                  </motion.div>
-                ))
-              )}
-            </motion.div>
-          </div>
-
-          {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
-            {/* Favorites */}
-            <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
-              <h3 className="font-bold text-xl mb-4 text-white/90">
-                Favorite Games
-              </h3>
-              <div
-                className={`${
-                  favoriteGames.length > 0
-                    ? "overflow-y-auto custom-scrollbar"
-                    : ""
-                } flex-1 pr-2`}
-              >
-                {loading ? (
-                  renderSkeletons(3, true)
-                ) : favoriteGames.length === 0 ? (
-                  <div className="h-[36vh] flex justify-center items-center">
-                    <p className="text-zinc-500">No favorite games</p>
-                  </div>
-                ) : (
-                  favoriteGames.map((g) => (
-                    <Link key={g.id} href={`/game/${g.id}`}>
-                      <div className="flex items-center gap-3 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md">
-                        <img
-                          className="w-14 h-14 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
-                          src={g.background_image}
-                          alt={g.name}
-                        />
-                        <div className="flex-1 flex flex-col justify-center">
-                          <span className="text-white/90 font-medium text-sm group-hover:text-white transition-colors duration-300">
-                            {g.name}
-                          </span>
-                          <div className="flex gap-2 mt-1">
-                            <span className="text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
-                              {g.playtime
-                                ? `${Math.floor(g.playtime)}h ${Math.round(
-                                    (g.playtime % 1) * 60
-                                  )}m`
-                                : "0h 0m"}
-                            </span>
-
-                            <span className="flex items-center gap-1 text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition-colors duration-300">
-                              {Math.round(g.rating ?? 0)}{" "}
-                              <IoStarSharp className="w-3 h-3 text-amber-400" />
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
+                      </Link>
+                    </motion.div>
                   ))
                 )}
-              </div>
+              </motion.div>
             </div>
 
-            {/* Recently Edited */}
-            <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 max-h-[43vh] mb-8 lg:mb-0">
-              <h3 className="font-bold text-xl mb-4 text-white/90">
-                Recent Games
-              </h3>
-              <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
-                {loading ? (
-                  renderSkeletons(3, true)
-                ) : recentlyEditedGames.length === 0 ? (
-                  <div className="h-[35vh] flex justify-center items-center">
-                    <p className="text-zinc-500">No recent games</p>
-                  </div>
-                ) : (
-                  recentlyEditedGames.map((g) => (
-                    <Link key={g.id} href={`/game/${g.id}`}>
-                      <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200">
-                        <div className="flex items-center gap-3">
+            {/* Right Panel (Favorites + Recently Edited) */}
+            <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
+              {/* Favorites */}
+              <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
+                <h3 className="font-bold text-xl mb-4 text-white/90">
+                  Favorite Games
+                </h3>
+                <div
+                  className={`${
+                    favoriteGames.length > 0
+                      ? "overflow-y-auto custom-scrollbar"
+                      : ""
+                  } flex-1 pr-2`}
+                >
+                  {loading ? (
+                    renderSkeletons(3, true)
+                  ) : favoriteGames.length === 0 ? (
+                    <div className="h-[36vh] flex justify-center items-center">
+                      <p className="text-zinc-500">No favorite games</p>
+                    </div>
+                  ) : (
+                    favoriteGames.map((g) => (
+                      <Link key={g.id} href={`/game/${g.id}`}>
+                        <div className="flex items-center gap-3 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md">
                           <img
-                            className="w-20 h-12 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
+                            className="w-14 h-14 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
                             src={g.background_image}
                             alt={g.name}
                           />
                           <div className="flex-1 flex flex-col justify-center">
-                            <span className="text-white/90 font-medium text-sm group-hover:text-white transition">
+                            <span className="text-white/90 font-medium text-sm group-hover:text-white transition-colors duration-300">
                               {g.name}
                             </span>
                             <div className="flex gap-2 mt-1">
@@ -786,55 +750,104 @@ export default function GamesPage() {
                                     )}m`
                                   : "0h 0m"}
                               </span>
+
+                              <span className="flex items-center gap-1 text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition-colors duration-300">
+                                {Math.round(g.rating ?? 0)}{" "}
+                                <IoStarSharp className="w-3 h-3 text-amber-400" />
+                              </span>
                             </div>
                           </div>
                         </div>
-                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-2 bg-cyan-500 rounded-full transition-all"
-                            style={{ width: `${g.progress ?? 0}%` }}
-                          ></div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Recently Edited */}
+              <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 max-h-[43vh] mb-8 lg:mb-0">
+                <h3 className="font-bold text-xl mb-4 text-white/90">
+                  Recent Games
+                </h3>
+                <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
+                  {loading ? (
+                    renderSkeletons(3, true)
+                  ) : recentlyEditedGames.length === 0 ? (
+                    <div className="h-[35vh] flex justify-center items-center">
+                      <p className="text-zinc-500">No recent games</p>
+                    </div>
+                  ) : (
+                    recentlyEditedGames.map((g) => (
+                      <Link key={g.id} href={`/game/${g.id}`}>
+                        <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200">
+                          <div className="flex items-center gap-3">
+                            <img
+                              className="w-20 h-12 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
+                              src={g.background_image}
+                              alt={g.name}
+                            />
+                            <div className="flex-1 flex flex-col justify-center">
+                              <span className="text-white/90 font-medium text-sm group-hover:text-white transition">
+                                {g.name}
+                              </span>
+                              <div className="flex gap-2 mt-1">
+                                <span className="text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
+                                  {g.playtime
+                                    ? `${Math.floor(g.playtime)}h ${Math.round(
+                                        (g.playtime % 1) * 60
+                                      )}m`
+                                    : "0h 0m"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-1">
+                            <div
+                              className="h-2 bg-cyan-500 rounded-full transition-all"
+                              style={{ width: `${g.progress ?? 0}%` }}
+                            ></div>
+                          </div>
                         </div>
-                      </div>
-                    </Link>
-                  ))
-                )}
+                      </Link>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-      {editingGame && (
-        <GameTrackingModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onSave={handleSaveModal}
-          saving={saving}
-          game={editingGame}
-          initialNotes={editingGame.notes ?? ""}
-          initialRating={editingGame.rating ?? 0}
-          initialCategoryRatings={editingGame.categoryRatings}
-          initialProgress={editingGame.progress ?? 0}
-          initialPlaytime={editingGame.playtime ?? 0}
-          initialStatus={editingGame.status ?? "Playing"}
-          initialFavorite={editingGame.favorite ?? false}
-          showStatus={true}
-          showFavorite={true}
-        />
-      )}
+        )}
+        {editingGame && (
+          <GameTrackingModal
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            onSave={handleSaveModal}
+            saving={saving}
+            game={editingGame}
+            initialNotes={editingGame.notes ?? ""}
+            initialRating={editingGame.rating ?? 0}
+            initialCategoryRatings={editingGame.categoryRatings}
+            initialProgress={editingGame.progress ?? 0}
+            initialPlaytime={editingGame.playtime ?? 0}
+            initialStatus={editingGame.status ?? "Playing"}
+            initialFavorite={editingGame.favorite ?? false}
+            showStatus={true}
+            showFavorite={true}
+          />
+        )}
 
-      <ConfirmModal
-        open={confirmOpen}
-        title="Confirm Action"
-        message={confirmMessage}
-        onConfirm={async () => {
-          setConfirmOpen(false);
-          await confirmAction();
-        }}
-        onCancel={() => setConfirmOpen(false)}
-        confirmText="Confirm"
-        cancelText="Cancel"
-      />
-    </motion.main>
+        <ConfirmModal
+          open={confirmOpen}
+          title="Confirm Action"
+          message={confirmMessage}
+          onConfirm={async () => {
+            setConfirmOpen(false);
+            await confirmAction();
+          }}
+          onCancel={() => setConfirmOpen(false)}
+          confirmText="Confirm"
+          cancelText="Cancel"
+        />
+      </motion.main>
+    </>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { motion, useMotionValue, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import { useUser } from "@/app/context/UserContext";
-import Head from "next/head";
 import Glitch from "@/app/components/Glitch";
+import { Helmet } from "react-helmet-async";
 
 export default function DashboardPage() {
   const { profile, loading, user } = useUser();
@@ -110,11 +110,9 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Head>
-        <title>PlayCrew - Dashboard</title>{" "}
-        {/* Default title for the entire app */}
-      </Head>
-
+      <Helmet>
+        <title>PlayCrew</title>
+      </Helmet>
       <motion.main
         className="relative min-h-screen bg-black text-white overflow-hidden cursor-default"
         initial={{ opacity: 0 }}

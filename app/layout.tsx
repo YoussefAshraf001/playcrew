@@ -8,6 +8,7 @@ import { UserProvider } from "./context/UserContext";
 import { MusicProvider } from "./context/MusicContext";
 import { Toaster } from "react-hot-toast";
 import MusicPlayer from "./components/MusicPlayer";
+import { HelmetProvider } from "react-helmet-async";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -27,26 +28,28 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body className="antialiased bg-black">
         <Toaster position="top-center" reverseOrder={false} />
 
-        <UserProvider>
-          <MusicProvider>
-            <div className="flex min-h-screen w-screen overflow-hidden">
-              {/* Navbar */}
-              <Navbar />
+        <HelmetProvider>
+          <UserProvider>
+            <MusicProvider>
+              <div className="flex min-h-screen w-screen overflow-hidden">
+                {/* Navbar */}
+                <Navbar />
 
-              {/* Main content */}
-              <motion.main
-                className="flex-1 overflow-y-auto max-w-full"
-                variants={contentVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                {children}
-              </motion.main>
-            </div>
+                {/* Main content */}
+                <motion.main
+                  className="flex-1 overflow-y-auto max-w-full"
+                  variants={contentVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  {children}
+                </motion.main>
+              </div>
 
-            <MusicPlayer />
-          </MusicProvider>
-        </UserProvider>
+              <MusicPlayer />
+            </MusicProvider>
+          </UserProvider>
+        </HelmetProvider>
       </body>
     </html>
   );
