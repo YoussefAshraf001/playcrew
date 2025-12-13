@@ -90,6 +90,17 @@ export default function GameActionsDropdown({
             className="absolute right-0 mt-10 w-36 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg z-50 overflow-hidden"
           >
             <button
+              onClick={() =>
+                openConfirmModal(
+                  `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`,
+                  refreshGame
+                )
+              }
+              className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
+            >
+              <MdRefresh /> Refetch
+            </button>
+            <button
               onClick={() => openEditModal(game)}
               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
             >
@@ -105,17 +116,6 @@ export default function GameActionsDropdown({
               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
             >
               <MdDelete /> Remove
-            </button>
-            <button
-              onClick={() =>
-                openConfirmModal(
-                  `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`,
-                  refreshGame
-                )
-              }
-              className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
-            >
-              <MdRefresh /> Refresh
             </button>
           </motion.div>
         )}

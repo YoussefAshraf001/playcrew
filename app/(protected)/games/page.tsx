@@ -645,14 +645,14 @@ export default function GamesPage() {
                     whileHover={{ scale: 1.03 }}
                   >
                     {/* Checkbox for bulk selection */}
-                    <div className="absolute top-2 left-2 z-20">
+                    {/* <div className="absolute top-2 left-2 z-20">
                       <input
                         type="checkbox"
                         checked={selectedGames.has(game.id)}
                         onChange={() => toggleSelectGame(game.id)}
                         className="w-5 h-5 accent-cyan-500"
                       />
-                    </div>
+                    </div> */}
 
                     <GameActionsDropdown
                       game={game}
