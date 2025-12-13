@@ -442,7 +442,7 @@ export default function GamesPage() {
       ) : (
         <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
           {/* Left Panel (Stats) */}
-          <div className="w-full lg:w-81 flex-shrink-0 flex flex-col p-4">
+          <div className="w-full lg:w-81 shrink-0 flex flex-col p-4">
             <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
               {/* Avatar */}
               <Link href={`/profile/${userProfile!.username}`}>
@@ -698,7 +698,7 @@ export default function GamesPage() {
           </div>
 
           {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-6">
+          <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
             {/* Favorites */}
             <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
               <h3 className="font-bold text-xl mb-4 text-white/90">

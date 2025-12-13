@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Head from "next/head";
 
 import { auth } from "./lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -28,9 +27,6 @@ export default function Home() {
 
   return (
     <>
-      <Head>
-        <title>PlayCrew</title>
-      </Head>
       <main className="w-full h-screen flex items-center justify-center bg-black text-white px-6">
         <div className="flex flex-col items-center gap-6 max-w-md text-center">
           <h1 className="text-4xl font-bold tracking-tight">PlayCrew</h1>
