@@ -5,9 +5,11 @@ import { MdMoreVert, MdEdit, MdDelete, MdRefresh } from "react-icons/md";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "../context/UserContext";
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/app/lib/firebase";
 import toast from "react-hot-toast";
 import { refreshGameData } from "../utils/refreshGame";
+import DevGameEditor from "./DevButton";
+import { db } from "@/app/lib/firebase";
+import { FaCode } from "react-icons/fa";
 
 interface GameActionsDropdownProps {
   game: any;
@@ -16,7 +18,7 @@ interface GameActionsDropdownProps {
   openConfirmModal: (
     message: string,
     action: () => void | Promise<void>
-  ) => void; // NEW
+  ) => void;
 }
 
 export default function GameActionsDropdown({
@@ -27,6 +29,7 @@ export default function GameActionsDropdown({
 }: GameActionsDropdownProps) {
   const { user } = useUser();
   const [open, setOpen] = useState(false);
+  const [devModalOpen, setDevModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -53,9 +56,7 @@ export default function GameActionsDropdown({
 
   const refreshGame = async () => {
     if (!user) return;
-
     const toastId = toast.loading(`Refreshing ${game.name}...`);
-
     try {
       await refreshGameData(user.uid, game);
       toast.success(`${game.name} updated!`, { id: toastId });
@@ -67,7 +68,7 @@ export default function GameActionsDropdown({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Trigger button */}
+      {/* 3-dots trigger */}
       <button
         type="button"
         onClick={(e) => {
@@ -92,7 +93,7 @@ export default function GameActionsDropdown({
             <button
               onClick={() =>
                 openConfirmModal(
-                  `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`,
+                  `This will reset game data stored and refetch them from RAWG for ${game.name}. Your playtime, notes, and progress wont be affected.`,
                   refreshGame
                 )
               }
@@ -100,12 +101,14 @@ export default function GameActionsDropdown({
             >
               <MdRefresh /> Refetch
             </button>
+
             <button
               onClick={() => openEditModal(game)}
               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
             >
               <MdEdit /> Edit
             </button>
+
             <button
               onClick={() =>
                 openConfirmModal(
@@ -117,9 +120,26 @@ export default function GameActionsDropdown({
             >
               <MdDelete /> Remove
             </button>
+
+            {/* DEV EDIT */}
+            <button
+              onClick={() => setDevModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
+            >
+              <FaCode /> Dev Mode
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Dev editor modal */}
+      {devModalOpen && user && (
+        <DevGameEditor
+          userId={user.uid}
+          game={game}
+          onClose={() => setDevModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -130,9 +150,10 @@ export default function GameActionsDropdown({
 // import { MdMoreVert, MdEdit, MdDelete, MdRefresh } from "react-icons/md";
 // import { motion, AnimatePresence } from "framer-motion";
 // import { useUser } from "../context/UserContext";
-// import { doc, getDoc, updateDoc } from "firebase/firestore";
+// import { doc, updateDoc } from "firebase/firestore";
 // import { db } from "@/app/lib/firebase";
 // import toast from "react-hot-toast";
+// import { refreshGameData } from "../utils/refreshGame";
 
 // interface GameActionsDropdownProps {
 //   game: any;
@@ -182,77 +203,7 @@ export default function GameActionsDropdown({
 //     const toastId = toast.loading(`Refreshing ${game.name}...`);
 
 //     try {
-//       // 1. ---- RAWG Search ----
-//       const searchRes = await fetch(
-//         `https://api.rawg.io/api/games?search=${encodeURIComponent(
-//           game.name
-//         )}&key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-//       );
-//       if (!searchRes.ok) throw new Error("RAWG search failed");
-
-//       const searchData = await searchRes.json();
-//       const first = searchData.results?.[0];
-//       if (!first) throw new Error("Game not found on RAWG");
-
-//       // 2. ---- RAWG Full Game Data ----
-//       const rawgRes = await fetch(
-//         `https://api.rawg.io/api/games/${first.slug}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-//       );
-//       if (!rawgRes.ok) throw new Error("RAWG fetch failed");
-
-//       const rawg = await rawgRes.json();
-
-//       // 3. ---- Load existing user game fields ----
-//       const ref = doc(db, "users", user.uid);
-//       const snap = await getDoc(ref);
-//       const currentGames = snap.exists() ? snap.data().trackedGames || {} : {};
-//       const existing = currentGames[String(game.id)] || {};
-
-//       // USER fields you want to preserve:
-//       const preservedUserFields = {
-//         playtime: existing.playtime || 0,
-//         progress: existing.progress || 0,
-//         my_rating: existing.my_rating || 0,
-//         favorite: existing.favorite || false,
-//         status: existing.status || "",
-//         notes: existing.notes || "",
-//         categoryRatings: existing.categoryRatings || {
-//           graphics: 0,
-//           gameplay: 0,
-//           story: 0,
-//           fun: 0,
-//         },
-//       };
-
-//       // 4. ---- RAWG fields you want to refresh ----
-//       const rawgFields = {
-//         name: rawg.name,
-//         slug: rawg.slug,
-//         released: rawg.released || "TBA",
-//         background_image: rawg.background_image || "/placeholder-game.jpg",
-//         background_image_additional: rawg.background_image_additional || null,
-//         metacritic: rawg.metacritic,
-//         genres: rawg.genres,
-//         platforms: rawg.platforms,
-//         publishers: rawg.publishers,
-//       };
-
-//       // 5. ---- Merge RAWG + User Fields ----
-//       const merged = {
-//         ...existing,
-//         ...rawgFields,
-//         ...preservedUserFields,
-//         id: game.id,
-//       };
-
-//       // 6. ---- Save to Firebase ----
-//       await updateDoc(ref, {
-//         trackedGames: {
-//           ...currentGames,
-//           [String(game.id)]: merged,
-//         },
-//       });
-
+//       await refreshGameData(user.uid, game);
 //       toast.success(`${game.name} updated!`, { id: toastId });
 //     } catch (err) {
 //       console.error(err);
@@ -285,6 +236,17 @@ export default function GameActionsDropdown({
 //             className="absolute right-0 mt-10 w-36 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg z-50 overflow-hidden"
 //           >
 //             <button
+//               onClick={() =>
+//                 openConfirmModal(
+//                   `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`,
+//                   refreshGame
+//                 )
+//               }
+//               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
+//             >
+//               <MdRefresh /> Refetch
+//             </button>
+//             <button
 //               onClick={() => openEditModal(game)}
 //               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
 //             >
@@ -300,17 +262,6 @@ export default function GameActionsDropdown({
 //               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
 //             >
 //               <MdDelete /> Remove
-//             </button>
-//             <button
-//               onClick={() =>
-//                 openConfirmModal(
-//                   `Are you sure you want to refresh "${game.name}"? Your playtime, notes, and progress will be preserved.`,
-//                   refreshGame
-//                 )
-//               }
-//               className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-800 w-full text-left"
-//             >
-//               <MdRefresh /> Refresh
 //             </button>
 //           </motion.div>
 //         )}

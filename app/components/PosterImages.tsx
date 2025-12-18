@@ -25,14 +25,14 @@ export default function PosterImage({ src, alt, className }: PosterImageProps) {
         transition={{ duration: 0.7, ease: "easeOut" }}
         className="absolute inset-0"
       >
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          className="object-cover rounded-xl"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          onLoad={() => setLoaded(true)}
-        />
+        <div className="relative w-full h-56">
+          <img
+            src={src}
+            alt={alt}
+            className="absolute inset-0 w-full h-full object-cover rounded-t-xl transition-opacity duration-500"
+            onLoad={() => setLoaded(true)}
+          />
+        </div>
       </motion.div>
     </div>
   );

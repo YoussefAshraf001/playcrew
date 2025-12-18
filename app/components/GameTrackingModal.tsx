@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
+import MarqueeText from "./MarqueeText";
 
 interface CategoryRatings {
   graphics: number;
   gameplay: number;
   story: number;
   ost: number;
-  artStyle: number;
+  cinematics: number;
   voiceActing: number;
 }
 
@@ -58,7 +59,7 @@ const DEFAULT_CATEGORIES: CategoryRatings = {
   gameplay: 0,
   story: 0,
   ost: 0,
-  artStyle: 0,
+  cinematics: 0,
   voiceActing: 0,
 };
 
@@ -75,7 +76,7 @@ const WEIGHTS = {
   gameplay: 0.25,
   story: 0.2,
   ost: 0.1,
-  artStyle: 0.15,
+  cinematics: 0.15,
   voiceActing: 0.1,
 } as const;
 
@@ -164,7 +165,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
         gameplay: initialRating,
         story: initialRating,
         ost: initialRating,
-        artStyle: initialRating,
+        cinematics: initialRating,
         voiceActing: initialRating,
       });
     } else {
@@ -194,7 +195,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       gameplay: val,
       story: val,
       ost: val,
-      artStyle: val,
+      cinematics: val,
       voiceActing: val,
     });
 
@@ -204,7 +205,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       (categoryRatings.gameplay || 0) * WEIGHTS.gameplay +
       (categoryRatings.story || 0) * WEIGHTS.story +
       (categoryRatings.ost || 0) * WEIGHTS.ost +
-      (categoryRatings.artStyle || 0) * WEIGHTS.artStyle +
+      (categoryRatings.cinematics || 0) * WEIGHTS.cinematics +
       (categoryRatings.voiceActing || 0) * WEIGHTS.voiceActing;
     return Math.round(score * 10) / 10;
   }, [categoryRatings]);
@@ -300,16 +301,20 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 }`}
               />
               <div className="absolute inset-0 bg-black/40" />
-              <div className="absolute inset-0 flex items-end p-4 gap-3">
-                <div className="bg-black/30 backdrop-blur-md rounded-xl px-3 py-2 max-w-[80%]">
-                  <h3 className="text-xl font-bold text-white truncate">
-                    {game?.name}
+              <div className="absolute inset-0 grid grid-cols-2 gap-3 p-4 items-end">
+                <div className="bg-black/30 backdrop-blur-md rounded-xl p-3 w-full h-[100px] flex flex-col justify-center">
+                  <h3>
+                    <MarqueeText
+                      text={String(game?.name) || "Unknown Game"}
+                      className="text-xl font-bold text-white"
+                      loopForever
+                    />
                   </h3>
                   <div className="flex justify-center items-center gap-2 text-sm text-amber-400">
                     {game?.id}
                   </div>
                 </div>
-                <div className="ml-auto bg-black/30 backdrop-blur-md rounded-xl px-3 py-2 max-w-[80%] flex flex-col items-center">
+                <div className="bg-black/30 backdrop-blur-md rounded-xl p-3 w-full h-[100px] flex flex-col justify-center items-center">
                   <div className="flex gap-2 mb-1">
                     {PRESETS.map((preset) => (
                       <button

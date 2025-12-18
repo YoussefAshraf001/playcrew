@@ -11,7 +11,6 @@ import {
   FaHome,
   FaGamepad,
   FaSignOutAlt,
-  FaRegImages,
   FaCog,
   FaSearch,
   FaUser,

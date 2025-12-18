@@ -17,6 +17,8 @@ import Image from "next/image";
 import GameActionsDropdown from "@/app/components/GameActionsDropdown";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import { Helmet } from "react-helmet-async";
+import { FiArrowRight, FiX } from "react-icons/fi";
+import { FaHeart } from "react-icons/fa";
 
 const STATUSES = [
   "All",
@@ -35,7 +37,7 @@ interface CategoryRatings {
   gameplay: number;
   story: number;
   ost: number;
-  artStyle: number;
+  cinematics: number;
   voiceActing: number;
 }
 
@@ -81,6 +83,8 @@ export default function GamesPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 6;
+
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(true);
@@ -165,6 +169,7 @@ export default function GamesPage() {
         ? gamesByStatus.All
         : gamesByStatus[selectedStatus] || [];
 
+    // Search filter
     if (debouncedSearch) {
       const lower = debouncedSearch.toLowerCase();
       games = games.filter(
@@ -172,7 +177,7 @@ export default function GamesPage() {
       );
     }
 
-    // Filter by release
+    // Release filter
     if (releaseFilter !== "All") {
       const now = new Date();
       games = games.filter((g) => {
@@ -183,19 +188,48 @@ export default function GamesPage() {
           return releasedDate <= now;
         }
 
-        // Unreleased includes future dates or TBA
+        // Unreleased
         return g.released === "TBA" || new Date(g.released) > now;
       });
     }
 
-    games.sort((a, b) => {
-      const aTime = a.lastUpdated?.toMillis?.() ?? 0;
-      const bTime = b.lastUpdated?.toMillis?.() ?? 0;
-      return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
-    });
+    // Favorites filter
+    if (showFavoritesOnly) {
+      games = games.filter((g) => g.favorite);
+    }
+
+    // Sorting
+    if (releaseFilter === "Unreleased") {
+      // Sort by soonest release
+      games.sort((a, b) => {
+        const aDate =
+          a.released && a.released !== "TBA"
+            ? new Date(a.released).getTime()
+            : Infinity;
+        const bDate =
+          b.released && b.released !== "TBA"
+            ? new Date(b.released).getTime()
+            : Infinity;
+        return aDate - bDate;
+      });
+    } else {
+      // Default sort by lastUpdated
+      games.sort((a, b) => {
+        const aTime = a.lastUpdated?.toMillis?.() ?? 0;
+        const bTime = b.lastUpdated?.toMillis?.() ?? 0;
+        return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
+      });
+    }
 
     return games;
-  }, [gamesByStatus, selectedStatus, debouncedSearch, releaseFilter]);
+  }, [
+    gamesByStatus,
+    selectedStatus,
+    debouncedSearch,
+    releaseFilter,
+    showFavoritesOnly,
+    sortOrder,
+  ]);
 
   //Games Pages
   const validGames = filteredGames.filter((g) => g.name);
@@ -302,7 +336,7 @@ export default function GamesPage() {
         gameplay: 0,
         story: 0,
         ost: 0,
-        artStyle: 0,
+        cinematics: 0,
         voiceActing: 0,
       },
     });
@@ -349,7 +383,7 @@ export default function GamesPage() {
         gameplay: categoryRatings.gameplay ?? 0,
         story: categoryRatings.story ?? 0,
         ost: categoryRatings.ost ?? 0,
-        artStyle: categoryRatings.artStyle ?? 0,
+        cinematics: categoryRatings.cinematics ?? 0,
         voiceActing: categoryRatings.voiceActing ?? 0,
       };
 
@@ -448,7 +482,7 @@ export default function GamesPage() {
         ) : (
           <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
             {/* Left Panel (Stats) */}
-            <div className="w-full lg:w-81 shrink-0 flex flex-col p-4">
+            <div className="w-full lg:w-81 shrink-0 flex flex-col px-4">
               <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
                 {/* Avatar */}
                 <Link href={`/profile/${userProfile!.username}`}>
@@ -504,7 +538,7 @@ export default function GamesPage() {
                 <hr className="my-6 w-full border-zinc-700" />
 
                 {/* Level / Badge */}
-                <div className="flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-3 pt-3">
                   <h3 className="flex flex-col font-extrabold text-2xl text-center text-white">
                     領域展開
                     <span>(Ryōiki Tenkai)</span>
@@ -527,64 +561,81 @@ export default function GamesPage() {
                 className="flex flex-wrap gap-3 mb-5 items-center relative"
                 initial={false}
                 animate={{
-                  // Shift left by filter width when Want To Play is selected
                   marginLeft:
-                    selectedStatus === "Want To Play" ? "0px" : "120px", // adjust 120px based on filter width
+                    selectedStatus === "Want To Play" ? "0px" : "120px",
                 }}
                 transition={{ type: "spring", stiffness: 200, damping: 30 }}
               >
-                {STATUSES.map((status) => (
-                  <div
-                    key={status}
-                    className="relative flex items-center gap-2"
-                  >
+                {showFavoritesOnly ? (
+                  <div className="flex mx-auto items-center pr-30">
                     <button
-                      className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
-                        selectedStatus === status
-                          ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                          : "bg-zinc-800 text-white hover:bg-zinc-700"
-                      }`}
-                      onClick={() => {
-                        handleTabChange(status);
-                        if (status !== "Want To Play") setReleaseFilter("All");
-                      }}
-                      disabled={selectedStatus === status}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold bg-cyan-500 text-black"
+                      disabled
                     >
-                      {status}
+                      <FaHeart className="w-4 h-4 text-red-700" /> Favorite
+                      Games
+                      <FaHeart className="w-4 h-4 text-red-700" />
                     </button>
+                  </div>
+                ) : (
+                  STATUSES.map((status) => (
+                    <div
+                      key={status}
+                      className="relative flex items-center gap-2"
+                    >
+                      <button
+                        className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
+                          selectedStatus === status
+                            ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
+                            : "bg-zinc-800 text-white hover:bg-zinc-700"
+                        }`}
+                        onClick={() => {
+                          handleTabChange(status);
+                          if (status !== "Want To Play")
+                            setReleaseFilter("All");
+                        }}
+                        disabled={selectedStatus === status}
+                      >
+                        {status}
+                      </button>
 
-                    {/* Sub-filters */}
-                    <AnimatePresence>
-                      {status === "Want To Play" &&
-                        selectedStatus === "Want To Play" && (
-                          <motion.div
-                            key="release-filter"
-                            className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
+                      {/* Sub-filters */}
+                      <AnimatePresence>
+                        {status === "Want To Play" &&
+                          selectedStatus === "Want To Play" && (
+                            <motion.div
+                              key="release-filter"
+                              className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
                          lg:bg-zinc-900 lg:rounded-xl lg:p-1 lg:shadow-lg
                          relative lg:absolute lg:left-full lg:ml-2"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            {["All", "Released", "Unreleased"].map((filter) => (
-                              <button
-                                key={filter}
-                                className={`px-3 py-1 rounded-full text-sm font-semibold transition whitespace-nowrap ${
-                                  releaseFilter === filter
-                                    ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                                    : "bg-zinc-800 text-white hover:bg-zinc-700"
-                                }`}
-                                onClick={() => setReleaseFilter(filter as any)}
-                              >
-                                {filter}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                    </AnimatePresence>
-                  </div>
-                ))}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -10 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              {["All", "Released", "Unreleased"].map(
+                                (filter) => (
+                                  <button
+                                    key={filter}
+                                    className={`px-3 py-1 rounded-full text-sm font-semibold transition whitespace-nowrap ${
+                                      releaseFilter === filter
+                                        ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
+                                        : "bg-zinc-800 text-white hover:bg-zinc-700"
+                                    }`}
+                                    onClick={() =>
+                                      setReleaseFilter(filter as any)
+                                    }
+                                  >
+                                    {filter}
+                                  </button>
+                                )
+                              )}
+                            </motion.div>
+                          )}
+                      </AnimatePresence>
+                    </div>
+                  ))
+                )}
               </motion.div>
 
               {/* Pagination and Search */}
@@ -603,7 +654,11 @@ export default function GamesPage() {
 
                 <input
                   type="text"
-                  placeholder={`Search for a game in ${selectedStatus}`}
+                  placeholder={`${
+                    showFavoritesOnly
+                      ? "Search for a favorite game"
+                      : "Search for a game in " + selectedStatus
+                  }`}
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   className="px-4 py-2 rounded-full bg-zinc-800 text-white w-1/2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
@@ -690,9 +745,11 @@ export default function GamesPage() {
                               </p>
                             )}
 
-                            <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
-                              {game.released}
-                            </p>
+                            {selectedStatus !== "All" && (
+                              <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
+                                {game.released}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -713,9 +770,28 @@ export default function GamesPage() {
             <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
               {/* Favorites */}
               <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
-                <h3 className="font-bold text-xl mb-4 text-white/90">
-                  Favorite Games
-                </h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-xl text-white/90">
+                    Favorite Games
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowFavoritesOnly((prev) => !prev);
+                      setSelectedStatus("All");
+                    }}
+                    className={`px-3 py-1 rounded-md border-2 border-cyan-400 text-white font-bold flex items-center justify-center gap-2 hover:bg-cyan-500 hover:border-cyan-500 transition-all duration-300 ease-in-out cursor-pointer ${
+                      showFavoritesOnly
+                        ? "bg-cyan-500 animate-pulse"
+                        : "bg-transparent"
+                    }`}
+                  >
+                    {showFavoritesOnly ? (
+                      <FiX size={18} />
+                    ) : (
+                      <FiArrowRight size={18} />
+                    )}
+                  </button>
+                </div>
                 <div
                   className={`${
                     favoriteGames.length > 0

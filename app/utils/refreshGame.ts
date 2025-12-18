@@ -46,7 +46,8 @@ export async function refreshGameData(userId: string, game: any) {
   const rawgFields = {
     name: rawg.name,
     slug: rawg.slug,
-    released: rawg.released || rawg.platforms[0].released_at || "TBA",
+    released: rawg.released ?? rawg.platforms?.[0]?.released_at ?? "TBA",
+
     background_image: rawg.background_image || "/placeholder-game.jpg",
     background_image_additional: rawg.background_image_additional || null,
     metacritic: rawg.metacritic,

@@ -16,6 +16,7 @@ import {
   FaPlay,
   FaCrown,
   FaLinux,
+  FaGoogle,
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
@@ -226,6 +227,7 @@ export default function GamePage() {
         if (name.includes("xbox")) name = "xbox";
         if (name.includes("nintendo")) name = "nintendo";
         if (name.includes("pc")) name = "steam";
+        if (name.includes("web")) name = "google";
         return name;
       })
       .filter((name) => {
@@ -252,6 +254,8 @@ export default function GamePage() {
         return <FaAndroid />;
       case "linux":
         return <FaLinux />;
+      case "google":
+        return <FaGoogle />;
       default:
         return <IoLogoGameControllerA />;
     }
@@ -324,7 +328,7 @@ export default function GamePage() {
         >
           <img
             src={game.background_image}
-            className="w-full h-full object-cover brightness-[0.45] blur-xl"
+            className="w-full h-full object-cover brightness-[0.45] "
           />
 
           <div className="absolute inset-0 bg-linear-to-b from-black/20 to-black" />
@@ -357,7 +361,7 @@ export default function GamePage() {
                 </div>
 
                 {/* Favorite */}
-                <div className="flex justify-center lg:block">
+                <div className="flex justify-between">
                   <button
                     onClick={handleFavoriteToggle}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-base border border-white/10 hover:bg-red-500 hover:scale-105 transition cursor-pointer ${
@@ -407,7 +411,9 @@ export default function GamePage() {
 
                 {/* About */}
                 <div
-                  onClick={() => setAboutOpen(true)}
+                  // onClick={
+                  //   game.description_raw ? () => setAboutOpen(true) : undefined
+                  // }
                   className="bg-white/5 border border-white/10 p-6 rounded-2xl text-white/80 hover:text-white"
                 >
                   <h2 className="text-2xl font-bold mb-3">About</h2>
@@ -420,7 +426,7 @@ export default function GamePage() {
                     )}
                   </p>
 
-                  {game.description_raw && (
+                  {game.description_raw.length > 400 && (
                     <p
                       className="text-cyan-300 mt-2 text-sm cursor-pointer hover:underline"
                       onClick={() => setAboutOpen(true)}
@@ -488,7 +494,7 @@ export default function GamePage() {
                   <div className="flex-1 sm:flex-none p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                     <div className="text-sm opacity-70">Release</div>
                     <div className="text-base font-semibold">
-                      {game.released}
+                      {game.released ? game.released : "TBA"}
                     </div>
                   </div>
 

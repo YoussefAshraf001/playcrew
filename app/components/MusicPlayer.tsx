@@ -63,7 +63,7 @@ export default function MusicPlayer() {
                 />
               )}
 
-              <div className="flex flex-col min-w-0 leading-tight">
+              <div className="flex flex-col min-w-0 max-w-[150px] leading-tight">
                 <MarqueeText
                   text={currentTrack.title ?? ""}
                   className="text-sm font-semibold"
