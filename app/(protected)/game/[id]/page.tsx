@@ -17,13 +17,13 @@ import {
   FaCrown,
   FaLinux,
   FaGoogle,
+  FaBookmark,
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
 import { GiMouthWatering } from "react-icons/gi";
 import { TbBucketDroplet } from "react-icons/tb";
 import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { IoBanOutline } from "react-icons/io5";
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
@@ -32,28 +32,24 @@ import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { Helmet } from "react-helmet-async";
 
 const statuses = [
-  { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" },
-  { label: "On Hold", icon: <FaPause />, color: "bg-yellow-500" },
+  { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing → blue = focus
+  { label: "On Hold", icon: <FaPause />, color: "bg-yellow-500" }, // Paused / waiting → yellow = caution
   {
     label: "Dropped",
     icon: <TbBucketDroplet size={15} />,
     color: "bg-red-500",
-  },
+  }, // Stop / negative → red
+  { label: "Completed", icon: <FaCrown size={20} />, color: "bg-green-500" }, // Success → green
   {
-    label: "Completed",
-    icon: <FaCrown size={20} />,
-    color: "bg-green-500",
-  },
-  {
-    label: "Not Interested",
-    icon: <IoBanOutline size={20} />,
-    color: "bg-green-500",
-  },
+    label: "Check Out",
+    icon: <FaBookmark size={15} />,
+    color: "bg-purple-500",
+  }, // Neutral / discovery → purple
   {
     label: "Want To Play",
     icon: <GiMouthWatering size={20} />,
-    color: "bg-green-500",
-  },
+    color: "bg-teal-500",
+  }, // Excited / wishlist → teal
 ];
 
 type StatusType = string | null;

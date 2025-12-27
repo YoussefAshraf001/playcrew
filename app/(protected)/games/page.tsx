@@ -13,7 +13,6 @@ import LoadingSpinner from "@/app/components/LoadingSpinner";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 
 import toast from "react-hot-toast";
-import Image from "next/image";
 import GameActionsDropdown from "@/app/components/GameActionsDropdown";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import { Helmet } from "react-helmet-async";
@@ -26,7 +25,7 @@ const STATUSES = [
   "Completed",
   "On Hold",
   "Dropped",
-  "Not Interested",
+  "Check Out",
   "Want To Play",
 ];
 
@@ -143,7 +142,7 @@ export default function GamesPage() {
       Completed: [],
       "On Hold": [],
       Dropped: [],
-      "Not Interested": [],
+      "Check Out": [],
       "Want To Play": [],
     };
 
@@ -284,7 +283,7 @@ export default function GamesPage() {
     [allGames]
   );
   const notInterstedCount = useMemo(
-    () => allGames.filter((g) => g.status === "Not Interested").length,
+    () => allGames.filter((g) => g.status === "Check Out").length,
     [allGames]
   );
   const wantCount = useMemo(
@@ -481,8 +480,21 @@ export default function GamesPage() {
           <LoadingSpinner />
         ) : (
           <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
+            {/* Blurred Background */}
+            {userProfile?.wallpaperBase64 && (
+              <div
+                className="absolute inset-0 bg-cover bg-center filter blur-xs"
+                style={{
+                  backgroundImage: `url(${userProfile.wallpaperBase64})`,
+                }}
+              />
+            )}
+
+            {/* Optional overlay to darken it a bit */}
+            <div className="absolute inset-0 bg-black/20" />
+
             {/* Left Panel (Stats) */}
-            <div className="w-full lg:w-81 shrink-0 flex flex-col px-4">
+            <div className="w-full lg:w-81 shrink-0 flex flex-col px-4 relative z-10">
               <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
                 {/* Avatar */}
                 <Link href={`/profile/${userProfile!.username}`}>
@@ -543,11 +555,11 @@ export default function GamesPage() {
                     領域展開
                     <span>(Ryōiki Tenkai)</span>
                   </h3>
-                  <Image
-                    src="/maxLevelSign.png"
+                  <img
+                    src="/s-l1200.png"
                     alt="Max Level"
-                    width={80}
-                    height={80}
+                    width={200}
+                    height={200}
                     className=""
                   />
                 </div>
@@ -555,7 +567,7 @@ export default function GamesPage() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 relative px-6 lg:px-0">
+            <div className="flex-1 relative z-10 px-6 lg:px-0">
               {/* Tabs */}
               <motion.div
                 className="flex flex-wrap gap-3 mb-5 items-center relative"
@@ -767,7 +779,7 @@ export default function GamesPage() {
             </div>
 
             {/* Right Panel (Favorites + Recently Edited) */}
-            <div className="w-full lg:w-80 shrink-0 flex flex-col gap-6">
+            <div className="relative z-10 w-full lg:w-80 shrink-0 flex flex-col gap-6">
               {/* Favorites */}
               <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
                 <div className="flex items-center justify-between mb-2">

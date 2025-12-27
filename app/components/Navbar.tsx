@@ -24,6 +24,8 @@ const API_KEY = process.env.NEXT_PUBLIC_RAWG_API_KEY;
 export default function Navbar() {
   const { profile, user, loading } = useUser();
 
+  const newUserImage = user?.photoURL;
+
   const { playerVisible, togglePlayerVisible } = useMusic();
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -79,6 +81,7 @@ export default function Navbar() {
         );
         const data = await res.json();
         setResults(data.results || []);
+        console.log(data);
       } catch (err) {
         if ((err as any).name === "AbortError") return;
         console.error(err);
@@ -93,6 +96,8 @@ export default function Navbar() {
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, [query]);
+
+  const isExpanded = query.trim().length > 0;
 
   return (
     <>
@@ -200,8 +205,8 @@ export default function Navbar() {
               className="relative"
               onClick={() => setAccountOpen(!accountOpen)}
             >
-              <Image
-                src={profile.avatarBase64!}
+              <img
+                src={profile.avatarBase64! || (user && newUserImage)}
                 alt="Profile"
                 width={32}
                 height={32}
@@ -301,11 +306,16 @@ export default function Navbar() {
                 >
                   <motion.div
                     key="modal"
-                    className="bg-[#1e1e1e] rounded-lg overflow-hidden p-4 w-full max-w-lg h-[600px] flex flex-col"
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.8, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    className="bg-[#1e1e1e] rounded-lg overflow-hidden p-4 w-full max-w-lg flex flex-col"
+                    initial={false}
+                    animate={{
+                      height: isExpanded ? 600 : 120,
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 260,
+                      damping: 28,
+                    }}
                   >
                     <button
                       className="self-end text-white text-2xl font-bold mb-2"
@@ -325,7 +335,13 @@ export default function Navbar() {
                       className="bg-[#2a2a2a] text-center text-white rounded-full px-4 py-2 w-full outline-none mb-2"
                     />
 
-                    <div className="flex flex-col gap-2 overflow-y-auto">
+                    <div
+                      className={`flex flex-col gap-2  ${
+                        isExpanded
+                          ? "overflow-y-auto custom-scrollbar"
+                          : "overflow-hidden"
+                      } p-2`}
+                    >
                       {loadingSearch
                         ? Array.from({ length: 9 }).map((_, i) => (
                             <div
@@ -336,24 +352,38 @@ export default function Navbar() {
                         : results.map((game) => (
                             <motion.div
                               key={game.id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0 }}
-                              transition={{ duration: 0.5 }}
+                              transition={{ duration: 0.25, ease: "easeOut" }}
                             >
                               <Link
                                 href={`/game/${game.id}`}
                                 onClick={() => setSearchModalOpen(false)}
-                                className="flex items-center gap-2 px-2 py-1 hover:bg-white/10 rounded transition"
+                                className="group relative block h-20 rounded-lg overflow-hidden transition"
                               >
+                                {/* Background image */}
                                 <img
                                   src={game.background_image}
                                   alt={game.name}
-                                  className="w-16 h-8 object-cover rounded-md"
+                                  className="absolute inset-0 w-full h-full object-cover scale-100 group-hover:scale-105 transition-transform duration-300"
                                 />
-                                <span className="text-white text-sm">
-                                  {game.name}
-                                </span>
+
+                                {/* Dark gradient overlay */}
+                                <div className="absolute inset-0 bg-linear-to-r from-black via-black/50 to-black/10" />
+
+                                {/* Content */}
+                                <div className="relative z-10 flex flex-col justify-center h-full px-3">
+                                  <span className="text-white text-md font-semibold leading-tight line-clamp-1">
+                                    {game.name}
+                                  </span>
+
+                                  {game.released && (
+                                    <span className="text-white/60 text-sm tracking-wide">
+                                      {new Date(game.released).getFullYear()}
+                                    </span>
+                                  )}
+                                </div>
                               </Link>
                             </motion.div>
                           ))}
