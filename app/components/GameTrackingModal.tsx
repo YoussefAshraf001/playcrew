@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import MarqueeText from "./MarqueeText";
+import toast from "react-hot-toast";
 
 interface CategoryRatings {
   graphics: number;
@@ -27,6 +28,7 @@ interface TrackedGame {
   progress?: number;
   lastUpdated?: any;
   notes?: string;
+  released?: string;
 }
 
 interface GameTrackingModalProps {
@@ -136,6 +138,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     initialCategoryRatings ?? DEFAULT_CATEGORIES
   );
   const [progress, setProgress] = useState<number>(initialProgress ?? 0);
+  const [hoverProgress, setHoverProgress] = useState<number | null>(null);
+
   const [hours, setHours] = useState<number>(Math.floor(initialPlaytime ?? 0));
   const [minutes, setMinutes] = useState<number>(
     Math.round(((initialPlaytime ?? 0) % 1) * 60)
@@ -228,6 +232,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const bgUrl = game?.background_image || "/placeholder-game.jpg";
 
+  const gameIsReleased =
+    !!game?.released && new Date(game.released) <= new Date();
+
   return (
     <AnimatePresence>
       {open && (
@@ -301,49 +308,71 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 }`}
               />
               <div className="absolute inset-0 bg-black/40" />
-              <div className="absolute inset-0 grid grid-cols-2 gap-3 p-4 items-end">
-                <div className="bg-black/30 backdrop-blur-md rounded-xl p-3 w-full h-[100px] flex flex-col justify-center">
-                  <h3>
-                    <MarqueeText
-                      text={String(game?.name) || "Unknown Game"}
-                      className="text-xl font-bold text-white"
-                      loopForever
-                    />
+              <div
+                className={`${
+                  gameIsReleased
+                    ? "grid-cols-2 items-end"
+                    : "grid-cols-1 place-items-center"
+                } absolute inset-0 grid gap-3 p-4 `}
+              >
+                <div
+                  className={`${
+                    gameIsReleased
+                      ? "w-full h-[100px]"
+                      : "w-[50%] h-[100px] text-center"
+                  } bg-black/30 backdrop-blur-md rounded-xl p-3 flex flex-col justify-center`}
+                >
+                  <h3 className="text-xl font-bold text-white">
+                    {gameIsReleased ? (
+                      <MarqueeText
+                        text={String(game?.name) || "Unknown Game"}
+                        loopForever
+                      />
+                    ) : (
+                      game?.name
+                    )}
                   </h3>
                   <div className="flex justify-center items-center gap-2 text-sm text-amber-400">
                     {game?.id}
                   </div>
                 </div>
-                <div className="bg-black/30 backdrop-blur-md rounded-xl p-3 w-full h-[100px] flex flex-col justify-center items-center">
-                  <div className="flex gap-2 mb-1">
-                    {PRESETS.map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => applyPreset(preset.value)}
-                        className={`px-2 py-1 text-xs rounded-full font-semibold transition ${
-                          getClosestPreset(weightedRating) === preset.label
-                            ? "bg-cyan-400 text-black"
-                            : "bg-white/10 text-white/70 hover:bg-white/20"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
+                {gameIsReleased && (
+                  <div className="bg-black/30 backdrop-blur-md rounded-xl p-3 w-full h-[100px] flex flex-col justify-center items-center">
+                    <div className="flex gap-2 mb-1">
+                      {PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => applyPreset(preset.value)}
+                          className={`px-2 py-1 text-xs rounded-full font-semibold transition ${
+                            getClosestPreset(weightedRating) === preset.label
+                              ? "bg-cyan-400 text-black"
+                              : "bg-white/10 text-white/70 hover:bg-white/20"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <h3 className="text-center text-sm text-zinc-300 block">
+                      {getClosestPreset(weightedRating)}
+                    </h3>
+                    <div className="flex items-center gap-2 text-sm text-amber-400 mt-1">
+                      {weightedRating.toFixed(1)}/10 {tierEmoji} • {tier} Tier
+                    </div>
                   </div>
-                  <h3 className="text-center text-sm text-zinc-300 block">
-                    {getClosestPreset(weightedRating)}
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-amber-400 mt-1">
-                    {weightedRating.toFixed(1)}/10 {tierEmoji} • {tier} Tier
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
             {/* CONTENT */}
-            <div className="p-4 grid gap-4">
-              <div className="grid grid-cols-2 gap-3 bg-zinc-800/60 p-3 rounded-xl">
+            <div className="p-4 grid gap-4 relative">
+              {/* Rating grid */}
+              <div
+                className={`grid grid-cols-2 gap-3 bg-zinc-800/60 p-3 rounded-xl ${
+                  !gameIsReleased ? "opacity-50" : ""
+                }`}
+              >
                 {Object.keys(categoryRatings).map((cat) => (
                   <div key={cat} className="flex flex-col gap-1">
                     <div className="flex justify-between pb-2 text-sm text-zinc-300 capitalize">
@@ -353,9 +382,13 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       {Array.from({ length: 11 }, (_, i) => i).map((n) => (
                         <button
                           key={n}
-                          onClick={() =>
-                            setCategory(cat as keyof CategoryRatings, n)
-                          }
+                          onClick={() => {
+                            if (!gameIsReleased) {
+                              toast.error("Game isn't released yet!");
+                              return;
+                            }
+                            setCategory(cat as keyof CategoryRatings, n);
+                          }}
                           className={`w-6 h-6 flex items-center justify-center text-xs rounded border ${
                             categoryRatings[cat as keyof CategoryRatings] >= n
                               ? "bg-yellow-400 text-black border-yellow-500"
@@ -371,7 +404,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               </div>
 
               {/* Progress & Playtime */}
-              <div className="grid md:grid-cols-2 gap-3 bg-zinc-800/60 p-3 rounded-xl">
+              <div
+                className={`grid md:grid-cols-2 gap-3 bg-zinc-800/60 p-3 rounded-xl ${
+                  !gameIsReleased ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
                 <div className="text-center">
                   <label className="text-sm text-zinc-300 pb-2 block">
                     Game Progress
@@ -380,6 +417,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     <div
                       ref={progressRef}
                       onClick={(e) => {
+                        if (!gameIsReleased) {
+                          toast.error("Game isn't released yet!");
+                          return;
+                        }
                         if (!progressRef.current) return;
                         const rect =
                           progressRef.current.getBoundingClientRect();
@@ -388,23 +429,52 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         );
                         setProgress(Math.max(0, Math.min(100, newP)));
                       }}
-                      className="w-full h-6 bg-zinc-700 rounded-lg mt-1 relative cursor-pointer"
+                      onMouseMove={(e) => {
+                        if (!gameIsReleased || !progressRef.current) return;
+                        const rect =
+                          progressRef.current.getBoundingClientRect();
+                        const hoverP = Math.round(
+                          ((e.clientX - rect.left) / rect.width) * 100
+                        );
+                        setHoverProgress(Math.max(0, Math.min(100, hoverP)));
+                      }}
+                      onMouseLeave={() => setHoverProgress(null)}
+                      className={`relative w-full h-6 mt-1 rounded-lg bg-zinc-700 overflow-hidden transition-colors ${
+                        !gameIsReleased
+                          ? "opacity-50 cursor-not-allowed"
+                          : "cursor-pointer hover:bg-zinc-600"
+                      }`}
                     >
+                      {/* Filled progress */}
                       <div
-                        className="h-6 rounded-lg bg-emerald-400 transition-all"
+                        className="absolute top-0 left-0 h-full bg-emerald-400 rounded-lg transition-all duration-200"
                         style={{ width: `${progress}%` }}
                       />
+
+                      {/* Hover preview */}
+                      {hoverProgress !== null && (
+                        <div
+                          className="absolute top-0 left-0 h-full bg-white/20 rounded-lg pointer-events-none"
+                          style={{ width: `${hoverProgress}%` }}
+                        />
+                      )}
+
+                      {/* Percentage label */}
                       <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-xs font-semibold">
-                        {progress}%
+                        {hoverProgress !== null ? hoverProgress : progress}%
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col items-center justify-center">
+                <div className="flex flex-col items-center justify-center relative">
                   <label className="text-sm text-zinc-300 pb-2 block">
                     Playtime
                   </label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div
+                    className={`flex items-center gap-2 mt-1 ${
+                      !gameIsReleased ? "opacity-50 pointer-events-none" : ""
+                    }`}
+                  >
                     <input
                       type="number"
                       min={0}
@@ -429,6 +499,14 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     />
                     <span className="text-zinc-400 text-sm">mins</span>
                   </div>
+
+                  {/* Overlay / toast trigger if game not released */}
+                  {!gameIsReleased && (
+                    <div
+                      className="absolute inset-0 flex items-center justify-center cursor-not-allowed"
+                      onClick={() => toast.error("Game isn't released yet!")}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -464,7 +542,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   {saving ? (
                     <div className="flex justify-center items-center gap-2 w-full">
                       <span className="loading loading-spinner loading-xs" />
-                      Saving
                     </div>
                   ) : (
                     "Save"

@@ -18,6 +18,7 @@ import {
 import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
 import { useState, useEffect, useRef } from "react";
 import ConfirmModal from "./ConfirmModal";
+// import ManualGameModal from "./ManualGameModal";
 
 const API_KEY = process.env.NEXT_PUBLIC_RAWG_API_KEY;
 
@@ -199,6 +200,9 @@ export default function Navbar() {
             )}
             <span>Music</span>
           </motion.button>
+
+          {/* Add ManualGameModal here */}
+          {/* {user && <ManualGameModal userId={user.uid} />} */}
 
           {profile ? (
             <div

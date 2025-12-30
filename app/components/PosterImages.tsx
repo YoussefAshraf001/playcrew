@@ -29,6 +29,7 @@ export default function PosterImage({ src, alt, className }: PosterImageProps) {
           <img
             src={src}
             alt={alt}
+            loading="lazy"
             className="absolute inset-0 w-full h-full object-cover rounded-t-xl transition-opacity duration-500"
             onLoad={() => setLoaded(true)}
           />

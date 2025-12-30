@@ -9,6 +9,7 @@ import { MusicProvider } from "./context/MusicContext";
 import { Toaster } from "react-hot-toast";
 import MusicPlayer from "./components/MusicPlayer";
 import { HelmetProvider } from "react-helmet-async";
+import GlobalToaster from "./components/GlobalToaster";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body className="antialiased bg-black">
-        <Toaster position="top-center" reverseOrder={false} />
+        <GlobalToaster />
 
         <HelmetProvider>
           <UserProvider>

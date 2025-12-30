@@ -23,7 +23,7 @@ import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
 import { GiMouthWatering } from "react-icons/gi";
 import { TbBucketDroplet } from "react-icons/tb";
-import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
@@ -103,40 +103,69 @@ export default function GamePage() {
   // Fetch user tracked data
   useEffect(() => {
     if (!user || !game) return;
-    const fetchUserTracked = async () => {
-      const snap = await getDoc(doc(db, "users", user.uid));
-      const trackedGames = snap.data()?.trackedGames || {};
-      const tracked = trackedGames[String(game.id)] || trackedGames[game.id];
-      if (tracked) {
-        setIsFavorited(Boolean(tracked.favorite));
-        setCurrentStatus(tracked.status || null);
+
+    const fetchUserTrackedGame = async () => {
+      try {
+        const ref = doc(db, "users", user.uid, "games", game.id.toString());
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+          const tracked = snap.data();
+          setIsFavorited(Boolean(tracked.favorite));
+          setCurrentStatus(tracked.status || null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch tracked game:", err);
       }
     };
-    fetchUserTracked();
-  }, [user, game, currentStatus]);
 
-  const updateTrackedGame = async (patch: Partial<any>) => {
+    fetchUserTrackedGame();
+  }, [user, game]);
+
+  const updateTrackedGame = async (data: any) => {
     if (!user || !game) return;
-    const ref = doc(db, "users", user.uid);
-    const snap = await getDoc(ref);
-    const trackedGames = snap.exists() ? snap.data().trackedGames || {} : {};
 
-    const merged = {
-      ...(trackedGames[String(game.id)] || {}),
-      ...patch,
-      id: game.id,
-      name: game.name,
-      background_image: game.background_image,
-      my_rating: game.rating,
-      released: game.released,
+    const ref = doc(db, "users", user.uid, "games", game.id.toString());
+
+    await setDoc(
+      ref,
+      {
+        id: game.id,
+        name: game.name,
+        background_image: game.background_image,
+        ...data,
+        lastUpdated: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return {
+      ...data,
     };
-
-    await updateDoc(ref, {
-      trackedGames: { ...trackedGames, [String(game.id)]: merged },
-    });
-
-    return merged;
   };
+
+  // const updateTrackedGame = async (patch: Partial<any>) => {
+  //   if (!user || !game) return;
+  //   const ref = doc(db, "users", user.uid);
+  //   const snap = await getDoc(ref);
+  //   const trackedGames = snap.exists() ? snap.data().trackedGames || {} : {};
+
+  //   const merged = {
+  //     ...(trackedGames[String(game.id)] || {}),
+  //     ...patch,
+  //     id: game.id,
+  //     name: game.name,
+  //     background_image: game.background_image,
+  //     my_rating: game.rating,
+  //     released: game.released,
+  //   };
+
+  //   await updateDoc(ref, {
+  //     trackedGames: { ...trackedGames, [String(game.id)]: merged },
+  //   });
+
+  //   return merged;
+  // };
 
   const handleFavoriteToggle = async () => {
     if (!game) return;
@@ -168,7 +197,7 @@ export default function GamePage() {
   const handleChangeStatus = async (status: string) => {
     if (!game) return;
     if (!user) {
-      toast.error(<>You must be logged to use this feature.</>);
+      toast.error("You must be logged in to use this feature.");
       return;
     }
 
@@ -176,22 +205,26 @@ export default function GamePage() {
       toast.error(
         <>
           Game is already set as{" "}
-          <span className={`text-red-600 pl-1`}>{currentStatus}</span>
+          <span className="text-red-600 pl-1">{currentStatus}</span>
         </>
       );
-
       return;
     }
+
     try {
       setLoadingStatus(status);
-      const merged = await updateTrackedGame({
+
+      // Update Firestore
+      await updateTrackedGame({
         status,
         favorite: isFavorited,
-        lastUpdated: serverTimestamp(),
       });
-      setCurrentStatus(merged.status?.trim() || null);
+
+      // Update local state
+      setCurrentStatus(status.trim());
       toast.success(`${game.name} marked as ${status}`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Failed to update status.");
     } finally {
       setLoadingStatus(null);

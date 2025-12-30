@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  setDoc,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
 
 import { db } from "@/app/lib/firebase";
@@ -100,31 +109,43 @@ export default function GamesPage() {
     () => void | Promise<void>
   >(() => {});
 
-  // Firestore subscription
+  // Real-time Firestore subscription
   useEffect(() => {
-    if (!user) return;
-    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (snap) => {
-      const data = snap.data();
-      if (!data) return;
-      const trackedGames = data.trackedGames as Record<string, TrackedGame>;
-      setLoading(true);
-      setGamesLoading(true);
-      setTimeout(() => {
-        setLocalProfile({
-          uid: user.uid,
-          username: userProfile?.username || "",
-          email: userProfile?.email || "",
-          displayName: userProfile?.displayName || null,
-          avatarUrl: userProfile?.avatarUrl,
-          avatarBase64: userProfile?.avatarBase64,
-          trackedGames: trackedGames || {},
-          creationTime: new Date(user.metadata.creationTime),
-          lastSignInTime: new Date(user.metadata.lastSignInTime),
-        });
-        setLoading(false);
-        setGamesLoading(false);
-      }, 300);
+    if (!user || !userProfile) return;
+
+    const gamesCol = collection(db, "users", user.uid, "games");
+
+    const unsubscribe = onSnapshot(gamesCol, (snapshot) => {
+      const updatedGames: Record<string, TrackedGame> = {};
+      snapshot.forEach((doc) => {
+        updatedGames[doc.id] = doc.data() as TrackedGame;
+      });
+
+      // Initialize or update localProfile safely
+      setLocalProfile((prev) => {
+        if (!prev) {
+          return {
+            uid: user.uid,
+            username: userProfile.username || "",
+            email: userProfile.email || "",
+            displayName: userProfile.displayName || null,
+            avatarUrl: userProfile.avatarUrl,
+            avatarBase64: userProfile.avatarBase64,
+            trackedGames: updatedGames,
+            creationTime: new Date(user.metadata.creationTime),
+            lastSignInTime: new Date(user.metadata.lastSignInTime),
+          };
+        }
+        return {
+          ...prev,
+          trackedGames: updatedGames,
+        };
+      });
+
+      setLoading(false);
+      setGamesLoading(false);
     });
+
     return () => unsubscribe();
   }, [user, userProfile]);
 
@@ -343,25 +364,21 @@ export default function GamesPage() {
   };
 
   const updateTrackedGame = async (
-    gameId: number,
+    gameId: string | number,
     patch: Partial<TrackedGame>
   ) => {
     if (!user) return;
-    const ref = doc(db, "users", user.uid);
-    const snap = await getDoc(ref);
-    const trackedGames = snap.exists() ? snap.data().trackedGames || {} : {};
 
-    const merged = {
-      id: gameId,
-      ...trackedGames[String(gameId)],
+    const gameRef = doc(db, "users", user.uid, "games", String(gameId));
+    const snap = await getDoc(gameRef);
+
+    const updated = {
+      ...(snap.exists() ? snap.data() : {}),
       ...patch,
     };
 
-    await updateDoc(ref, {
-      trackedGames: { ...trackedGames, [String(gameId)]: merged },
-    });
-
-    return merged;
+    await setDoc(gameRef, updated, { merge: true });
+    return updated as TrackedGame;
   };
 
   const handleSaveModal = async (
@@ -397,6 +414,12 @@ export default function GamesPage() {
         lastUpdated: new Date(),
       });
 
+      // Make lastUpdated Firestore-timestamp-like for local sorting
+      const updatedGameForLocal = {
+        ...updatedGame,
+        lastUpdated: Timestamp.fromDate(new Date()),
+      };
+
       setLocalProfile((prev) => {
         if (!prev) return prev;
         return {
@@ -405,7 +428,7 @@ export default function GamesPage() {
             ...prev.trackedGames,
             [editingGame.id]: {
               ...prev.trackedGames[editingGame.id],
-              ...updatedGame,
+              ...updatedGameForLocal,
             },
           },
         };
@@ -491,7 +514,7 @@ export default function GamesPage() {
             )}
 
             {/* Optional overlay to darken it a bit */}
-            <div className="absolute inset-0 bg-black/20" />
+            <div className="absolute inset-0 bg-black/50" />
 
             {/* Left Panel (Stats) */}
             <div className="w-full lg:w-81 shrink-0 flex flex-col px-4 relative z-10">
@@ -757,10 +780,25 @@ export default function GamesPage() {
                               </p>
                             )}
 
-                            {selectedStatus !== "All" && (
+                            {/* {selectedStatus === "Want To Play" &&
+                              releaseFilter === "Unreleased" && (
+                                <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
+                                  {game.released}
+                                </p>
+                              )} */}
+                            {/* Show progress bar or release date */}
+                            {selectedStatus === "Want To Play" &&
+                            releaseFilter === "Unreleased" ? (
                               <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
                                 {game.released}
                               </p>
+                            ) : (
+                              <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-1">
+                                <div
+                                  className="h-2 bg-cyan-500 rounded-full transition-all"
+                                  style={{ width: `${game.progress ?? 0}%` }}
+                                ></div>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -925,7 +963,7 @@ export default function GamesPage() {
 
         <ConfirmModal
           open={confirmOpen}
-          title="Confirm Action"
+          title="Are you sure?"
           message={confirmMessage}
           onConfirm={async () => {
             setConfirmOpen(false);
