@@ -831,10 +831,11 @@ export default function GamesPage() {
                             )}
 
                             {/* Show progress bar or release date */}
-                            {selectedStatus === "Want To Play" &&
-                            releaseFilter === "Unreleased" ? (
+                            {selectedStatus ===
+                            "All" ? null : selectedStatus === "Want To Play" &&
+                              releaseFilter === "Unreleased" ? (
                               <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
-                                {game.released}
+                                {game.released ?? "TBA"}
                               </p>
                             ) : (
                               <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-1">
