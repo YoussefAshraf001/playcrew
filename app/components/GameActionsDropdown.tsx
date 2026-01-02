@@ -38,13 +38,13 @@ export default function GameActionsDropdown({
     Record<string, boolean>
   >({
     name: true,
-    slug: true,
+    // slug: true,
     released: true,
     background_image: true,
-    background_image_additional: true,
-    genres: true,
-    platforms: true,
-    publishers: true,
+    //   background_image_additional: true,
+    //   genres: true,
+    //   platforms: true,
+    //   publishers: true,
   });
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -84,13 +84,13 @@ export default function GameActionsDropdown({
       setRefreshModalOpen(false);
       setFieldsToRefresh({
         name: true,
-        slug: true,
+        // slug: true,
         released: true,
         background_image: true,
-        background_image_additional: true,
-        genres: true,
-        platforms: true,
-        publishers: true,
+        // background_image_additional: true,
+        // genres: true,
+        // platforms: true,
+        // publishers: true,
       });
       // No manual refetch needed — snapshot will update UI automatically
     } catch (err) {
@@ -188,13 +188,13 @@ export default function GameActionsDropdown({
                   setRefreshModalOpen(false);
                   setFieldsToRefresh({
                     name: true,
-                    slug: true,
+                    // slug: true,
                     released: true,
                     background_image: true,
-                    background_image_additional: true,
-                    genres: true,
-                    platforms: true,
-                    publishers: true,
+                    // background_image_additional: true,
+                    // genres: true,
+                    // platforms: true,
+                    // publishers: true,
                   });
                 }}
                 className="absolute top-3 right-3 text-white/70 hover:text-white text-2xl font-bold"
@@ -211,13 +211,13 @@ export default function GameActionsDropdown({
                   // Map Firestore keys to display labels
                   const displayNameMap: Record<string, string> = {
                     name: "Name",
-                    slug: "Slug",
+                    // slug: "Slug",
                     released: "Release Date",
                     background_image: "Poster",
-                    background_image_additional: "Fallback Poster",
-                    genres: "Genres",
-                    platforms: "Platforms",
-                    publishers: "Publishers",
+                    // background_image_additional: "Fallback Poster",
+                    // genres: "Genres",
+                    // platforms: "Platforms",
+                    // publishers: "Publishers",
                   };
                   const displayName = displayNameMap[key] || key;
 
@@ -250,13 +250,13 @@ export default function GameActionsDropdown({
                     setRefreshModalOpen(false);
                     setFieldsToRefresh({
                       name: true,
-                      slug: true,
+                      // slug: true,
                       released: true,
                       background_image: true,
-                      background_image_additional: true,
-                      genres: true,
-                      platforms: true,
-                      publishers: true,
+                      // background_image_additional: true,
+                      // genres: true,
+                      // platforms: true,
+                      // publishers: true,
                     });
                   }}
                   whileTap={{ scale: 0.95 }}

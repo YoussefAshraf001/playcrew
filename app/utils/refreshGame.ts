@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 
 /** Refresh game data from RAWG selectively */
@@ -27,57 +27,29 @@ export async function refreshGameData(
 
   const rawg = await rawgRes.json();
 
-  // 3️⃣ Load current user game fields
-  const ref = doc(db, "users", userId);
-  const snap = await getDoc(ref);
-  const currentGames = snap.exists() ? snap.data().trackedGames || {} : {};
-  const existing = currentGames[String(game.id)] || {};
+  // 3️⃣ Prepare only the fields that should be refreshed
+  const updatedFields: Partial<typeof game> = {};
 
-  const preservedUserFields = {
-    playtime: existing.playtime || 0,
-    progress: existing.progress || 0,
-    my_rating: existing.my_rating || 0,
-    favorite: existing.favorite || false,
-    status: existing.status || "",
-    notes: existing.notes || "",
-    categoryRatings: existing.categoryRatings || {
-      graphics: 0,
-      gameplay: 0,
-      story: 0,
-      ost: 0,
-      cinematics: 0,
-      voiceActing: 0,
-    },
-  };
-
-  // 4️⃣ Build updated game object only for selected fields
-  const updated: any = { ...existing };
-
-  if (fieldsToRefresh.name) updated.name = rawg.name;
-  if (fieldsToRefresh.slug) updated.slug = rawg.slug;
+  if (fieldsToRefresh.name) updatedFields.name = rawg.name;
+  if (fieldsToRefresh.slug) updatedFields.slug = rawg.slug;
   if (fieldsToRefresh.released)
-    updated.released =
+    updatedFields.released =
       rawg.released ?? rawg.platforms?.[0]?.released_at ?? "TBA";
   if (fieldsToRefresh.background_image)
-    updated.background_image =
-      rawg.background_image || existing.background_image;
+    updatedFields.background_image = rawg.background_image;
   if (fieldsToRefresh.background_image_additional)
-    updated.background_image_additional =
-      rawg.background_image_additional || existing.background_image_additional;
-  if (fieldsToRefresh.metacritic) updated.metacritic = rawg.metacritic;
-  if (fieldsToRefresh.genres) updated.genres = rawg.genres;
-  if (fieldsToRefresh.platforms) updated.platforms = rawg.platforms;
-  if (fieldsToRefresh.publishers) updated.publishers = rawg.publishers;
+    updatedFields.background_image_additional =
+      rawg.background_image_additional;
+  if (fieldsToRefresh.metacritic) updatedFields.metacritic = rawg.metacritic;
+  if (fieldsToRefresh.genres) updatedFields.genres = rawg.genres;
+  if (fieldsToRefresh.platforms) updatedFields.platforms = rawg.platforms;
+  if (fieldsToRefresh.publishers) updatedFields.publishers = rawg.publishers;
 
-  // 5️⃣ Preserve user-specific fields
-  Object.assign(updated, preservedUserFields);
-  updated.id = game.id;
-
-  // 6️⃣ Update Firestore in the correct subcollection path
+  // 4️⃣ Update only the selected fields in Firestore
   const gameRef = doc(db, "users", userId, "games", game.id.toString());
-  await updateDoc(gameRef, updated);
+  await updateDoc(gameRef, updatedFields);
 
-  return updated;
+  return { ...game, ...updatedFields };
 }
 
 // import { doc, getDoc, updateDoc } from "firebase/firestore";

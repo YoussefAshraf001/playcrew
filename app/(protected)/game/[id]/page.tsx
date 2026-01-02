@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, progress } from "framer-motion";
 import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
@@ -133,6 +133,7 @@ export default function GamePage() {
         id: game.id,
         name: game.name,
         background_image: game.background_image,
+        released: game.released ?? "TBA",
         ...data,
         lastUpdated: serverTimestamp(),
       },
@@ -215,10 +216,18 @@ export default function GamePage() {
       setLoadingStatus(status);
 
       // Update Firestore
-      await updateTrackedGame({
-        status,
-        favorite: isFavorited,
-      });
+      if (status === "Completed") {
+        await updateTrackedGame({
+          status,
+          favorite: isFavorited,
+          progress: 100,
+        });
+      } else {
+        await updateTrackedGame({
+          status,
+          favorite: isFavorited,
+        });
+      }
 
       // Update local state
       setCurrentStatus(status.trim());

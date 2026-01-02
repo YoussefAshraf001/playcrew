@@ -7,11 +7,9 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
   onSnapshot,
   setDoc,
   Timestamp,
-  updateDoc,
 } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
 
@@ -27,6 +25,7 @@ import ConfirmModal from "@/app/components/ConfirmModal";
 import { Helmet } from "react-helmet-async";
 import { FiArrowRight, FiX } from "react-icons/fi";
 import { FaHeart } from "react-icons/fa";
+import TenStarRating from "@/app/components/TenStarRating";
 
 const STATUSES = [
   "All",
@@ -38,15 +37,15 @@ const STATUSES = [
   "Want To Play",
 ];
 
-const sortOrder = "newest";
+type StoredRating = number | "excluded";
 
 interface CategoryRatings {
-  graphics: number;
-  gameplay: number;
-  story: number;
-  ost: number;
-  cinematics: number;
-  voiceActing: number;
+  graphics: StoredRating;
+  gameplay: StoredRating;
+  story: StoredRating;
+  ost: StoredRating;
+  cinematics: StoredRating;
+  voiceActing: StoredRating;
 }
 
 interface TrackedGame {
@@ -92,7 +91,10 @@ export default function GamesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 6;
 
+  //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<"name" | "date" | "tier">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(true);
@@ -184,28 +186,28 @@ export default function GamesPage() {
 
   // Filter and sort safely
   const filteredGames = useMemo(() => {
-    let games =
+    let list =
       selectedStatus === "All"
         ? gamesByStatus.All
         : gamesByStatus[selectedStatus] || [];
 
+    // IMPORTANT: clone before mutating
+    list = [...list];
+
     // Search filter
     if (debouncedSearch) {
       const lower = debouncedSearch.toLowerCase();
-      games = games.filter(
-        (g) => g.name && g.name.toLowerCase().includes(lower)
-      );
+      list = list.filter((g) => g.name && g.name.toLowerCase().includes(lower));
     }
 
     // Release filter
     if (releaseFilter !== "All") {
       const now = new Date();
-      games = games.filter((g) => {
+      list = list.filter((g) => {
         if (!g.released) return false;
 
         if (releaseFilter === "Released") {
-          const releasedDate = new Date(g.released);
-          return releasedDate <= now;
+          return new Date(g.released) <= now;
         }
 
         // Unreleased
@@ -215,13 +217,13 @@ export default function GamesPage() {
 
     // Favorites filter
     if (showFavoritesOnly) {
-      games = games.filter((g) => g.favorite);
+      list = list.filter((g) => g.favorite);
     }
 
     // Sorting
-    if (releaseFilter === "Unreleased") {
-      // Sort by soonest release
-      games.sort((a, b) => {
+    list.sort((a, b) => {
+      // Special case: unreleased → soonest first
+      if (releaseFilter === "Unreleased") {
         const aDate =
           a.released && a.released !== "TBA"
             ? new Date(a.released).getTime()
@@ -231,23 +233,47 @@ export default function GamesPage() {
             ? new Date(b.released).getTime()
             : Infinity;
         return aDate - bDate;
-      });
-    } else {
-      // Default sort by lastUpdated
-      games.sort((a, b) => {
-        const aTime = a.lastUpdated?.toMillis?.() ?? 0;
-        const bTime = b.lastUpdated?.toMillis?.() ?? 0;
-        return sortOrder === "newest" ? bTime - aTime : aTime - bTime;
-      });
-    }
+      }
 
-    return games;
+      let aVal: number | string = 0;
+      let bVal: number | string = 0;
+
+      switch (sortBy) {
+        case "name":
+          aVal = a.name?.toLowerCase() ?? "";
+          bVal = b.name?.toLowerCase() ?? "";
+          break;
+
+        case "tier":
+          // Sort by numeric score, NOT letter tier
+          const normalize = (v?: number) => (v == null ? -1 : v);
+
+          aVal = normalize(a.rating);
+          bVal = normalize(b.rating);
+
+          break;
+
+        case "date":
+        default:
+          aVal = a.lastUpdated?.toMillis?.() ?? 0;
+          bVal = b.lastUpdated?.toMillis?.() ?? 0;
+          break;
+      }
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+
+      return 0;
+    });
+
+    return list;
   }, [
     gamesByStatus,
     selectedStatus,
     debouncedSearch,
     releaseFilter,
     showFavoritesOnly,
+    sortBy,
     sortOrder,
   ]);
 
@@ -674,7 +700,7 @@ export default function GamesPage() {
               </motion.div>
 
               {/* Pagination and Search */}
-              <div className="flex justify-between my-8 gap-4 items-center">
+              <div className="flex justify-between mb-4 gap-4 items-center">
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((prev) => prev - 1)}
@@ -709,6 +735,28 @@ export default function GamesPage() {
                   }`}
                 >
                   Next
+                </button>
+              </div>
+
+              <div className="flex justify-center gap-2 mb-4 items-center">
+                <label className="text-sm text-zinc-300">Sort By:</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="bg-zinc-800 text-white px-2 py-1 rounded-full focus:outline-none"
+                >
+                  <option value="name">Name</option>
+                  <option value="date">Date Added</option>
+                  <option value="tier">Tier (Rating)</option>
+                </select>
+
+                <button
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
+                  className="px-2 py-1 rounded-full bg-zinc-700 text-white text-xs"
+                >
+                  {sortOrder === "asc" ? "Asc" : "Desc"}
                 </button>
               </div>
 
@@ -768,7 +816,9 @@ export default function GamesPage() {
                             </p>
 
                             <p className="text-sm text-yellow-400">
-                              Rating: {Math.round(game.rating ?? 0)} / 10
+                              <TenStarRating rating={game.rating} />
+
+                              {/* Rating: {Math.round(game.rating ?? 0)} / 10 */}
                             </p>
 
                             {selectedStatus === "All" && (
@@ -780,12 +830,6 @@ export default function GamesPage() {
                               </p>
                             )}
 
-                            {/* {selectedStatus === "Want To Play" &&
-                              releaseFilter === "Unreleased" && (
-                                <p className="text-xs text-center font-semibold bg-white/10 text-white/70 py-1 rounded-lg">
-                                  {game.released}
-                                </p>
-                              )} */}
                             {/* Show progress bar or release date */}
                             {selectedStatus === "Want To Play" &&
                             releaseFilter === "Unreleased" ? (
@@ -892,7 +936,7 @@ export default function GamesPage() {
 
               {/* Recently Edited */}
               <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 max-h-[43vh] mb-8 lg:mb-0">
-                <h3 className="font-bold text-xl mb-4 text-white/90">
+                <h3 className="font-bold text-xl mb-2 text-white/90">
                   Recent Games
                 </h3>
                 <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
@@ -913,9 +957,10 @@ export default function GamesPage() {
                               alt={g.name}
                             />
                             <div className="flex-1 flex flex-col justify-center">
-                              <span className="text-white/90 font-medium text-sm group-hover:text-white transition">
+                              <span className="text-white/90 font-medium text-sm group-hover:text-white transition max-w-[200px] line-clamp-2">
                                 {g.name}
                               </span>
+
                               <div className="flex gap-2 mt-1">
                                 <span className="text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
                                   {g.playtime
