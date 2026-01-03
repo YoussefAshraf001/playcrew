@@ -26,6 +26,7 @@ import { Helmet } from "react-helmet-async";
 import { FiArrowRight, FiX } from "react-icons/fi";
 import { FaHeart } from "react-icons/fa";
 import TenStarRating from "@/app/components/TenStarRating";
+import AllTimeFavoriteModal from "@/app/components/AllTimeFavoriteModal";
 
 const STATUSES = [
   "All",
@@ -33,7 +34,7 @@ const STATUSES = [
   "Completed",
   "On Hold",
   "Dropped",
-  "Check Out",
+  "Online",
   "Want To Play",
 ];
 
@@ -63,6 +64,7 @@ interface TrackedGame {
   notes?: string;
   categoryRatings?: CategoryRatings;
   released: string;
+  favoriteAllTime?: boolean;
 }
 
 interface UserProfile {
@@ -93,7 +95,9 @@ export default function GamesPage() {
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"name" | "date" | "tier">("date");
+  const [sortBy, setSortBy] = useState<"name" | "date" | "tier" | "release">(
+    "date"
+  );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const [loading, setLoading] = useState(true);
@@ -110,6 +114,12 @@ export default function GamesPage() {
   const [confirmAction, setConfirmAction] = useState<
     () => void | Promise<void>
   >(() => {});
+
+  //ALL TIME FAV
+  const [selectingFavoriteAllTime, setSelectingFavoriteAllTime] =
+    useState(false);
+
+  const [favoriteGameModal, setFavoriteGameModal] = useState(false);
 
   // Real-time Firestore subscription
   useEffect(() => {
@@ -165,7 +175,7 @@ export default function GamesPage() {
       Completed: [],
       "On Hold": [],
       Dropped: [],
-      "Check Out": [],
+      Online: [],
       "Want To Play": [],
     };
 
@@ -206,12 +216,29 @@ export default function GamesPage() {
       list = list.filter((g) => {
         if (!g.released) return false;
 
+        const releaseDate = new Date(g.released);
+
         if (releaseFilter === "Released") {
-          return new Date(g.released) <= now;
+          return releaseDate <= now; // Released games
         }
 
-        // Unreleased
-        return g.released === "TBA" || new Date(g.released) > now;
+        // Unreleased filter
+        if (releaseFilter === "Unreleased") {
+          return g.released === "TBA" || releaseDate > now; // TBA or future games
+        }
+
+        // Custom date range filter (add your own logic here, e.g. for the last 6 months, etc.)
+        if (releaseFilter === "Last 6 months") {
+          const sixMonthsAgo = new Date();
+          sixMonthsAgo.setMonth(now.getMonth() - 6);
+          return releaseDate >= sixMonthsAgo;
+        }
+
+        if (releaseFilter === "This year") {
+          return releaseDate.getFullYear() === now.getFullYear();
+        }
+
+        return true; // Default: no filter
       });
     }
 
@@ -245,18 +272,20 @@ export default function GamesPage() {
           break;
 
         case "tier":
-          // Sort by numeric score, NOT letter tier
-          const normalize = (v?: number) => (v == null ? -1 : v);
-
+          const normalize = (v: any) => (v == null ? -1 : v);
           aVal = normalize(a.rating);
           bVal = normalize(b.rating);
+          break;
 
+        case "release":
+          aVal = new Date(a.released)?.getTime() ?? 0;
+          bVal = new Date(b.released)?.getTime() ?? 0;
           break;
 
         case "date":
         default:
-          aVal = a.lastUpdated?.toMillis?.() ?? 0;
-          bVal = b.lastUpdated?.toMillis?.() ?? 0;
+          aVal = new Date(a.lastUpdated)?.getTime() ?? 0;
+          bVal = new Date(b.lastUpdated)?.getTime() ?? 0;
           break;
       }
 
@@ -317,24 +346,34 @@ export default function GamesPage() {
     () => allGames.filter((g) => g.status === "Completed").length,
     [allGames]
   );
+
   const onHoldCount = useMemo(
     () => allGames.filter((g) => g.status === "On Hold").length,
     [allGames]
   );
+
   const playingCount = useMemo(
     () => allGames.filter((g) => g.status === "Playing").length,
     [allGames]
   );
+
   const droppedCount = useMemo(
     () => allGames.filter((g) => g.status === "Dropped").length,
     [allGames]
   );
+
   const notInterstedCount = useMemo(
-    () => allGames.filter((g) => g.status === "Check Out").length,
+    () => allGames.filter((g) => g.status === "Online").length,
     [allGames]
   );
+
   const wantCount = useMemo(
     () => allGames.filter((g) => g.status === "Want To Play").length,
+    [allGames]
+  );
+
+  const favoriteOfAllTime = useMemo(
+    () => allGames.find((g) => g.favoriteAllTime),
     [allGames]
   );
 
@@ -528,7 +567,7 @@ export default function GamesPage() {
         {loading || userLoading ? (
           <LoadingSpinner />
         ) : (
-          <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-23">
+          <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-20">
             {/* Blurred Background */}
             {userProfile?.wallpaperBase64 && (
               <div
@@ -543,15 +582,18 @@ export default function GamesPage() {
             <div className="absolute inset-0 bg-black/50" />
 
             {/* Left Panel (Stats) */}
-            <div className="w-full lg:w-81 shrink-0 flex flex-col px-4 relative z-10">
-              <div className="bg-zinc-900 rounded-2xl flex flex-col items-center p-3 shadow-xl h-full">
+            <div className="w-full lg:w-80 shrink-0 px-4 relative z-10">
+              <div className="bg-zinc-900 rounded-2xl p-5 flex flex-col items-center shadow-xl h-full">
                 {/* Avatar */}
-                <Link href={`/profile/${userProfile!.username}`}>
+                <Link
+                  href={`/profile/${userProfile!.username}`}
+                  className="group"
+                >
                   {localProfile?.avatarBase64 || localProfile?.avatarUrl ? (
                     <img
                       src={localProfile.avatarBase64 ?? localProfile.avatarUrl}
                       alt={localProfile?.username ?? "User"}
-                      className="w-36 h-36 rounded-full object-cover shadow-lg"
+                      className="w-36 h-36 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
                     />
                   ) : (
                     <div className="w-36 h-36 rounded-full bg-zinc-700 flex items-center justify-center text-5xl text-zinc-400 border-4 border-cyan-400 shadow-lg">
@@ -565,16 +607,15 @@ export default function GamesPage() {
                   <h3 className="font-extrabold text-3xl text-white">
                     {localProfile?.username}
                   </h3>
-                  <p className="cursor-default text-sm text-zinc-300 mt-1 blur-sm hover:blur-none transition">
+                  <p className="text-sm capitalize text-zinc-300 mt-1 cursor-default blur-sm hover:blur-none transition">
                     {localProfile?.email}
                   </p>
                 </div>
 
-                {/* Divider */}
                 <hr className="my-6 w-full border-zinc-700" />
 
                 {/* Stats */}
-                <div className="w-full flex flex-col gap-4 text-sm text-zinc-300 overflow-y-auto px-2">
+                <div className="w-full flex flex-col gap-[7px] text-sm text-zinc-300 h-84 overflow-y-auto px-1">
                   {[
                     ["Member Since", formattedDate],
                     ["Total Games", allGames.length],
@@ -582,12 +623,12 @@ export default function GamesPage() {
                     ["On Hold", onHoldCount],
                     ["Playing", playingCount],
                     ["Dropped", droppedCount],
-                    ["Not Intersted", notInterstedCount],
+                    ["Online", notInterstedCount],
                     ["Want To Play", wantCount],
                   ].map(([label, value]) => (
                     <div
                       key={label?.toString()}
-                      className="flex justify-between w-full px-2 py-1 rounded-lg hover:bg-white/10 transition-colors duration-200"
+                      className="flex justify-between w-full px-3 py-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
                     >
                       <span className="font-medium">{label}</span>
                       <span className="font-semibold text-white">{value}</span>
@@ -595,22 +636,42 @@ export default function GamesPage() {
                   ))}
                 </div>
 
-                {/* Divider */}
-                <hr className="my-6 w-full border-zinc-700" />
+                <hr className="my-3 w-full border-zinc-700" />
 
-                {/* Level / Badge */}
-                <div className="flex flex-col items-center gap-3 pt-3">
-                  <h3 className="flex flex-col font-extrabold text-2xl text-center text-white">
-                    領域展開
-                    <span>(Ryōiki Tenkai)</span>
+                {/* Favorite of All Time */}
+                <div className="flex flex-col items-center w-full gap-3">
+                  <h3 className="font-extrabold text-[22px] text-center text-yellow-300">
+                    Favorite Game of <br /> All Time
                   </h3>
-                  <img
-                    src="/s-l1200.png"
-                    alt="Max Level"
-                    width={200}
-                    height={200}
-                    className=""
-                  />
+                  {!favoriteOfAllTime ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectingFavoriteAllTime(true);
+                      }}
+                      className="w-full max-w-xl h-38 rounded-xl border-2 border-dashed border-zinc-600 flex items-center justify-center text-zinc-500 hover:border-cyan-400 hover:text-cyan-400 transition"
+                    >
+                      <span className="text-4xl font-light">+</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setFavoriteGameModal(true);
+                      }}
+                      className="flex flex-col cursor-pointer w-full max-w-xl rounded-xl overflow-hidden border border-zinc-700 shadow-lg hover:scale-[1.02] transition-transform duration-200"
+                    >
+                      {/* Image */}
+                      <div className="shrink-0 w-full h-38 relative">
+                        <img
+                          src={favoriteOfAllTime.background_image}
+                          alt={favoriteOfAllTime.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -738,25 +799,44 @@ export default function GamesPage() {
                 </button>
               </div>
 
-              <div className="flex justify-center gap-2 mb-4 items-center">
-                <label className="text-sm text-zinc-300">Sort By:</label>
+              <div className="flex justify-center gap-6 mb-4 items-center">
+                <label className="text-sm text-zinc-300 font-semibold">
+                  Sort By:
+                </label>
+
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-zinc-800 text-white px-2 py-1 rounded-full focus:outline-none"
+                  onChange={(e) => {
+                    setSortBy(e.target.value as any);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-zinc-800 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 ease-in-out"
                 >
                   <option value="name">Name</option>
                   <option value="date">Date Added</option>
-                  <option value="tier">Tier (Rating)</option>
+                  <option value="tier">Rating</option>
+                  <option value="release">Release Date</option>
                 </select>
 
                 <button
                   onClick={() =>
                     setSortOrder(sortOrder === "asc" ? "desc" : "asc")
                   }
-                  className="px-2 py-1 rounded-full bg-zinc-700 text-white text-xs"
+                  className="px-4 py-2 rounded-lg bg-zinc-700 text-white text-xs font-medium hover:bg-zinc-600 transition duration-200 ease-in-out"
                 >
-                  {sortOrder === "asc" ? "Asc" : "Desc"}
+                  {sortBy === "name"
+                    ? sortOrder === "asc"
+                      ? "A → Z"
+                      : "Z → A"
+                    : sortBy === "date" || sortBy === "release"
+                    ? sortOrder === "asc"
+                      ? "Oldest to Newest"
+                      : "Newest to Oldest"
+                    : sortBy === "tier"
+                    ? sortOrder === "asc"
+                      ? "Lowest to Highest"
+                      : "Highest to Lowest"
+                    : "Tier (Rating)"}
                 </button>
               </div>
 
@@ -847,13 +927,6 @@ export default function GamesPage() {
                             )}
                           </div>
                         </div>
-
-                        {/* <div className="flex justify-center items-center pb-3">
-                        <BigProgressWheel
-                          value={game.progress ?? 0}
-                          size={70}
-                        />
-                      </div> */}
                       </Link>
                     </motion.div>
                   ))
@@ -936,7 +1009,7 @@ export default function GamesPage() {
               </div>
 
               {/* Recently Edited */}
-              <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 max-h-[43vh] mb-8 lg:mb-0">
+              <div className="bg-zinc-900 p-4 rounded-2xl flex flex-col gap-3 max-h-[44vh] mb-8 lg:mb-0">
                 <h3 className="font-bold text-xl mb-2 text-white/90">
                   Recent Games
                 </h3>
@@ -962,7 +1035,7 @@ export default function GamesPage() {
                                 {g.name}
                               </span>
 
-                              <div className="flex gap-2 mt-1">
+                              <div className="flex gap-2 mt-2">
                                 <span className="text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
                                   {g.playtime
                                     ? `${Math.floor(g.playtime)}h ${Math.round(
@@ -1006,6 +1079,89 @@ export default function GamesPage() {
             showFavorite={true}
           />
         )}
+
+        {/* All-Time Favorite Modal */}
+        <AllTimeFavoriteModal
+          open={selectingFavoriteAllTime}
+          onClose={() => setSelectingFavoriteAllTime(false)}
+        />
+
+        {/* Top-level All-Time Favorite Modal */}
+        <AnimatePresence>
+          {favoriteGameModal && favoriteOfAllTime && (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+            >
+              <motion.div
+                className="relative w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden"
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              >
+                {/* Background Image */}
+                <div className="absolute inset-0">
+                  <img
+                    src={favoriteOfAllTime.background_image}
+                    alt={favoriteOfAllTime.name}
+                    className="w-full h-full object-cover brightness-80"
+                  />
+                  <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/50 to-transparent"></div>
+                </div>
+
+                {/* Content */}
+                <div className="relative p-6 flex flex-col md:flex-row gap-6">
+                  <div className="flex-1 flex flex-col gap-4">
+                    <div className="flex flex-col items-center justify-between ">
+                      <h2 className="text-2xl font-extrabold text-white drop-shadow-lg">
+                        {favoriteOfAllTime.name}
+                      </h2>
+                      <p className="font-semibold text-yellow-400 text-lg drop-shadow-sm text-center">
+                        ⭐ {favoriteOfAllTime.rating} / 10
+                      </p>
+                    </div>
+                    {favoriteOfAllTime.notes ? (
+                      <p className="text-zinc-200 text-sm md:text-base leading-relaxed">
+                        {favoriteOfAllTime.notes}
+                      </p>
+                    ) : (
+                      <p className="text-zinc-200 text-sm md:text-base leading-relaxed">
+                        No notes about the game
+                      </p>
+                    )}
+
+                    {/* Select New Favorite Button */}
+                    <button
+                      onClick={() => {
+                        setFavoriteGameModal(false);
+                        setSelectingFavoriteAllTime(true);
+                      }}
+                      className="mt-4 bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-xl shadow-lg shadow-yellow-500/50 hover:scale-105 transition-transform duration-200"
+                    >
+                      Select A New Favorite Game
+                    </button>
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <button
+                  className="absolute top-4 right-4 text-zinc-200 hover:text-white text-3xl transition-transform hover:scale-110"
+                  onClick={() => setFavoriteGameModal(false)}
+                >
+                  ×
+                </button>
+
+                {/* Subtle floating glows */}
+                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-yellow-500/20 rounded-full blur-3xl animate-pulse-slow pointer-events-none"></div>
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/20 rounded-full blur-3xl animate-pulse-slow pointer-events-none"></div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <ConfirmModal
           open={confirmOpen}

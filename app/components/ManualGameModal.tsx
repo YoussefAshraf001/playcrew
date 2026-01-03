@@ -28,7 +28,10 @@ interface Props {
   userId: string;
 }
 
-const DEV_PASSWORD = "2411";
+if (!process.env.NEXT_PUBLIC_DEV_PASSWORD) {
+  throw new Error("Missing env var NEXT_PUBLIC_DEV_PASSWORD");
+}
+const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD;
 
 export default function ManualGameModal({ userId }: Props) {
   const [pin, setPin] = useState<string[]>(Array(DEV_PASSWORD.length).fill(""));

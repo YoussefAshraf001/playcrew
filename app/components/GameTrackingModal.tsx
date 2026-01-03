@@ -274,7 +274,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   <option value="Completed">Completed</option>
                   <option value="On Hold">On Hold</option>
                   <option value="Dropped">Dropped</option>
-                  <option value="Check Out">Check Out</option>
+                  <option value="Online">Online</option>
                   <option value="Want To Play">Want To Play</option>
                 </select>
               )}

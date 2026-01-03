@@ -17,12 +17,15 @@ import {
   FaCrown,
   FaLinux,
   FaGoogle,
-  FaBookmark,
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA } from "react-icons/io";
 import { GiMouthWatering } from "react-icons/gi";
-import { TbBucketDroplet } from "react-icons/tb";
+import {
+  MdOutlineOnlinePrediction,
+  MdRemoveCircleOutline,
+} from "react-icons/md";
+
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { db } from "@/app/lib/firebase";
@@ -36,13 +39,13 @@ const statuses = [
   { label: "On Hold", icon: <FaPause />, color: "bg-yellow-500" }, // Paused / waiting → yellow = caution
   {
     label: "Dropped",
-    icon: <TbBucketDroplet size={15} />,
+    icon: <MdRemoveCircleOutline size={16} />,
     color: "bg-red-500",
   }, // Stop / negative → red
   { label: "Completed", icon: <FaCrown size={20} />, color: "bg-green-500" }, // Success → green
   {
-    label: "Check Out",
-    icon: <FaBookmark size={15} />,
+    label: "Online",
+    icon: <MdOutlineOnlinePrediction size={23} />,
     color: "bg-purple-500",
   }, // Neutral / discovery → purple
   {

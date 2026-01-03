@@ -4,7 +4,6 @@ import { auth } from "@/app/lib/firebase";
 import { useUser } from "../context/UserContext";
 import { useMusic } from "../context/MusicContext";
 import Link from "next/link";
-import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
@@ -18,7 +17,6 @@ import {
 import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
 import { useState, useEffect, useRef } from "react";
 import ConfirmModal from "./ConfirmModal";
-// import ManualGameModal from "./ManualGameModal";
 
 const API_KEY = process.env.NEXT_PUBLIC_RAWG_API_KEY;
 

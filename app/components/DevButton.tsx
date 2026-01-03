@@ -48,6 +48,8 @@ if (!process.env.NEXT_PUBLIC_DEV_PASSWORD) {
   throw new Error("Missing env var NEXT_PUBLIC_DEV_PASSWORD");
 }
 const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD;
+const DEV_PASSWORD_KEY = "dev_password_unlocked";
+const DEV_PASSWORD_DURATION = 10 * 60 * 1000; // 10 minutes in ms
 
 export default function DevGameEditor({ userId, game, onClose }: Props) {
   const [pin, setPin] = useState<string[]>(Array(DEV_PASSWORD.length).fill(""));
@@ -58,6 +60,19 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
   const [tempPlatforms, setTempPlatforms] = useState("");
   const [tempPublishers, setTempPublishers] = useState("");
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+
+  // Check if dev mode is already unlocked
+  useEffect(() => {
+    const stored = localStorage.getItem(DEV_PASSWORD_KEY);
+    if (stored) {
+      const ts = parseInt(stored, 10);
+      if (Date.now() - ts < DEV_PASSWORD_DURATION) {
+        setUnlocked(true);
+      } else {
+        localStorage.removeItem(DEV_PASSWORD_KEY);
+      }
+    }
+  }, []);
 
   // Fetch game data after PIN is correct
   useEffect(() => {
@@ -113,11 +128,10 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     };
 
     try {
-      // Update the sub-document directly
       const ref = doc(db, "users", userId, "games", game.id.toString());
       await updateDoc(ref, updatedGameData);
 
-      setGameData(updatedGameData); // update local state
+      setGameData(updatedGameData);
       handleClose();
       toast.success("Game Updated!");
     } catch (err) {
@@ -128,14 +142,21 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
   const handleClose = () => onClose();
 
+  const handleCorrectPin = () => {
+    const now = Date.now();
+    setUnlocked(true);
+    localStorage.setItem(DEV_PASSWORD_KEY, now.toString());
+
+    const endTime = now + DEV_PASSWORD_DURATION;
+
+    // Show initial toast with time left
+    toast.success(`Dev mode unlocked for 10 minutes`);
+  };
+
   return createPortal(
     <>
       <Toaster containerStyle={{ zIndex: 10001 }} />
-      <AnimatePresence
-        onExitComplete={() => {
-          // optional cleanup
-        }}
-      >
+      <AnimatePresence>
         <motion.div
           key="modal"
           initial={{ opacity: 0 }}
@@ -180,8 +201,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
                         if (newPin.join("").length === DEV_PASSWORD.length) {
                           if (newPin.join("") === DEV_PASSWORD) {
-                            setUnlocked(true);
-                            toast.success("Unlocked!");
+                            handleCorrectPin();
                           } else {
                             toast.error("Wrong code!");
                             setPin(Array(DEV_PASSWORD.length).fill(""));
@@ -228,7 +248,6 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                 {FIELDS.map(({ key, label }) => (
                   <div key={key} className="flex gap-2 items-center mb-2">
                     <span className="text-white w-32">{label}:</span>
-
                     {key === "favorite" ? (
                       <input
                         type="checkbox"

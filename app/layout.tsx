@@ -6,7 +6,6 @@ import Navbar from "./components/Navbar";
 import "./globals.css";
 import { UserProvider } from "./context/UserContext";
 import { MusicProvider } from "./context/MusicContext";
-import { Toaster } from "react-hot-toast";
 import MusicPlayer from "./components/MusicPlayer";
 import { HelmetProvider } from "react-helmet-async";
 import GlobalToaster from "./components/GlobalToaster";
