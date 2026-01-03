@@ -205,6 +205,15 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const setCategory = (k: keyof CategoryRatings, v: number | "excluded") =>
     setCategoryRatings((s) => ({ ...s, [k]: v }));
 
+  const categoryOrder: (keyof CategoryRatings)[] = [
+    "story",
+    "graphics",
+    "gameplay",
+    "ost",
+    "cinematics",
+    "voiceActing",
+  ];
+
   const weightedRating = useMemo(() => {
     let totalWeight = 0;
     let weightedSum = 0;
@@ -394,7 +403,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   !gameIsReleased ? "opacity-50" : ""
                 }`}
               >
-                {Object.keys(categoryRatings).map((cat) => (
+                {categoryOrder.map((cat) => (
                   <div key={cat} className="flex flex-col gap-1">
                     {/* <div className="flex justify-between pb-2 text-sm text-zinc-300 capitalize">
                       <span>{cat}</span>
