@@ -3,11 +3,14 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 
+function trimQuote(text: string, maxLength = 120) {
+  return text.length > maxLength ? text.slice(0, maxLength).trim() + "…" : text;
+}
+
 const QUOTES = [
   // ───── Red Dead Redemption 2 ─────
   { quote: "We’re more ghosts than people.", author: "Arthur Morgan" },
   { quote: "Revenge is a fool’s game.", author: "Arthur Morgan" },
-  { quote: "I gave you all I had.", author: "Arthur Morgan" },
   {
     quote: "We can’t change what’s done. We can only move on.",
     author: "Arthur Morgan",
@@ -18,8 +21,6 @@ const QUOTES = [
     quote: "When you’re lost in the darkness, look for the light.",
     author: "The Last of Us",
   },
-  { quote: "You have no idea what loss is.", author: "Joel" },
-  { quote: "It can’t be for nothing.", author: "The Last of Us" },
   {
     quote:
       "After all we’ve been through… everything I’ve done… it can’t be for nothing.",
@@ -29,10 +30,21 @@ const QUOTES = [
   // ───── Call of Duty ─────
   {
     quote: "We get dirty, and the world stays clean.",
-    author: "Captain Price",
+    author: "Captain John Price",
   },
-  { quote: "The rules have changed.", author: "Captain Price" },
-  { quote: "You can’t kill an idea.", author: "Call of Duty" },
+  {
+    quote: "Bravo Six, Going Dark.",
+    author: "Captain John Price",
+  },
+  {
+    quote:
+      "We fight not so that the world will remember us, but so that there will be a world to remember.",
+    author: "Captain John Price",
+  },
+  {
+    quote: "How'd a muppet like you pass selection?",
+    author: "Captain John Price",
+  },
 
   // ───── Alan Wake ─────
   { quote: "It’s not a lake. It’s an ocean.", author: "Alan Wake" },
@@ -76,55 +88,12 @@ const QUOTES = [
     author: "Geralt",
   },
 
-  // ───── Mass Effect ─────
-  {
-    quote:
-      "Stand in the ashes of a trillion dead souls and ask if honor matters.",
-    author: "Javik",
-  },
-  { quote: "Does this unit have a soul?", author: "Legion" },
-  {
-    quote:
-      "I’m Commander Shepard, and this is my favorite store on the Citadel.",
-    author: "Shepard",
-  },
-
-  // ───── Fallout ─────
-  { quote: "War. War never changes.", author: "Fallout" },
-  {
-    quote: "Finding it isn’t the hard part. It’s letting go.",
-    author: "Fallout",
-  },
-
   // ───── BioShock ─────
   { quote: "A man chooses. A slave obeys.", author: "Andrew Ryan" },
   {
     quote: "We all make choices. But in the end, our choices make us.",
     author: "BioShock",
   },
-
-  // ───── Metal Gear Solid ─────
-  { quote: "War has changed.", author: "Solid Snake" },
-  { quote: "The world would be better off without snakes.", author: "MGS" },
-
-  // ───── Assassin’s Creed ─────
-  {
-    quote: "Nothing is true. Everything is permitted.",
-    author: "Assassin’s Creed",
-  },
-  { quote: "Requiescat in pace.", author: "Ezio Auditore" },
-
-  // ───── Dark Souls / Elden Ring ─────
-  { quote: "You died.", author: "Dark Souls" },
-  {
-    quote: "The fire fades… and the lords go without thrones.",
-    author: "Dark Souls",
-  },
-  { quote: "Put these foolish ambitions to rest.", author: "Elden Ring" },
-
-  // ───── Halo ─────
-  { quote: "I need a weapon.", author: "Master Chief" },
-  { quote: "Finish the fight.", author: "Halo" },
 
   // ───── GTA ─────
   {
@@ -139,26 +108,19 @@ const QUOTES = [
     author: "Aloy",
   },
 
-  // ───── Control ─────
-  { quote: "You are a worm through time.", author: "Control" },
-
-  // ───── Metro ─────
-  { quote: "If it’s hostile, you kill it.", author: "Metro 2033" },
-
   // ───── Final Fantasy ─────
   {
     quote: "No matter how dark the night, morning always comes.",
     author: "Final Fantasy",
   },
-
-  // ───── Doom ─────
-  { quote: "Rip and tear, until it is done.", author: "DOOM" },
 ];
 
 export default function GameQuote() {
   const quote = useMemo(() => {
     return QUOTES[Math.floor(Math.random() * QUOTES.length)];
   }, []);
+
+  const trimmed = trimQuote(quote.quote, 120);
 
   return (
     <motion.div
@@ -168,7 +130,7 @@ export default function GameQuote() {
       className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 p-5 text-center shadow-lg flex flex-col justify-center min-h-[140px]"
     >
       <p className="italic text-zinc-300 text-center leading-relaxed">
-        “{quote.quote}”
+        “{trimmed}”
       </p>
       <span className="mt-3 text-sm text-cyan-400">— {quote.author}</span>
     </motion.div>

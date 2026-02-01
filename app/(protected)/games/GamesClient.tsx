@@ -108,6 +108,7 @@ export default function GamesPage() {
 
   const [loading, setLoading] = useState(true);
   const [pageDirection, setPageDirection] = useState<1 | -1>(1);
+  const [animationType, setAnimationType] = useState<"page" | "status">("page");
 
   //Editing Games
   const [modalOpen, setModalOpen] = useState(false);
@@ -370,6 +371,7 @@ export default function GamesPage() {
   );
 
   const handleTabChange = (status: string) => {
+    setAnimationType("status");
     setSelectedStatus(status);
   };
 
@@ -595,16 +597,21 @@ export default function GamesPage() {
   };
 
   const pageVariants = {
-    enter: (direction: number) => ({
-      x: direction > 0 ? 80 : -80,
+    enter: (custom: { type: "page" | "status"; direction: number }) => ({
+      x: custom.type === "page" ? (custom.direction > 0 ? 80 : -80) : 0,
+      y: custom.type === "status" ? 40 : 0,
       opacity: 0,
     }),
+
     center: {
       x: 0,
+      y: 0,
       opacity: 1,
     },
-    exit: (direction: number) => ({
-      x: direction > 0 ? -80 : 80,
+
+    exit: (custom: { type: "page" | "status"; direction: number }) => ({
+      x: custom.type === "page" ? (custom.direction > 0 ? -80 : 80) : 0,
+      y: custom.type === "status" ? -40 : 0,
       opacity: 0,
     }),
   };
@@ -653,10 +660,10 @@ export default function GamesPage() {
       {loading || userLoading ? (
         <LoadingSpinner />
       ) : (
-        <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-20">
+        <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-18">
           {/* Blurred Background */}
           {userProfile?.wallpaperBase64 && (
-            <div className="fixed inset-0 z-10 overflow-hidden blur-xs">
+            <div className="fixed inset-0 z-10 overflow-hidden blur-sm brightness-25">
               <img
                 src={userProfile.wallpaperBase64}
                 alt="Wallpaper"
@@ -723,7 +730,7 @@ export default function GamesPage() {
               <hr className="my-3 w-full border-zinc-700" />
 
               {/* Quote Section */}
-              <div className="my-auto">
+              <div className="mt-0 lg:pt-12">
                 <GameQuote />
               </div>
             </div>
@@ -811,6 +818,7 @@ export default function GamesPage() {
               <button
                 disabled={currentPage === 1}
                 onClick={() => {
+                  setAnimationType("page");
                   setPageDirection(-1);
                   setCurrentPage((prev) => prev - 1);
                 }}
@@ -838,6 +846,7 @@ export default function GamesPage() {
               <button
                 disabled={currentPage === totalPages}
                 onClick={() => {
+                  setAnimationType("page");
                   setPageDirection(1);
                   setCurrentPage((prev) => prev + 1);
                 }}
@@ -852,7 +861,7 @@ export default function GamesPage() {
             </div>
 
             <div className="relative w-full flex items-center justify-center mb-4">
-              <div className="bg-zinc-800 rounded-full px-4 py-2 flex items-center gap-5">
+              <div className="bg-zinc-800 rounded-full px-4 py-1 flex items-center gap-5">
                 {/* Label */}
                 <label className="text-sm text-white whitespace-nowrap ml-2">
                   Sort By:
@@ -944,10 +953,13 @@ export default function GamesPage() {
             </div>
 
             {/* Game Grid */}
-            <AnimatePresence mode="wait" custom={pageDirection}>
+            <AnimatePresence
+              mode="wait"
+              custom={{ type: animationType, direction: pageDirection }}
+            >
               <motion.div
-                key={currentPage}
-                custom={pageDirection}
+                key={`${selectedStatus}-${currentPage}`}
+                custom={{ type: animationType, direction: pageDirection }}
                 variants={pageVariants}
                 initial="enter"
                 animate="center"
@@ -1043,7 +1055,7 @@ export default function GamesPage() {
             </div>
 
             {/* Recently Edited */}
-            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[44vh] mb-8 lg:mb-0">
+            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[45.2vh] mb-8 lg:mb-0">
               <h3 className="font-bold text-xl pt-2 pl-1 text-white/90">
                 Recent Games
               </h3>
