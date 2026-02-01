@@ -20,8 +20,13 @@ export default function ScreenshotsCarousel({
   const [isHovered, setIsHovered] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
 
   const scrollPosRef = useRef(0);
+
+  const handleImageLoad = (src: string) => {
+    setLoadedImages((prev) => ({ ...prev, [src]: true }));
+  };
 
   // Seamless scrolling
   useEffect(() => {
@@ -74,28 +79,25 @@ export default function ScreenshotsCarousel({
     setActiveIndex(
       (prev) => (prev - 1 + screenshots.length) % screenshots.length,
     );
+
   const handleNext = () =>
     setActiveIndex((prev) => (prev + 1) % screenshots.length);
 
   const allScreenshots =
     screenshots.length > 1 ? [...screenshots, ...screenshots] : screenshots;
 
-  // If no screenshots → show centered placeholder
   if (screenshots.length === 0) {
     return (
       <div className="w-full h-48 flex items-center justify-center">
-        <div
-          className="h-48 w-64 flex items-center justify-center 
-        bg-zinc-900/50 rounded-lg border border-zinc-700 text-zinc-400 text-sm"
-        >
+        <div className="h-48 w-64 flex items-center justify-center bg-zinc-900/50 rounded-lg border border-zinc-700 text-zinc-400 text-sm">
           No screenshots available
         </div>
       </div>
     );
   }
 
-  const THUMBNAIL_WIDTH = 336; // ~w-84
-  const THUMBNAIL_HEIGHT = 192; // ~h-48
+  const THUMBNAIL_WIDTH = 336;
+  const THUMBNAIL_HEIGHT = 192;
 
   return (
     <>
@@ -107,20 +109,36 @@ export default function ScreenshotsCarousel({
         className="flex gap-4 overflow-x-auto hide-scrollbar w-[1400px] cursor-pointer"
       >
         {allScreenshots.map((s, i) => (
-          <motion.img
+          <div
             key={i}
-            src={s.image}
-            alt={`screenshot ${i + 1}`}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="rounded-lg shadow-md"
+            className="relative shrink-0"
             style={{
               width: THUMBNAIL_WIDTH,
               height: THUMBNAIL_HEIGHT,
-              objectFit: "cover",
             }}
-            onClick={() => handleOpenModal(i % screenshots.length)}
-          />
+          >
+            {/* Skeleton */}
+            {!loadedImages[s.image] && (
+              <div className="absolute inset-0 rounded-lg bg-zinc-800 animate-pulse" />
+            )}
+
+            <motion.img
+              src={s.image}
+              alt={`screenshot ${i + 1}`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onLoad={() => handleImageLoad(s.image)}
+              className="rounded-lg shadow-md"
+              style={{
+                width: THUMBNAIL_WIDTH,
+                height: THUMBNAIL_HEIGHT,
+                objectFit: "cover",
+                opacity: loadedImages[s.image] ? 1 : 0,
+                transition: "opacity 0.4s ease",
+              }}
+              onClick={() => handleOpenModal(i % screenshots.length)}
+            />
+          </div>
         ))}
       </div>
 
@@ -172,7 +190,7 @@ export default function ScreenshotsCarousel({
 
               {/* Download button */}
               <button
-                className="cursor-pointer hover:scale-105 ease-in-out duration-300 transition-all mt-4 px-4 py-2 
+                className="cursor-pointer hover:scale-105 ease-in-out duration-300 transition-all mt-4 px-4 py-2
              bg-cyan-500 text-black font-semibold rounded-lg
              hover:outline hover:outline-cyan-500
              hover:bg-black hover:text-cyan-500"

@@ -116,7 +116,8 @@ export default function GamePage() {
     return (
       game.short_screenshots?.map((s: any, i: number) => ({
         id: i,
-        image: s.replace(/t_[^/]+/, "t_original"),
+        image: s.replace(/t_[^/]+/, "t_1080p"), // full quality
+        bg: s.replace(/t_[^/]+/, "t_screenshot_big"), // background
       })) ?? []
     );
   }, [game]);
@@ -135,21 +136,19 @@ export default function GamePage() {
 
   useEffect(() => {
     if (!screenshots?.length) return;
-    setBgImage(screenshots[0].image);
+    setBgImage(screenshots[0].bg);
   }, [screenshots]);
 
   useEffect(() => {
     if (!screenshots || screenshots.length === 0) return;
 
     // Pick initial image
-    setBgImage(
-      screenshots[Math.floor(Math.random() * screenshots.length)].image,
-    );
+    setBgImage(screenshots[Math.floor(Math.random() * screenshots.length)].bg);
 
     const interval = setInterval(() => {
       const random =
         screenshots[Math.floor(Math.random() * screenshots.length)];
-      setBgImage(random.image);
+      setBgImage(random.bg);
     }, 10000);
 
     return () => clearInterval(interval);
@@ -542,10 +541,6 @@ export default function GamePage() {
           transition={{ duration: 0.6 }}
           className="absolute inset-0 z-0"
         >
-          {/* <img
-            src={game.background_image}
-            className="w-full h-full object-cover brightness-[0.45] "
-          /> */}
           <motion.img
             key={bgImage}
             src={bgImage ?? game.background_image}
@@ -555,7 +550,7 @@ export default function GamePage() {
             transition={{ duration: 0.8 }}
           />
 
-          <div className="absolute inset-0 bg-linear-to-b from-black/30 to-black backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-linear-to-b from-black/10 to-black backdrop-blur-sm" />
         </motion.div>
 
         {/* MAIN CONTENT */}

@@ -95,17 +95,6 @@ export const MusicProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (playerRef.current && !playerRef.current.contains(e.target as Node)) {
-        setPlayerVisible(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
     localStorage.setItem("music-volume", volume.toString());
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);

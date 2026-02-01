@@ -80,19 +80,22 @@ export default function GameCard({
             alt={game.name}
             onLoad={() => setLoaded(true)}
             className={`
-          w-full h-full object-cover
-          transition-all duration-500
-          ${loaded ? "opacity-100 scale-100" : "opacity-0 scale-105"}
-          group-hover:scale-[1.10]
-        `}
+    w-full h-full object-cover
+    transform-gpu scale-[1.001]
+    transition-transform duration-500
+    ${loaded ? "opacity-100" : "opacity-0"}
+    group-hover:scale-[1.10]
+  `}
           />
 
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/20 to-transparent" />
+          {/* <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/20 to-transparent" /> */}
         </div>
       </Link>
 
       {/* Info */}
-      <div className="px-3 pt-2 h-[50px] flex flex-col justify-center">
+      <div
+        className={`${isReleased ? "h-[50px]" : "h-10"} px-3 pt-2 flex flex-col justify-center`}
+      >
         {isReleased ? (
           <>
             {/* Rating + Time */}

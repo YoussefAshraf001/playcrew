@@ -18,15 +18,19 @@ export default function VideoCarousel({ videos }: VideoCarouselProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [isHovered, setIsHovered] = useState(false);
+  const [loadedThumbs, setLoadedThumbs] = useState<Record<string, boolean>>({});
 
   const scrollPosRef = useRef(0);
+
+  const handleThumbLoad = (src: string) => {
+    setLoadedThumbs((prev) => ({ ...prev, [src]: true }));
+  };
 
   const openModal = (index: number) => {
     setActiveIndex(index);
     setModalOpen(true);
   };
 
-  // Duplicate for seamless scroll
   const safeVideos = Array.isArray(videos) ? videos : [];
   const allVideos =
     safeVideos.length > 1 ? [...safeVideos, ...safeVideos] : safeVideos;
@@ -36,7 +40,7 @@ export default function VideoCarousel({ videos }: VideoCarouselProps) {
     if (!container || videos.length === 0) return;
 
     let animationFrame: number;
-    const speed = 0.5; // adjust speed
+    const speed = 0.5;
 
     const scroll = () => {
       if (!isHovered) {
@@ -63,12 +67,12 @@ export default function VideoCarousel({ videos }: VideoCarouselProps) {
     );
   }
 
-  const THUMBNAIL_WIDTH = 336; // ~w-84
-  const THUMBNAIL_HEIGHT = 192; // ~h-48
+  const THUMBNAIL_WIDTH = 336;
+  const THUMBNAIL_HEIGHT = 192;
 
   return (
     <>
-      {/* Video thumbnails container */}
+      {/* Thumbnails */}
       <div
         ref={containerRef}
         onMouseEnter={() => setIsHovered(true)}
@@ -76,21 +80,44 @@ export default function VideoCarousel({ videos }: VideoCarouselProps) {
         className="flex gap-4 overflow-x-auto hide-scrollbar w-[1400px] cursor-pointer"
       >
         {allVideos.map((v, i) => (
-          <motion.div
+          <div
             key={i}
-            className="relative rounded-lg overflow-hidden shadow-md hover:scale-105 transition-transform duration-200 shrink-0"
-            style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}
+            className="relative shrink-0 overflow-hidden rounded-lg"
+            style={{
+              width: THUMBNAIL_WIDTH,
+              height: THUMBNAIL_HEIGHT,
+            }}
             onClick={() => openModal(i % videos.length)}
           >
-            <img
-              src={v.thumbnail}
-              alt={`Video thumbnail ${i + 1}`}
-              className="w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-              <span className="text-white text-4xl select-none">▶</span>
-            </div>
-          </motion.div>
+            {/* Skeleton */}
+            {!loadedThumbs[v.thumbnail] && (
+              <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
+            )}
+
+            {/* SCALE THE WRAPPER, NOT THE IMAGE */}
+            <motion.div
+              className="w-full h-full"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+              <img
+                src={v.thumbnail}
+                alt={`Video thumbnail ${i + 1}`}
+                onLoad={() => handleThumbLoad(v.thumbnail)}
+                className="w-full h-full object-cover"
+                style={{
+                  opacity: loadedThumbs[v.thumbnail] ? 1 : 0,
+                  transition: "opacity 0.4s ease",
+                }}
+              />
+
+              {/* Overlay */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                <span className="text-white text-4xl">▶</span>
+              </div>
+            </motion.div>
+          </div>
         ))}
       </div>
 

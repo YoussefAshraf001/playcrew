@@ -1,203 +1,143 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-  setDoc,
-  deleteDoc,
-} from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 
-type GameDoc = {
-  id: string; // docId
-  [key: string]: any;
-};
-
-export default function DebugSearchPage() {
+export default function CoverQualityDevPage() {
   const { user } = useUser();
+  const [games, setGames] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<GameDoc[]>([]);
-  const [selected, setSelected] = useState<GameDoc | null>(null);
-  const [json, setJson] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [renamingId, setRenamingId] = useState("");
+  useEffect(() => {
+    if (!user) return;
 
-  /* ---------------- SEARCH ---------------- */
-
-  const search = async () => {
-    if (!user || !query.trim()) return;
-
-    setLoading(true);
-    setResults([]);
-    setSelected(null);
-
-    const snap = await getDocs(collection(db, "users", user.uid, "games_igdb"));
-
-    const q = query.toLowerCase();
-    const matches: GameDoc[] = [];
-
-    snap.forEach((docSnap) => {
-      const data = docSnap.data();
-      const id = docSnap.id;
-
-      const name = data?.name?.toLowerCase?.() || "";
-      const igdbName = data?.igdb?.name?.toLowerCase?.() || "";
-      const igdbId = String(data?.igdb?.id ?? "");
-
-      if (
-        id.includes(q) ||
-        name.includes(q) ||
-        igdbName.includes(q) ||
-        igdbId === q
-      ) {
-        matches.push({
-          id,
-          ...data,
-        });
-      }
-    });
-
-    setResults(matches);
-    setLoading(false);
-  };
-
-  /* ---------------- SAVE ---------------- */
-
-  const saveChanges = async () => {
-    if (!user || !selected) return;
-
-    try {
-      const parsed = JSON.parse(json);
-
-      await setDoc(
-        doc(db, "users", user.uid, "games_igdb", selected.id),
-        parsed,
-        { merge: false },
+    const fetchGames = async () => {
+      const snap = await getDocs(
+        collection(db, "users", user.uid, "games_igdb"),
       );
 
-      alert("✅ Saved");
-    } catch (e) {
-      alert("❌ Invalid JSON");
-    }
-  };
+      const list = snap.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-  /* ---------------- RENAME DOC ID ---------------- */
+      setGames(list);
+      setLoading(false);
+    };
 
-  const renameDoc = async () => {
-    if (!user || !selected || !renamingId) return;
+    fetchGames();
+  }, [user]);
 
-    const oldRef = doc(db, "users", user.uid, "games_igdb", selected.id);
-    const newRef = doc(db, "users", user.uid, "games_igdb", renamingId);
+  const updateAll = async (mode: "720p" | "cover") => {
+    if (!user) return;
 
-    const snap = await getDoc(newRef);
-    if (snap.exists()) {
-      alert("❌ That ID already exists");
-      return;
-    }
+    setProcessing(true);
 
-    await setDoc(newRef, {
-      ...selected,
-      igdb: {
-        ...selected.igdb,
-        id: Number(renamingId),
-      },
+    const updates = games.map(async (game) => {
+      const cover = game?.igdb?.cover;
+      if (!cover) return;
+
+      const updated =
+        mode === "720p"
+          ? cover.replace(/t_[^/]+/, "t_720p")
+          : cover.replace(/t_[^/]+/, "t_cover_big");
+
+      await updateDoc(doc(db, "users", user.uid, "games_igdb", game.id), {
+        "igdb.cover": updated,
+      });
+
+      return {
+        ...game,
+        igdb: { ...game.igdb, cover: updated },
+      };
     });
 
-    await deleteDoc(oldRef);
+    const updatedGames = await Promise.all(updates);
+    setGames(updatedGames.filter(Boolean));
 
-    alert("✅ Doc ID updated");
-
-    setSelected(null);
-    setResults([]);
+    setProcessing(false);
   };
 
-  /* ---------------- UI ---------------- */
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Login required
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-white">
+        Loading games…
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 space-y-6 mt-15">
-      <h1 className="text-3xl font-bold">🔍 Firestore Debug Search</h1>
+    <main className="min-h-screen bg-black text-white p-10">
+      <h1 className="text-3xl font-bold mb-4">Cover Quality Manager</h1>
 
-      {/* Search */}
-      <div className="flex gap-3">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by doc ID, name, igdb.id..."
-          className="flex-1 px-4 py-2 bg-zinc-900 rounded-lg"
-        />
+      <div className="flex gap-4 mb-6">
         <button
-          onClick={search}
-          className="px-5 py-2 bg-cyan-500 text-black font-semibold rounded-lg"
+          onClick={() => updateAll("720p")}
+          disabled={processing}
+          className="px-5 py-2 rounded bg-cyan-500 hover:bg-cyan-400 text-black font-semibold disabled:opacity-50"
         >
-          Search
+          Apply ALL → t_720p
         </button>
+
+        <button
+          onClick={() => updateAll("cover")}
+          disabled={processing}
+          className="px-5 py-2 rounded bg-zinc-700 hover:bg-zinc-600 font-semibold disabled:opacity-50"
+        >
+          Revert ALL → t_cover_big
+        </button>
+
+        {processing && (
+          <span className="text-zinc-400 text-sm self-center">Updating…</span>
+        )}
       </div>
 
-      {loading && <div>Searching...</div>}
+      <div className="space-y-4">
+        {games.map((game) => {
+          const is720p = game.igdb?.cover?.includes("t_720p");
 
-      {/* Results */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {results.map((g) => (
-          <div
-            key={g.id}
-            onClick={() => {
-              setSelected(g);
-              setJson(JSON.stringify(g, null, 2));
-              setRenamingId(g.id);
-            }}
-            className="p-4 bg-zinc-900 border border-zinc-700 rounded cursor-pointer hover:bg-zinc-800"
-          >
-            <div className="font-semibold">{g.name || "Unnamed"}</div>
-            <div className="text-xs text-zinc-400">Doc ID: {g.id}</div>
-            <div className="text-xs text-zinc-400">
-              IGDB ID: {g.igdb?.id ?? "❌"}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Editor */}
-      {selected && (
-        <div className="mt-6 space-y-4">
-          <h2 className="text-xl font-bold">✏ Edit Document</h2>
-
-          <textarea
-            value={json}
-            onChange={(e) => setJson(e.target.value)}
-            rows={18}
-            className="w-full bg-black border border-zinc-700 rounded p-4 font-mono text-sm"
-          />
-
-          <div className="flex gap-3">
-            <button
-              onClick={saveChanges}
-              className="px-4 py-2 bg-green-500 text-black rounded"
+          return (
+            <div
+              key={game.id}
+              className="flex items-center gap-4 p-4 rounded-lg bg-zinc-900 border border-white/10"
             >
-              Save Changes
-            </button>
-
-            <div className="flex gap-2">
-              <input
-                value={renamingId}
-                onChange={(e) => setRenamingId(e.target.value)}
-                className="px-3 py-2 bg-zinc-800 rounded"
-                placeholder="New Doc ID"
+              <img
+                src={game.igdb?.cover}
+                className="w-20 h-28 object-contain rounded bg-black"
+                alt={game.name}
               />
-              <button
-                onClick={renameDoc}
-                className="px-4 py-2 bg-red-500 text-black rounded"
+
+              <div className="flex-1">
+                <div className="font-semibold">{game.name}</div>
+                <div className="text-sm text-zinc-400">
+                  {is720p ? "t_720p" : "t_cover_big"}
+                </div>
+              </div>
+
+              <span
+                className={`text-xs px-3 py-1 rounded-full ${
+                  is720p
+                    ? "bg-green-600/20 text-green-400"
+                    : "bg-yellow-600/20 text-yellow-400"
+                }`}
               >
-                Rename ID
-              </button>
+                {is720p ? "HQ" : "Default"}
+              </span>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          );
+        })}
+      </div>
+    </main>
   );
 }

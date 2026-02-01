@@ -43,12 +43,12 @@ export default function GameActionsDropdown({
   const [devModalOpen, setDevModalOpen] = useState(false);
 
   const [fields, setFields] = useState<Record<RefreshField, boolean>>({
-    name: true,
-    cover: true,
-    genres: true,
-    rating: true,
-    platforms: true,
-    released: true,
+    name: false,
+    cover: false,
+    genres: false,
+    rating: false,
+    platforms: false,
+    released: false,
   });
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -192,7 +192,7 @@ export default function GameActionsDropdown({
                   <button
                     key={key}
                     onClick={() => setFields((p) => ({ ...p, [key]: !p[key] }))}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition
+                    className={`cursor-pointer hover:scale-103 ease-in-out duration-300 transition-all px-4 py-2 rounded-lg font-medium text-sm
                 ${
                   fields[key]
                     ? "bg-emerald-500 text-black"
@@ -211,12 +211,12 @@ export default function GameActionsDropdown({
                   onClick={() => {
                     setRefreshOpen(false);
                     setFields({
-                      name: true,
-                      cover: true,
-                      genres: true,
-                      rating: true,
-                      platforms: true,
-                      released: true,
+                      name: false,
+                      cover: false,
+                      genres: false,
+                      rating: false,
+                      platforms: false,
+                      released: false,
                     });
                   }}
                   className="px-4 py-2 bg-zinc-700 rounded-lg"

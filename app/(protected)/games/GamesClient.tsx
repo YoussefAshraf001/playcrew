@@ -235,8 +235,14 @@ export default function GamesPage() {
 
   // Filter and sort safely
   const filteredGames = useMemo(() => {
-    let list =
-      selectedStatus === "All"
+    // let list =
+    //   selectedStatus === "All"
+    //     ? gamesByStatus.All
+    //     : gamesByStatus[selectedStatus] || [];
+
+    let list = showFavoritesOnly
+      ? allGames
+      : selectedStatus === "All"
         ? gamesByStatus.All
         : gamesByStatus[selectedStatus] || [];
 
@@ -959,6 +965,7 @@ export default function GamesPage() {
                   onClick={() => {
                     setShowFavoritesOnly((prev) => !prev);
                     setSelectedStatus("All");
+                    setCurrentPage(1);
                   }}
                   className={`px-3 py-1 rounded-md border-2 border-cyan-400 text-white font-bold flex items-center justify-center gap-2 hover:bg-cyan-500 hover:border-cyan-500 transition-all duration-300 ease-in-out cursor-pointer ${
                     showFavoritesOnly
