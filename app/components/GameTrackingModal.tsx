@@ -23,19 +23,30 @@ interface CategoryRatings {
 }
 
 interface TrackedGame {
-  id: number;
+  _docId: string;
+
   name: string;
-  slug: string;
-  background_image?: string;
-  screenshots?: string[];
+
+  // User data
   playtime?: number;
-  rating?: number;
-  status?: string | null;
-  favorite?: boolean;
+  my_rating?: number;
+  status?: string;
   progress?: number;
-  lastUpdated?: any;
   notes?: string;
-  released?: string;
+  categoryRatings?: CategoryRatings;
+  favorite?: boolean;
+  favoriteAllTime?: boolean;
+  lastUpdated?: any;
+
+  // IGDB data
+  igdb: {
+    id: number;
+    name: string;
+    cover?: string;
+    rating?: number;
+    genres?: string[];
+    releaseDate?: Date;
+  };
 }
 
 interface GameTrackingModalProps {
@@ -59,7 +70,7 @@ interface GameTrackingModalProps {
     playtime: number,
     status: string,
     favorite: boolean,
-    categoryRatings: CategoryRatings
+    categoryRatings: CategoryRatings,
   ) => Promise<void> | void;
 }
 
@@ -89,24 +100,6 @@ const WEIGHTS = {
   cinematics: 0.15,
   voiceActing: 0.1,
 } as const;
-
-const tierFor = (score10: number) => {
-  if (score10 >= 9) return "S";
-  if (score10 >= 8) return "A";
-  if (score10 >= 7) return "B";
-  if (score10 >= 6) return "C";
-  if (score10 >= 5) return "D";
-  return "F";
-};
-
-// const tierEmojiMap: Record<string, string> = {
-//   S: "💎",
-//   A: "🔥",
-//   B: "👍",
-//   C: "👌",
-//   D: "😬",
-//   F: "💀",
-// };
 
 const getClosestPreset = (score: number) => {
   let closest = PRESETS[0];
@@ -143,18 +136,15 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const [notes, setNotes] = useState<string>(initialNotes ?? "");
   const [categoryRatings, setCategoryRatings] = useState<CategoryRatings>(
-    initialCategoryRatings ?? DEFAULT_CATEGORIES
+    initialCategoryRatings ?? DEFAULT_CATEGORIES,
   );
   const [progress, setProgress] = useState<number>(initialProgress ?? 0);
   const [hoverProgress, setHoverProgress] = useState<number | null>(null);
 
   const [hours, setHours] = useState<number>(Math.floor(initialPlaytime ?? 0));
   const [minutes, setMinutes] = useState<number>(
-    Math.round(((initialPlaytime ?? 0) % 1) * 60)
+    Math.round(((initialPlaytime ?? 0) % 1) * 60),
   );
-
-  const [excludeVoice, setExcludeVoice] = useState(false);
-  const [excludeCinematics, setExcludeCinematics] = useState(false);
 
   const [status, setStatus] = useState<string>(initialStatus ?? "Playing");
   const [favorite, setFavorite] = useState<boolean>(initialFavorite ?? false);
@@ -192,7 +182,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setImageError(false);
   }, [
     open,
-    game?.id,
+    game?.igdb.id,
     initialNotes,
     initialRating,
     initialProgress,
@@ -224,15 +214,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
         weightedSum += score * weight;
         totalWeight += weight;
       }
-      // "excluded" is ignored
     }
 
     if (totalWeight === 0) return 0;
     return Math.round((weightedSum / totalWeight) * 10) / 10;
   }, [categoryRatings]);
-
-  const tier = useMemo(() => tierFor(weightedRating), [weightedRating]);
-  // const tierEmoji = tierEmojiMap[tier] ?? "";
 
   const handleSave = async () => {
     const totalPlaytime = Number((hours + minutes / 60).toFixed(2));
@@ -243,20 +229,43 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       totalPlaytime,
       status,
       favorite,
-      categoryRatings
+      categoryRatings,
     );
   };
 
-  const bgUrl = game?.background_image || "/placeholder-game.jpg";
+  const bgUrl = game?.igdb.cover || "/placeholder-game.jpg";
 
-  const gameIsReleased =
-    !!game?.released && new Date(game.released) <= new Date();
+  const normalizeDate = (value?: any) => {
+    if (!value) return null;
+
+    // Firestore Timestamp (object form)
+    if (typeof value === "object" && typeof value.seconds === "number") {
+      return new Date(value.seconds * 1000);
+    }
+
+    // Firestore Timestamp (toDate method)
+    if (typeof value?.toDate === "function") {
+      return value.toDate();
+    }
+
+    // IGDB unix timestamp
+    if (typeof value === "number") {
+      return new Date(value * 1000);
+    }
+
+    // ISO string fallback
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const releaseDate = normalizeDate(game?.igdb.releaseDate);
+  const gameIsReleased = !!releaseDate && releaseDate <= new Date();
 
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -266,7 +275,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: -10, opacity: 0, scale: 0.97 }}
             transition={{ type: "spring", damping: 18, stiffness: 300 }}
-            className="w-full max-w-3xl rounded-2xl shadow-2xl bg-linear-to-b from-zinc-900/90 to-zinc-900/95
+            className="w-full max-w-3xl rounded-2xl shadow-2xl bg-linear-to-b from-zinc-900 to-zinc-900
              max-h-[95vh] overflow-auto"
             role="dialog"
             aria-modal="true"
@@ -343,7 +352,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     {game?.name}
                   </h3>
                   <div className="flex justify-center items-center gap-2 text-sm text-amber-400">
-                    {game?.id}
+                    {game?.igdb.id}
                   </div>
                 </div>
                 {gameIsReleased && (
@@ -388,7 +397,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     </h3>
                     <div className="flex items-center gap-2 text-sm text-amber-400 mt-1">
                       {weightedRating.toFixed(1)}/10
-                      {/* {weightedRating.toFixed(1)}/10 {tierEmoji} • {tier} Tier */}
                     </div>
                   </div>
                 )}
@@ -405,9 +413,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               >
                 {categoryOrder.map((cat) => (
                   <div key={cat} className="flex flex-col gap-1">
-                    {/* <div className="flex justify-between pb-2 text-sm text-zinc-300 capitalize">
-                      <span>{cat}</span>
-                    </div> */}
                     <div className="flex justify-between items-center pb-2 text-sm text-zinc-300 capitalize">
                       <span>{cat}</span>
 
@@ -419,7 +424,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               "voiceActing",
                               categoryRatings.voiceActing === "excluded"
                                 ? 0
-                                : "excluded"
+                                : "excluded",
                             )
                           }
                           className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
@@ -443,7 +448,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               "cinematics",
                               categoryRatings.cinematics === "excluded"
                                 ? 0
-                                : "excluded"
+                                : "excluded",
                             )
                           }
                           className={`text-[10px] px-2 py-0.5 rounded-full border transition ${
@@ -480,18 +485,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                 setCategory(cat as keyof CategoryRatings, n);
                             }}
                             className={`w-6 h-6 flex items-center justify-center text-xs rounded border
-        ${isActive ? "bg-yellow-400 text-black border-yellow-500" : ""}
-        ${
-          !isActive && !isExcluded
-            ? "bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-700"
-            : ""
-        }
-        ${
-          isExcluded
-            ? "bg-zinc-900 text-zinc-400 border-zinc-700 opacity-40 cursor-not-allowed"
-            : ""
-        }
-        ease-in-out transition-all duration-300`}
+                        ${isActive ? "bg-yellow-400 text-black border-yellow-500" : ""}
+                        ${
+                          !isActive && !isExcluded
+                            ? "bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-700"
+                            : ""
+                        }
+                        ${
+                          isExcluded
+                            ? "bg-zinc-900 text-zinc-400 border-zinc-700 opacity-40 cursor-not-allowed"
+                            : ""
+                        } ease-in-out transition-all duration-300`}
                           >
                             {n}
                           </button>
@@ -528,7 +532,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                       const updateProgress = (clientX: number) => {
                         const newProgress = Math.round(
-                          ((clientX - rect.left) / rect.width) * 100
+                          ((clientX - rect.left) / rect.width) * 100,
                         );
                         setProgress(Math.max(0, Math.min(100, newProgress)));
                       };
@@ -553,7 +557,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                       const updateProgress = (clientX: number) => {
                         const newProgress = Math.round(
-                          ((clientX - rect.left) / rect.width) * 100
+                          ((clientX - rect.left) / rect.width) * 100,
                         );
                         setProgress(Math.max(0, Math.min(100, newProgress)));
                       };
@@ -580,7 +584,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       if (!gameIsReleased || !progressRef.current) return;
                       const rect = progressRef.current.getBoundingClientRect();
                       const hoverP = Math.round(
-                        ((e.clientX - rect.left) / rect.width) * 100
+                        ((e.clientX - rect.left) / rect.width) * 100,
                       );
                       setHoverProgress(Math.max(0, Math.min(100, hoverP)));
                     }}
@@ -633,21 +637,13 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       value={minutes}
                       onChange={(e) =>
                         setMinutes(
-                          Math.max(0, Math.min(59, Number(e.target.value)))
+                          Math.max(0, Math.min(59, Number(e.target.value))),
                         )
                       }
                       className="w-21 py-1 px-3 bg-zinc-900 rounded-md border border-zinc-700 text-white text-sm"
                     />
                     <span className="text-zinc-400 text-sm">mins</span>
                   </div>
-
-                  {/* Overlay / toast trigger if game not released */}
-                  {!gameIsReleased && (
-                    <div
-                      className="absolute inset-0 flex items-center justify-center cursor-not-allowed"
-                      onClick={() => toast.error("Game isn't released yet!")}
-                    />
-                  )}
                 </div>
               </div>
 

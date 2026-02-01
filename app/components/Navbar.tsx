@@ -8,41 +8,41 @@ import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
   FaHome,
-  FaGamepad,
   FaSignOutAlt,
   FaCog,
   FaSearch,
   FaUser,
+  FaCalendarAlt,
 } from "react-icons/fa";
+import { GiGamepad } from "react-icons/gi";
 import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
-import { useState, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
 import ConfirmModal from "./ConfirmModal";
-
-const API_KEY = process.env.NEXT_PUBLIC_RAWG_API_KEY;
+import { GiTrophiesShelf } from "react-icons/gi";
+import SearchModal from "./SearchModal";
+import NotificationBell from "./NotificationBell";
+import { useGames } from "@/app/context/GameContext";
 
 export default function Navbar() {
   const { profile, user, loading } = useUser();
+  const games = useGames();
 
   const newUserImage = user?.photoURL;
 
   const { playerVisible, togglePlayerVisible } = useMusic();
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
-  const [loadingSearch, setLoadingSearch] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const [accountOpen, setAccountOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const navItems = [
     { href: "/dashboard", icon: FaHome, label: "Dashboard" },
     { href: "/explore", icon: MdExplore, label: "Explore" },
-    { href: "/games", icon: FaGamepad, label: "My Games" },
+    { href: "/games", icon: GiGamepad, label: "My Games" },
+    { href: "/calendar", icon: FaCalendarAlt, label: "Calendar" },
+    { href: "/shelf", icon: GiTrophiesShelf, label: "Shelf" },
     {
       href: null,
       icon: FaSearch,
@@ -57,46 +57,27 @@ export default function Navbar() {
     window.location.href = "/login";
   };
 
-  // --- Search fetch ---
-  useEffect(() => {
-    if (query.length < 2) {
-      setResults([]);
-      return;
-    }
+  const now = new Date();
 
-    setLoadingSearch(true);
+  const monthGames = useMemo(() => {
+    return games
+      .map((g) => {
+        const d = g.igdb?.releaseDate;
+        if (!d) return null;
 
-    if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
+        const date =
+          d?.toDate?.() ??
+          (typeof d === "number" ? new Date(d * 1000) : new Date(d));
 
-    debounceTimeoutRef.current = setTimeout(async () => {
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
-      try {
-        const res = await fetch(
-          `https://api.rawg.io/api/games?key=${API_KEY}&search=${query}&page_size=20`,
-          { signal: controller.signal }
-        );
-        const data = await res.json();
-        setResults(data.results || []);
-        console.log(data);
-      } catch (err) {
-        if ((err as any).name === "AbortError") return;
-        console.error(err);
-        setResults([]);
-      } finally {
-        setLoadingSearch(false);
-      }
-    }, 300);
-
-    return () => {
-      if (debounceTimeoutRef.current) clearTimeout(debounceTimeoutRef.current);
-      if (abortControllerRef.current) abortControllerRef.current.abort();
-    };
-  }, [query]);
-
-  const isExpanded = query.trim().length > 0;
+        return { ...g, date };
+      })
+      .filter(
+        (g): g is typeof g & { date: Date } =>
+          !!g &&
+          g.date.getMonth() === now.getMonth() &&
+          g.date.getFullYear() === now.getFullYear(),
+      );
+  }, [games]);
 
   return (
     <>
@@ -105,7 +86,7 @@ export default function Navbar() {
   fixed top-0 left-6 right-6 z-50
   bg-black/20 backdrop-blur-md
   border-b-3 border-cyan-600
-  border-x 
+  border-x
   shadow-xl
   px-6 py-1
   flex items-center justify-center lg:justify-between
@@ -122,7 +103,7 @@ export default function Navbar() {
         <div className="hidden lg:flex items-center">
           <Link href="/dashboard" className="flex items-center gap-2">
             <img src="/logo.png" alt="PlayCrew" className="w-11 h-8" />
-            <span className=" text-white text-2xl">
+            <span className="text-white text-2xl font-semibold uppercase tracking-wider">
               Play<span className="text-cyan-300 font-black">Crew</span>
             </span>
           </Link>
@@ -181,11 +162,13 @@ export default function Navbar() {
         </div>
         {/* RIGHT: Player + Account */}
         <div className="hidden lg:flex items-center gap-4 relative">
+          <NotificationBell games={monthGames} />
+
           <motion.button
             onClick={togglePlayerVisible}
             whileTap={{ scale: 0.95 }}
             transition={{ type: "spring", stiffness: 300, damping: 20 }}
-            className={`flex items-center gap-2 px-3 py-1 rounded-full font-semibold border border-zinc-600 cursor-pointer select-none transition-colors duration-300 ${
+            className={`flex items-center px-3 py-1 rounded-full font-semibold border border-zinc-600 cursor-pointer select-none transition-colors duration-300 ${
               playerVisible
                 ? "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-[0_0_12px_rgba(0,255,255,0.5)]"
                 : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
@@ -196,11 +179,7 @@ export default function Navbar() {
             ) : (
               <MdMusicOff size={20} />
             )}
-            <span>Music</span>
           </motion.button>
-
-          {/* Add ManualGameModal here */}
-          {/* {user && <ManualGameModal userId={user.uid} />} */}
 
           {profile ? (
             <div
@@ -208,11 +187,9 @@ export default function Navbar() {
               onClick={() => setAccountOpen(!accountOpen)}
             >
               <img
-                src={profile.avatarBase64! || (user && newUserImage)}
+                src={profile.avatarBase64 || newUserImage}
                 alt="Profile"
-                width={32}
-                height={32}
-                className="rounded-full cursor-pointer border-3 border-zinc-700"
+                className="w-8 h-8 rounded-full object-cover cursor-pointer border-2 border-zinc-700"
               />
 
               <AnimatePresence>
@@ -294,108 +271,6 @@ export default function Navbar() {
             </div>
           )}
         </div>
-        {/* --- SEARCH MODAL --- */}
-        {typeof window !== "undefined" &&
-          createPortal(
-            <AnimatePresence>
-              {searchModalOpen && (
-                <motion.div
-                  key="overlay"
-                  className="fixed inset-0 z-9999 bg-black/80 backdrop-blur-md flex items-center justify-center px-4"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  <motion.div
-                    key="modal"
-                    className="bg-[#1e1e1e] rounded-lg overflow-hidden p-4 w-full max-w-lg flex flex-col"
-                    initial={false}
-                    animate={{
-                      height: isExpanded ? 600 : 120,
-                    }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 260,
-                      damping: 28,
-                    }}
-                  >
-                    <button
-                      className="self-end text-white text-2xl font-bold mb-2"
-                      onClick={() => {
-                        setSearchModalOpen(false);
-                        setQuery("");
-                      }}
-                    >
-                      &times;
-                    </button>
-
-                    <input
-                      type="text"
-                      value={query}
-                      placeholder="Search a game..."
-                      onChange={(e) => setQuery(e.target.value)}
-                      className="bg-[#2a2a2a] text-center text-white rounded-full px-4 py-2 w-full outline-none mb-2"
-                    />
-
-                    <div
-                      className={`flex flex-col gap-2  ${
-                        isExpanded
-                          ? "overflow-y-auto custom-scrollbar"
-                          : "overflow-hidden"
-                      } p-2`}
-                    >
-                      {loadingSearch
-                        ? Array.from({ length: 9 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className="h-12 w-full bg-zinc-700 animate-pulse rounded"
-                            />
-                          ))
-                        : results.map((game) => (
-                            <motion.div
-                              key={game.id}
-                              initial={{ opacity: 0, y: 6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.25, ease: "easeOut" }}
-                            >
-                              <Link
-                                href={`/game/${game.id}`}
-                                onClick={() => setSearchModalOpen(false)}
-                                className="group relative block h-20 rounded-lg overflow-hidden transition"
-                              >
-                                {/* Background image */}
-                                <img
-                                  src={game.background_image}
-                                  alt={game.name}
-                                  className="absolute inset-0 w-full h-full object-cover scale-100 group-hover:scale-105 transition-transform duration-300"
-                                />
-
-                                {/* Dark gradient overlay */}
-                                <div className="absolute inset-0 bg-linear-to-r from-black via-black/50 to-black/10" />
-
-                                {/* Content */}
-                                <div className="relative z-10 flex flex-col justify-center h-full px-3">
-                                  <span className="text-white text-md font-semibold leading-tight line-clamp-1">
-                                    {game.name}
-                                  </span>
-
-                                  {game.released && (
-                                    <span className="text-white/60 text-sm tracking-wide">
-                                      {new Date(game.released).getFullYear()}
-                                    </span>
-                                  )}
-                                </div>
-                              </Link>
-                            </motion.div>
-                          ))}
-                    </div>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>,
-            document.body
-          )}
       </motion.nav>
       {typeof window !== "undefined" &&
         createPortal(
@@ -411,8 +286,239 @@ export default function Navbar() {
               await handleLogout();
             }}
           />,
-          document.body
+          document.body,
         )}
+
+      {/* --- SEARCH MODAL --- */}
+      <AnimatePresence>
+        {searchModalOpen && (
+          <SearchModal
+            isOpen={searchModalOpen}
+            onClose={() => setSearchModalOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }
+
+//////////////////////////////////////SIDEBAR//////////////////////////////////////
+// "use client";
+
+// import { auth } from "@/app/lib/firebase";
+// import { useUser } from "../context/UserContext";
+// import { useMusic } from "../context/MusicContext";
+// import Link from "next/link";
+// import { AnimatePresence, motion } from "framer-motion";
+// import { createPortal } from "react-dom";
+// import {
+//   FaHome,
+//   FaGamepad,
+//   FaSignOutAlt,
+//   FaCog,
+//   FaSearch,
+//   FaUser,
+//   FaCalendarAlt,
+// } from "react-icons/fa";
+// import { MdExplore, MdMusicOff } from "react-icons/md";
+// import { useState } from "react";
+// import ConfirmModal from "./ConfirmModal";
+// import { GiTrophiesShelf } from "react-icons/gi";
+// import SearchModal from "./SearchModal";
+
+// export default function Navbar() {
+//   const { profile, user, loading } = useUser();
+//   const { togglePlayerVisible, currentTrack, isPlaying } = useMusic();
+//   const showAlbum = currentTrack && isPlaying;
+
+//   const [searchModalOpen, setSearchModalOpen] = useState(false);
+//   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+//   const [accountOpen, setAccountOpen] = useState(false);
+//   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+//   const navItems = [
+//     { href: "/dashboard", icon: FaHome, label: "Dashboard" },
+//     { href: "/explore", icon: MdExplore, label: "Explore" },
+//     { href: "/games", icon: FaGamepad, label: "My Games" },
+//     { href: "/calendar", icon: FaCalendarAlt, label: "Calendar" },
+//     { href: "/shelf", icon: GiTrophiesShelf, label: "Shelf" },
+//     {
+//       href: null,
+//       icon: FaSearch,
+//       label: "Search",
+//       onClick: () => setSearchModalOpen(true),
+//     },
+//   ];
+
+//   const handleLogout = async () => {
+//     if (!user) return;
+//     await auth.signOut();
+//     window.location.href = "/login";
+//   };
+
+//   return (
+//     <>
+//       {/* ================= SIDEBAR ================= */}
+//       <motion.nav
+//         initial={{ x: -40, opacity: 0 }}
+//         animate={{ x: 0, opacity: 1 }}
+//         transition={{ duration: 0.4, ease: "easeOut" }}
+//         className="
+//     fixed left-10 top-1/2 -translate-y-1/2 z-50
+//     h-[820px] w-16
+//     bg-black/30 backdrop-blur-md
+//     border border-cyan-600/40
+//     shadow-2xl
+//     py-4
+//     flex flex-col items-center justify-between
+//     text-white
+//     transition-colors duration-300
+//     hover:bg-black/80
+//     rounded-[999px]
+//   "
+//       >
+//         {/* ===== TOP ===== */}
+//         <Link
+//           href="/dashboard"
+//           className="w-10 h-10 flex items-center justify-center mb-10"
+//         >
+//           <img src="/logo.png" alt="PlayCrew" className="w-10 h-8" />
+//         </Link>
+
+//         {/* ===== CENTER ===== */}
+//         <div className="flex flex-col items-center gap-4 flex-1">
+//           {navItems.map(({ href, icon: Icon, label, onClick }, index) => (
+//             <div
+//               key={label}
+//               className="relative w-full flex justify-center"
+//               onMouseEnter={() => setHoveredIndex(index)}
+//               onMouseLeave={() => setHoveredIndex(null)}
+//             >
+//               {href ? (
+//                 <Link
+//                   href={href}
+//                   className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition"
+//                 >
+//                   <Icon size={20} />
+//                 </Link>
+//               ) : (
+//                 <button
+//                   onClick={onClick}
+//                   className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition"
+//                 >
+//                   <Icon size={20} />
+//                 </button>
+//               )}
+
+//               <AnimatePresence>
+//                 {hoveredIndex === index && (
+//                   <motion.span
+//                     initial={{ opacity: 0, x: -6 }}
+//                     animate={{ opacity: 1, x: 10 }}
+//                     exit={{ opacity: 0, x: -6 }}
+//                     className="absolute left-14 bg-zinc-800 px-3 py-1 rounded text-sm shadow-lg whitespace-nowrap z-50"
+//                   >
+//                     {label}
+//                   </motion.span>
+//                 )}
+//               </AnimatePresence>
+//             </div>
+//           ))}
+//         </div>
+
+//         {/* ===== BOTTOM ===== */}
+//         <div className="flex flex-col items-center gap-4">
+//           <button
+//             onClick={togglePlayerVisible}
+//             className="w-10 h-10 relative rounded-full overflow-hidden flex items-center justify-center transition"
+//           >
+//             {showAlbum && currentTrack.cover ? (
+//               // Vinyl-like spinning album art
+//               <div className="w-full h-full rounded-full relative animate-spin-slow">
+//                 <img
+//                   src={currentTrack.cover}
+//                   alt={currentTrack.title}
+//                   className="w-full h-full object-cover rounded-full"
+//                 />
+
+//                 {/* Center hole */}
+//                 <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-black rounded-full -translate-x-1/2 -translate-y-1/2 border border-zinc-700" />
+//               </div>
+//             ) : (
+//               // Default icon if no track is playing
+//               <MdMusicOff size={18} className="relative z-10 text-white" />
+//             )}
+//           </button>
+
+//           {profile ? (
+//             <div className="relative">
+//               <img
+//                 src={profile.avatarBase64 || user?.photoURL || ""}
+//                 className="w-9 h-9 rounded-full cursor-pointer border border-zinc-600"
+//                 onClick={() => setAccountOpen(!accountOpen)}
+//               />
+
+//               <AnimatePresence>
+//                 {accountOpen && (
+//                   <motion.div
+//                     initial={{ opacity: 0, y: 6 }}
+//                     animate={{ opacity: 1, y: 0 }}
+//                     exit={{ opacity: 0, y: 6 }}
+//                     className="absolute left-14 bottom-0 w-40 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl z-50"
+//                   >
+//                     <Link
+//                       href={`/profile/${user?.displayName}`}
+//                       className="px-4 py-2 flex items-center gap-2 hover:bg-zinc-800"
+//                     >
+//                       <FaCog /> Settings
+//                     </Link>
+//                     <button
+//                       onClick={() => setShowLogoutModal(true)}
+//                       className="px-4 py-2 flex items-center gap-2 w-full text-left text-red-400 hover:bg-red-600 hover:text-white"
+//                     >
+//                       <FaSignOutAlt /> Logout
+//                     </button>
+//                   </motion.div>
+//                 )}
+//               </AnimatePresence>
+//             </div>
+//           ) : loading ? (
+//             <div className="w-9 h-9 rounded-full bg-zinc-700 animate-pulse" />
+//           ) : (
+//             <Link
+//               href="/login"
+//               className="w-10 h-10 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700"
+//             >
+//               <FaUser size={18} />
+//             </Link>
+//           )}
+//         </div>
+//       </motion.nav>
+
+//       {/* ================= LOGOUT CONFIRM ================= */}
+//       {typeof window !== "undefined" &&
+//         createPortal(
+//           <ConfirmModal
+//             open={showLogoutModal}
+//             title=""
+//             message="Are you sure you want to log out?"
+//             confirmText="Logout"
+//             cancelText="Cancel"
+//             onCancel={() => setShowLogoutModal(false)}
+//             onConfirm={handleLogout}
+//           />,
+//           document.body,
+//         )}
+
+//       {/* --- SEARCH MODAL --- */}
+//       <AnimatePresence>
+//         {searchModalOpen && (
+//           <SearchModal
+//             isOpen={searchModalOpen}
+//             onClose={() => setSearchModalOpen(false)}
+//           />
+//         )}
+//       </AnimatePresence>
+//     </>
+//   );
+// }

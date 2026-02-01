@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Image from "next/image";
 import { motion } from "framer-motion";
 
 interface PosterImageProps {
@@ -25,7 +24,7 @@ export default function PosterImage({ src, alt, className }: PosterImageProps) {
         transition={{ duration: 0.7, ease: "easeOut" }}
         className="absolute inset-0"
       >
-        <div className="relative w-full h-56">
+        <div className="relative w-full h-full">
           <img
             src={src}
             alt={alt}

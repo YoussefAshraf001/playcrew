@@ -1,130 +1,168 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import GenreRow from "@/app/components/GenreRow";
-import { motion } from "framer-motion";
 import HeroSection from "@/app/components/HeroSection";
+import GenreRow from "@/app/components/GenreRow";
+import SkeletonRow from "@/app/components/SkeletonRow";
+import { AnimatePresence, motion } from "framer-motion";
+import HeroSkeleton from "@/app/components/HeroSkeleton";
 import { Helmet } from "react-helmet-async";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/app/lib/firebase";
+import { useUser } from "@/app/context/UserContext";
 
-const API_KEY = process.env.NEXT_PUBLIC_RAWG_API_KEY;
-
-if (!API_KEY) throw new Error("Missing NEXT_PUBLIC_RAWG_API_KEY");
-
-const GENRES = [
-  "action",
-  "shooter",
-  "casual",
-  "adventure",
-  "indie",
-  "massively-multiplayer",
-  "fighting",
-];
-
-const REVALIDATE_TIME = 3600;
-
-// ---------------------------
-// Fetch Helpers
-// ---------------------------
-async function fetchJSON(url: string) {
-  const res = await fetch(url, { next: { revalidate: REVALIDATE_TIME } });
-  if (!res.ok) throw new Error(`Failed to fetch: ${url}`);
-  return res.json();
-}
-
-async function getTrending() {
-  const url = `https://api.rawg.io/api/games/lists/popular?key=${API_KEY}&page_size=10`;
-  const data = await fetchJSON(url);
-  return data.results || [];
-}
-
-async function getGenres() {
-  const promises = GENRES.map(async (genre) => {
-    const url = `https://api.rawg.io/api/games?key=${API_KEY}&genres=${genre}&page_size=30`;
-    const data = await fetchJSON(url);
-    return [genre, data.results || []] as const;
-  });
-  const resolved = await Promise.all(promises);
-  return Object.fromEntries(resolved);
-}
-
-// ---------------------------
-// Client Explore Page
-// ---------------------------
 export default function ExplorePage() {
-  const [trending, setTrending] = useState<any[]>([]);
+  const { user } = useUser();
+  const [hero, setHero] = useState<any[]>([]);
   const [sections, setSections] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [savedGames, setSavedGames] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [trendingData, genresData] = await Promise.all([
-          getTrending(),
-          getGenres(),
-        ]);
-        setTrending(trendingData);
-        setSections(genresData);
-      } catch (err: any) {
-        console.error(err);
-        setError("Failed to load games. Try again later.");
-      } finally {
-        setLoading(false);
-      }
+    if (!user?.uid) return;
+
+    const ref = collection(db, "users", user.uid, "games_igdb");
+
+    const unsub = onSnapshot(ref, (snap) => {
+      const data: Record<string, any> = {};
+
+      snap.forEach((doc) => {
+        data[doc.id] = doc.data();
+      });
+
+      setSavedGames(data);
+    });
+
+    return () => unsub();
+  }, [user?.uid]);
+
+  const fetchExploreData = async () => {
+    const [
+      upcoming,
+      trending,
+      topRated,
+      criticallyAcclaimed,
+      storyRich,
+      mostPlayed,
+      indieSpotlight,
+      hiddenGems,
+      recentlyReleased,
+    ] = await Promise.all([
+      fetch("/api/igdb/explore/upcoming").then((r) => r.json()),
+      fetch("/api/igdb/explore/trending").then((r) => r.json()),
+      fetch("/api/igdb/explore/top-rated").then((r) => r.json()),
+      fetch("/api/igdb/explore/story-rich").then((r) => r.json()),
+      fetch("/api/igdb/explore/most-played").then((r) => r.json()),
+      fetch("/api/igdb/explore/indie-spotlight").then((r) => r.json()),
+      fetch("/api/igdb/explore/critically-acclaimed").then((r) => r.json()),
+      fetch("/api/igdb/explore/hidden-gems").then((r) => r.json()),
+      fetch("/api/igdb/explore/recently-released").then((r) => r.json()),
+    ]);
+
+    return {
+      hero: upcoming,
+      sections: {
+        "Trending Now": trending,
+        "Most Anticipated": upcoming,
+        "Top Rated": topRated,
+        "Critically Acclaimed": criticallyAcclaimed,
+        "Story Rich": storyRich,
+        "Most Played": mostPlayed,
+        "Indie Spotlight": indieSpotlight,
+        "Hidden Gems": hiddenGems,
+        "Recently Released": recentlyReleased,
+      },
     };
-    fetchData();
+  };
+
+  useEffect(() => {
+    const cached = sessionStorage.getItem("explore-data");
+
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      setHero(parsed.hero);
+      setSections(parsed.sections);
+      setLoading(false);
+      return;
+    }
+
+    const load = async () => {
+      const data = await fetchExploreData();
+      sessionStorage.setItem("explore-data", JSON.stringify(data));
+      setHero(data.hero);
+      setSections(data.sections);
+      setLoading(false);
+    };
+
+    load();
   }, []);
-
-  if (loading) {
-    return (
-      <motion.div
-        className="flex items-center justify-center min-h-screen bg-black text-white"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        <motion.div
-          className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full"
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-        />
-      </motion.div>
-    );
-  }
-
-  if (error) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-black text-white">
-        <p>{error}</p>
-      </main>
-    );
-  }
 
   return (
     <>
       <Helmet>
-        <title>PlayCrew</title>
+        <title>PlayCrew - Explore</title>
       </Helmet>
-      <motion.main
-        className="min-h-screen bg-black text-white overflow-hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeInOut" }}
-      >
-        {/* Content */}
-        <div className="flex w-full gap-8 max-w-screen overflow-hidden pt-14">
-          <div className="flex-1 min-w-0 overflow-y-auto space-y-16 pb-20">
-            {/* Hero Section */}
-            {trending.length > 0 && <HeroSection trending={trending} />}
 
-            {/* Genre Rows */}
-            {Object.entries(sections).map(([genre, games]) => (
-              <GenreRow key={genre} title={genre} games={games} />
-            ))}
-          </div>
+      <main className="min-h-screen bg-black text-white mt-12">
+        <AnimatePresence mode="wait">
+          {hero.length === 0 ? (
+            <motion.div
+              key="hero-skeleton"
+              initial={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <HeroSkeleton />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="hero"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{
+                duration: 0.6,
+                ease: "easeOut",
+              }}
+            >
+              <HeroSection
+                trending={hero}
+                user={user}
+                savedGames={savedGames}
+                setSavedGames={setSavedGames}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="px-12 ">
+          {loading
+            ? [...Array(3)].map((_, i) => <SkeletonRow key={i} />)
+            : Object.entries(sections).map(([title, games], i) => (
+                <motion.div
+                  key={title}
+                  initial={{ opacity: 0, y: 40 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.6,
+                    ease: "easeOut",
+                    delay: i * 0.12,
+                  }}
+                >
+                  <GenreRow
+                    title={title}
+                    user={user}
+                    games={Array.isArray(games) ? games : []}
+                    savedGames={savedGames}
+                    setSavedGames={setSavedGames}
+                  />
+                  <div className="relative mb-5">
+                    <div className="h-px w-full bg-linear-to-r from-transparent via-cyan-400/50 to-transparent" />
+                    <div className="absolute inset-0 blur-sm bg-linear-to-r from-transparent via-cyan-400/40 to-transparent" />
+                  </div>
+                </motion.div>
+              ))}
         </div>
-      </motion.main>
+      </main>
     </>
   );
 }

@@ -1,333 +1,432 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
-import toast, { Toaster } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
-
-interface TrackedGame {
-  id: number;
-  name?: string;
-  released?: string;
-  genres?: { name: string }[];
-  platforms?: { name: string; platform?: { name: string } }[];
-  publishers?: { name: string }[];
-  background_image?: string;
-  notes?: string;
-  progress?: number;
-  status?: string;
-  playtime?: number;
-  my_rating?: number;
-  favorite?: boolean;
-  [key: string]: any;
-}
+import toast from "react-hot-toast";
 
 interface Props {
   userId: string;
-  game: TrackedGame;
+  game: { _docId: string };
   onClose: () => void;
 }
 
-type EditableTrackedGameKey = keyof TrackedGame & string;
-
-const FIELDS: { key: EditableTrackedGameKey; label: string }[] = [
-  { key: "id", label: "Game Id" },
-  { key: "name", label: "Game Name" },
-  { key: "background_image", label: "Poster Image" },
-  { key: "slug", label: "Game Slug" },
-  { key: "released", label: "Release Date" },
-  { key: "genres", label: "Genres" },
-  { key: "platforms", label: "Platforms" },
-  { key: "publishers", label: "Publishers" },
-  { key: "metacritic", label: "Metacritic" },
-];
-
-if (!process.env.NEXT_PUBLIC_DEV_PASSWORD) {
-  throw new Error("Missing env var NEXT_PUBLIC_DEV_PASSWORD");
+interface GameData {
+  categoryRatings?: { [key: string]: number };
+  name: string;
+  igdb: {
+    id: number;
+    name: string;
+    cover?: string;
+    genres?: string[];
+    platforms?: string[];
+    releaseDate?: any;
+    rating?: number;
+  };
+  playtime?: number;
+  status?: string;
+  favorite?: boolean;
+  notes?: string;
+  my_rating?: number;
 }
-const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD;
-const DEV_PASSWORD_KEY = "dev_password_unlocked";
-const DEV_PASSWORD_DURATION = 10 * 60 * 1000; // 10 minutes in ms
+
+const DEV_KEY = "dev_unlock";
+const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD!;
 
 export default function DevGameEditor({ userId, game, onClose }: Props) {
-  const [pin, setPin] = useState<string[]>(Array(DEV_PASSWORD.length).fill(""));
   const [unlocked, setUnlocked] = useState(false);
-  const [gameData, setGameData] = useState<TrackedGame | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [tempGenres, setTempGenres] = useState("");
-  const [tempPlatforms, setTempPlatforms] = useState("");
-  const [tempPublishers, setTempPublishers] = useState("");
-  const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
+  const [pin, setPin] = useState<string[]>(Array(4).fill(""));
+  const inputsRef = useRef<HTMLInputElement[]>([]);
 
-  // Check if dev mode is already unlocked
+  const [loading, setLoading] = useState(true);
+  const [loadingSavingChanges, setLoadingSavingChanges] = useState(false);
+  const [gameData, setGameData] = useState<GameData | null>(null);
+  const [visible, setVisible] = useState(true);
+
+  /* ------------------ UNLOCK ------------------ */
   useEffect(() => {
-    const stored = localStorage.getItem(DEV_PASSWORD_KEY);
-    if (stored) {
-      const ts = parseInt(stored, 10);
-      if (Date.now() - ts < DEV_PASSWORD_DURATION) {
-        setUnlocked(true);
-      } else {
-        localStorage.removeItem(DEV_PASSWORD_KEY);
-      }
+    const stored = localStorage.getItem(DEV_KEY);
+    if (stored && Date.now() - Number(stored) < 10 * 60 * 1000) {
+      setUnlocked(true);
     }
   }, []);
 
-  // Fetch game data after PIN is correct
+  useEffect(() => {
+    if (!unlocked) {
+      const t = setTimeout(() => {
+        inputsRef.current[0]?.focus();
+      }, 50);
+
+      return () => clearTimeout(t);
+    }
+  }, [unlocked]);
+
+  /* ------------------ LOAD GAME ------------------ */
   useEffect(() => {
     if (!unlocked) return;
-    setLoading(true);
 
-    const fetchData = async () => {
-      try {
-        const ref = doc(db, "users", userId, "games", game.id.toString());
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          setGameData(null);
-        } else {
-          setGameData(snap.data() as TrackedGame);
-        }
-      } catch (err) {
-        console.error("Failed to fetch game:", err);
-        setGameData(null);
-      } finally {
+    (async () => {
+      const snap = await getDoc(
+        doc(db, "users", userId, "games_igdb", game._docId),
+      );
+      if (snap.exists()) {
+        setGameData(snap.data() as GameData);
         setLoading(false);
       }
-    };
+    })();
+  }, [unlocked, game._docId]);
 
-    fetchData();
-  }, [unlocked, game.id, userId]);
+  /* ------------------ HELPERS ------------------ */
+  const handleCorrectPin = () => {
+    localStorage.setItem(DEV_KEY, String(Date.now()));
+    setUnlocked(true);
+  };
 
-  // Populate temp fields after gameData is loaded
-  useEffect(() => {
-    if (!gameData) return;
-    setTempGenres((gameData.genres || []).map((g) => g.name).join(", "));
-    setTempPlatforms(
-      (gameData.platforms || [])
-        .map((p: any) => p.platform?.name || p.name)
-        .join(", ")
-    );
-    setTempPublishers(
-      (gameData.publishers || []).map((p) => p.name).join(", ")
-    );
-  }, [gameData]);
+  const updateField = (key: keyof GameData, value: any) => {
+    setGameData((p) => (p ? { ...p, [key]: value } : p));
+  };
 
-  const updateField = (field: EditableTrackedGameKey, value: any) => {
-    setGameData((prev) => (prev ? { ...prev, [field]: value } : prev));
+  const updateIGDB = (key: keyof GameData["igdb"], value: any) => {
+    setGameData((p) => (p ? { ...p, igdb: { ...p.igdb, [key]: value } } : p));
   };
 
   const saveChanges = async () => {
     if (!gameData) return;
 
-    const updatedGameData: TrackedGame = {
-      ...gameData,
-      genres: tempGenres.split(",").map((s) => ({ name: s.trim() })),
-      platforms: tempPlatforms.split(",").map((s) => ({ name: s.trim() })),
-      publishers: tempPublishers.split(",").map((s) => ({ name: s.trim() })),
-    };
+    setLoadingSavingChanges(true);
 
     try {
-      const ref = doc(db, "users", userId, "games", game.id.toString());
-      await updateDoc(ref, updatedGameData);
+      await updateDoc(doc(db, "users", userId, "games_igdb", game._docId), {
+        ...gameData,
+        igdb: {
+          ...gameData.igdb,
+          releaseDate: gameData.igdb.releaseDate ?? null,
+        },
+        lastUpdated: new Date(),
+      });
 
-      setGameData(updatedGameData);
-      handleClose();
-      toast.success("Game Updated!");
-    } catch (err) {
-      console.error("Failed to save changes:", err);
-      toast.error("Failed to save changes");
+      toast.success(`Updated ${gameData?.igdb?.name ?? "game"} successfully`);
+    } finally {
+      setLoadingSavingChanges(false);
+      onClose();
     }
   };
 
-  const handleClose = () => onClose();
+  const toLocalDateInput = (value: any) => {
+    if (!value) return "";
+    let d: Date | null = null;
+    if (value?.toDate) d = value.toDate();
+    else if (value instanceof Date) d = value;
+    else if (typeof value === "number") d = new Date(value * 1000);
+    else if (typeof value === "string") {
+      const t = new Date(value);
+      if (!isNaN(t.getTime())) d = t;
+    }
+    if (!d) return "";
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 10);
+  };
 
-  const handleCorrectPin = () => {
-    const now = Date.now();
-    setUnlocked(true);
-    localStorage.setItem(DEV_PASSWORD_KEY, now.toString());
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !loadingSavingChanges) {
+        setVisible(false);
+      }
+    };
 
-    const endTime = now + DEV_PASSWORD_DURATION;
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [loadingSavingChanges]);
 
-    // Show initial toast with time left
-    toast.success(`Dev mode unlocked for 10 minutes`);
+  /* ------------------ UI ------------------ */
+
+  const pinStyle = {
+    WebkitTextSecurity: "disc",
+  } as React.CSSProperties & {
+    WebkitTextSecurity: string;
   };
 
   return createPortal(
-    <>
-      <Toaster containerStyle={{ zIndex: 10001 }} />
-      <AnimatePresence>
+    <AnimatePresence>
+      {visible && (
         <motion.div
-          key="modal"
+          className="fixed inset-0 z-9999 bg-black/80 flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-50 flex justify-center items-center bg-black/80 p-4"
+          onAnimationComplete={() => {
+            if (!visible) onClose();
+          }}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
+            className="bg-zinc-900 rounded-xl w-full max-w-[760px] p-6"
+            initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
+            exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="bg-zinc-900 rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 flex flex-col gap-4"
           >
-            {!unlocked ? (
-              <>
-                <h2 className="text-xl font-bold text-white mb-4">
-                  Enter DEV PIN
+            {/* PIN */}
+            {!unlocked && (
+              <div className="relative w-full flex flex-col items-center gap-6">
+                {/* Close Button */}
+                <button
+                  onClick={onClose}
+                  className="absolute right-0 top-0 text-zinc-400 hover:text-white text-3xl transition"
+                >
+                  ✕
+                </button>
+
+                {/* Title */}
+                <h2 className="text-xl font-bold text-white">
+                  Enter Developer PIN
                 </h2>
-                <div className="flex gap-2 justify-center mb-4">
-                  {pin.map((p, i) => (
+
+                {/* PIN Inputs */}
+                <div className="flex gap-3">
+                  {pin.map((_, i) => (
                     <input
                       key={i}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={p ? "*" : ""}
                       ref={(el) => {
-                        inputsRef.current[i] = el;
+                        inputsRef.current[i] = el!;
                       }}
+                      type="text"
+                      inputMode="text"
+                      autoComplete="new-password"
+                      name={`pin-${i}-${Math.random()}`}
+                      maxLength={1}
+                      className="w-12 h-12 text-center bg-zinc-800 text-white text-xl rounded tracking-widest"
+                      style={pinStyle}
+                      value={pin[i]}
                       onChange={(e) => {
-                        const val = e.target.value;
-                        if (!/^[0-9]?$/.test(val)) return;
-                        const newPin = [...pin];
-                        newPin[i] = val;
-                        setPin(newPin);
+                        const v = e.target.value.replace(/\D/g, "");
+                        if (!v) return;
 
-                        if (val && i < newPin.length - 1) {
-                          inputsRef.current[i + 1]?.focus();
-                        }
+                        const next = [...pin];
+                        next[i] = v;
+                        setPin(next);
 
-                        if (newPin.join("").length === DEV_PASSWORD.length) {
-                          if (newPin.join("") === DEV_PASSWORD) {
-                            handleCorrectPin();
-                          } else {
-                            toast.error("Wrong code!");
-                            setPin(Array(DEV_PASSWORD.length).fill(""));
-                            inputsRef.current[0]?.focus();
+                        if (i < 3) inputsRef.current[i + 1]?.focus();
+
+                        if (next.join("") === DEV_PASSWORD) handleCorrectPin();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Backspace") {
+                          e.preventDefault();
+
+                          const next = [...pin];
+
+                          if (next[i]) {
+                            next[i] = "";
+                            setPin(next);
+                          } else if (i > 0) {
+                            next[i - 1] = "";
+                            setPin(next);
+                            inputsRef.current[i - 1]?.focus();
                           }
                         }
                       }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Backspace" && !pin[i] && i > 0) {
-                          inputsRef.current[i - 1]?.focus();
-                        }
-                      }}
-                      className="w-12 h-12 text-center text-white bg-zinc-700 rounded-lg focus:outline-none text-xl"
-                      autoComplete="off"
                     />
                   ))}
                 </div>
-                <div className="flex justify-center gap-2">
+              </div>
+            )}
+
+            {/* LOADING */}
+            {unlocked && loading && (
+              <div className="flex justify-center items-center gap-2 w-[760px]">
+                <span className="loading loading-spinner loading-xs" />
+              </div>
+            )}
+
+            {/* EDITOR */}
+            {unlocked && gameData && (
+              <>
+                {/* GAME INFO */}
+
+                <hr className="w-full py-2 text-zinc-700" />
+
+                <h3 className="text-xl font-bold text-white mb-4 text-center">
+                  Game Info
+                </h3>
+
+                <div className="grid grid-cols-[200px_1fr] gap-6">
+                  <div className="bg-zinc-800 rounded overflow-hidden">
+                    {gameData.igdb.cover ? (
+                      <img
+                        src={gameData.igdb.cover}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-zinc-500">
+                        No Cover
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs text-zinc-400">Title</span>
+                      <input
+                        className="bg-zinc-800 p-2 rounded"
+                        value={gameData.name}
+                        onChange={(e) => updateField("name", e.target.value)}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs text-zinc-400">IGDB ID</span>
+                      <input
+                        className="bg-zinc-800 p-2 rounded"
+                        value={gameData.igdb.id}
+                        onChange={(e) => updateIGDB("id", e.target.value)}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs text-zinc-400">Cover URL</span>
+                      <input
+                        className="bg-zinc-800 p-2 rounded"
+                        value={gameData.igdb.cover || ""}
+                        onChange={(e) => updateIGDB("cover", e.target.value)}
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs text-zinc-400">
+                        Release Date
+                      </span>
+                      <input
+                        type="date"
+                        className="bg-zinc-800 p-2 rounded"
+                        value={toLocalDateInput(gameData.igdb.releaseDate)}
+                        onChange={(e) =>
+                          updateIGDB(
+                            "releaseDate",
+                            e.target.value ? new Date(e.target.value) : null,
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <hr className="w-full py-2 mt-5 text-zinc-700" />
+
+                {/* RATINGS */}
+                <h3 className="text-xl font-bold text-white mb-4 text-center">
+                  Ratings
+                </h3>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-zinc-400">IGDB Rating</span>
+                    <input
+                      className="bg-zinc-800 p-2 rounded"
+                      value={gameData.igdb.rating ?? ""}
+                      placeholder="N/A"
+                      onChange={(e) =>
+                        updateIGDB("rating", Number(e.target.value))
+                      }
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-zinc-400">My Rating</span>
+                    <input
+                      className="bg-zinc-800 p-2 rounded"
+                      value={gameData.my_rating ?? ""}
+                      onChange={(e) =>
+                        updateField(
+                          "my_rating",
+                          e.target.value === "" ? null : Number(e.target.value),
+                        )
+                      }
+                    />
+                  </label>
+                </div>
+
+                <hr className="w-full py-2 mt-5 text-zinc-700" />
+
+                {/* CATEGORY RATINGS */}
+                <h3 className="text-xl font-bold text-white mb-4 text-center">
+                  Category Ratings
+                </h3>
+
+                <div className="grid grid-cols-3 gap-4">
+                  {Object.entries(gameData.categoryRatings || {}).map(
+                    ([k, v]) => (
+                      <label key={k} className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-400 capitalize">
+                          {k}
+                        </span>
+                        <input
+                          className="bg-zinc-800 p-2 rounded"
+                          value={v}
+                          onChange={(e) =>
+                            setGameData((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    categoryRatings: {
+                                      ...p.categoryRatings,
+                                      [k]: Number(e.target.value),
+                                    },
+                                  }
+                                : p,
+                            )
+                          }
+                        />
+                      </label>
+                    ),
+                  )}
+                </div>
+
+                <hr className="w-full py-2 mt-5 text-zinc-700" />
+
+                {/* NOTES */}
+                <h3 className="text-xl font-bold text-white mb-4 text-center">
+                  Notes
+                </h3>
+
+                <textarea
+                  className="w-full bg-zinc-800 p-3 rounded min-h-[120px] placeholder:text-zinc-500 focus:outline-none focus:ring-0"
+                  value={gameData.notes || ""}
+                  onChange={(e) => updateField("notes", e.target.value)}
+                  placeholder="Penny for your thoughts?"
+                />
+
+                {/* ACTIONS */}
+                <div className="flex justify-center gap-3 mt-6">
                   <button
-                    onClick={handleClose}
-                    className="px-4 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600"
+                    onClick={onClose}
+                    disabled={loadingSavingChanges}
+                    className="bg-zinc-700 px-4 py-2 rounded-full"
                   >
                     Cancel
+                  </button>
+
+                  <button
+                    onClick={saveChanges}
+                    disabled={loadingSavingChanges}
+                    className="bg-cyan-500 text-black rounded-full w-24 h-10 flex items-center justify-center"
+                  >
+                    {loadingSavingChanges ? (
+                      <span className="loading loading-spinner loading-sm" />
+                    ) : (
+                      "Save"
+                    )}
                   </button>
                 </div>
               </>
-            ) : loading ? (
-              <div className="w-full h-40 flex flex-col items-center justify-center text-white text-xl font-bold gap-5">
-                <div className="animate-spin border-4 border-cyan-500 border-t-transparent rounded-full w-12 h-12"></div>
-                Loading Your Game
-              </div>
-            ) : gameData ? (
-              <motion.div
-                key="editor"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.5, ease: "easeOut" }}
-              >
-                <h2 className="text-xl font-bold mb-4 text-white">
-                  Developer Mode For - {gameData.name}
-                </h2>
-
-                {FIELDS.map(({ key, label }) => (
-                  <div key={key} className="flex gap-2 items-center mb-2">
-                    <span className="text-white w-32">{label}:</span>
-                    {key === "favorite" ? (
-                      <input
-                        type="checkbox"
-                        checked={!!gameData[key]}
-                        onChange={(e) => updateField(key, e.target.checked)}
-                        className="accent-cyan-500"
-                      />
-                    ) : key === "genres" ? (
-                      <input
-                        type="text"
-                        value={tempGenres}
-                        onChange={(e) => setTempGenres(e.target.value)}
-                        className="flex-1 px-2 py-1 rounded bg-zinc-700 text-white focus:outline-none"
-                      />
-                    ) : key === "platforms" ? (
-                      <input
-                        type="text"
-                        value={tempPlatforms}
-                        onChange={(e) => setTempPlatforms(e.target.value)}
-                        className="flex-1 px-2 py-1 rounded bg-zinc-700 text-white focus:outline-none"
-                      />
-                    ) : key === "publishers" ? (
-                      <input
-                        type="text"
-                        value={tempPublishers}
-                        onChange={(e) => setTempPublishers(e.target.value)}
-                        className="flex-1 px-2 py-1 rounded bg-zinc-700 text-white focus:outline-none"
-                      />
-                    ) : (
-                      <input
-                        type={
-                          typeof gameData[key] === "number" ? "number" : "text"
-                        }
-                        value={gameData[key] ?? ""}
-                        onChange={(e) =>
-                          updateField(
-                            key,
-                            typeof gameData[key] === "number"
-                              ? Number(e.target.value)
-                              : e.target.value
-                          )
-                        }
-                        className="flex-1 px-2 py-1 rounded bg-zinc-700 text-white focus:outline-none"
-                      />
-                    )}
-                  </div>
-                ))}
-
-                <div className="flex justify-end gap-3 mt-4">
-                  <button
-                    onClick={handleClose}
-                    className="px-4 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveChanges}
-                    className="px-4 py-2 bg-cyan-500 text-black rounded-lg hover:bg-cyan-400"
-                  >
-                    Save
-                  </button>
-                </div>
-              </motion.div>
-            ) : (
-              <div className="relative">
-                <button
-                  onClick={handleClose}
-                  className="absolute top-0 right-0 px-4 py-2 bg-zinc-700 text-white rounded-lg hover:bg-zinc-600"
-                >
-                  X
-                </button>
-                <div className="w-full h-40 flex items-center justify-center text-white text-xl font-bold">
-                  Game not found
-                </div>
-              </div>
             )}
           </motion.div>
         </motion.div>
-      </AnimatePresence>
-    </>,
-    document.body
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }

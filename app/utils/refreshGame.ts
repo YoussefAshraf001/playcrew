@@ -1,144 +1,118 @@
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 
-/** Refresh game data from RAWG selectively */
 export async function refreshGameData(
   userId: string,
   game: any,
-  fieldsToRefresh: Record<string, boolean>
+  fields: Record<string, boolean>,
+  firestoreDocId: string,
 ) {
-  // 1️⃣ RAWG SEARCH
-  const searchRes = await fetch(
-    `https://api.rawg.io/api/games?search=${encodeURIComponent(
-      game.name
-    )}&key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
+  const res = await fetch(`/api/igdb/${game.igdb.id}`);
+  if (!res.ok) throw new Error("IGDB fetch failed");
+
+  const igdb = await res.json();
+
+  const update: Record<string, any> = {};
+  const diff: Record<string, { old: any; new: any }> = {};
+
+  const maybeUpdate = (key: string, newVal: any, oldVal: any) => {
+    if (newVal !== undefined && newVal !== oldVal) {
+      update[key] = newVal;
+      diff[key] = { old: oldVal, new: newVal };
+    }
+  };
+
+  if (fields.name) {
+    maybeUpdate("igdb.name", igdb.name, game.igdb.name);
+    maybeUpdate("name", igdb.name, game.name);
+  }
+
+  if (fields.cover) {
+    maybeUpdate("igdb.cover", igdb.cover, game.igdb.cover);
+  }
+
+  if (fields.genres) {
+    maybeUpdate("igdb.genres", igdb.genres, game.igdb.genres);
+  }
+
+  if (fields.rating) {
+    maybeUpdate("igdb.aggregated_rating", igdb.rating, game.igdb.rating);
+  }
+
+  if (fields.platforms) {
+    maybeUpdate("igdb.platforms", igdb.platforms, game.igdb.platforms);
+  }
+
+  if (fields.released) {
+    const releaseDate =
+      typeof igdb.releaseDate === "number"
+        ? new Date(igdb.releaseDate * 1000)
+        : null;
+
+    update["igdb.releaseDate"] = releaseDate;
+  }
+
+  update.lastUpdated = serverTimestamp();
+
+  await updateDoc(
+    doc(db, "users", userId, "games_igdb", firestoreDocId),
+    update,
   );
-  if (!searchRes.ok) throw new Error("RAWG search failed");
 
-  const searchData = await searchRes.json();
-  const first = searchData.results?.[0];
-  if (!first) throw new Error("Game not found on RAWG");
-
-  // 2️⃣ RAWG FULL GAME DATA
-  const rawgRes = await fetch(
-    `https://api.rawg.io/api/games/${first.slug}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-  );
-  if (!rawgRes.ok) throw new Error("RAWG fetch failed");
-
-  const rawg = await rawgRes.json();
-
-  // 3️⃣ Prepare only the fields that should be refreshed
-  const updatedFields: Partial<typeof game> = {};
-
-  if (fieldsToRefresh.name) updatedFields.name = rawg.name;
-  if (fieldsToRefresh.slug) updatedFields.slug = rawg.slug;
-  if (fieldsToRefresh.released)
-    updatedFields.released =
-      rawg.released ?? rawg.platforms?.[0]?.released_at ?? "TBA";
-  if (fieldsToRefresh.background_image)
-    updatedFields.background_image = rawg.background_image;
-  if (fieldsToRefresh.background_image_additional)
-    updatedFields.background_image_additional =
-      rawg.background_image_additional;
-  if (fieldsToRefresh.metacritic) updatedFields.metacritic = rawg.metacritic;
-  if (fieldsToRefresh.genres) updatedFields.genres = rawg.genres;
-  if (fieldsToRefresh.platforms) updatedFields.platforms = rawg.platforms;
-  if (fieldsToRefresh.publishers) updatedFields.publishers = rawg.publishers;
-
-  // 4️⃣ Update only the selected fields in Firestore
-  const gameRef = doc(db, "users", userId, "games", game.id.toString());
-  await updateDoc(gameRef, updatedFields);
-
-  return { ...game, ...updatedFields };
+  return { update, diff };
 }
 
-// import { doc, getDoc, updateDoc } from "firebase/firestore";
+// import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 // import { db } from "@/app/lib/firebase";
 
-// /** Helper to detect custom images */
-// function isCustomImage(url?: string | null) {
-//   if (!url) return false;
-//   return !url.includes("media.rawg.io");
-// }
-
-// /** Refresh game data from RAWG */
 // export async function refreshGameData(
 //   userId: string,
 //   game: any,
-//   refreshImages: boolean
+//   fields: Record<string, boolean>,
+//   firestoreDocId: string,
 // ) {
-//   // 1️⃣ RAWG SEARCH
-//   const searchRes = await fetch(
-//     `https://api.rawg.io/api/games?search=${encodeURIComponent(
-//       game.name
-//     )}&key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
+//   const res = await fetch(`/api/igdb/${game.igdb.id}`);
+//   if (!res.ok) throw new Error("IGDB fetch failed");
+
+//   const igdb = await res.json();
+
+//   const update: Record<string, any> = {};
+//   const diff: Record<string, { old: any; new: any }> = {};
+
+//   const maybeUpdate = (key: string, newVal: any, oldVal: any) => {
+//     if (newVal !== undefined && newVal !== oldVal) {
+//       update[key] = newVal;
+//       diff[key] = { old: oldVal, new: newVal };
+//     }
+//   };
+
+//   if (fields.name) {
+//     maybeUpdate("igdb.name", igdb.name, game.igdb.name);
+//     maybeUpdate("name", igdb.name, game.name);
+//   }
+
+//   if (fields.cover) {
+//     maybeUpdate("igdb.cover", igdb.cover, game.igdb.cover);
+//   }
+
+//   if (fields.genres) {
+//     maybeUpdate("igdb.genres", igdb.genres, game.igdb.genres);
+//   }
+
+//   if (fields.platforms) {
+//     maybeUpdate("igdb.platforms", igdb.platforms, game.igdb.platforms);
+//   }
+
+//   if (fields.released) {
+//     maybeUpdate("igdb.releaseDate", igdb.releaseDate, game.igdb.releaseDate);
+//   }
+
+//   update.lastUpdated = serverTimestamp();
+
+//   await updateDoc(
+//     doc(db, "users", userId, "games_igdb", firestoreDocId),
+//     update,
 //   );
-//   if (!searchRes.ok) throw new Error("RAWG search failed");
 
-//   const searchData = await searchRes.json();
-//   const first = searchData.results?.[0];
-//   if (!first) throw new Error("Game not found on RAWG");
-
-//   // 2️⃣ RAWG FULL GAME DATA
-//   const rawgRes = await fetch(
-//     `https://api.rawg.io/api/games/${first.slug}?key=${process.env.NEXT_PUBLIC_RAWG_API_KEY}`
-//   );
-//   if (!rawgRes.ok) throw new Error("RAWG fetch failed");
-
-//   const rawg = await rawgRes.json();
-
-//   // 3️⃣ Load current user game fields
-//   const ref = doc(db, "users", userId);
-//   const snap = await getDoc(ref);
-//   const currentGames = snap.exists() ? snap.data().trackedGames || {} : {};
-//   const existing = currentGames[String(game.id)] || {};
-
-//   const preservedUserFields = {
-//     playtime: existing.playtime || 0,
-//     progress: existing.progress || 0,
-//     my_rating: existing.my_rating || 0,
-//     favorite: existing.favorite || false,
-//     status: existing.status || "",
-//     notes: existing.notes || "",
-//     categoryRatings: existing.categoryRatings || {
-//       graphics: 0,
-//       gameplay: 0,
-//       story: 0,
-//       ost: 0,
-//       cinematics: 0,
-//       voiceActing: 0,
-//     },
-//   };
-
-//   // 4️⃣ RAWG fields — images respect refreshImages
-//   const rawgFields = {
-//     name: rawg.name,
-//     slug: rawg.slug,
-//     released: rawg.released ?? rawg.platforms?.[0]?.released_at ?? "TBA",
-//     background_image:
-//       refreshImages || !existing.background_image
-//         ? rawg.background_image || "/placeholder-game.jpg"
-//         : existing.background_image,
-//     background_image_additional: rawg.background_image_additional || null,
-//     metacritic: rawg.metacritic,
-//     genres: rawg.genres,
-//     platforms: rawg.platforms,
-//     publishers: rawg.publishers,
-//   };
-
-//   const updated = {
-//     ...existing,
-//     ...rawgFields,
-//     ...preservedUserFields,
-//     id: game.id,
-//   };
-
-//   await updateDoc(ref, {
-//     trackedGames: {
-//       ...currentGames,
-//       [String(game.id)]: updated,
-//     },
-//   });
-
-//   return updated;
+//   return { update, diff };
 // }
