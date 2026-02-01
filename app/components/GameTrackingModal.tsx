@@ -132,8 +132,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     saving,
   } = props;
 
-  if (!open) return null;
-
   const [notes, setNotes] = useState<string>(initialNotes ?? "");
   const [categoryRatings, setCategoryRatings] = useState<CategoryRatings>(
     initialCategoryRatings ?? DEFAULT_CATEGORIES,

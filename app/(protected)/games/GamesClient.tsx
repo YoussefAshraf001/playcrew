@@ -656,7 +656,7 @@ export default function GamesPage() {
         <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-20">
           {/* Blurred Background */}
           {userProfile?.wallpaperBase64 && (
-            <div className="fixed inset-0 -z-10 overflow-hidden blur-sm">
+            <div className="fixed inset-0 z-10 overflow-hidden blur-xs">
               <img
                 src={userProfile.wallpaperBase64}
                 alt="Wallpaper"
@@ -664,9 +664,6 @@ export default function GamesPage() {
               />
             </div>
           )}
-
-          {/* Optional overlay to darken it a bit */}
-          <div className="absolute inset-0 bg-black/50" />
 
           {/* Left Panel (Stats) */}
           <div className="w-full lg:w-80 shrink-0 px-4 relative z-10">
@@ -810,14 +807,14 @@ export default function GamesPage() {
             </motion.div>
 
             {/* Pagination and Search */}
-            <div className="flex justify-between mb-4 gap-4 items-center">
+            <div className="flex justify-between mb-2 gap-4 items-center">
               <button
                 disabled={currentPage === 1}
                 onClick={() => {
                   setPageDirection(-1);
                   setCurrentPage((prev) => prev - 1);
                 }}
-                className={`cursor-pointer px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
+                className={`cursor-pointer placeholder:pl-2 px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
                   currentPage === 1
                     ? "opacity-50 cursor-not-allowed"
                     : "hover:bg-zinc-700"
@@ -835,7 +832,7 @@ export default function GamesPage() {
                 }`}
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="px-4 py-2 rounded-full bg-zinc-800 text-white w-1/2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="pl-6 px-4 py-2 rounded-full bg-zinc-800 text-white w-1/2 focus:outline-none"
               />
 
               <button
@@ -854,74 +851,96 @@ export default function GamesPage() {
               </button>
             </div>
 
-            <div className="flex justify-center gap-3 mb-4 items-center relative">
-              <label className="text-sm text-zinc-300 font-semibold">
-                Sort By:
-              </label>
+            <div className="relative w-full flex items-center justify-center mb-4">
+              <div className="bg-zinc-800 rounded-full px-4 py-2 flex items-center gap-5">
+                {/* Label */}
+                <label className="text-sm text-white whitespace-nowrap ml-2">
+                  Sort By:
+                </label>
 
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value as any);
-                  setCurrentPage(1);
-                }}
-                className="bg-zinc-800 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 ease-in-out"
-              >
-                <option value="name">Name</option>
-                {selectedStatus !== "Want To Play" && (
-                  <option value="playtime">Playtime</option>
-                )}
-                {selectedStatus !== "Want To Play" && (
-                  <option value="tier">Rating</option>
-                )}
-                <option value="release">Release Date</option>
-                <option value="date">Latest Changes</option>
-              </select>
+                {/* Select */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value as any);
+                    setCurrentPage(1);
+                  }}
+                  className="border-2 border-zinc-600 bg-zinc-800 text-white px-4 py-2 rounded-lg
+             focus:outline-none transition duration-200 ease-in-out cursor-pointer"
+                >
+                  <option className="bg-zinc-800 text-white" value="name">
+                    Name
+                  </option>
 
-              <button
-                onClick={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
-                className="px-4 py-2 rounded-lg bg-zinc-700 text-white text-xs font-medium hover:bg-zinc-600 transition duration-200 ease-in-out"
-              >
-                {sortBy === "name"
-                  ? sortOrder === "asc"
-                    ? "A → Z"
-                    : "Z → A"
-                  : sortBy === "date" || sortBy === "release"
+                  {selectedStatus !== "Want To Play" && (
+                    <option className="bg-zinc-800 text-white" value="playtime">
+                      Playtime
+                    </option>
+                  )}
+
+                  {selectedStatus !== "Want To Play" && (
+                    <option className="bg-zinc-800 text-white" value="tier">
+                      Rating
+                    </option>
+                  )}
+
+                  <option className="bg-zinc-800 text-white" value="release">
+                    Release Date
+                  </option>
+                  <option className="bg-zinc-800 text-white" value="date">
+                    Latest Changes
+                  </option>
+                </select>
+
+                {/* Sort Order Button */}
+                <button
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
+                  className="px-4 py-2 rounded-lg border-2 border-zinc-600 text-white text-xs font-medium
+                 hover:bg-zinc-600 transition duration-200 ease-in-out cursor-pointer"
+                >
+                  {sortBy === "name"
                     ? sortOrder === "asc"
-                      ? "Oldest to Newest"
-                      : "Newest to Oldest"
-                    : sortBy === "playtime"
+                      ? "A → Z"
+                      : "Z → A"
+                    : sortBy === "date" || sortBy === "release"
                       ? sortOrder === "asc"
-                        ? "Least Played"
-                        : "Most Played"
-                      : sortBy === "tier"
+                        ? "Oldest to Newest"
+                        : "Newest to Oldest"
+                      : sortBy === "playtime"
                         ? sortOrder === "asc"
-                          ? "Lowest to Highest"
-                          : "Highest to Lowest"
-                        : "Sort"}
-              </button>
-              {(sortBy === "tier" || sortBy === "playtime") && (
-                <div className="relative group">
-                  <span className="text-zinc-400 text-xs cursor-help select-none">
-                    ⓘ
-                  </span>
+                          ? "Least Played"
+                          : "Most Played"
+                        : sortBy === "tier"
+                          ? sortOrder === "asc"
+                            ? "Lowest to Highest"
+                            : "Highest to Lowest"
+                          : "Sort"}
+                </button>
 
-                  <div
-                    className="
-        absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-        hidden group-hover:block
-        bg-zinc-900 text-white text-xs px-3 py-1 rounded
-        shadow-lg whitespace-nowrap z-50
-      "
-                  >
-                    {sortBy === "tier"
-                      ? "Only rated games are shown (Want To Play excluded)"
-                      : "Only played games are shown (Want To Play excluded)"}
+                {/* Info Tooltip */}
+                {(sortBy === "tier" || sortBy === "playtime") && (
+                  <div className="relative group">
+                    <span className="text-zinc-400 text-xs cursor-help select-none">
+                      ⓘ
+                    </span>
+
+                    <div
+                      className="
+            absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+            hidden group-hover:block
+            bg-zinc-900 text-white text-xs px-3 py-1 rounded
+            shadow-lg whitespace-nowrap z-50
+          "
+                    >
+                      {sortBy === "tier"
+                        ? "Only rated games are shown (Want To Play excluded)"
+                        : "Only played games are shown (Want To Play excluded)"}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Game Grid */}
