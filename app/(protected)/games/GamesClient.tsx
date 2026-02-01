@@ -611,7 +611,7 @@ export default function GamesPage() {
 
     exit: (custom: { type: "page" | "status"; direction: number }) => ({
       x: custom.type === "page" ? (custom.direction > 0 ? -80 : 80) : 0,
-      y: custom.type === "status" ? -40 : 0,
+      y: custom.type === "status" ? 40 : 0,
       opacity: 0,
     }),
   };
@@ -958,7 +958,7 @@ export default function GamesPage() {
               custom={{ type: animationType, direction: pageDirection }}
             >
               <motion.div
-                key={`${selectedStatus}-${currentPage}`}
+                key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}`}
                 custom={{ type: animationType, direction: pageDirection }}
                 variants={pageVariants}
                 initial="enter"
