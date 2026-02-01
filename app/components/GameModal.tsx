@@ -1,16 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FiHeart } from "react-icons/fi";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import { db } from "../lib/firebase";
-import { FaHeart, FaStar } from "react-icons/fa";
+import { FaHeart, FaMusic, FaStar } from "react-icons/fa";
 import { IoMdAdd, IoMdCheckmarkCircle } from "react-icons/io";
 import { IoCloseCircle } from "react-icons/io5";
 import Link from "next/link";
 import { GoArrowRight } from "react-icons/go";
+import { useMusic } from "../context/MusicContext";
 
 export default function GameModal({
   game,
@@ -27,6 +28,8 @@ export default function GameModal({
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [loadingFav, setLoadingFav] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const { pause, isActuallyPlaying } = useMusic();
+  const modalHasTakenAudioRef = useRef(false);
 
   /* ---------------------------
      Scroll Lock
@@ -45,6 +48,23 @@ export default function GameModal({
       window.removeEventListener("keydown", close);
     };
   }, [onClose]);
+
+  useEffect(() => {
+    if (!modalHasTakenAudioRef.current && isActuallyPlaying) {
+      pause();
+      modalHasTakenAudioRef.current = true;
+
+      toast("Music paused to focus on the trailer", {
+        id: "hero-audio-focus",
+        icon: <FaMusic />,
+      });
+    }
+
+    return () => {
+      // IMPORTANT: do NOT auto-resume music here
+      modalHasTakenAudioRef.current = false;
+    };
+  }, []);
 
   const videoId = game.videos?.[0]?.video_id;
   const releaseDate =

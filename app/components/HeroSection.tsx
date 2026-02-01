@@ -6,10 +6,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { useUser } from "../context/UserContext";
+
 import { db } from "../lib/firebase";
 
-import { FaPlay, FaPause, FaCrown } from "react-icons/fa";
+import { FaPlay, FaPause, FaCrown, FaMusic } from "react-icons/fa";
 import {
   MdRemoveCircleOutline,
   MdOutlineOnlinePrediction,
@@ -19,6 +19,7 @@ import { GiMouthWatering } from "react-icons/gi";
 import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
 import { IoVolumeMuteOutline } from "react-icons/io5";
 import { GoUnmute } from "react-icons/go";
+import { useMusic } from "../context/MusicContext";
 
 declare global {
   interface Window {
@@ -54,6 +55,8 @@ export default function HeroSection({
   if (!trending?.length) return null;
 
   const router = useRouter();
+  const { pause, isActuallyPlaying } = useMusic();
+  const heroIsAudibleRef = useRef(false);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -61,7 +64,7 @@ export default function HeroSection({
   const [videoFailed, setVideoFailed] = useState(false);
   const playerRef = useRef<any>(null);
   const [muted, setMuted] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(true);
+  // const [isPlaying, setIsPlaying] = useState(true);
   const progressTimer = useRef<NodeJS.Timeout | null>(null);
 
   const isMounted = useRef(false);
@@ -216,25 +219,44 @@ export default function HeroSection({
     setActiveIndex((prev) => (prev === 0 ? trending.length - 1 : prev - 1));
   };
 
-  const togglePlay = () => {
-    if (!playerRef.current) return;
+  // const togglePlay = () => {
+  //   if (!playerRef.current) return;
 
-    if (isPlaying) {
-      playerRef.current.pauseVideo();
-    } else {
-      playerRef.current.playVideo();
-    }
+  //   if (isPlaying) {
+  //     playerRef.current.pauseVideo();
+  //   } else {
+  //     playerRef.current.playVideo();
+  //   }
 
-    setIsPlaying(!isPlaying);
-  };
+  //   setIsPlaying(!isPlaying);
+  // };
 
   const toggleMute = () => {
     if (!playerRef.current) return;
 
     if (muted) {
+      // 🔊 becoming audible
       playerRef.current.unMute();
+
+      if (!heroIsAudibleRef.current) {
+        // only pause + notify if music was actually playing
+        if (isActuallyPlaying) {
+          pause();
+
+          toast("Music paused to focus on the trailer", {
+            id: "hero-audio-focus",
+            icon: <FaMusic />,
+          });
+        } else {
+          pause(); // still enforce silence, just no toast
+        }
+
+        heroIsAudibleRef.current = true;
+      }
     } else {
+      // 🔇 becoming silent
       playerRef.current.mute();
+      heroIsAudibleRef.current = false;
     }
 
     setMuted(!muted);
@@ -263,7 +285,6 @@ export default function HeroSection({
         videoId: media.video,
         playerVars: {
           autoplay: 1,
-          mute: 1,
           controls: 0,
           rel: 0,
           playsinline: 1,
@@ -271,16 +292,20 @@ export default function HeroSection({
         events: {
           onReady: (e: any) => {
             e.target.mute();
+            heroIsAudibleRef.current = false;
+
+            if (muted) {
+              e.target.mute();
+            } else {
+              e.target.unMute();
+            }
+
             e.target.playVideo();
-            setIsPlaying(true);
           },
 
           onStateChange: (e: any) => {
             if (e.data === window.YT.PlayerState.PLAYING) {
-              // ✅ Start progress loop ONLY when playing
-              if (progressTimer.current) {
-                clearInterval(progressTimer.current);
-              }
+              if (progressTimer.current) clearInterval(progressTimer.current);
 
               progressTimer.current = setInterval(() => {
                 if (!playerRef.current) return;
@@ -295,15 +320,16 @@ export default function HeroSection({
             }
 
             if (e.data === window.YT.PlayerState.PAUSED) {
-              if (progressTimer.current) {
-                clearInterval(progressTimer.current);
+              if (progressTimer.current) clearInterval(progressTimer.current);
+
+              // 🔒 If hero was audible, keep music paused
+              if (heroIsAudibleRef.current) {
+                pause();
               }
             }
 
             if (e.data === window.YT.PlayerState.ENDED) {
-              if (progressTimer.current) {
-                clearInterval(progressTimer.current);
-              }
+              if (progressTimer.current) clearInterval(progressTimer.current);
               goNext();
             }
           },
@@ -433,7 +459,7 @@ export default function HeroSection({
             transition={{ duration: 0.6 }}
           >
             <div>
-              <button
+              {/* <button
                 onClick={togglePlay}
                 className="p-3 bg-black/60 hover:bg-black/80 rounded-full rotate-y-180"
               >
@@ -449,7 +475,7 @@ export default function HeroSection({
                     {isPlaying ? <FaPause /> : <FaPlay />}
                   </motion.div>
                 </AnimatePresence>
-              </button>
+              </button> */}
 
               <button
                 onClick={toggleMute}
