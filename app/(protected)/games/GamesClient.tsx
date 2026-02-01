@@ -235,11 +235,6 @@ export default function GamesPage() {
 
   // Filter and sort safely
   const filteredGames = useMemo(() => {
-    // let list =
-    //   selectedStatus === "All"
-    //     ? gamesByStatus.All
-    //     : gamesByStatus[selectedStatus] || [];
-
     let list = showFavoritesOnly
       ? allGames
       : selectedStatus === "All"
@@ -661,7 +656,7 @@ export default function GamesPage() {
         <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-20">
           {/* Blurred Background */}
           {userProfile?.wallpaperBase64 && (
-            <div className="absolute inset-0 overflow-hidden blur-sm">
+            <div className="fixed inset-0 -z-10 overflow-hidden blur-sm">
               <img
                 src={userProfile.wallpaperBase64}
                 alt="Wallpaper"

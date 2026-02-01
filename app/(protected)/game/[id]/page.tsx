@@ -541,14 +541,17 @@ export default function GamePage() {
           transition={{ duration: 0.6 }}
           className="absolute inset-0 z-0"
         >
-          <motion.img
-            key={bgImage}
-            src={bgImage ?? game.background_image}
-            className="w-full h-full object-cover"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8 }}
-          />
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={bgImage}
+              src={bgImage ?? game.background_image}
+              className="w-full h-full object-cover absolute inset-0"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8, ease: "easeInOut" }}
+            />
+          </AnimatePresence>
 
           <div className="absolute inset-0 bg-linear-to-b from-black/10 to-black backdrop-blur-sm" />
         </motion.div>
