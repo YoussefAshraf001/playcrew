@@ -980,7 +980,7 @@ export default function GamesPage() {
           {/* Right Panel (Favorites + Recently Edited) */}
           <div className="relative z-10 w-full lg:w-80 shrink-0 flex flex-col gap-6">
             {/* Favorites */}
-            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar max-h-[43vh]">
+            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar  max-h-[44vh] min-h-[44vh]">
               <div className="flex items-center justify-between py-2">
                 <h3 className="font-bold text-xl text-white/90">
                   Favorite Games
@@ -1053,7 +1053,7 @@ export default function GamesPage() {
             </div>
 
             {/* Recently Edited */}
-            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[45.2vh] mb-8 lg:mb-0">
+            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[45.2vh] min-h-[45.2vh] mb-8 lg:mb-0">
               <h3 className="font-bold text-xl pt-2 pl-1 text-white/90">
                 Recent Games
               </h3>
@@ -1067,7 +1067,7 @@ export default function GamesPage() {
                 ) : (
                   recentlyEditedGames.map((g) => (
                     <Link key={g.igdb.id} href={`/game/${g.igdb?.id}`}>
-                      <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200 h-[35vh]">
+                      <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200">
                         <div className="flex items-center gap-3">
                           <img
                             className="w-15 h-20 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"

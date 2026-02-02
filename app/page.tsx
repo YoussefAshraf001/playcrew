@@ -42,7 +42,7 @@ export default function Home() {
         <div className="relative z-10 flex flex-col items-center gap-7 max-w-md text-center">
           {/* Badge */}
           <span className="text-xs uppercase tracking-widest text-cyan-400 border border-cyan-400/30 px-4 py-1 rounded-full">
-            Squad Up
+            Catch Up
           </span>
 
           {/* Logo / Title */}
