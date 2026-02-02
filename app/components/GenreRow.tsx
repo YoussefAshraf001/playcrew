@@ -122,8 +122,8 @@ export default function GenreRow({
                         className="
                           inline-flex items-center gap-2
                           px-3 py-1.5 rounded-full
-                          bg-black/70 hover:bg-black/90
-                          text-sm font-semibold
+                          bg-black/70 hover:bg-zinc-700/90
+                          text-sm font-semibold cursor-pointer duration-300 ease-in-out transition-all
                         "
                       >
                         <GrView />
@@ -136,8 +136,8 @@ export default function GenreRow({
                         className="
                           inline-flex items-center gap-2
                           px-3 py-1.5 rounded-full
-                          bg-black/70 hover:bg-black/90
-                          text-sm font-semibold
+                          bg-black/70 hover:bg-zinc-700/90
+                          text-sm font-semibold cursor-pointer duration-300 ease-in-out transition-all
                         "
                       >
                         <GoArrowRight />

@@ -17,7 +17,6 @@ interface UserProfile {
   username?: string;
   avatarBase64?: string;
   avatarUrl?: string;
-  displayName?: string | null;
   email?: string;
   [key: string]: any;
 }

@@ -16,7 +16,7 @@ import {
 } from "react-icons/fa";
 import { GiGamepad } from "react-icons/gi";
 import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import ConfirmModal from "./ConfirmModal";
 import { GiTrophiesShelf } from "react-icons/gi";
 import SearchModal from "./SearchModal";
@@ -28,6 +28,7 @@ export default function Navbar() {
   const games = useGames();
 
   const newUserImage = user?.photoURL;
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
 
   const { playerVisible, togglePlayerVisible } = useMusic();
 
@@ -78,6 +79,10 @@ export default function Navbar() {
           g.date.getFullYear() === now.getFullYear(),
       );
   }, [games]);
+
+  useEffect(() => {
+    setAvatarLoaded(false);
+  }, [profile?.avatarBase64]);
 
   return (
     <>
@@ -183,14 +188,32 @@ export default function Navbar() {
 
           {profile ? (
             <div
-              className="relative"
+              className="relative cursor-pointer"
               onClick={() => setAccountOpen(!accountOpen)}
             >
-              <img
-                src={profile.avatarBase64 || newUserImage}
-                alt="Profile"
-                className="w-8 h-8 rounded-full object-cover cursor-pointer border-2 border-zinc-700"
-              />
+              <div className="relative w-8 h-8">
+                {/* Skeleton */}
+                <div
+                  className={`
+    absolute inset-0 rounded-full bg-zinc-700
+    transition-opacity duration-300
+    ${avatarLoaded ? "opacity-0" : "opacity-100"}
+  `}
+                />
+
+                {/* Avatar */}
+                <img
+                  src={profile.avatarBase64 || newUserImage}
+                  alt="Profile"
+                  onLoad={() => setAvatarLoaded(true)}
+                  className={`
+      w-8 h-8 rounded-full object-cover cursor-pointer
+      border-2 border-zinc-700
+      transition-opacity duration-300
+      ${avatarLoaded ? "opacity-100" : "opacity-0"}
+    `}
+                />
+              </div>
 
               <AnimatePresence>
                 {accountOpen && (
@@ -202,7 +225,7 @@ export default function Navbar() {
                     className="absolute right-0 mt-2 w-40 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50 flex flex-col"
                   >
                     <Link
-                      href={`/profile/${user.displayName}`}
+                      href={`/profile/${profile.username}`}
                       className="px-4 py-2 hover:bg-zinc-800 transition flex items-center gap-2"
                     >
                       <FaCog /> Settings

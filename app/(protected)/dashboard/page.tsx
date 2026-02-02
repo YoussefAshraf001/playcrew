@@ -53,7 +53,7 @@ export default function DashboardPage() {
     setBgVideo(random);
   }, []);
 
-  const username = profile?.username || user?.displayName || "Player";
+  const username = profile?.username || "Player";
 
   // Fetch games from `games` subcollection
   useEffect(() => {

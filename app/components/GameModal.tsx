@@ -91,8 +91,11 @@ export default function GameModal({
      Actions
   ---------------------------- */
   const handleAdd = async () => {
-    if (!user || !game) return;
-    console.log("user", user);
+    if (!user) {
+      toast.error("You must be logged in to use this feature");
+      return false;
+    }
+    if (!game) return;
     setLoadingAdd(true);
 
     // Normalize genres
@@ -167,7 +170,11 @@ export default function GameModal({
   };
 
   const toggleFavorite = async () => {
-    if (!user || !gameId || !saved) return;
+    if (!user) {
+      toast.error("You must be logged in to use this feature");
+      return false;
+    }
+    if (!gameId || !saved) return;
 
     setLoadingFav(true);
 

@@ -1,545 +1,801 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent, useRef } from "react";
-import Cropper from "react-easy-crop";
+import { useEffect, useState, ChangeEvent, useRef } from "react";
+import Cropper, { Area } from "react-easy-crop";
 import toast from "react-hot-toast";
-import { motion } from "framer-motion";
-import { updatePassword, updateProfile } from "firebase/auth";
-import { doc, updateDoc } from "firebase/firestore";
-import { useUser } from "../../../context/UserContext";
-import { db } from "@/app/lib/firebase";
-import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  updateEmail,
+  sendEmailVerification,
+  verifyBeforeUpdateEmail,
+  updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+
+import {
+  doc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import {
+  FiEdit2,
+  FiCheck,
+  FiX,
+  FiEye,
+  FiEyeOff,
+  FiCamera,
+} from "react-icons/fi";
 import { Helmet } from "react-helmet-async";
-import { FiEye, FiEyeOff, FiEdit2, FiCheck } from "react-icons/fi";
+
+import { useUser } from "../../../context/UserContext";
+import { db, auth } from "@/app/lib/firebase";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
+import { useRouter } from "next/navigation";
+
+/* ---------------- TYPES ---------------- */
 
 type UserProfile = {
   uid: string;
-  username: string;
-  displayName: string;
-  email: string;
+  username?: string;
+  email?: string;
   bio?: string;
   avatarBase64?: string;
   wallpaperBase64?: string | null;
 };
 
+/* ---------------- COMPONENT ---------------- */
+
 export default function EditProfilePage() {
   const { user, profile, setProfile, loading } = useUser();
+  const router = useRouter();
 
-  const [originalProfile, setOriginalProfile] = useState<UserProfile | null>(
-    null,
-  );
   const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<UserProfile | null>(null);
+  const [original, setOriginal] = useState<UserProfile | null>(null);
 
-  const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
-  const [selectedWallpaper, setSelectedWallpaper] = useState<File | null>(null);
+  /* Password */
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [changingUsername, setChangingUsername] = useState(false);
 
+  /* Image crop */
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [cropType, setCropType] = useState<"avatar" | "wallpaper" | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [cropType, setCropType] = useState<"avatar" | "wallpaper" | null>(null);
+  const [croppedPixels, setCroppedPixels] = useState<Area | null>(null);
+  const [passwordResetRequested, setPasswordResetRequested] = useState(false);
 
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingWallpaper, setUploadingWallpaper] = useState(false);
-
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  //Refrences for the wallpaper and avatar images
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [wallpaperPreview, setWallpaperPreview] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (profile) setOriginalProfile(profile as UserProfile);
-  }, [profile]);
+  /* ---------------- INIT ---------------- */
 
-  if (loading || !profile || !originalProfile)
+  useEffect(() => {
+    if (editing && profile) {
+      setDraft(profile);
+      setOriginal(profile);
+    }
+  }, [editing, profile]);
+
+  if (loading || !profile)
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <LoadingSpinner />
       </div>
     );
 
-  const showError = (err: any, type: string) => {
-    toast.error(`${type} upload failed: ${err.message || err}`);
-  };
+  const active = editing ? draft : profile;
 
-  const handleProfileChange = (
+  /* ---------------- HELPERS ---------------- */
+
+  const USERNAME_REGEX = /^[a-z0-9_-]{3,15}$/;
+
+  const normalizeUsername = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/\s+/g, "_") // replace spaces
+      .replace(/[^a-z0-9_-]/g, ""); // strip invalid chars
+
+  const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) =>
-    editing &&
-    profile &&
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-
-  const handleUpdateDoc = async (
-    field: "avatarBase64" | "wallpaperBase64",
-    value: string | null,
   ) => {
-    if (!user || !profile) return;
-    await updateDoc(doc(db, "users", user.uid), { [field]: value });
-    setProfile({ ...profile, [field]: value ?? undefined });
+    if (!editing) return;
+
+    const { name, value } = e.target;
+
+    if (name === "username") {
+      const normalized = normalizeUsername(value).slice(0, 15);
+
+      setDraft((prev) => ({
+        ...(prev ?? profile),
+        username: normalized,
+      }));
+
+      return;
+    }
+
+    setDraft((prev) => ({
+      ...(prev ?? profile),
+      [name]: value,
+    }));
   };
 
-  const handleFileUpload = async (file: File, type: "avatar" | "wallpaper") => {
-    if (type === "avatar") {
-      setSelectedAvatar(file);
-      if (file.type !== "image/gif") setCropType("avatar");
-    } else {
-      setSelectedWallpaper(file);
-      if (file.type !== "image/gif") setCropType("wallpaper");
-    }
-
-    setZoom(1);
-    setCrop({ x: 0, y: 0 });
+  const isUsernameTaken = async (name: string) => {
+    const q = query(collection(db, "users"), where("username", "==", name));
+    const snap = await getDocs(q);
+    return snap.docs.some((d) => d.id !== user!.uid);
   };
 
-  const saveCropped = async () => {
-    if (!croppedAreaPixels || !cropType) return;
-    try {
-      const file = cropType === "avatar" ? selectedAvatar : selectedWallpaper;
-      if (!file) return;
-
-      const base64 = await getCroppedImg(
-        URL.createObjectURL(file),
-        croppedAreaPixels,
-      );
-
-      if (cropType === "avatar") {
-        setSelectedAvatar(new File([file], file.name, { type: file.type }));
-        setAvatarPreview(base64); // show cropped preview
-      } else {
-        setSelectedWallpaper(new File([file], file.name, { type: file.type }));
-        setWallpaperPreview(base64); // show cropped preview
-      }
-
-      toast.success(
-        `${cropType === "avatar" ? "Avatar" : "Wallpaper"} ready to save!`,
-      );
-      setCropType(null);
-    } catch (err) {
-      showError(err, cropType === "avatar" ? "Avatar" : "Wallpaper");
-    }
-  };
-
-  const removeAvatar = async () =>
-    handleUpdateDoc("avatarBase64", null)
-      .then(() => toast.success("Avatar removed!"))
-      .catch((err) => showError(err, "Avatar"));
-  const removeWallpaper = async () =>
-    handleUpdateDoc("wallpaperBase64", null)
-      .then(() => toast.success("Wallpaper removed!"))
-      .catch((err) => showError(err, "Wallpaper"));
-
-  const changePassword = async () => {
-    if (!user || !password) return toast.error("Password cannot be empty.");
-    try {
-      await updatePassword(user, password);
-      toast.success("Password updated!");
-      setPassword("");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to update password.");
-    }
-  };
-
-  const handleUpdateProfile = async () => {
-    if (!user || !profile) return;
-
-    const updates: Partial<UserProfile> = {};
-
-    // Check normal fields
-    (
-      ["username", "displayName", "email", "bio"] as (keyof UserProfile)[]
-    ).forEach((field) => {
-      if (profile[field] !== originalProfile[field])
-        updates[field] = profile[field];
-    });
-
-    // Process avatar
-    if (selectedAvatar) {
-      const base64 =
-        selectedAvatar.type === "image/gif"
-          ? await fileToBase64(selectedAvatar)
-          : await getCroppedImg(
-              URL.createObjectURL(selectedAvatar),
-              croppedAreaPixels!,
-            );
-      updates.avatarBase64 = base64;
-      setSelectedAvatar(null);
-      setCropType(null);
-    }
-
-    // Process wallpaper
-    if (selectedWallpaper) {
-      const base64 =
-        selectedWallpaper.type === "image/gif"
-          ? await fileToBase64(selectedWallpaper)
-          : await getCroppedImg(
-              URL.createObjectURL(selectedWallpaper),
-              croppedAreaPixels!,
-            );
-      updates.wallpaperBase64 = base64;
-      setSelectedWallpaper(null);
-      setCropType(null);
-    }
-
-    if (Object.keys(updates).length === 0) {
-      toast("Nothing changed");
-      setEditing(false);
+  const handleForgotPassword = async () => {
+    if (!user || !user.email) {
+      toast.error("You must be logged in first");
       return;
     }
 
     try {
-      await updateDoc(doc(db, "users", user.uid), updates);
+      await sendPasswordResetEmail(auth, user.email);
 
-      const authUpdates: { displayName?: string; email?: string } = {};
-      if (updates.displayName) authUpdates.displayName = updates.displayName;
-      if (updates.email && updates.email !== user.email)
-        authUpdates.email = updates.email;
+      toast.success("Password reset requested. Check your email to continue.");
 
-      if (Object.keys(authUpdates).length) {
-        await updateProfile(user, authUpdates);
-        if (authUpdates.email) await user.reload();
-      }
-
-      toast.success("Profile updated!");
-      setOriginalProfile({ ...originalProfile, ...updates } as UserProfile);
-      setProfile({ ...profile, ...updates } as UserProfile);
-      setEditing(false);
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to update profile.");
+      // 🔐 Lock manual password changes
+      setPasswordResetRequested(true);
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch {
+      toast.error("Failed to send reset email");
     }
   };
 
-  const fileToBase64 = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  /* ---------------- IMAGE ---------------- */
 
-  const getInitials = (name?: string) =>
-    name
-      ? name
-          .split(" ")
-          .map((n) => n[0].toUpperCase())
-          .join("")
-          .slice(0, 2)
-      : "U";
+  const onSelectImage = (file: File, type: "avatar" | "wallpaper") => {
+    setSelectedFile(file);
+    setCropType(type);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+  };
 
-  const InputField = ({
-    label,
-    name,
-    type = "text",
-  }: {
-    label: string;
-    name: keyof UserProfile;
-    type?: string;
-  }) => (
-    <div className="flex flex-col">
-      <label className="text-gray-400 text-sm mb-1">{label}</label>
-      <input
-        type={type}
-        name={name}
-        value={profile[name] || ""}
-        disabled={!editing}
-        onChange={handleProfileChange}
-        className={`w-full px-3 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 ${
-          !editing ? "opacity-60 cursor-not-allowed" : ""
-        }`}
-      />
-    </div>
-  );
+  const saveCrop = async () => {
+    if (!selectedFile || !croppedPixels || !cropType) return;
+
+    const base64 = await getCroppedImg(
+      URL.createObjectURL(selectedFile),
+      croppedPixels,
+    );
+
+    setDraft((p) => ({
+      ...(p ?? profile),
+      [cropType === "avatar" ? "avatarBase64" : "wallpaperBase64"]: base64,
+    }));
+
+    toast.success(
+      `${cropType === "avatar" ? "Avatar" : "Wallpaper"} ready to save`,
+    );
+
+    setCropType(null);
+    setSelectedFile(null);
+  };
+
+  /* ---------------- SAVE / CANCEL ---------------- */
+
+  const saveProfile = async () => {
+    if (!draft || !original) return;
+
+    try {
+      // ---------------- USERNAME VALIDATION (ON SAVE ONLY) ----------------
+      if (draft.username) {
+        if (draft.username.length < 3) {
+          toast.error("Username must be at least 3 characters");
+          return;
+        }
+
+        if (!USERNAME_REGEX.test(draft.username)) {
+          toast.error("Username must use only letters, numbers, - or _");
+          return;
+        }
+      }
+
+      /* ---------------- EMAIL CHANGE ---------------- */
+      if (draft.email && draft.email !== original.email) {
+        if (!currentPassword) {
+          toast.error("Enter your current password to change email");
+          return;
+        }
+
+        try {
+          const cred = EmailAuthProvider.credential(
+            user!.email!,
+            currentPassword,
+          );
+
+          await reauthenticateWithCredential(user!, cred);
+
+          // ✅ THIS is the correct API
+          await verifyBeforeUpdateEmail(user!, draft.email);
+
+          toast.success(
+            "Verification email sent to your new address. Please check your spam folder if needed.",
+            {
+              duration: 6000, // 6 seconds
+            },
+          );
+
+          // Optional but recommended
+          await auth.signOut();
+          router.push("/login");
+          return;
+        } catch (err: any) {
+          console.error("Verify-before-update error:", err.code, err.message);
+
+          if (err.code === "auth/email-already-in-use") {
+            toast.error("This email is already in use.");
+          } else if (err.code === "auth/invalid-email") {
+            toast.error("Invalid email address.");
+          } else if (err.code === "auth/requires-recent-login") {
+            toast.error("Please log in again to change your email.");
+            await auth.signOut();
+            router.push("/login");
+          } else {
+            toast.error("Failed to send verification email.");
+          }
+
+          return;
+        }
+      }
+
+      /* ---------------- PASSWORD CHANGE ---------------- */
+      const wantsPasswordChange = newPassword.trim() !== "";
+
+      if (wantsPasswordChange) {
+        if (!currentPassword) {
+          toast.error("Enter your current password to change password");
+          return;
+        }
+
+        try {
+          const cred = EmailAuthProvider.credential(
+            user!.email!,
+            currentPassword,
+          );
+
+          await reauthenticateWithCredential(user!, cred);
+          await updatePassword(user!, newPassword);
+        } catch {
+          toast.error("Current password is incorrect");
+          return;
+        }
+      }
+
+      /* ---------------- PROFILE UPDATES ---------------- */
+
+      const updates: Partial<UserProfile> = {};
+
+      if (draft.username !== original.username) {
+        if (!draft.username) {
+          toast.error("Username required");
+          return;
+        }
+
+        if (await isUsernameTaken(draft.username)) {
+          toast.error("Username already taken");
+          return;
+        }
+
+        updates.username = draft.username;
+      }
+
+      if (draft.email !== original.email) updates.email = draft.email;
+      if (draft.bio !== original.bio) updates.bio = draft.bio;
+
+      if (draft.avatarBase64 !== original.avatarBase64)
+        updates.avatarBase64 = draft.avatarBase64;
+
+      if (draft.wallpaperBase64 !== original.wallpaperBase64)
+        updates.wallpaperBase64 = draft.wallpaperBase64;
+
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(doc(db, "users", user!.uid), updates);
+        setProfile({ ...profile!, ...updates });
+      }
+
+      if (updates.username) {
+        setChangingUsername(true);
+
+        // small delay purely for UX (optional but recommended)
+        setTimeout(() => {
+          router.replace(`/profile/${updates.username}`);
+        }, 600);
+      }
+
+      /* ---------------- CLEANUP ---------------- */
+
+      setEditing(false);
+      setDraft(null);
+      setCurrentPassword("");
+      setNewPassword("");
+      setPasswordResetRequested(false);
+      toast.success("Profile updated");
+    } catch (err) {
+      toast.error("Failed to save changes");
+    }
+  };
+
+  const cancelEditing = () => {
+    setDraft(original);
+    setEditing(false);
+    setCurrentPassword("");
+    setPasswordResetRequested(false);
+    setNewPassword("");
+    setSelectedFile(null);
+    setCropType(null);
+  };
+
+  const emailChanged = draft?.email !== original?.email;
+  const wantsPasswordChange = Boolean(newPassword);
+
+  const passwordInvalid = Boolean(wantsPasswordChange && !currentPassword);
+
+  /* ---------------- UI ---------------- */
 
   return (
     <>
       <Helmet>
-        <title>PlayCrew - {profile.displayName || profile.username}</title>
+        <title>PlayCrew - {profile.username}'s Profile</title>
       </Helmet>
 
       <motion.main
-        className="relative min-h-screen flex justify-center items-center p-4 overflow-hidden"
+        className="relative min-h-screen flex items-center justify-center overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
       >
-        {/* BLURRED BACKGROUND */}
-        {profile.wallpaperBase64 && (
+        {active?.wallpaperBase64 && (
           <div
             className="absolute inset-0 scale-110"
             style={{
-              backgroundImage: `url(${profile.wallpaperBase64})`,
+              backgroundImage: `url(${active.wallpaperBase64})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
-              filter: "blur(25px)",
+              filter: "blur(30px)",
             }}
           />
         )}
-
-        {/* DARK OVERLAY */}
         <div className="absolute inset-0 bg-black/60" />
 
-        <div className="w-full max-w-3xl bg-gray-900 bg-opacity-90 rounded-3xl p-6 shadow-2xl flex flex-col gap-6 relative z-10">
-          <div className="flex justify-between items-center px-3 py-1">
-            <h1 className="text-2xl font-bold text-white flex-1">
-              Account Settings
-            </h1>
-            <motion.button
-              onClick={editing ? handleUpdateProfile : () => setEditing(true)}
-              className="flex items-center gap-2 px-3 py-1 font-semibold rounded-lg text-black transition-colors bg-cyan-500 hover:bg-cyan-400"
-              whileTap={{ scale: 0.95 }}
-            >
-              {editing ? <FiCheck size={20} /> : <FiEdit2 size={20} />}
-              {editing ? "Save" : "Edit"}
-            </motion.button>
-          </div>
-          <hr className="text-gray-700" />
+        <motion.div
+          className="relative z-10 w-full max-w-4xl bg-slate-900/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl space-y-8"
+          initial={{ y: 40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <h1 className="text-white text-xl font-bold">Account Settings</h1>
 
-          <div className="grid grid-cols-2 items-center">
-            {/* Avatar */}
-            <div className="relative w-32 h-32 rounded-full border-4 border-cyan-500 shadow-lg overflow-hidden">
-              {avatarPreview ? (
-                <img
-                  src={avatarPreview}
-                  alt="Avatar Preview"
-                  className="w-full h-full object-cover"
-                />
-              ) : profile.avatarBase64 ? (
-                <img
-                  src={profile.avatarBase64}
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-cyan-500 flex items-center justify-center text-3xl font-bold text-black">
-                  {getInitials(profile.displayName || profile.username)}
-                </div>
-              )}
-            </div>
+            {editing ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={saveProfile}
+                  disabled={passwordInvalid}
+                  className={`px-4 py-1 rounded flex items-center gap-2 ${
+                    passwordInvalid
+                      ? "bg-gray-600 text-gray-300 cursor-not-allowed"
+                      : "bg-cyan-500 text-black"
+                  }`}
+                >
+                  <FiCheck /> Save
+                </button>
 
-            {/* Controls */}
-            <div className="flex justify-center gap-3 lg:pl-[18px]">
-              <label
-                className={`px-5 py-1 bg-cyan-500 rounded-full cursor-pointer text-black font-semibold hover:bg-cyan-400 transition ${
-                  !editing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                Change
-                <input
-                  type="file"
-                  className="hidden"
-                  disabled={!editing}
-                  onChange={(e) => {
-                    if (!e.target.files?.[0]) return;
-                    handleFileUpload(e.target.files[0], "avatar");
-                  }}
-                />
-              </label>
-
+                <button
+                  onClick={cancelEditing}
+                  className="bg-gray-700 px-4 py-1 rounded text-white flex items-center gap-2"
+                >
+                  <FiX /> Cancel
+                </button>
+              </div>
+            ) : (
               <button
-                disabled={!editing}
-                onClick={removeAvatar}
-                className={`px-5 py-1 bg-red-500 rounded-full text-black font-semibold hover:bg-red-400  ${
-                  !editing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                onClick={() => setEditing(true)}
+                className="bg-cyan-500 px-4 py-1 rounded text-black flex items-center gap-2"
               >
-                Remove
+                <FiEdit2 /> Edit
               </button>
-            </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Wallpaper */}
-            <div className="relative w-[50%] h-48 overflow-hidden">
-              {wallpaperPreview ? (
-                <img
-                  src={wallpaperPreview}
-                  alt="Wallpaper Preview"
-                  className="w-full h-full object-cover rounded-lg border-4 border-cyan-500 shadow-lg"
-                />
-              ) : profile.wallpaperBase64 ? (
-                <img
-                  src={profile.wallpaperBase64}
-                  alt="Wallpaper"
-                  className="w-full h-full object-cover rounded-lg border-4 border-cyan-500 shadow-lg"
-                />
-              ) : (
-                <div className="w-full h-full bg-cyan-500 flex items-center justify-center text-xl font-bold text-black">
-                  Wallpaper
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 mx-auto">
-              <label
-                className={`px-5 py-1 bg-cyan-500 rounded-full cursor-pointer text-black font-semibold hover:bg-cyan-400 transition ${
-                  !editing ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                Change
-                <input
-                  ref={wallpaperInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  disabled={!editing}
-                  onChange={(e) => {
-                    if (!e.target.files || !e.target.files[0]) return;
-                    const file = e.target.files[0];
-                    handleFileUpload(file, "wallpaper");
-
-                    if (wallpaperInputRef.current)
-                      wallpaperInputRef.current.value = "";
-                  }}
-                />
-              </label>
-              {profile.wallpaperBase64 && (
-                <button
-                  disabled={!editing}
-                  onClick={removeWallpaper}
-                  className={`px-5 py-1 bg-red-500 rounded-full hover:bg-red-400 text-black font-semibold  ${
-                    !editing ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  Remove
-                </button>
-              )}
-            </div>
+          {/* Avatar + Wallpaper */}
+          <div className="flex justify-center gap-30">
+            <ImageOverlay
+              src={active?.avatarBase64}
+              editing={editing}
+              rounded
+              onClick={() => avatarInputRef.current?.click()}
+            />
+            <ImageOverlay
+              src={active?.wallpaperBase64}
+              editing={editing}
+              onClick={() => wallpaperInputRef.current?.click()}
+            />
           </div>
 
-          {/* Profile Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputField label="Username" name="username" />
-            <InputField label="Display Name" name="displayName" />
-            <InputField label="Email" name="email" type="email" />
+          <input
+            ref={avatarInputRef}
+            type="file"
+            hidden
+            accept="image/*"
+            onChange={(e) =>
+              e.target.files && onSelectImage(e.target.files[0], "avatar")
+            }
+          />
+          <input
+            ref={wallpaperInputRef}
+            type="file"
+            hidden
+            accept="image/*"
+            onChange={(e) =>
+              e.target.files && onSelectImage(e.target.files[0], "wallpaper")
+            }
+          />
 
-            {/* Password */}
-            <div className="flex flex-col">
-              <label className="text-gray-400 text-sm mb-1">Password</label>
-              <div className="relative flex items-center">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={!editing}
-                  placeholder="Set New Password"
-                  className={`flex-1 px-3 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 pr-10 ${
-                    !editing ? "opacity-60 cursor-not-allowed" : ""
-                  }`}
-                />
-                <div
-                  className="absolute right-3 cursor-pointer text-gray-400 hover:text-cyan-400"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                >
-                  {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
-                </div>
-              </div>
-              {editing && (
-                <button
-                  onClick={changePassword}
-                  className="w-1/2 mx-auto mt-2 py-1 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black font-semibold"
-                >
-                  Update
-                </button>
-              )}
-            </div>
+          {/* Fields */}
+          <motion.div
+            className="grid grid-cols-2 gap-4"
+            variants={fieldsContainerVariants}
+            initial="locked"
+            animate={editing ? "editable" : "locked"}
+          >
+            <AnimatedField
+              label="Username"
+              name="username"
+              value={active?.username || ""}
+              onChange={handleChange}
+              disabled={!editing}
+              maxLength={15}
+            />
 
-            {/* Bio */}
-            <div className="flex flex-col md:col-span-2">
-              <label className="text-gray-400 text-sm mb-1">Bio</label>
-              <textarea
-                name="bio"
-                value={profile.bio || ""}
-                disabled={!editing}
-                onChange={handleProfileChange}
-                rows={3}
-                className={`w-full px-3 py-2 rounded-xl bg-gray-800 text-white border border-gray-700 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 resize-none ${
-                  !editing ? "opacity-60 cursor-not-allowed" : ""
-                }`}
-              />
-            </div>
-          </div>
-          {/* <div className="w-full flex justify-center">
-            <motion.button
-              onClick={editing ? handleUpdateProfile : () => setEditing(true)}
-              className="flex items-center gap-2 px-4 py-2 font-semibold rounded-2xl text-black transition-colors bg-cyan-500 hover:bg-cyan-400"
-              whileTap={{ scale: 0.95 }}
+            <AnimatedField
+              label="Email"
+              name="email"
+              value={user?.email}
+              onChange={handleChange}
+              disabled={!editing}
+            />
+          </motion.div>
+
+          <Textarea
+            label="Bio"
+            name="bio"
+            value={active?.bio || ""}
+            onChange={handleChange}
+            disabled={!editing}
+          />
+
+          {/* Security */}
+          <div className="border-t border-slate-700 pt-6 space-y-4">
+            <h2 className="text-white font-semibold mb-6">
+              Privact & Security
+            </h2>
+
+            <motion.div
+              className="grid grid-cols-2 gap-4"
+              variants={fieldsContainerVariants}
+              initial="locked"
+              animate={editing ? "editable" : "locked"}
             >
-              {editing ? <FiCheck size={20} /> : <FiEdit2 size={20} />}
-              {editing ? "Save" : "Edit"}
-            </motion.button>
-          </div> */}
-        </div>
+              <AnimatedPasswordField
+                label="Current Password"
+                value={currentPassword}
+                show={showCurrent}
+                toggle={() => setShowCurrent((p) => !p)}
+                onChange={setCurrentPassword}
+                disabled={!editing || passwordResetRequested}
+              />
 
-        {/* Crop Modal */}
-        {cropType &&
-          (cropType === "avatar" ? selectedAvatar : selectedWallpaper) && (
-            <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-              <div className="bg-gray-900 rounded-lg p-4 flex flex-col items-center gap-3 w-full max-w-xl">
-                <h2 className="text-white font-bold">
-                  {cropType === "avatar" ? "Crop Avatar" : "Crop Wallpaper"}
-                </h2>
-                <div
-                  className={`relative w-full ${
-                    cropType === "avatar" ? "h-80" : "h-96"
-                  }`}
-                >
-                  <Cropper
-                    image={URL.createObjectURL(
-                      cropType === "avatar"
-                        ? selectedAvatar!
-                        : selectedWallpaper!,
-                    )}
-                    crop={crop}
-                    zoom={zoom}
-                    aspect={cropType === "avatar" ? 1 : 16 / 9}
-                    onCropChange={setCrop}
-                    onZoomChange={setZoom}
-                    onCropComplete={(_, croppedAreaPixels) =>
-                      setCroppedAreaPixels(croppedAreaPixels)
-                    }
-                  />
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.01}
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={saveCropped}
-                    className="px-4 py-2 bg-cyan-500 text-black rounded hover:bg-cyan-400"
-                  >
-                    {uploadingWallpaper || uploadingAvatar
-                      ? "Uploading..."
-                      : "Save"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setCropType(null);
-                      setCroppedAreaPixels(null);
+              <AnimatedPasswordField
+                label="New Password"
+                value={newPassword}
+                show={showNew}
+                toggle={() => setShowNew((p) => !p)}
+                onChange={setNewPassword}
+                disabled={!editing || passwordResetRequested}
+              />
+            </motion.div>
 
-                      setSelectedAvatar(null);
-                      setSelectedWallpaper(null);
+            {editing && (
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-sm text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition"
+              >
+                Forgot your password?
+              </button>
+            )}
+          </div>
+        </motion.div>
 
-                      setAvatarPreview(null);
-                      setWallpaperPreview(null);
-                    }}
-                    className="px-4 py-2 bg-red-500 text-black rounded hover:bg-red-400"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
+        <AnimatePresence>
+          {cropType && selectedFile && (
+            <CropModal
+              file={selectedFile}
+              crop={crop}
+              zoom={zoom}
+              setCrop={setCrop}
+              setZoom={setZoom}
+              aspect={cropType === "avatar" ? 1 : 16 / 9}
+              onComplete={setCroppedPixels}
+              onSave={saveCrop}
+              onCancel={() => setCropType(null)}
+            />
           )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {changingUsername && (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="flex flex-col items-center gap-4 text-white"
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+              >
+                <div className="w-10 h-10 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm tracking-wide text-cyan-300">
+                  Changing username…
+                </p>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.main>
     </>
+  );
+}
+
+/* ---------------- UI COMPONENTS ---------------- */
+
+function ImageOverlay({
+  src,
+  editing,
+  rounded,
+  onClick,
+}: {
+  src?: string | null;
+  editing: boolean;
+  rounded?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      className={`relative ${
+        rounded ? "w-28 h-28 rounded-full" : "w-80 h-36 rounded-lg"
+      } overflow-hidden border-2 border-cyan-500 bg-slate-800`}
+    >
+      {/* Image or placeholder */}
+      {src ? (
+        <img
+          src={src}
+          className="w-full h-full object-cover"
+          alt="Profile image"
+        />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 gap-1">
+          <FiCamera className="text-3xl opacity-40" />
+          <span className="text-xs opacity-50">Add image</span>
+        </div>
+      )}
+
+      {/* Edit overlay */}
+      {editing && (
+        <motion.div
+          onClick={onClick}
+          className="absolute inset-0 bg-black/60 flex items-center justify-center cursor-pointer"
+          initial={{ opacity: 0 }}
+          whileHover={{ opacity: 1 }}
+          transition={{ duration: 0.15 }}
+        >
+          <FiCamera className="text-white text-2xl" />
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+const fieldVariants = {
+  locked: {
+    opacity: 0.6,
+    y: 0,
+  },
+  editable: {
+    opacity: 1,
+    y: -2,
+    transition: {
+      duration: 0.25,
+    },
+  },
+};
+
+const fieldsContainerVariants = {
+  locked: {},
+  editable: {
+    transition: {
+      staggerChildren: 0.06,
+    },
+  },
+};
+
+function AnimatedField(props: any) {
+  const { disabled } = props;
+
+  return (
+    <motion.div
+      variants={fieldVariants}
+      initial={false}
+      animate={disabled ? "locked" : "editable"}
+    >
+      <label className="text-gray-400 text-sm mb-1 block">{props.label}</label>
+
+      <input
+        {...props}
+        disabled={disabled}
+        className={`w-full rounded px-3 py-2 transition-colors duration-300 ${
+          disabled
+            ? "bg-slate-900 border border-slate-800 text-gray-400"
+            : "bg-slate-800 border border-cyan-400 text-white focus:ring-1 focus:ring-cyan-400"
+        }`}
+      />
+    </motion.div>
+  );
+}
+
+function Textarea({ label, disabled, ...props }: any) {
+  return (
+    <div>
+      <label className="text-gray-400 text-sm mb-1 block">{label}</label>
+      <textarea
+        {...props}
+        disabled={disabled}
+        rows={3}
+        className={`w-full rounded px-3 py-2 resize-none ${
+          disabled
+            ? "bg-slate-900 border border-slate-800 text-gray-400"
+            : "bg-slate-800 border border-slate-600 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
+        }`}
+      />
+    </div>
+  );
+}
+
+function AnimatedPasswordField({
+  label,
+  value,
+  show,
+  toggle,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  show: boolean;
+  toggle: () => void;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <motion.div
+      variants={fieldVariants}
+      initial={false}
+      animate={disabled ? "locked" : "editable"}
+    >
+      <label className="text-gray-400 text-sm mb-1 block">{label}</label>
+
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full rounded px-3 py-2 pr-10 transition-colors duration-300 ${
+            disabled
+              ? "bg-slate-900 border border-slate-800 text-gray-400 cursor-not-allowed"
+              : "bg-slate-800 border border-cyan-400 text-white focus:ring-1 focus:ring-cyan-400"
+          }`}
+        />
+
+        {/* Eye icon */}
+        {!disabled && (
+          <button
+            type="button"
+            onClick={toggle}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-400 cursor-pointer ease-in-out duration-300 transition-all"
+          >
+            {show ? <FiEyeOff /> : <FiEye />}
+          </button>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function CropModal({
+  file,
+  crop,
+  zoom,
+  setCrop,
+  setZoom,
+  aspect,
+  onComplete,
+  onSave,
+  onCancel,
+}: {
+  file: File;
+  crop: { x: number; y: number };
+  zoom: number;
+  setCrop: (v: { x: number; y: number }) => void;
+  setZoom: (v: number) => void;
+  aspect: number;
+  onComplete: (area: Area) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="bg-slate-900 p-4 rounded-lg w-full max-w-xl space-y-4"
+        initial={{ scale: 0.9 }}
+        animate={{ scale: 1 }}
+        exit={{ scale: 0.9 }}
+      >
+        <div className="relative h-80">
+          <Cropper
+            image={URL.createObjectURL(file)}
+            crop={crop}
+            zoom={zoom}
+            aspect={aspect}
+            onCropChange={setCrop}
+            onZoomChange={setZoom}
+            onCropComplete={(_, area) => onComplete(area)}
+          />
+        </div>
+        <input
+          className="w-full"
+          type="range"
+          min={1}
+          max={3}
+          step={0.01}
+          value={zoom}
+          onChange={(e) => setZoom(Number(e.target.value))}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onSave}
+            className="bg-cyan-500 px-4 py-1 rounded text-black"
+          >
+            Save
+          </button>
+          <button
+            onClick={onCancel}
+            className="bg-red-500 px-4 py-1 rounded text-black"
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

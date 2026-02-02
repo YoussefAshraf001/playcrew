@@ -78,7 +78,6 @@ interface UserProfile {
   username: string;
   email: string;
   emailVerified?: boolean;
-  displayName?: string | null;
   avatarUrl?: string;
   avatarBase64?: string;
   trackedGames: Record<string, TrackedGame>;
@@ -155,7 +154,6 @@ export default function GamesPage() {
             uid: user.uid,
             username: userProfile.username || "",
             email: userProfile.email || "",
-            displayName: userProfile.displayName || null,
             avatarUrl: userProfile.avatarUrl,
             avatarBase64: userProfile.avatarBase64,
             trackedGames: updatedGames,
@@ -1069,7 +1067,7 @@ export default function GamesPage() {
                 ) : (
                   recentlyEditedGames.map((g) => (
                     <Link key={g.igdb.id} href={`/game/${g.igdb?.id}`}>
-                      <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200">
+                      <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200 h-[35vh]">
                         <div className="flex items-center gap-3">
                           <img
                             className="w-15 h-20 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"

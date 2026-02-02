@@ -92,7 +92,11 @@ export default function HeroSection({
      Actions
   ---------------------------- */
   const handleAddToLibrary = async () => {
-    if (!user || !activeGame) return;
+    if (!user) {
+      toast.error("You must be logged in to use this feature");
+      return false;
+    }
+    if (!activeGame) return;
 
     // Normalize genres
     const genres = Array.isArray(activeGame.genres)
@@ -173,7 +177,11 @@ export default function HeroSection({
   };
 
   const toggleFavorite = async () => {
-    if (!user || !existsInLibrary) return;
+    if (!user) {
+      toast.error("You must be logged in to use this feature");
+      return false;
+    }
+    if (!existsInLibrary) return;
 
     const ref = doc(db, "users", user.uid, "games_igdb", gameId);
 
@@ -218,18 +226,6 @@ export default function HeroSection({
   const goPrev = () => {
     setActiveIndex((prev) => (prev === 0 ? trending.length - 1 : prev - 1));
   };
-
-  // const togglePlay = () => {
-  //   if (!playerRef.current) return;
-
-  //   if (isPlaying) {
-  //     playerRef.current.pauseVideo();
-  //   } else {
-  //     playerRef.current.playVideo();
-  //   }
-
-  //   setIsPlaying(!isPlaying);
-  // };
 
   const toggleMute = () => {
     if (!playerRef.current) return;
