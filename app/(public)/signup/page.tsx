@@ -1,9 +1,9 @@
-import SignupPage from "./SignUpPage";
+import SignupPage from "./SignupPage";
 
 export const metadata = {
   title: "Welcome Back To PlayCrew",
 };
 
-export default function GamesPage() {
+export default function SignupLogic() {
   return <SignupPage />;
 }

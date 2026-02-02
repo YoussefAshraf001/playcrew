@@ -4,6 +4,6 @@ export const metadata = {
   title: "Welcome Back To PlayCrew",
 };
 
-export default function GamesPage() {
+export default function LoginLogic() {
   return <LoginPage />;
 }

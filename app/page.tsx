@@ -63,7 +63,7 @@ export default function Home() {
               href="/signup"
               className="w-full rounded-full bg-cyan-500 text-black py-3 font-semibold transition transform hover:-translate-y-0.5 hover:bg-cyan-400 hover:shadow-lg hover:shadow-cyan-500/30"
             >
-              Create Your Crew
+              Start Your Journey Now
             </Link>
 
             <Link
