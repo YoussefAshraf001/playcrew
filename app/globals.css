@@ -148,3 +148,21 @@ input.slider-thumb-sm::-moz-range-thumb {
 .animate-videoFade {
   animation: videoFade 0.4s ease-out forwards;
 }
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-toast-progress {
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.toast:hover .animate-toast-progress {
+  animation-play-state: paused;
+}

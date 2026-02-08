@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useRef } from "react";
 import { motion, Variants } from "framer-motion";
 import Navbar from "./components/Navbar";
 import "./globals.css";
@@ -9,6 +9,9 @@ import { MusicProvider } from "./context/MusicContext";
 import MusicPlayer from "./components/MusicPlayer";
 import { HelmetProvider } from "react-helmet-async";
 import GlobalToaster from "./components/GlobalToaster";
+import { AuthModalProvider } from "./context/AuthModalContext";
+import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -23,32 +26,58 @@ export default function RootLayout({ children }: RootLayoutProps) {
     },
   };
 
+  const pathname = usePathname();
+  const hasHydrated = useRef(false);
+
+  useEffect(() => {
+    // skip first load
+    if (!hasHydrated.current) {
+      hasHydrated.current = true;
+      return;
+    }
+
+    const blockedRoutes = [
+      "/",
+      "/menu",
+      "/login",
+      "/signup",
+      "/auth",
+      "/dashboard", // 👈 important
+    ];
+
+    if (!blockedRoutes.includes(pathname)) {
+      localStorage.setItem("lastPage", pathname);
+    }
+  }, [pathname]);
+
   return (
     <html lang="en">
       <body className="antialiased bg-black">
         <GlobalToaster />
 
         <HelmetProvider>
-          <UserProvider>
-            <MusicProvider>
-              <div className="flex min-h-screen w-screen overflow-hidden">
-                {/* Navbar */}
-                <Navbar />
+          <AuthModalProvider>
+            <UserProvider>
+              <MusicProvider>
+                <div className="flex min-h-screen w-screen overflow-hidden">
+                  {/* Navbar */}
+                  <Navbar />
 
-                {/* Main content */}
-                <motion.main
-                  className="flex-1 overflow-y-auto max-w-full"
-                  variants={contentVariants}
-                  initial="hidden"
-                  animate="visible"
-                >
-                  {children}
-                </motion.main>
-              </div>
+                  {/* Main content */}
+                  <motion.main
+                    className="flex-1 overflow-y-auto max-w-full"
+                    variants={contentVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    {children}
+                  </motion.main>
+                </div>
 
-              <MusicPlayer />
-            </MusicProvider>
-          </UserProvider>
+                <MusicPlayer />
+              </MusicProvider>
+            </UserProvider>
+          </AuthModalProvider>
         </HelmetProvider>
       </body>
     </html>

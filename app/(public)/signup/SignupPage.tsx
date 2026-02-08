@@ -1,154 +1,108 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { auth, db } from "../../lib/firebase";
-import {
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth";
+import { useState } from "react";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/app/lib/firebase";
 import { toast } from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import LoadingSpinner from "@/app/components/LoadingSpinner";
 import { FiEye, FiEyeOff } from "react-icons/fi";
-import { Helmet } from "react-helmet-async";
+import { useAuthModal } from "@/app/context/AuthModalContext";
 
-export default function SignupPage() {
-  const router = useRouter();
+export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
+  const { open } = useAuthModal();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) router.replace("/dashboard");
-      setCheckingAuth(false);
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  const fetchAvatarAsBase64 = async (username: string) => {
-    const res = await fetch(
-      `https://api.dicebear.com/8.x/bottts/svg?seed=${username}`,
-    );
-    const svg = await res.text();
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
-  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
 
     try {
       setLoading(true);
-      toast.loading("Creating your account...");
+      toast.loading("Creating account...");
 
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
-      const user = userCredential.user;
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
 
+      const user = cred.user;
       const username = email.split("@")[0];
-      const avatarBase64 = await fetchAvatarAsBase64(username);
 
-      // Set Firestore document
       await setDoc(doc(db, "users", user.uid), {
         username,
         createdAt: new Date(),
-        avatarBase64,
       });
 
-      // Update Firebase Auth profile
-      await updateProfile(user, {
-        photoURL: avatarBase64,
-      });
+      await updateProfile(user, { displayName: username });
 
       toast.dismiss();
       toast.success("Welcome to PlayCrew!");
-      router.push("/dashboard");
-    } catch (error: any) {
+      onSuccess?.();
+    } catch (err) {
       toast.dismiss();
-      toast.error(error.message);
+      toast.error("Signup failed. Try again.");
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (checkingAuth) {
-    return <LoadingSpinner />;
-  }
-
   return (
-    <>
-      <Helmet>
-        <title>Welcome to PlayCrew</title>
-      </Helmet>
+    <form onSubmit={handleSignup} className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Create your account</h2>
 
-      <main className="flex items-center justify-center min-h-screen bg-black text-white">
-        <form
-          onSubmit={handleSignup}
-          className="w-full max-w-sm p-7 rounded-xl bg-zinc-900 space-y-5"
+      <input
+        type="email"
+        placeholder="Email"
+        className="w-full p-3 rounded bg-zinc-800"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+
+      {/* Password field */}
+      <div className="relative">
+        <input
+          type={showPassword ? "text" : "password"}
+          placeholder="Password"
+          className="w-full p-3 pr-10 rounded bg-zinc-800"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+
+        <button
+          type="button"
+          onClick={() => setShowPassword((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-cyan-400 transition"
         >
-          <h1 className="text-3xl font-bold text-center">Create Account</h1>
+          {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+        </button>
+      </div>
 
-          <motion.input
-            type="email"
-            placeholder="Email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            whileFocus={{ scale: 1.02 }}
-            className="w-[98%] p-3 rounded-md bg-zinc-800 focus:ring-1 focus:ring-cyan-500 focus:outline-none duration-300"
-            required
-          />
+      <button
+        disabled={loading}
+        className="w-full bg-cyan-500 text-black font-bold py-3 rounded cursor-pointer hover:bg-cyan-400 transition duration-300"
+      >
+        {loading ? (
+          <>
+            <span className="loading loading-dots loading-xs" />
+          </>
+        ) : (
+          "Sign up"
+        )}
+      </button>
 
-          {/* Password Field with Show/Hide */}
-          <div className="relative w-[98%]">
-            <motion.input
-              type={showPassword ? "text" : "password"}
-              placeholder="Password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              whileFocus={{ scale: 1.02 }}
-              className="w-full p-3 rounded-md bg-zinc-800 focus:ring-1 focus:ring-cyan-500 focus:outline-none duration-300 pr-10"
-              required
-            />
-            <div
-              className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-cyan-500"
-              onClick={() => setShowPassword((prev) => !prev)}
-            >
-              {showPassword ? <FiEye size={20} /> : <FiEyeOff size={20} />}
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-[98%] p-3 rounded-md bg-cyan-300 text-black font-bold hover:scale-105 ease-in-out transition-all duration-300 cursor-pointer flex items-center justify-center"
-          >
-            {loading ? (
-              <span className="loading loading-spinner loading-sm" />
-            ) : (
-              "Join PlayCrew"
-            )}
-          </button>
-          <p className="text-center text-sm">
-            Already have an account?{" "}
-            <Link className="text-cyan-500" href="/login">
-              Log in
-            </Link>
-          </p>
-        </form>
-      </main>
-    </>
+      <p className="text-sm text-center text-zinc-400">
+        Already have an account?{" "}
+        <button
+          type="button"
+          onClick={() => open("login")}
+          className="text-cyan-400 cursor-pointer"
+        >
+          Log in
+        </button>
+      </p>
+    </form>
   );
 }

@@ -1,44 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { auth } from "../../lib/firebase";
+import { useState } from "react";
 import {
-  onAuthStateChanged,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
+import { auth } from "@/app/lib/firebase";
 import { toast } from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { FiEye, FiEyeOff } from "react-icons/fi";
+import { useAuthModal } from "@/app/context/AuthModalContext";
+import { IoMdMail, IoMdMailUnread } from "react-icons/io";
 
-import LoadingSpinner from "@/app/components/LoadingSpinner";
+export default function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
+  const { open } = useAuthModal();
 
-export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-
-  // Redirect if user is already logged in
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) router.replace("/dashboard");
-      setCheckingAuth(false);
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!email.trim() || !password.trim()) {
-      toast.error("Email and password required.");
-      return;
-    }
 
     try {
       setLoading(true);
@@ -48,120 +30,109 @@ export default function LoginPage() {
 
       toast.dismiss();
       toast.success("Welcome back!");
-      router.push("/dashboard");
-    } catch (error: any) {
+      onSuccess?.();
+    } catch {
       toast.dismiss();
-      console.error("Login error:", error.code);
-
-      if (
-        error.code === "auth/invalid-credential" ||
-        error.code === "auth/invalid-email" ||
-        error.code === "auth/missing-password"
-      ) {
-        toast.error("Incorrect email or password.");
-      } else if (error.code === "auth/too-many-requests") {
-        toast.error("Too many attempts. Try again later.");
-      } else {
-        toast.error("Login failed. Please try again.");
-      }
+      toast.error("Incorrect email or password.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = async () => {
-    if (!email.trim()) {
-      toast.error("Enter your email first");
-      return;
-    }
+  const handleReset = async () => {
+    if (!email.trim()) return toast.error("Enter your email first");
+    await sendPasswordResetEmail(auth, email);
+    toast(
+      (t) => (
+        <div>
+          <p className="text-sm mb-2">
+            A password reset email has been sent. Please check your inbox or
+            spam folder.
+          </p>
 
-    try {
-      toast.loading("Sending reset email...");
-      await sendPasswordResetEmail(auth, email.trim());
-      toast.dismiss();
-      toast.success(
-        "If an account exists for this email, a reset link will be sent now.",
-      );
-    } catch (error: any) {
-      toast.dismiss();
-
-      if (error.code === "auth/user-not-found") {
-        toast.error("No account found with this email.");
-      } else if (error.code === "auth/invalid-email") {
-        toast.error("Invalid email address.");
-      } else {
-        toast.error("Failed to send reset email.");
-      }
-    }
+          {/* Progress bar */}
+          <div className="h-1 w-full bg-zinc-700 rounded overflow-hidden">
+            <div
+              className="h-full bg-cyan-400 animate-toast-progress"
+              style={{ animationDuration: "4000ms" }}
+            />
+          </div>
+        </div>
+      ),
+      {
+        icon: <IoMdMail size={50} />,
+        duration: 4000,
+      },
+    );
   };
 
-  if (checkingAuth) {
-    return <LoadingSpinner />;
-  }
-
   return (
-    <main className="flex items-center justify-center min-h-screen bg-black text-white">
-      <form
-        onSubmit={handleLogin}
-        className="w-full max-w-sm p-8 rounded-xl bg-zinc-900 space-y-5"
-      >
-        <h1 className="text-3xl font-bold text-center">Welcome Back</h1>
+    <form onSubmit={handleLogin} className="space-y-4">
+      <h2 className="text-2xl font-bold text-center">Log in to continue</h2>
 
+      <input
+        type="email"
+        placeholder="Email"
+        className="w-full p-3 rounded bg-zinc-800"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+
+      {/* Password field */}
+      <div className="relative">
         <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 rounded-md bg-zinc-800"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type={showPassword ? "text" : "password"}
+          placeholder="Password"
+          className="w-full p-3 pr-10 rounded bg-zinc-800"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           required
         />
 
-        <div className="relative">
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Password"
-            className="w-full p-3 pr-10 rounded-md bg-zinc-800"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-
-          <button
-            type="button"
-            onClick={() => setShowPassword((p) => !p)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-400 transition cursor-pointer duration-300"
-          >
-            {showPassword ? <FiEyeOff /> : <FiEye />}
-          </button>
-        </div>
-
         <button
-          type="submit"
-          disabled={loading}
-          className="w-full p-3 rounded-md bg-cyan-300 text-black font-bold hover:scale-105 ease-in-out transition-all duration-300 cursor-pointer"
+          type="button"
+          onClick={() => setShowPassword((v) => !v)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-cyan-400 transition"
         >
-          {loading ? (
-            <span className="loading loading-spinner loading-sm" />
-          ) : (
-            <>{loading ? "Logging in" : "Login"}</>
-          )}
+          {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
         </button>
-        <p className="text-center text-sm">
-          New Here?{" "}
-          <Link className="text-cyan-500" href="/signup">
-            Sign Up
-          </Link>
-        </p>
-        <div className="text-right text-xs">
+      </div>
+      <div className="w-full text-right">
+        <button
+          className="text-xs text-zinc-400 cursor-pointer"
+          type="button"
+          onClick={handleReset}
+        >
+          Forgot password?
+        </button>
+      </div>
+
+      <button
+        disabled={loading}
+        className="w-full bg-cyan-500 text-black font-bold py-3 rounded cursor-pointer hover:bg-cyan-400 transition duration-300"
+      >
+        {loading ? (
+          <>
+            <span className="loading loading-dots loading-sm" />
+          </>
+        ) : (
+          "Login"
+        )}
+      </button>
+
+      <div className="flex justify-center text-sm text-zinc-400">
+        <p className="text-sm text-center text-zinc-400">
+          New here?{" "}
           <button
             type="button"
-            onClick={handleForgotPassword}
-            className="text-cyan-700 hover:text-cyan-400 underline underline-offset-2 transition cursor-pointer"
+            onClick={() => open("signup")}
+            className="text-cyan-400 cursor-pointer"
           >
-            Forgot your password?
+            Sign up
           </button>
-        </div>
-      </form>
-    </main>
+        </p>
+      </div>
+    </form>
   );
 }

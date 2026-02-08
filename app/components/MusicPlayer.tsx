@@ -30,23 +30,23 @@ export default function MusicPlayer() {
   return (
     <motion.div
       ref={playerRef}
-      initial={{ x: 200, opacity: 0 }}
+      initial={{ y: -200, opacity: 0 }}
       animate={{
-        x: playerVisible ? 0 : 200,
+        y: playerVisible ? 0 : -200,
         opacity: playerVisible ? 1 : 0,
         pointerEvents: playerVisible ? "auto" : "none",
       }}
       transition={{ duration: 0.35, ease: "easeInOut" }}
       className="
-    fixed top-17 right-[-140px] -translate-x-1/2
-    w-[300px] px-4 py-3
+    fixed top-2 left-1/2 -translate-x-1/2
+    w-[500px] h-[100px] px-4 py-3
     bg-zinc-900/90 backdrop-blur-lg
     rounded-xl border border-zinc-700 shadow-lg
     z-50
   "
     >
       {/* TOP SECTION */}
-      <div className="flex flex-col items-center w-full gap-4">
+      <div className="flex items-center w-full gap-4">
         {/* Song Info (skeleton OR real data) */}
         <AnimatePresence mode="wait">
           {!isLoadingTrack ? (
@@ -102,7 +102,7 @@ export default function MusicPlayer() {
         </AnimatePresence>
 
         {/* CONTROLS */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex items-center gap-3">
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={playPrev}
@@ -127,7 +127,7 @@ export default function MusicPlayer() {
           </div>
 
           {/* VOLUME */}
-          <div className="flex flex-col items-center gap-3 opacity-90">
+          <div className="flex items-center gap-3 opacity-90">
             <div className="flex items-center gap-2">
               <HiVolumeUp size={15} className="text-zinc-400" />
 
@@ -154,7 +154,7 @@ export default function MusicPlayer() {
                 scale: { duration: 0.2 },
               }}
               whileTap={{ scale: 0.5 }}
-              className={`inline-flex items-center cursor-pointer rounded-xl px-4 transition-colors duration-300 ${
+              className={`inline-flex items-center cursor-pointer rounded-xl p-1 transition-colors duration-300 ${
                 isRepeating
                   ? "text-white bg-green-400"
                   : "border-2 border-green-400 text-zinc-400 hover:text-white"
@@ -162,9 +162,6 @@ export default function MusicPlayer() {
               onClick={toggleRepeat}
             >
               <IoRepeat size={18} />
-              <span className="ml-2">
-                {isRepeating ? "Repeating" : "Repeating OFF"}
-              </span>
             </motion.div>
           </div>
         </div>
@@ -207,7 +204,6 @@ export default function MusicPlayer() {
 // import { IoRepeat } from "react-icons/io5";
 // import { HiVolumeUp } from "react-icons/hi";
 // import MarqueeText from "./MarqueeText";
-// import { useEffect, useRef } from "react";
 
 // export default function MusicPlayer() {
 //   const {
@@ -220,7 +216,7 @@ export default function MusicPlayer() {
 //     duration,
 //     seek,
 //     playerVisible,
-//     togglePlayerVisible,
+//     playerRef,
 //     volume,
 //     setVolume,
 //     isRepeating,
@@ -228,54 +224,29 @@ export default function MusicPlayer() {
 //     isLoadingTrack,
 //   } = useMusic();
 
-//   const playerRef = useRef<HTMLDivElement | null>(null);
-
-//   // ESC key closes player
-//   useEffect(() => {
-//     if (!playerVisible) return;
-
-//     const handleKeyDown = (e: KeyboardEvent) => {
-//       if (e.key === "Escape") togglePlayerVisible();
-//     };
-
-//     const handleClickOutside = (e: MouseEvent) => {
-//       if (playerRef.current && !playerRef.current.contains(e.target as Node)) {
-//         togglePlayerVisible();
-//       }
-//     };
-
-//     window.addEventListener("keydown", handleKeyDown);
-//     document.addEventListener("mousedown", handleClickOutside);
-
-//     return () => {
-//       window.removeEventListener("keydown", handleKeyDown);
-//       document.removeEventListener("mousedown", handleClickOutside);
-//     };
-//   }, [playerVisible, togglePlayerVisible]);
-
 //   if (!currentTrack) return null;
 
 //   return (
 //     <motion.div
 //       ref={playerRef}
-//       initial={{ x: 200, opacity: 0 }}
+//       initial={{ y: -200, opacity: 0 }}
 //       animate={{
-//         x: playerVisible ? 0 : 200,
+//         y: playerVisible ? 0 : -200,
 //         opacity: playerVisible ? 1 : 0,
 //         pointerEvents: playerVisible ? "auto" : "none",
 //       }}
 //       transition={{ duration: 0.35, ease: "easeInOut" }}
 //       className="
-//         fixed bottom-26 left-[270px] -translate-x-1/2
-//         w-[300px] px-4 py-3
-//         bg-zinc-900/90 backdrop-blur-lg
-//         rounded-xl border border-zinc-700 shadow-lg
-//         z-50
-//       "
+//     fixed top-2 left-1/2 -translate-x-1/2
+//     w-[300px] px-4 py-3
+//     bg-zinc-900/90 backdrop-blur-lg
+//     rounded-xl border border-zinc-700 shadow-lg
+//     z-50
+//   "
 //     >
 //       {/* TOP SECTION */}
 //       <div className="flex flex-col items-center w-full gap-4">
-//         {/* SONG INFO */}
+//         {/* Song Info (skeleton OR real data) */}
 //         <AnimatePresence mode="wait">
 //           {!isLoadingTrack ? (
 //             <motion.div
@@ -303,18 +274,24 @@ export default function MusicPlayer() {
 //                   text={
 //                     Array.isArray(currentTrack.artist)
 //                       ? currentTrack.artist.join(", ")
-//                       : currentTrack.artist ?? ""
+//                       : (currentTrack.artist ?? "")
 //                   }
 //                   className="text-xs text-zinc-400"
 //                 />
 //               </div>
 //             </motion.div>
 //           ) : (
+//             // SKELETON
 //             <motion.div
 //               key="trackSkeleton"
+//               initial={{ opacity: 0, y: 10 }}
+//               animate={{ opacity: 1, y: 0 }}
+//               exit={{ opacity: 0, y: -10 }}
+//               transition={{ duration: 0.3 }}
 //               className="flex items-center gap-3 min-w-0 animate-pulse"
 //             >
 //               <div className="w-12 h-12 bg-zinc-700/60 rounded-md" />
+
 //               <div className="flex flex-col gap-2">
 //                 <div className="w-32 h-3 bg-zinc-700/60 rounded" />
 //                 <div className="w-24 h-3 bg-zinc-700/50 rounded" />
@@ -413,8 +390,8 @@ export default function MusicPlayer() {
 //             width: isLoadingTrack
 //               ? "30%"
 //               : duration
-//               ? `${(progress / duration) * 100}%`
-//               : "0%",
+//                 ? `${(progress / duration) * 100}%`
+//                 : "0%",
 //           }}
 //         />
 //       </div>

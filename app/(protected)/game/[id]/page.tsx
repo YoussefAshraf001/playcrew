@@ -507,6 +507,11 @@ export default function GamePage() {
   // Overlay only if NO stores or NO release date
   const showStoreOverlay = !hasOfficialStores || !hasReleaseDate;
 
+  const slugFromName = game?.name
+    ?.toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
   ///////////////////////////////////////// UI /////////////////////////////////////////////
 
   if (!game || loadingGame) return <LoadingSpinner />;
@@ -568,12 +573,45 @@ export default function GamePage() {
           <div className="flex-1 flex flex-col gap-8 just">
             {/* Poster + Header */}
             <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
-              <motion.img
-                src={game.background_image}
-                className="w-56 md:w-72 h-80 md:h-96 object-cover rounded-2xl shadow-xl shrink-0"
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-              />
+              <div className="flex flex-col items-center gap-3 shrink-0">
+                <motion.img
+                  src={game.background_image}
+                  className="w-56 md:w-72 h-80 md:h-96 object-cover rounded-2xl shadow-xl"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                />
+
+                {/* Small game name under poster */}
+                <div className="flex justify-center">
+                  <a
+                    href={`https://www.igdb.com/games/${slugFromName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="
+    group inline-flex items-center gap-2
+    px-3 py-1
+    text-[14px] font-medium tracking-wide
+    text-white/60
+    bg-white/5
+    border border-white/15
+    rounded-full
+    backdrop-blur-md
+    transition-all duration-300
+    hover:text-cyan-300
+    hover:border-cyan-400/40
+    hover:bg-cyan-500/10
+    hover:-translate-y-0.5
+  "
+                  >
+                    <span className="uppercase tracking-[0.15em] text-[10px]">
+                      IGDB
+                    </span>
+                    <span className="font-mono text-[10px] text-white/70">
+                      #{game.id}
+                    </span>
+                  </a>
+                </div>
+              </div>
 
               <div className="flex-1 space-y-4">
                 <div className="flex items-center gap-4">
@@ -703,15 +741,32 @@ export default function GamePage() {
                     <h3 className="text-sm opacity-70 mb-1">
                       IGDB Rating Score
                     </h3>
+
                     <div className="flex justify-center items-center gap-1 text-xl font-semibold">
                       <FaStar
-                        size={25}
-                        className="text-amber-300 drop-shadow-sm pr-1"
+                        size={22}
+                        className={`drop-shadow-sm pr-1 ${
+                          game.rating ? "text-amber-300" : "text-white/40"
+                        }`}
                       />
-                      {game.rating || "N/A"} / 100
+
+                      <span
+                        className={
+                          game.rating ? "text-white" : "text-white/50 italic"
+                        }
+                      >
+                        {game.rating
+                          ? `${Math.round(game.rating)} / 100`
+                          : isReleased
+                            ? "Not rated"
+                            : "Not released yet"}
+                      </span>
                     </div>
+
                     <div className="text-xs pt-2 text-zinc-400">
-                      Based on {game.total_rating_count} Reviews
+                      {game.rating && game.total_rating_count
+                        ? `Based on ${game.total_rating_count} reviews`
+                        : "No ratings available"}
                     </div>
                   </div>
 
@@ -768,63 +823,69 @@ export default function GamePage() {
                     </div>
                   ) : (
                     <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                      <h3 className="text-lg font-bold mb-2">
-                        Time to Beat
-                        {game.time_to_beat?.count && (
-                          <div className="text-xs text-white/60 mt-1">
-                            Based on {game.time_to_beat.count} submissions
+                      <div className="w-full h-full flex flex-col items-center justify-center">
+                        <h3 className="text-lg font-bold mb-2">
+                          Time to Beat
+                          {game.time_to_beat?.count && (
+                            <div className="text-xs text-white/60 mt-1">
+                              Based on {game.time_to_beat.count} submissions
+                            </div>
+                          )}
+                        </h3>
+                        {game.time_to_beat ? (
+                          <div className="flex gap-3 text-sm justify-center">
+                            {game.time_to_beat.hastily !== undefined && (
+                              <span className="flex flex-col text-center min-w-20">
+                                <span>Main Story</span>
+                                <span>
+                                  {Math.floor(game.time_to_beat.hastily / 3600)}
+                                  h{" "}
+                                  {Math.floor(
+                                    (game.time_to_beat.hastily % 3600) / 60,
+                                  )}
+                                  m
+                                </span>
+                              </span>
+                            )}
+
+                            {game.time_to_beat.normally !== undefined && (
+                              <span className="flex flex-col text-center min-w-20">
+                                <span>Normal Run</span>
+                                <span>
+                                  {Math.floor(
+                                    game.time_to_beat.normally / 3600,
+                                  )}
+                                  h{" "}
+                                  {Math.floor(
+                                    (game.time_to_beat.normally % 3600) / 60,
+                                  )}
+                                  m
+                                </span>
+                              </span>
+                            )}
+
+                            {game.time_to_beat.completely !== undefined && (
+                              <span className="flex flex-col text-center min-w-20">
+                                <span>Completionist</span>
+                                <span>
+                                  {Math.floor(
+                                    game.time_to_beat.completely / 3600,
+                                  )}
+                                  h{" "}
+                                  {Math.floor(
+                                    (game.time_to_beat.completely % 3600) / 60,
+                                  )}
+                                  m
+                                </span>
+                              </span>
+                            )}
                           </div>
+                        ) : (
+                          <p className="text-sm text-white/60">
+                            No data available
+                          </p>
                         )}
-                      </h3>
-                      {game.time_to_beat ? (
-                        <div className="flex gap-3 text-sm justify-center">
-                          {game.time_to_beat.hastily !== undefined && (
-                            <span className="flex flex-col text-center min-w-20">
-                              <span>Main Story</span>
-                              <span>
-                                {Math.floor(game.time_to_beat.hastily / 3600)}h{" "}
-                                {Math.floor(
-                                  (game.time_to_beat.hastily % 3600) / 60,
-                                )}
-                                m
-                              </span>
-                            </span>
-                          )}
-
-                          {game.time_to_beat.normally !== undefined && (
-                            <span className="flex flex-col text-center min-w-20">
-                              <span>Normal Run</span>
-                              <span>
-                                {Math.floor(game.time_to_beat.normally / 3600)}h{" "}
-                                {Math.floor(
-                                  (game.time_to_beat.normally % 3600) / 60,
-                                )}
-                                m
-                              </span>
-                            </span>
-                          )}
-
-                          {game.time_to_beat.completely !== undefined && (
-                            <span className="flex flex-col text-center min-w-20">
-                              <span>Completionist</span>
-                              <span>
-                                {Math.floor(
-                                  game.time_to_beat.completely / 3600,
-                                )}
-                                h{" "}
-                                {Math.floor(
-                                  (game.time_to_beat.completely % 3600) / 60,
-                                )}
-                                m
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-white/60">
-                          No data available
-                        </p>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -948,10 +1009,37 @@ export default function GamePage() {
                 {/* OVERLAY */}
 
                 {showStoreOverlay && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl mt-8">
-                    <p className="flex items-center gap-2 text-sm text-white/70 max-w-[250px] text-center">
-                      <FaLock size={20} />
-                    </p>
+                  <div
+                    className="
+    absolute inset-0
+    flex items-center justify-center
+    rounded-xl
+    bg-black/55
+    backdrop-blur-sm
+    z-10
+  "
+                  >
+                    <div className="flex flex-col items-center gap-3 px-6 text-center">
+                      {/* Lock */}
+                      <div
+                        className="
+        w-12 h-12
+        flex items-center justify-center
+        rounded-full
+        bg-white/5
+        border border-white/10
+      "
+                      >
+                        <FaLock size={18} className="text-white/70" />
+                      </div>
+
+                      {/* Text */}
+                      <p className="text-xs uppercase tracking-wide text-white/60 leading-relaxed">
+                        Locked until preorder
+                        <br />
+                        or release day
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1043,14 +1131,53 @@ export default function GamePage() {
                       />
                       <span>Skidrow Reloaded</span>
                     </a>
+                    <a
+                      href={`https://gamedrive.org/?s=${encodeURIComponent(
+                        game.name,
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                    >
+                      <img
+                        src="https://www.google.com/s2/favicons?domain=gamedrive.org&sz=64"
+                        className="w-5 h-5 rounded-full"
+                      />
+                      <span>GameDrive</span>
+                    </a>
                   </div>
                 </div>
 
                 {!isReleased && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl mt-7">
-                    <p className="flex items-center gap-2 text-sm text-white/70 max-w-[250px] text-center">
-                      <FaLock size={20} />
-                    </p>
+                  <div
+                    className="
+    absolute inset-0
+    flex items-center justify-center
+    rounded-xl
+    bg-black/55
+    backdrop-blur-sm
+    z-10
+  "
+                  >
+                    <div className="flex flex-col items-center gap-3 px-6 text-center">
+                      {/* Lock */}
+                      <div
+                        className="
+        w-12 h-12
+        flex items-center justify-center
+        rounded-full
+        bg-white/5
+        border border-white/10
+      "
+                      >
+                        <FaLock size={18} className="text-white/70" />
+                      </div>
+
+                      {/* Text */}
+                      <p className="text-xs uppercase tracking-wide text-white/60 leading-relaxed">
+                        Locked until release day
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1059,10 +1186,13 @@ export default function GamePage() {
               <div
                 className={`relative mt-6 ${game.platforms.length > 10 && "pr-4"} p-2`}
               >
-                {/* <hr className="w-full border-zinc-700 mb-1" /> */}
+                {/* TITLE (never covered) */}
                 <h2 className="text-center text-lg font-bold mb-2">Mods</h2>
                 <hr className="w-full border-zinc-700 mb-4" />
-                <div className="relative mt-6">
+
+                {/* CONTENT WRAPPER (overlay lives here) */}
+                <div className="relative rounded-xl overflow-hidden">
+                  {/* ACTUAL CONTENT */}
                   <div
                     className={`transition ${
                       !isReleased
@@ -1076,7 +1206,13 @@ export default function GamePage() {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                      className="
+          flex items-center gap-2
+          text-sm px-3 py-1.5
+          rounded-lg bg-white/10
+          transition-transform duration-300
+          hover:bg-white/20 hover:scale-105
+        "
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=nexusmods.com&sz=64"
@@ -1085,15 +1221,37 @@ export default function GamePage() {
                       <span>Nexus Mods</span>
                     </a>
                   </div>
-                </div>
 
-                {!isReleased && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl mt-15">
-                    <p className="flex items-center gap-2 text-sm text-white/70 text-center">
-                      <FaLock size={20} />
-                    </p>
-                  </div>
-                )}
+                  {/* OVERLAY (CONTENT ONLY) */}
+                  {!isReleased && (
+                    <div
+                      className="absolute inset-0
+                          flex items-center justify-center
+                           bg-black/55
+                          backdrop-blur-sm
+                          z-10"
+                    >
+                      <div className="flex items-center gap-3 px-6 text-center">
+                        {/* Lock */}
+                        <div
+                          className="
+                              w-5 h-10
+                              flex items-center justify-center
+                              rounded-full
+                              shrink-0
+                            "
+                        >
+                          <FaLock size={14} className="text-white/70" />
+                        </div>
+
+                        {/* Text */}
+                        <p className="text-[11px] uppercase tracking-widest text-white/60 whitespace-nowrap">
+                          Locked until release day
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

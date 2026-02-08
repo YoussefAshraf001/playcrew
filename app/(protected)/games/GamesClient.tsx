@@ -631,17 +631,10 @@ export default function GamesPage() {
 
         <div className="flex gap-4">
           <Link
-            href="/login"
-            className="px-6 py-3 rounded-full bg-cyan-500 hover:bg-cyan-400 transition font-semibold"
+            href="/dashboard"
+            className="px-6 py-3 rounded-full border-2 border-cyan-500 hover:bg-cyan-400 transition-all duration-300 ease-in-out hover:-translate-y-1.5 font-semibold"
           >
-            Log In
-          </Link>
-
-          <Link
-            href="/signup"
-            className="px-6 py-3 rounded-full border-2 border-cyan-500 text-cyan-400 hover:bg-cyan-400 hover:text-black transition font-semibold"
-          >
-            Sign Up
+            Go Back To Dashboard
           </Link>
         </div>
       </motion.main>
