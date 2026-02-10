@@ -137,7 +137,7 @@ export default function CinematicMenuPrototype() {
       : { label: "Soundtrack", action: "soundtrack" },
     user
       ? { label: "Settings", action: "settings" }
-      : { label: "Account", action: "account" },
+      : { label: "Login / Signup", action: "account" },
     { label: "Exit", action: "exit" },
   ].filter(Boolean) as { label: string; action: string }[];
 
@@ -282,18 +282,36 @@ export default function CinematicMenuPrototype() {
         >
           {/* Title */}
           <h1
-            className="
+            className={`
               flex items-center gap-3
               text-3xl md:text-6xl lg:md:text-7xl
               font-semibold tracking-[0.25em]
               text-zinc-100
-              mb-16
-            "
+              ${user && profile ? "mb-2" : "mb-16"}
+            `}
           >
             PLAY
             <img src="/logo.png" alt="PlayCrew" className="w-20 h-14 mr-4" />
             CREW
           </h1>
+
+          {user && profile && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="mt-2 ml-1 flex items-center gap-3 text-sm tracking-widest text-white/60 mb-14"
+            >
+              <span className="flex items-center gap-1.5">
+                <span className="loading loading-infinity loading-md text-cyan-400" />
+                LOGGED IN
+              </span>
+
+              <span className="opacity-50">•</span>
+
+              <span className="capitalize">{profile.username}</span>
+            </motion.div>
+          )}
 
           {/* Menu */}
           <ul className="space-y-7">

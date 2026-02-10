@@ -946,7 +946,7 @@ export default function GamePage() {
                   game.platforms.length > 10 && "pr-4"
                 }`}
               >
-                <h3>Official</h3>
+                <h3>Platforms</h3>
                 <div className="relative mt-3">
                   {/* BLURRED CONTENT */}
                   <div
@@ -1011,24 +1011,24 @@ export default function GamePage() {
                 {showStoreOverlay && (
                   <div
                     className="
-    absolute inset-0
-    flex items-center justify-center
-    rounded-xl
-    bg-black/55
-    backdrop-blur-sm
-    z-10
-  "
+                      absolute inset-0
+                      flex items-center justify-center
+                      rounded-xl
+                      bg-black/55
+                      backdrop-blur-sm
+                      z-10
+                    "
                   >
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
                       {/* Lock */}
                       <div
                         className="
-        w-12 h-12
-        flex items-center justify-center
-        rounded-full
-        bg-white/5
-        border border-white/10
-      "
+                          w-12 h-12
+                          flex items-center justify-center
+                          rounded-full
+                          bg-white/5
+                          border border-white/10
+                        "
                       >
                         <FaLock size={18} className="text-white/70" />
                       </div>
@@ -1053,19 +1053,19 @@ export default function GamePage() {
                   <span className="text-white/60 text-sm">ⓘ</span>
                   <span
                     className="
-      absolute left-1/2 -translate-x-1/2 top-full mt-2
-      opacity-0 scale-95
-      pointer-events-none
-      group-hover:opacity-100
-      group-hover:scale-100
-      group-hover:pointer-events-auto
-      transition-all duration-150
-      bg-white/10 backdrop-blur
-      text-white text-xs px-3 py-1 rounded-md
-      border border-white/10
-      whitespace-nowrap
-      z-50
-    "
+                        absolute left-1/2 -translate-x-1/2 top-full mt-2
+                        opacity-0 scale-95
+                        pointer-events-none
+                        group-hover:opacity-100
+                        group-hover:scale-100
+                        group-hover:pointer-events-auto
+                        transition-all duration-150
+                        bg-white/10 backdrop-blur
+                        text-white text-xs px-3 py-1 rounded-md
+                        border border-white/10
+                        whitespace-nowrap
+                        z-50
+                      "
                   >
                     Games with{" "}
                     <span className="font-bold text-red-400">Denuvo</span> are
@@ -1150,25 +1150,25 @@ export default function GamePage() {
 
                 {!isReleased && (
                   <div
-                    className="
-    absolute inset-0
-    flex items-center justify-center
-    rounded-xl
-    bg-black/55
-    backdrop-blur-sm
-    z-10
-  "
+                    className="mt-9 
+                        absolute inset-0
+                        flex items-center justify-center
+                        rounded-xl
+                        bg-black/55
+                        backdrop-blur-sm
+                        z-10
+                      "
                   >
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
                       {/* Lock */}
                       <div
                         className="
-        w-12 h-12
-        flex items-center justify-center
-        rounded-full
-        bg-white/5
-        border border-white/10
-      "
+                          w-12 h-12
+                          flex items-center justify-center
+                          rounded-full
+                          bg-white/5
+                          border border-white/10
+                        "
                       >
                         <FaLock size={18} className="text-white/70" />
                       </div>
@@ -1207,12 +1207,12 @@ export default function GamePage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="
-          flex items-center gap-2
-          text-sm px-3 py-1.5
-          rounded-lg bg-white/10
-          transition-transform duration-300
-          hover:bg-white/20 hover:scale-105
-        "
+                        flex items-center gap-2
+                        text-sm px-3 py-1.5
+                        rounded-lg bg-white/10
+                        transition-transform duration-300
+                        hover:bg-white/20 hover:scale-105
+                      "
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=nexusmods.com&sz=64"

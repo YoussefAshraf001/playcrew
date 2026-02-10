@@ -88,7 +88,7 @@ export default function ScreenshotsCarousel({
 
   if (screenshots.length === 0) {
     return (
-      <div className="w-full h-48 flex items-center justify-center">
+      <div className="w-[1400px] h-48 flex items-center justify-center">
         <div className="h-48 w-64 flex items-center justify-center bg-zinc-900/50 rounded-lg border border-zinc-700 text-zinc-400 text-sm">
           No screenshots available
         </div>
