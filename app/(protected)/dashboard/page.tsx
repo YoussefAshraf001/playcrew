@@ -2,22 +2,23 @@
 
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { auth, db } from "@/app/lib/firebase";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Helmet } from "react-helmet-async";
 import { collection, getDocs } from "firebase/firestore";
 import { usePathname } from "next/navigation";
+import toast from "react-hot-toast";
 
+import { auth, db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { useAuthModal } from "@/app/context/AuthModalContext";
 import AuthModal from "@/app/components/auth/AuthModal";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import OverviewPanel from "@/app/components/mainMenu/OverviewPanel";
 import AboutPanel from "@/app/components/mainMenu/AboutPanel";
-import toast from "react-hot-toast";
 import LoadingSpinner from "../explore/loading";
 import { useMusic } from "@/app/context/MusicContext";
+import { useUI } from "@/app/context/UIContext";
 
 /* ───────────────── Types ───────────────── */
 type Panel = "none" | "about" | "overview";
@@ -37,12 +38,13 @@ interface ModalGame {
   [key: string]: any;
 }
 
-export default function CinematicMenuPrototype() {
+export default function Dashboard() {
   const { profile, loading, user } = useUser();
   const { playerVisible, togglePlayerVisible } = useMusic();
   const router = useRouter();
   const pathname = usePathname();
   const { open } = useAuthModal();
+  const { panelOpen, setPanelOpen } = useUI();
 
   const [active, setActive] = useState(0);
   const [openPanel, setOpenPanel] = useState<Panel>("none");
@@ -51,6 +53,10 @@ export default function CinematicMenuPrototype() {
   const [games, setGames] = useState<ModalGame[]>([]);
   const [bgVideo, setBgVideo] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
+
+  useEffect(() => {
+    setPanelOpen(openPanel !== "none");
+  }, [openPanel, setPanelOpen]);
 
   //   /* ───────────────── LOGIC ───────────────── */
   const gameStats = useMemo(() => {
@@ -280,6 +286,71 @@ export default function CinematicMenuPrototype() {
             lg:translate-x-[120px]
           "
         >
+          {user && profile && (
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{
+                opacity: panelOpen ? 0 : 1,
+                scale: panelOpen ? 0.95 : 1,
+                y: panelOpen ? -20 : playerVisible ? 135 : 0,
+                x: panelOpen ? 80 : playerVisible ? 30 : 0,
+              }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              onClick={() => router.push(`/profile/${profile.username}`)}
+              className="
+                  absolute -top-20 right-45 z-30
+                  group cursor-pointer
+                  origin-top-right
+                "
+            >
+              <div
+                className="
+                  relative
+                  flex items-center justify-between
+                  w-[270px]
+                  px-6 py-4
+                  rounded-2xl
+                  bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
+                  backdrop-blur-xl
+                  border border-cyan-400/20
+                  shadow-[0_10px_40px_rgba(0,0,0,0.6)]
+                  transition-all duration-300
+                  group-hover:scale-105
+                  group-hover:border-cyan-400/40
+                  group-hover:shadow-[0_15px_60px_rgba(0,255,255,0.15)]
+                "
+              >
+                {/* LEFT SIDE TEXT */}
+                <div className="flex flex-col max-w-[120px]">
+                  <span className="text-base font-semibold text-white capitalize truncate">
+                    {profile.username}
+                  </span>
+
+                  <span className="text-sm text-cyan-300 font-medium truncate">
+                    Level {level}
+                  </span>
+
+                  <span className="text-xs text-white/60 mt-1 tracking-widest truncate">
+                    {profile.bio ? profile.bio : `XP ${totalXP}`}
+                  </span>
+                </div>
+
+                {/* RIGHT SIDE AVATAR */}
+                <div className="relative">
+                  <img
+                    src={profile.avatar.data}
+                    alt={profile.username}
+                    className="w-14 h-14 rounded-full object-cover border border-white/30"
+                  />
+
+                  {/* Online Dot */}
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-black" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {/* Title */}
           <h1
             className={`
@@ -287,31 +358,13 @@ export default function CinematicMenuPrototype() {
               text-3xl md:text-6xl lg:md:text-7xl
               font-semibold tracking-[0.25em]
               text-zinc-100
-              ${user && profile ? "mb-2" : "mb-16"}
+              mb-16
             `}
           >
             PLAY
             <img src="/logo.png" alt="PlayCrew" className="w-20 h-14 mr-4" />
             CREW
           </h1>
-
-          {user && profile && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="mt-2 ml-1 flex items-center gap-3 text-sm tracking-widest text-white/60 mb-14"
-            >
-              <span className="flex items-center gap-1.5">
-                <span className="loading loading-infinity loading-md text-cyan-400" />
-                LOGGED IN
-              </span>
-
-              <span className="opacity-50">•</span>
-
-              <span className="capitalize">{profile.username}</span>
-            </motion.div>
-          )}
 
           {/* Menu */}
           <ul className="space-y-7">

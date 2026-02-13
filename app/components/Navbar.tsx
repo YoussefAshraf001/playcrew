@@ -311,6 +311,7 @@ export default function Navbar() {
   const isDashboard = pathname.includes("/dashboard");
   const { open } = useAuthModal();
   const { profile, user, loading } = useUser();
+
   const games = useGames();
 
   const newUserImage = user?.photoURL;
@@ -368,7 +369,7 @@ export default function Navbar() {
 
   useEffect(() => {
     setAvatarLoaded(false);
-  }, [profile?.avatarBase64]);
+  }, [profile?.avatar?.data]);
 
   useEffect(() => {
     setHoveredIndex(null);
@@ -494,7 +495,7 @@ export default function Navbar() {
 
                   {/* Avatar */}
                   <img
-                    src={profile.avatarBase64 || newUserImage}
+                    src={profile.avatar?.data || newUserImage}
                     alt="Profile"
                     onLoad={() => setAvatarLoaded(true)}
                     className={`

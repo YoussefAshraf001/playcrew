@@ -5,6 +5,10 @@ import { FaPause, FaPlay } from "react-icons/fa";
 import { IoRepeat } from "react-icons/io5";
 import { HiVolumeUp } from "react-icons/hi";
 import MarqueeText from "./MarqueeText";
+import { useRef } from "react";
+import { useUI } from "../context/UIContext";
+import { BsRepeat1 } from "react-icons/bs";
+import { TbRepeatOff, TbRepeatOnce } from "react-icons/tb";
 
 export default function MusicPlayer() {
   const {
@@ -25,6 +29,20 @@ export default function MusicPlayer() {
     isLoadingTrack,
   } = useMusic();
 
+  const { panelOpen } = useUI();
+  const shouldShowPlayer = playerVisible && !panelOpen;
+
+  const volumeRef = useRef<HTMLDivElement | null>(null);
+
+  const handleVolumeChange = (clientX: number) => {
+    if (!volumeRef.current) return;
+
+    const rect = volumeRef.current.getBoundingClientRect();
+    const pct = (clientX - rect.left) / rect.width;
+    const clamped = Math.max(0, Math.min(1, pct));
+    setVolume(clamped);
+  };
+
   if (!currentTrack) return null;
 
   return (
@@ -32,21 +50,25 @@ export default function MusicPlayer() {
       ref={playerRef}
       initial={{ y: -200, opacity: 0 }}
       animate={{
-        y: playerVisible ? 0 : -200,
-        opacity: playerVisible ? 1 : 0,
-        pointerEvents: playerVisible ? "auto" : "none",
+        y: shouldShowPlayer ? 0 : -200,
+        opacity: shouldShowPlayer ? 1 : 0,
+        pointerEvents: shouldShowPlayer ? "auto" : "none",
       }}
       transition={{ duration: 0.35, ease: "easeInOut" }}
       className="
-    fixed top-2 left-1/2 -translate-x-1/2
-    w-[500px] h-[100px] px-4 py-3
-    bg-zinc-900/90 backdrop-blur-lg
-    rounded-xl border border-zinc-700 shadow-lg
+    fixed top-16 -right-58 -translate-x-1/2
+    w-[520px]
+    px-6 py-4
+    rounded-2xl
+    bg-linear-to-br from-[#0b1a24]/95 to-[#071118]/95
+    backdrop-blur-xl
+    border border-cyan-400/20
+    shadow-[0_15px_60px_rgba(0,0,0,0.6)]
     z-50
   "
     >
       {/* TOP SECTION */}
-      <div className="flex items-center w-full gap-4">
+      <div className="flex items-center justify-between w-full gap-6">
         {/* Song Info (skeleton OR real data) */}
         <AnimatePresence mode="wait">
           {!isLoadingTrack ? (
@@ -65,10 +87,10 @@ export default function MusicPlayer() {
                 />
               )}
 
-              <div className="flex flex-col min-w-0 max-w-[150px] leading-tight">
+              <div className="flex flex-col min-w-0 max-w-[150px] leading-tight gap-1.5">
                 <MarqueeText
                   text={currentTrack.title ?? ""}
-                  className="text-sm font-semibold"
+                  className="text-xs font-semibold"
                 />
 
                 <MarqueeText
@@ -102,88 +124,116 @@ export default function MusicPlayer() {
         </AnimatePresence>
 
         {/* CONTROLS */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={playPrev}
-              className="text-zinc-400 hover:text-white transition"
+        <div className="flex items-center gap-5">
+          <button
+            onClick={playPrev}
+            className="text-zinc-500 hover:text-cyan-400 transition"
+          >
+            <MdSkipPrevious size={24} />
+          </button>
+
+          <button
+            onClick={togglePlay}
+            className="
+              p-3 rounded-full
+              bg-cyan-400 text-black
+              hover:bg-cyan-300
+              transition-all duration-300
+              shadow-[0_0_20px_rgba(34,211,238,0.35)]
+            "
+          >
+            {isPlaying ? <FaPause size={16} /> : <FaPlay size={16} />}
+          </button>
+
+          <button
+            onClick={playNext}
+            className="text-zinc-500 hover:text-cyan-400 transition"
+          >
+            <MdSkipNext size={24} />
+          </button>
+        </div>
+
+        {/* VOLUME + REPEAT */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <HiVolumeUp size={16} className="text-zinc-500" />
+
+            <div
+              ref={volumeRef}
+              className="relative w-20 h-1.5 bg-[#0f2532] rounded-full cursor-pointer"
+              onMouseDown={(e) => {
+                handleVolumeChange(e.clientX);
+
+                const move = (ev: MouseEvent) => handleVolumeChange(ev.clientX);
+                const up = () => {
+                  window.removeEventListener("mousemove", move);
+                  window.removeEventListener("mouseup", up);
+                };
+
+                window.addEventListener("mousemove", move);
+                window.addEventListener("mouseup", up);
+              }}
             >
-              <MdSkipPrevious size={22} />
-            </button>
+              {/* Fill */}
+              <div
+                className="absolute top-0 left-0 h-1.5 bg-cyan-400 rounded-full transition-none"
+                style={{ width: `${volume * 100}%` }}
+              />
 
-            <button
-              onClick={togglePlay}
-              className="p-2 bg-green-500 hover:bg-green-400 text-black rounded-full transition"
-            >
-              {isPlaying ? <FaPause size={16} /> : <FaPlay size={16} />}
-            </button>
-
-            <button
-              onClick={playNext}
-              className="text-zinc-400 hover:text-white transition"
-            >
-              <MdSkipNext size={22} />
-            </button>
-          </div>
-
-          {/* VOLUME */}
-          <div className="flex items-center gap-3 opacity-90">
-            <div className="flex items-center gap-2">
-              <HiVolumeUp size={15} className="text-zinc-400" />
-
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={volume}
-                onChange={(e) => setVolume(Number(e.target.value))}
-                className="w-20 h-2 rounded-full slider-thumb-sm cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, #22c55e ${
-                    volume * 100
-                  }%, #6b7280 ${volume * 100}%)`,
-                }}
+              {/* Knob */}
+              <div
+                className="
+      absolute top-1/2 -translate-y-1/2
+      w-3 h-3 rounded-full
+      bg-cyan-400
+      shadow-[0_0_12px_rgba(34,211,238,0.7)]
+      transition-none
+    "
+                style={{ left: `calc(${volume * 100}% - 6px)` }}
               />
             </div>
-
-            <motion.div
-              layout
-              transition={{
-                layout: { duration: 0.55, ease: "easeInOut" },
-                scale: { duration: 0.2 },
-              }}
-              whileTap={{ scale: 0.5 }}
-              className={`inline-flex items-center cursor-pointer rounded-xl p-1 transition-colors duration-300 ${
-                isRepeating
-                  ? "text-white bg-green-400"
-                  : "border-2 border-green-400 text-zinc-400 hover:text-white"
-              }`}
-              onClick={toggleRepeat}
-            >
-              <IoRepeat size={18} />
-            </motion.div>
           </div>
+
+          <motion.div
+            layout
+            whileTap={{ scale: 0.8 }}
+            onClick={toggleRepeat}
+            className={`
+              flex items-center justify-center
+              w-9 h-9 rounded-xl
+              transition-all duration-300 cursor-pointer
+              ${
+                isRepeating
+                  ? "bg-cyan-400 text-black shadow-[0_0_20px_rgba(34,211,238,0.4)]"
+                  : "border border-cyan-400/30 text-zinc-400 hover:text-cyan-400"
+              }
+            `}
+          >
+            {isRepeating ? (
+              <TbRepeatOnce size={18} />
+            ) : (
+              <TbRepeatOff size={18} />
+            )}
+          </motion.div>
         </div>
       </div>
 
       {/* PROGRESS BAR */}
       <div
         className="
-          w-full h-2 mt-3 cursor-pointer
-          bg-zinc-700/70 rounded-full relative overflow-hidden
+          w-full h-2 mt-4
+          bg-[#0f2532]
+          rounded-full relative overflow-hidden cursor-pointer
         "
         onClick={(e) => {
-          if (isLoadingTrack) return; // disable during skeleton
+          if (isLoadingTrack) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const pct = (e.clientX - rect.left) / rect.width;
           seek(pct * duration);
         }}
       >
         <div
-          className={`h-2 rounded-full transition-all ${
-            isLoadingTrack ? "bg-zinc-600 animate-pulse" : "bg-green-500"
-          }`}
+          className="h-2 rounded-full transition-all bg-cyan-400"
           style={{
             width: isLoadingTrack
               ? "30%"
@@ -237,15 +287,15 @@ export default function MusicPlayer() {
 //       }}
 //       transition={{ duration: 0.35, ease: "easeInOut" }}
 //       className="
-//     fixed top-2 left-1/2 -translate-x-1/2
-//     w-[300px] px-4 py-3
-//     bg-zinc-900/90 backdrop-blur-lg
-//     rounded-xl border border-zinc-700 shadow-lg
-//     z-50
-//   "
+//           fixed top-6 -right-50 -translate-x-1/2
+//           w-[500px] h-[100px] px-4 py-3
+//           bg-zinc-900/90 backdrop-blur-lg
+//           rounded-xl border border-zinc-700 shadow-lg
+//           z-50
+//         "
 //     >
 //       {/* TOP SECTION */}
-//       <div className="flex flex-col items-center w-full gap-4">
+//       <div className="flex items-center w-full gap-4">
 //         {/* Song Info (skeleton OR real data) */}
 //         <AnimatePresence mode="wait">
 //           {!isLoadingTrack ? (
@@ -301,7 +351,7 @@ export default function MusicPlayer() {
 //         </AnimatePresence>
 
 //         {/* CONTROLS */}
-//         <div className="flex flex-col items-center gap-3">
+//         <div className="flex items-center gap-3">
 //           <div className="flex items-center justify-center gap-2">
 //             <button
 //               onClick={playPrev}
@@ -326,7 +376,7 @@ export default function MusicPlayer() {
 //           </div>
 
 //           {/* VOLUME */}
-//           <div className="flex flex-col items-center gap-3 opacity-90">
+//           <div className="flex items-center gap-3 opacity-90">
 //             <div className="flex items-center gap-2">
 //               <HiVolumeUp size={15} className="text-zinc-400" />
 
@@ -353,7 +403,7 @@ export default function MusicPlayer() {
 //                 scale: { duration: 0.2 },
 //               }}
 //               whileTap={{ scale: 0.5 }}
-//               className={`inline-flex items-center cursor-pointer rounded-xl px-4 transition-colors duration-300 ${
+//               className={`inline-flex items-center cursor-pointer rounded-xl p-1 transition-colors duration-300 ${
 //                 isRepeating
 //                   ? "text-white bg-green-400"
 //                   : "border-2 border-green-400 text-zinc-400 hover:text-white"
@@ -361,9 +411,6 @@ export default function MusicPlayer() {
 //               onClick={toggleRepeat}
 //             >
 //               <IoRepeat size={18} />
-//               <span className="ml-2">
-//                 {isRepeating ? "Repeating" : "Repeating OFF"}
-//               </span>
 //             </motion.div>
 //           </div>
 //         </div>

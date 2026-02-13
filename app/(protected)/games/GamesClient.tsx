@@ -77,9 +77,20 @@ interface UserProfile {
   uid: string;
   username: string;
   email: string;
+  bio?: string;
   emailVerified?: boolean;
-  avatarUrl?: string;
-  avatarBase64?: string;
+  avatar?: {
+    type: "image" | "gif";
+    data: string;
+    crop?: { x: number; y: number; zoom: number };
+  };
+
+  wallpaper?: {
+    type: "image" | "gif";
+    data: string;
+    crop?: { x: number; y: number; zoom: number };
+  };
+
   trackedGames: Record<string, TrackedGame>;
   creationTime?: Date;
   lastSignInTime?: Date;
@@ -123,6 +134,7 @@ export default function GamesPage() {
   // Real-time Firestore subscription
   useEffect(() => {
     if (!user || !userProfile) return;
+    console.log("user:", userProfile);
 
     const gamesCol = collection(db, "users", user.uid, "games_igdb");
 
@@ -153,9 +165,10 @@ export default function GamesPage() {
           return {
             uid: user.uid,
             username: userProfile.username || "",
+            bio: userProfile.bio || "",
             email: userProfile.email || "",
-            avatarUrl: userProfile.avatarUrl,
-            avatarBase64: userProfile.avatarBase64,
+            avatar: userProfile.avatar,
+            wallpaper: userProfile.wallpaper,
             trackedGames: updatedGames,
             creationTime: new Date(user.metadata.creationTime),
             lastSignInTime: new Date(user.metadata.lastSignInTime),
@@ -173,6 +186,21 @@ export default function GamesPage() {
 
     return () => unsubscribe();
   }, [user, userProfile]);
+
+  const getMediaSrc = (media?: any, legacy?: string) => {
+    if (!media && legacy) return legacy;
+    if (!media) return undefined;
+    return media.data;
+  };
+
+  const getMediaStyle = (media?: any) => {
+    if (!media || media.type !== "gif" || !media.crop) return undefined;
+
+    const { x, y, zoom } = media.crop;
+    return {
+      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+    };
+  };
 
   // Convert trackedGames to array - only include games with valid igdb.id
   const allGames: TrackedGame[] = useMemo(() => {
@@ -653,10 +681,11 @@ export default function GamesPage() {
       ) : (
         <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-18">
           {/* Blurred Background */}
-          {userProfile?.wallpaperBase64 && (
+          {userProfile?.wallpaper && (
             <div className="fixed inset-0 z-10 overflow-hidden blur-sm brightness-25">
               <img
-                src={userProfile.wallpaperBase64}
+                src={getMediaSrc(userProfile.wallpaper)}
+                style={getMediaStyle(userProfile.wallpaper)}
                 alt="Wallpaper"
                 className="w-full h-full object-cover"
               />
@@ -671,9 +700,10 @@ export default function GamesPage() {
                 href={`/profile/${userProfile!.username}`}
                 className="group"
               >
-                {localProfile?.avatarBase64 || localProfile?.avatarUrl ? (
+                {localProfile?.avatar ? (
                   <img
-                    src={localProfile.avatarBase64 ?? localProfile.avatarUrl}
+                    src={getMediaSrc(localProfile.avatar)}
+                    style={getMediaStyle(localProfile.avatar)}
                     alt={localProfile?.username ?? "User"}
                     className="w-36 h-36 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
                   />
@@ -686,10 +716,14 @@ export default function GamesPage() {
 
               {/* Username / Email */}
               <div className="text-center mt-4">
-                <h3 className="font-extrabold text-3xl text-white">
+                <h3 className="font-extrabold text-3xl text-white capitalize">
                   {localProfile?.username}
                 </h3>
-                <p className="text-sm capitalize text-zinc-300 mt-1 cursor-default blur-sm hover:blur-none transition">
+                <p className="text-sm capitalize text-zinc-300 mt-1 max-w-[190px] truncate">
+                  {localProfile?.bio ||
+                    "No bio yet. Click to edit in profile settings!"}
+                </p>
+                <p className="text-sm capitalize text-zinc-300 py-1 cursor-default blur-xs hover:blur-none transition">
                   {localProfile?.email}
                 </p>
               </div>

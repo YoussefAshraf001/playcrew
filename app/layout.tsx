@@ -12,6 +12,7 @@ import GlobalToaster from "./components/GlobalToaster";
 import { AuthModalProvider } from "./context/AuthModalContext";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
+import { UIProvider } from "./context/UIContext";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -59,22 +60,21 @@ export default function RootLayout({ children }: RootLayoutProps) {
           <AuthModalProvider>
             <UserProvider>
               <MusicProvider>
-                <div className="flex min-h-screen w-screen overflow-hidden">
-                  {/* Navbar */}
-                  <Navbar />
+                <UIProvider>
+                  <div className="flex min-h-screen w-screen overflow-hidden">
+                    <Navbar />
 
-                  {/* Main content */}
-                  <motion.main
-                    className="flex-1 overflow-y-auto max-w-full"
-                    variants={contentVariants}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    {children}
-                  </motion.main>
-                </div>
-
-                <MusicPlayer />
+                    <motion.main
+                      className="flex-1 overflow-y-auto max-w-full"
+                      variants={contentVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      {children}
+                    </motion.main>
+                  </div>
+                  <MusicPlayer />
+                </UIProvider>
               </MusicProvider>
             </UserProvider>
           </AuthModalProvider>
