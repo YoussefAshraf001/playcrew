@@ -517,18 +517,11 @@ export default function GamesPage() {
   const openEditModal = (game: TrackedGame) => {
     setEditingGame({
       ...game,
-      my_rating: game.igdb.rating ?? 0,
+      my_rating: game.my_rating ?? 0,
       progress: game.progress ?? 0,
       playtime: game.playtime ?? 0,
       notes: game.notes ?? "",
-      categoryRatings: game.categoryRatings ?? {
-        graphics: 0,
-        gameplay: 0,
-        story: 0,
-        ost: 0,
-        cinematics: 0,
-        voiceActing: 0,
-      },
+      categoryRatings: game.categoryRatings,
     });
     setModalOpen(true);
   };
@@ -565,6 +558,8 @@ export default function GamesPage() {
 
     setSaving(true);
     try {
+      const targetDocId = editingGame._docId ?? String(editingGame.igdb.id);
+
       const safeCategoryRatings = {
         graphics: categoryRatings.graphics ?? 0,
         gameplay: categoryRatings.gameplay ?? 0,
@@ -574,7 +569,7 @@ export default function GamesPage() {
         voiceActing: categoryRatings.voiceActing ?? 0,
       };
 
-      const updatedGame = await updateTrackedGame(editingGame.igdb.id, {
+      const updatedGame = await updateTrackedGame(targetDocId, {
         my_rating: rating,
         progress,
         playtime,
@@ -598,8 +593,8 @@ export default function GamesPage() {
           ...prev,
           trackedGames: {
             ...prev.trackedGames,
-            [editingGame.igdb.id]: {
-              ...prev.trackedGames[editingGame.igdb.id],
+            [targetDocId]: {
+              ...prev.trackedGames[targetDocId],
               ...updatedGameForLocal,
             },
           },
@@ -615,6 +610,7 @@ export default function GamesPage() {
       setSaving(false);
     }
   };
+
 
   const openConfirmModal = (
     message: string,
@@ -1081,7 +1077,7 @@ export default function GamesPage() {
                                 "Not Interested"
                               ) : (
                                 <>
-                                  {Math.round(g.my_rating ?? 0)}{" "}
+                                  {(g.my_rating ?? 0).toFixed(1)}{" "}
                                   <IoStarSharp className="w-3 h-3 text-amber-400" />
                                 </>
                               )}
@@ -1156,7 +1152,7 @@ export default function GamesPage() {
           saving={saving}
           game={editingGame}
           initialNotes={editingGame.notes ?? ""}
-          initialRating={editingGame.igdb.rating ?? 0}
+          initialRating={editingGame.my_rating ?? 0}
           initialCategoryRatings={editingGame.categoryRatings}
           initialProgress={editingGame.progress ?? 0}
           initialPlaytime={editingGame.playtime ?? 0}

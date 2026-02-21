@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import GameActionsDropdown from "./GameActionsDropdown";
+import { MdBlock } from "react-icons/md";
+import { FaExclamation, FaStar } from "react-icons/fa";
 
-export default function GameCard({ game, openEditModal, openConfirmModal }: any) {
+export default function GameCard({
+  game,
+  openEditModal,
+  openConfirmModal,
+}: any) {
   const [loaded, setLoaded] = useState(false);
 
   const getReleaseDate = () => {
@@ -36,7 +42,12 @@ export default function GameCard({ game, openEditModal, openConfirmModal }: any)
     releaseDate instanceof Date &&
     !isNaN(releaseDate.getTime()) &&
     releaseDate.getTime() <= Date.now();
+
   const isNotInterested = game?.notInterested === true;
+  const hasRating =
+    typeof game?.my_rating === "number" &&
+    Number.isFinite(game.my_rating) &&
+    game.my_rating > 0;
 
   return (
     <div
@@ -62,7 +73,9 @@ export default function GameCard({ game, openEditModal, openConfirmModal }: any)
 
       <Link href={`/game/${game.igdb.id}`} prefetch={false}>
         <div className="relative w-full aspect-3/4 overflow-hidden">
-          {!loaded && <div className="absolute inset-0 bg-zinc-800 animate-pulse" />}
+          {!loaded && (
+            <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
+          )}
 
           <img
             src={game.igdb.cover || "/placeholder-game.jpg"}
@@ -86,7 +99,8 @@ export default function GameCard({ game, openEditModal, openConfirmModal }: any)
           <>
             <div className="flex items-center justify-between text-[12px] mb-1">
               <span className="text-zinc-300">
-                {Math.floor(game.playtime ?? 0)}h {Math.round(((game.playtime ?? 0) % 1) * 60)}m
+                {Math.floor(game.playtime ?? 0)}h{" "}
+                {Math.round(((game.playtime ?? 0) % 1) * 60)}m
               </span>
 
               <span
@@ -94,9 +108,23 @@ export default function GameCard({ game, openEditModal, openConfirmModal }: any)
                   isNotInterested ? "text-red-300" : "text-yellow-400"
                 }`}
               >
-                {isNotInterested
-                  ? "Not Interested"
-                  : `★ ${game.my_rating ?? "Not Rated Yet"}`}
+                {isNotInterested ? (
+                  <div className="flex items-center gap-1">
+                    <MdBlock />
+                    Not Interested
+                  </div>
+                ) : hasRating ? (
+                  <div className="flex items-center gap-1">
+                    <FaStar />
+
+                    {game.my_rating.toFixed(1)}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <FaExclamation size={10} />
+                    Not Rated Yet
+                  </div>
+                )}
               </span>
             </div>
 

@@ -164,11 +164,18 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setFavorite(initialFavorite ?? false);
     setNotInterested(game?.notInterested === true);
 
-    if (initialCategoryRatings) {
+    const hasMeaningfulCategoryRatings =
+      !!initialCategoryRatings &&
+      Object.values(initialCategoryRatings).some(
+        (value) => value === "excluded" || (typeof value === "number" && value > 0),
+      );
+
+    if (hasMeaningfulCategoryRatings && initialCategoryRatings) {
       setCategoryRatings(initialCategoryRatings);
     } else if (
       typeof initialRating === "number" &&
-      !Number.isNaN(initialRating)
+      !Number.isNaN(initialRating) &&
+      initialRating > 0
     ) {
       setCategoryRatings({
         graphics: initialRating,

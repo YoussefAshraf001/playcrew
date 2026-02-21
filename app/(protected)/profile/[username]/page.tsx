@@ -37,7 +37,6 @@ import { db, auth } from "@/app/lib/firebase";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import { useRouter } from "next/navigation";
-import PresetModal from "@/app/components/PresetModal";
 import CloudUploadAnimation from "@/app/components/CloudUploadAnimation";
 import { IoMdCloudUpload } from "react-icons/io";
 import { useUI } from "@/app/context/UIContext";
@@ -84,9 +83,6 @@ export default function EditProfilePage() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<UserProfile | null>(null);
   const [original, setOriginal] = useState<UserProfile | null>(null);
-  const [presetType, setPresetType] = useState<"avatar" | "wallpaper" | null>(
-    null,
-  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [cropType, setCropType] = useState<"avatar" | "wallpaper" | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -581,7 +577,7 @@ export default function EditProfilePage() {
               media={active?.avatar}
               editing={editing}
               rounded
-              onEdit={() => setPresetType("avatar")}
+              onEdit={() => avatarInputRef.current?.click()}
               onDelete={() =>
                 setDraft((p) => (p ? { ...p, avatar: undefined } : p))
               }
@@ -590,7 +586,7 @@ export default function EditProfilePage() {
             <ImageOverlay
               media={active?.wallpaper}
               editing={editing}
-              onEdit={() => setPresetType("wallpaper")}
+              onEdit={() => wallpaperInputRef.current?.click()}
               onDelete={() =>
                 setDraft((p) => (p ? { ...p, wallpaper: undefined } : p))
               }
@@ -768,27 +764,6 @@ export default function EditProfilePage() {
             ))}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {presetType && (
-            <PresetModal
-              type={presetType}
-              onClose={() => setPresetType(null)}
-              onSelectFile={(file) => {
-                setPresetType(null);
-                onSelectImage(file, presetType);
-              }}
-              onSelectPreset={async (url) => {
-                const res = await fetch(url);
-                const blob = await res.blob();
-                const file = new File([blob], "preset.jpg", {
-                  type: blob.type,
-                });
-                setPresetType(null);
-                onSelectImage(file, presetType);
-              }}
-            />
-          )}
-        </AnimatePresence>
       </motion.main>
     </>
   );
