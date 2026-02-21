@@ -1,233 +1,313 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "@/app/lib/firebase";
-import { useUser } from "@/app/context/UserContext";
-import { Helmet } from "react-helmet-async";
-import { motion, AnimatePresence } from "framer-motion";
-import Countdown from "@/app/components/Countdowncomponent";
-import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Helmet } from "react-helmet-async";
+import { AnimatePresence, motion } from "framer-motion";
+import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
 
-type Game = {
+import Countdown from "@/app/components/Countdowncomponent";
+import { useGames } from "@/app/context/GameContext";
+
+type CalendarGame = {
   id: string;
   name: string;
   igdb?: {
     cover?: string;
-    releaseDate?: any;
+    releaseDate?: unknown;
   };
 };
 
+type GameWithParsedDate = CalendarGame & { date: Date | null };
+type DatedGame = CalendarGame & { date: Date };
+
+const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const parseDate = (value: unknown): Date | null => {
+  if (!value) return null;
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toDate" in value &&
+    typeof (value as { toDate: unknown }).toDate === "function"
+  ) {
+    return (value as { toDate: () => Date }).toDate();
+  }
+
+  if (typeof value === "number") {
+    const parsed = new Date(value < 1e12 ? value * 1000 : value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
+
 export default function CalendarPage() {
-  const { user } = useUser();
-  const year = new Date().getFullYear();
-  const [games, setGames] = useState<Game[]>([]);
-  const [month, setMonth] = useState(new Date().getMonth());
-  const [selectedDayGames, setSelectedDayGames] = useState<
-    typeof monthGames | null
-  >(null);
+  const { games, gamesLoading } = useGames();
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDayGames, setSelectedDayGames] = useState<DatedGame[] | null>(
+    null,
+  );
 
-  /* ---------------- DATA ---------------- */
-
-  useEffect(() => {
-    if (!user) return;
-
-    const ref = collection(db, "users", user.uid, "games_igdb");
-    return onSnapshot(ref, (snap) => {
-      const list: Game[] = [];
-      snap.forEach((doc) =>
-        list.push({ id: doc.id, ...(doc.data() as Omit<Game, "id">) }),
-      );
-      setGames(list);
-    });
-  }, [user]);
-
-  const parseDate = (value: any): Date | null => {
-    if (!value) return null;
-    if (value?.toDate) return value.toDate();
-    if (typeof value === "number")
-      return new Date(value < 1e12 ? value * 1000 : value);
-    if (typeof value === "string") {
-      const d = new Date(value);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    return null;
-  };
+  const month = cursor.getMonth();
+  const year = cursor.getFullYear();
 
   const monthGames = useMemo(() => {
-    return games
-      .map((g) => ({ ...g, date: parseDate(g.igdb?.releaseDate) }))
+    return (games as CalendarGame[])
+      .map(
+        (g): GameWithParsedDate => ({
+          ...g,
+          date: parseDate(g.igdb?.releaseDate),
+        }),
+      )
       .filter(
-        (g) =>
-          g.date &&
+        (g): g is DatedGame =>
+          g.date instanceof Date &&
           g.date.getMonth() === month &&
           g.date.getFullYear() === year,
       )
-      .sort((a, b) => a.date!.getTime() - b.date!.getTime());
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [games, month, year]);
 
-  const gamesByDay = useMemo(() => {
-    const map = new Map<number, typeof monthGames>();
+  const sidebarMonthGames = useMemo(() => {
+    const now = new Date();
+    return [...monthGames].sort((a, b) => {
+      const aUpcoming = a.date.getTime() >= now.getTime();
+      const bUpcoming = b.date.getTime() >= now.getTime();
+      if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+      return a.date.getTime() - b.date.getTime();
+    });
+  }, [monthGames]);
 
+  const gamesByDay = useMemo(() => {
+    const map = new Map<number, DatedGame[]>();
     monthGames.forEach((g) => {
-      const day = g.date!.getDate();
+      const day = g.date.getDate();
       if (!map.has(day)) map.set(day, []);
       map.get(day)!.push(g);
     });
-
     return map;
   }, [monthGames]);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOffset = new Date(year, month, 1).getDay();
+  const totalCalendarCells = 42;
   const today = new Date();
 
-  /* ---------------- UI ---------------- */
+  const isCurrentMonth =
+    month === today.getMonth() && year === today.getFullYear();
 
   return (
     <>
       <Helmet>
-        <title>PlayCrew – Release Calendar</title>
+        <title>PlayCrew - Release Calendar</title>
       </Helmet>
 
-      <div className="h-screen bg-black text-white flex overflow-hidden pt-16">
-        {/* LEFT – CALENDAR */}
-        <main className="flex-1 flex flex-col overflow-hidden p-4 sm:p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4 bg-zinc-900 rounded-full px-4 py-2">
-            <button onClick={() => setMonth((m) => m - 1)}>
-              <FaArrowLeft />
-            </button>
+      <main className="min-h-screen bg-black text-white pt-16 px-3 sm:px-4 lg:px-7 pb-5">
+        <section className="mx-auto max-w-[1500px]">
+          <div className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-linear-to-br from-[#07121c]/95 via-[#050a10]/95 to-black/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.14),transparent_50%)] pointer-events-none" />
 
-            <h1 className="font-bold">
-              {new Date(year, month).toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}
-            </h1>
+            <div className="relative z-10 p-3.5 sm:p-5 lg:p-6 border-b border-white/10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-300/80">
+                  Release Tracker
+                </p>
+                <h1 className="mt-1.5 text-xl sm:text-2xl font-semibold tracking-wide">
+                  {cursor.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </h1>
+              </div>
 
-            <button onClick={() => setMonth((m) => m + 1)}>
-              <FaArrowRight />
-            </button>
-          </div>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCursor(
+                      (prev) =>
+                        new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+                    )
+                  }
+                  className="w-9 h-9 rounded-xl border border-white/15 bg-black/40 hover:bg-cyan-500/20 transition cursor-pointer flex items-center justify-center"
+                >
+                  <FaArrowLeft />
+                </button>
 
-          {/* Calendar Grid */}
-          <div className="flex-1 overflow-hidden p-3">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={`${year}-${month}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
-                className="grid grid-cols-7 grid-rows-6 gap-2 h-full"
-              >
-                {Array.from({ length: firstDayOffset }).map((_, i) => (
-                  <div key={`empty-${i}`} />
-                ))}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCursor(
+                      (prev) =>
+                        new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+                    )
+                  }
+                  className="w-9 h-9 rounded-xl border border-white/15 bg-black/40 hover:bg-cyan-500/20 transition cursor-pointer flex items-center justify-center"
+                >
+                  <FaArrowRight />
+                </button>
+              </div>
+            </div>
 
-                {Array.from({ length: daysInMonth }).map((_, i) => {
-                  const day = i + 1;
-                  const games = gamesByDay.get(day) || [];
-                  const isToday =
-                    day === today.getDate() &&
-                    month === today.getMonth() &&
-                    year === today.getFullYear();
-
-                  return (
+            <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[1.55fr_0.95fr] xl:h-[860px]">
+              <section className="p-3.5 sm:p-5 lg:p-6 border-b xl:border-b-0 xl:border-r border-white/10 h-full flex flex-col min-h-0">
+                <div className="grid grid-cols-7 gap-2 mb-2">
+                  {WEEK_DAYS.map((d) => (
                     <div
-                      key={day}
-                      onClick={() => {
-                        if (games.length > 1) {
-                          setSelectedDayGames(games);
-                        } else if (games.length === 1) {
-                          window.location.href = `/game/${games[0].id}`;
-                        }
-                      }}
-                      className={`relative rounded-lg overflow-hidden cursor-pointer
-              ${isToday ? "ring-2 ring-cyan-400" : "ring-1 ring-white/10"}
-            `}
+                      key={d}
+                      className="text-center text-[10px] sm:text-xs uppercase tracking-[0.15em] text-white/60 py-2"
                     >
-                      {games.length > 0 && (
-                        <div
-                          className={`absolute inset-0 ${
-                            games.length > 1 && "grid grid-cols-2"
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`${year}-${month}`}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -14 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                    className="grid grid-cols-7 auto-rows-[82px] sm:auto-rows-[102px] lg:auto-rows-[118px] gap-2 overflow-y-auto pr-1"
+                  >
+                    {Array.from({ length: totalCalendarCells }).map((_, i) => {
+                      const day = i - firstDayOffset + 1;
+                      const isInMonth = day >= 1 && day <= daysInMonth;
+
+                      if (!isInMonth) {
+                        return (
+                          <div
+                            key={`empty-${i}`}
+                            className="rounded-xl border border-transparent"
+                          />
+                        );
+                      }
+
+                      const dayGames = gamesByDay.get(day) || [];
+                      const isToday = isCurrentMonth && day === today.getDate();
+
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => {
+                            if (!dayGames.length) return;
+                            setSelectedDayGames(dayGames);
+                          }}
+                          className={`relative rounded-xl overflow-hidden text-left border transition ${
+                            dayGames.length
+                              ? "cursor-pointer hover:border-cyan-300/40"
+                              : "cursor-default"
                           } ${
-                            games.length > 2 && "grid grid-cols-2 grid-rows-2"
+                            isToday
+                              ? "border-cyan-400/80 shadow-[0_0_0_1px_rgba(34,211,238,0.55)]"
+                              : "border-white/10"
                           }`}
                         >
-                          {games.slice(0, 4).map((g, i) => (
-                            <img
-                              key={i}
-                              src={g.igdb?.cover}
-                              className="w-full h-full object-cover"
-                            />
-                          ))}
-                        </div>
-                      )}
+                          {dayGames.length > 0 && (
+                            <div
+                              className={`absolute inset-0 ${
+                                dayGames.length > 1 ? "grid grid-cols-2" : ""
+                              } ${dayGames.length > 2 ? "grid-rows-2" : ""}`}
+                            >
+                              {dayGames.slice(0, 4).map((g) => (
+                                <img
+                                  key={g.id}
+                                  src={g.igdb?.cover || "/placeholder-game.jpg"}
+                                  alt={g.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ))}
+                            </div>
+                          )}
 
-                      <div className="absolute inset-0 bg-black/60" />
+                          <div className="absolute inset-0 bg-black/55" />
 
-                      <div className="relative z-10 p-2 text-xs">{day}</div>
+                          <span className="relative z-10 block p-2 text-[11px] sm:text-xs font-medium text-white/95">
+                            {day}
+                          </span>
 
-                      {games.length > 4 && (
-                        <div className="absolute bottom-1 right-1 text-[10px] text-white/80">
-                          +{games.length - 4}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </main>
+                          {dayGames.length > 1 && (
+                            <span className="absolute right-1.5 bottom-1.5 z-10 text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-md bg-black/70 text-white/90">
+                              {dayGames.length}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                </AnimatePresence>
+              </section>
 
-        {/* RIGHT – UPCOMING */}
-        <aside className="w-full sm:w-[420px] border-l border-white/10 flex flex-col overflow-hidden">
-          <h2 className="p-5 text-lg font-semibold">Upcoming</h2>
+              <aside className="p-3.5 sm:p-5 lg:p-6 h-full flex flex-col min-h-0">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base sm:text-lg font-semibold tracking-wide">
+                    Upcoming This Month
+                  </h2>
+                  <span className="text-xs text-white/60">
+                    {gamesLoading ? "..." : `${monthGames.length} releases`}
+                  </span>
+                </div>
 
-          <div className="flex-1 overflow-y-auto px-5 pb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <AnimatePresence mode="popLayout">
-                {monthGames.map((g, i) => (
-                  <motion.div
-                    key={`${g.id}-${i}`}
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -20, opacity: 0 }}
-                  >
-                    <Link href={`/game/${g.id}`}>
-                      <div
-                        className="
-                        relative h-60
-                        rounded-xl overflow-hidden
-                        group cursor-pointer shadow-lg
-                      "
-                      >
+                <div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
+                  {(gamesLoading ? [] : sidebarMonthGames).map((g) => (
+                    <Link
+                      key={g.id}
+                      href={`/game/${g.id}`}
+                      className="group block rounded-xl border border-white/10 bg-black/35 overflow-hidden hover:border-cyan-400/35 transition"
+                    >
+                      <div className="flex gap-3 p-2.5">
                         <img
-                          src={g.igdb?.cover}
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition"
+                          src={g.igdb?.cover || "/placeholder-game.jpg"}
+                          alt={g.name}
+                          className="w-14 h-20 sm:w-16 sm:h-22 rounded-lg object-cover shrink-0"
                         />
 
-                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
-
-                        <div className="relative z-10 h-full flex flex-col justify-end p-4">
-                          <Countdown date={g.date!} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm sm:text-base font-medium truncate">
+                            {g.name}
+                          </p>
+                          <p className="text-xs text-white/60 mt-1">
+                            {g.date.toLocaleDateString(undefined, {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </p>
+                          <div className="mt-2 text-xs text-cyan-300">
+                            <Countdown date={g.date} />
+                          </div>
                         </div>
                       </div>
                     </Link>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                  ))}
+
+                  {!gamesLoading && monthGames.length === 0 && (
+                    <div className="rounded-xl border border-white/10 bg-black/35 p-5 text-sm text-white/60">
+                      No tracked releases in this month.
+                    </div>
+                  )}
+                </div>
+              </aside>
             </div>
           </div>
-        </aside>
+        </section>
+
         <AnimatePresence>
           {selectedDayGames && (
             <motion.div
-              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+              className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -235,52 +315,61 @@ export default function CalendarPage() {
             >
               <motion.div
                 onClick={(e) => e.stopPropagation()}
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 260, damping: 25 }}
-                className="
-          bg-zinc-900 rounded-2xl
-          w-full max-w-4xl
-          max-h-[85vh]
-          flex flex-col
-          overflow-hidden
-        "
+                initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-5xl max-h-[88vh] rounded-2xl border border-cyan-500/30 overflow-hidden"
               >
-                {/* Header */}
-                <div className="p-4 border-b border-white/10 flex justify-between items-center">
-                  <h2 className="text-lg font-bold mx-auto">
-                    Releasing That Day ({selectedDayGames.length} Games)
-                  </h2>
+                <div className="absolute inset-0 flex items-center justify-center bg-[#050b12]">
+                  <img
+                    src={
+                      selectedDayGames[0]?.igdb?.cover ||
+                      "/placeholder-game.jpg"
+                    }
+                    alt={selectedDayGames[0]?.name || "Game poster"}
+                    className="h-full w-auto max-w-full object-contain opacity-35"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-linear-to-b from-[#050b12]/84 via-[#050b12]/92 to-[#050b12]/96 backdrop-blur-sm" />
+
+                <div className="relative z-10 px-4 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                  <h3 className="text-base sm:text-lg font-semibold">
+                    Releasing that day ({selectedDayGames.length}{" "}
+                    {selectedDayGames.length > 1 ? "Games" : "Game"})
+                  </h3>
                   <button
+                    type="button"
                     onClick={() => setSelectedDayGames(null)}
-                    className="text-white/60 hover:text-white"
+                    className="px-3 py-1 rounded-lg border border-white/20 text-sm text-white/80 hover:text-white hover:border-cyan-300/60 transition cursor-pointer"
                   >
-                    ✕
+                    Close
                   </button>
                 </div>
 
-                {/* Scroll Area */}
-                <div className="flex-1 overflow-y-auto p-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="relative z-10 p-4 sm:p-6 overflow-y-auto max-h-[74vh]">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {selectedDayGames.map((g) => (
                       <Link
                         key={g.id}
                         href={`/game/${g.id}`}
-                        className="group relative rounded-xl overflow-hidden h-60"
+                        className="group relative rounded-xl overflow-hidden h-60 border border-white/10 hover:border-cyan-400/35 transition"
                       >
                         <img
-                          src={g.igdb?.cover}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          src={g.igdb?.cover || "/placeholder-game.jpg"}
+                          alt={g.name}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-500"
                         />
-
-                        <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/40 to-transparent" />
-
-                        <div className="absolute bottom-0 p-4">
-                          <p className="text-white font-semibold">{g.name}</p>
-                          <p className="text-xs text-white/60">
-                            {g.date?.toLocaleDateString()}
+                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/40 to-transparent" />
+                        <div className="absolute left-3 right-3 bottom-3">
+                          <p className="text-sm font-semibold leading-tight">
+                            {g.name}
                           </p>
+                          {g.date && (
+                            <p className="text-[11px] text-white/70 mt-1">
+                              {g.date.toLocaleDateString()}
+                            </p>
+                          )}
                         </div>
                       </Link>
                     ))}
@@ -290,7 +379,7 @@ export default function CalendarPage() {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
+      </main>
     </>
   );
 }

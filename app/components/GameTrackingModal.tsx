@@ -36,6 +36,7 @@ interface TrackedGame {
   categoryRatings?: CategoryRatings;
   favorite?: boolean;
   favoriteAllTime?: boolean;
+  notInterested?: boolean;
   lastUpdated?: any;
 
   // IGDB data
@@ -71,6 +72,7 @@ interface GameTrackingModalProps {
     status: string,
     favorite: boolean,
     categoryRatings: CategoryRatings,
+    notInterested: boolean,
   ) => Promise<void> | void;
 }
 
@@ -146,6 +148,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const [status, setStatus] = useState<string>(initialStatus ?? "Playing");
   const [favorite, setFavorite] = useState<boolean>(initialFavorite ?? false);
+  const [notInterested, setNotInterested] = useState<boolean>(
+    game?.notInterested === true,
+  );
   const [imageLoaded, setImageLoaded] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
   const progressRef = useRef<HTMLDivElement | null>(null);
@@ -157,6 +162,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setMinutes(Math.round(((initialPlaytime ?? 0) % 1) * 60));
     setStatus(initialStatus ?? "Playing");
     setFavorite(initialFavorite ?? false);
+    setNotInterested(game?.notInterested === true);
 
     if (initialCategoryRatings) {
       setCategoryRatings(initialCategoryRatings);
@@ -228,7 +234,18 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       status,
       favorite,
       categoryRatings,
+      notInterested,
     );
+  };
+
+  const handleNotInterested = () => {
+    setStatus("Dropped");
+    setNotInterested(true);
+    setProgress(0);
+    setHours(0);
+    setMinutes(0);
+    setCategoryRatings({ ...DEFAULT_CATEGORIES });
+    toast.success("Marked as not interested");
   };
 
   const bgUrl = game?.igdb.cover || "/placeholder-game.jpg";
@@ -258,6 +275,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const releaseDate = normalizeDate(game?.igdb.releaseDate);
   const gameIsReleased = !!releaseDate && releaseDate <= new Date();
+  const isNotInterested = notInterested;
 
   return (
     <AnimatePresence>
@@ -288,20 +306,25 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             <div className="relative z-10">
               {/* TOP ROW */}
               <div className="flex justify-between items-center p-4 gap-3 bg-zinc-800/60">
-                {showStatus && (
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="p-2 bg-zinc-900 rounded-md border border-zinc-700 text-white text-sm cursor-pointer"
-                  >
-                    <option value="Playing">Playing</option>
-                    <option value="Completed">Completed</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Dropped">Dropped</option>
-                    <option value="Online">Online</option>
-                    <option value="Want To Play">Want To Play</option>
-                  </select>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {showStatus && (
+                    <select
+                      value={status}
+                      onChange={(e) => {
+                        setStatus(e.target.value);
+                        if (notInterested) setNotInterested(false);
+                      }}
+                      className="p-2 bg-zinc-900 rounded-md border border-zinc-700 text-white text-sm cursor-pointer"
+                    >
+                      <option value="Playing">Playing</option>
+                      <option value="Completed">Completed</option>
+                      <option value="On Hold">On Hold</option>
+                      <option value="Dropped">Dropped</option>
+                      <option value="Online">Online</option>
+                      <option value="Want To Play">Want To Play</option>
+                    </select>
+                  )}
+                </div>
                 {showFavorite && (
                   <button
                     onClick={() => setFavorite((f) => !f)}
@@ -418,10 +441,22 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               <div className="p-4 grid gap-4 relative">
                 {/* Rating grid */}
                 <div
-                  className={`grid grid-cols-2 gap-3 bg-zinc-800/60 p-3 rounded-xl ${
+                  className={`relative grid grid-cols-2 gap-3 bg-zinc-800/60 p-3 rounded-xl ${
                     !gameIsReleased ? "opacity-50" : ""
                   }`}
                 >
+                  {isNotInterested && (
+                    <div className="absolute inset-0 z-20 rounded-xl bg-black/40 backdrop-blur-xs flex items-center justify-center pointer-events-none">
+                      <div className="text-center px-4">
+                        <p className="text-sm font-semibold text-red-300">
+                          Not Interested
+                        </p>
+                        <p className="text-xs text-zinc-300 mt-1">
+                          Change status to rate this game again.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {categoryOrder.map((cat) => (
                     <div key={cat} className="flex flex-col gap-1">
                       <div className="flex justify-between items-center pb-2 text-sm text-zinc-300 capitalize">
@@ -493,6 +528,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   toast.error("Game isn't released yet!");
                                   return;
                                 }
+                                if (isNotInterested) {
+                                  toast.error(
+                                    "This game is marked as not interested.",
+                                  );
+                                  return;
+                                }
                                 if (!isExcluded)
                                   setCategory(cat as keyof CategoryRatings, n);
                               }}
@@ -516,6 +557,25 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                <div className="rounded-xl border border-zinc-700/80 bg-zinc-900/55 p-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-100">
+                      Not interested anymore?
+                    </p>
+                    <p className="text-xs text-zinc-400">
+                      Keeps your status, and clears rating, progress, and
+                      playtime.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleNotInterested}
+                    className="shrink-0 px-3 py-2 rounded-lg font-semibold text-sm bg-zinc-900 border border-red-500/55 text-red-300 hover:bg-red-500/20 transition-all ease-in-out duration-300 cursor-pointer"
+                  >
+                    Not Interested
+                  </button>
                 </div>
 
                 {/* Progress & Playtime */}

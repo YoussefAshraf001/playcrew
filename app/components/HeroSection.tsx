@@ -20,6 +20,7 @@ import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
 import { IoVolumeMuteOutline } from "react-icons/io5";
 import { GoUnmute } from "react-icons/go";
 import { useMusic } from "../context/MusicContext";
+import { useUI } from "../context/UIContext";
 
 declare global {
   interface Window {
@@ -55,6 +56,7 @@ export default function HeroSection({
   if (!trending?.length) return null;
 
   const router = useRouter();
+  const { startRouteLoading } = useUI();
   const { pause, isActuallyPlaying } = useMusic();
   const heroIsAudibleRef = useRef(false);
 
@@ -516,7 +518,10 @@ export default function HeroSection({
 
           <div className="flex gap-4">
             <button
-              onClick={() => router.push(`/game/${gameId}`)}
+              onClick={() => {
+                startRouteLoading();
+                router.push(`/game/${gameId}`);
+              }}
               className="px-6 py-3 bg-white text-black rounded-xl cursor-pointer hover:scale-105 ease-in-out transition-all duration-300"
             >
               Explore

@@ -13,6 +13,8 @@ import { AuthModalProvider } from "./context/AuthModalContext";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { UIProvider } from "./context/UIContext";
+import RouteTransitionLoader from "./components/RouteTransitionLoader";
+import { GameProvider } from "./context/GameContext";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -59,23 +61,26 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <HelmetProvider>
           <AuthModalProvider>
             <UserProvider>
-              <MusicProvider>
-                <UIProvider>
-                  <div className="flex min-h-screen w-screen overflow-hidden">
-                    <Navbar />
+              <GameProvider>
+                <MusicProvider>
+                  <UIProvider>
+                    <RouteTransitionLoader />
+                    <div className="flex min-h-screen w-screen overflow-hidden">
+                      <Navbar />
 
-                    <motion.main
-                      className="flex-1 overflow-y-auto max-w-full"
-                      variants={contentVariants}
-                      initial="hidden"
-                      animate="visible"
-                    >
-                      {children}
-                    </motion.main>
-                  </div>
-                  <MusicPlayer />
-                </UIProvider>
-              </MusicProvider>
+                      <motion.main
+                        className="flex-1 overflow-y-auto max-w-full"
+                        variants={contentVariants}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        {children}
+                      </motion.main>
+                    </div>
+                    <MusicPlayer />
+                  </UIProvider>
+                </MusicProvider>
+              </GameProvider>
             </UserProvider>
           </AuthModalProvider>
         </HelmetProvider>

@@ -38,6 +38,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const uid = user?.uid as string | undefined;
 
   useEffect(() => {
     // Listen to auth state changes
@@ -49,7 +50,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!uid) {
       setProfile(null);
       setLoading(false);
       return;
@@ -57,18 +58,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
 
-    const docRef = doc(db, "users", user.uid);
+    const docRef = doc(db, "users", uid);
 
     // Listen to realtime updates from Firestore
-    const unsubProfile = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
-      }
-      setLoading(false);
-    });
+    const unsubProfile = onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        }
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+      },
+    );
 
     return () => unsubProfile();
-  }, [user]);
+  }, [uid]);
 
   return (
     <UserContext.Provider value={{ user, profile, loading, setProfile }}>

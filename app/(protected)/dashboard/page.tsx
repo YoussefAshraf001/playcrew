@@ -44,7 +44,7 @@ export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const { open } = useAuthModal();
-  const { panelOpen, setPanelOpen } = useUI();
+  const { panelOpen, setPanelOpen, startRouteLoading } = useUI();
 
   const [active, setActive] = useState(0);
   const [openPanel, setOpenPanel] = useState<Panel>("none");
@@ -162,17 +162,21 @@ export default function Dashboard() {
         }
 
         const lastPage = localStorage.getItem("lastPage")!;
+        startRouteLoading();
         router.push(lastPage);
         break;
       }
 
       case "explore":
+        startRouteLoading();
         router.push("/explore");
         break;
       case "games":
+        startRouteLoading();
         router.push("/games");
         break;
       case "settings":
+        startRouteLoading();
         router.push(`/profile/${profile?.username}`);
         break;
       case "account":
@@ -207,6 +211,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await auth.signOut();
+    startRouteLoading();
     router.push("/dashboard");
   };
 
@@ -277,14 +282,16 @@ export default function Dashboard() {
         <motion.div
           animate={{ x: openPanel === "none" ? 0 : -80 }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="
+          className={`
             relative z-10
             flex flex-col
-            mt-32
-            px-8 md:px-16
-            md:translate-x-[200px]
-            lg:translate-x-[120px]
-          "
+            mt-20 sm:mt-24 md:mt-28
+            px-4 sm:px-6 md:px-10 lg:px-16
+            md:max-w-[640px]
+            lg:translate-x-[80px]
+            xl:translate-x-[120px]
+            ${playerVisible ? "pt-24 sm:pt-20 md:pt-0" : ""}
+          `}
         >
           {user && profile && (
             <motion.div
@@ -293,23 +300,30 @@ export default function Dashboard() {
               animate={{
                 opacity: panelOpen ? 0 : 1,
                 scale: panelOpen ? 0.95 : 1,
-                y: panelOpen ? -20 : playerVisible ? 135 : 0,
-                x: panelOpen ? 80 : playerVisible ? 30 : 0,
+                y: panelOpen ? -20 : 0,
+                x: panelOpen ? 80 : 0,
               }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              onClick={() => router.push(`/profile/${profile.username}`)}
-              className="
-                  absolute -top-20 right-45 z-30
+              onClick={() => {
+                startRouteLoading();
+                router.push(`/profile/${profile.username}`);
+              }}
+              className={`
+                  relative mb-6 w-fit self-start
+                  sm:absolute sm:-top-16 sm:right-0
+                  md:-top-16 md:-right-38
+                  lg:-top-20 lg:-right-330
+                  ${playerVisible ? "md:translate-y-33 lg:translate-y-38 lg:translate-x-10" : "md:translate-y-0 lg:translate-y-0"}
                   group cursor-pointer
                   origin-top-right
-                "
+                `}
             >
               <div
                 className="
                   relative
                   flex items-center justify-between
-                  w-[270px]
-                  px-6 py-4
+                  w-60 sm:w-[260px] md:w-[270px]
+                  px-4 sm:px-5 md:px-6 py-3 sm:py-4
                   rounded-2xl
                   bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
                   backdrop-blur-xl
@@ -322,16 +336,16 @@ export default function Dashboard() {
                 "
               >
                 {/* LEFT SIDE TEXT */}
-                <div className="flex flex-col max-w-[120px]">
-                  <span className="text-base font-semibold text-white capitalize truncate">
+                <div className="flex flex-col max-w-[110px] sm:max-w-[120px]">
+                  <span className="text-sm sm:text-base font-semibold text-white capitalize truncate">
                     {profile.username}
                   </span>
 
-                  <span className="text-sm text-cyan-300 font-medium truncate">
+                  <span className="text-xs sm:text-sm text-cyan-300 font-medium truncate">
                     Level {level}
                   </span>
 
-                  <span className="text-xs text-white/60 mt-1 tracking-widest truncate">
+                  <span className="text-[11px] sm:text-xs text-white/60 mt-1 tracking-wide sm:tracking-widest truncate">
                     {profile.bio ? profile.bio : `XP ${totalXP}`}
                   </span>
                 </div>
@@ -341,11 +355,11 @@ export default function Dashboard() {
                   <img
                     src={profile.avatar.data}
                     alt={profile.username}
-                    className="w-14 h-14 rounded-full object-cover border border-white/30"
+                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-white/30"
                   />
 
                   {/* Online Dot */}
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-400 rounded-full border-2 border-black" />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-black" />
                 </div>
               </div>
             </motion.div>
@@ -355,19 +369,23 @@ export default function Dashboard() {
           <h1
             className={`
               flex items-center gap-3
-              text-3xl md:text-6xl lg:md:text-7xl
-              font-semibold tracking-[0.25em]
+              text-2xl sm:text-4xl md:text-5xl
+              font-semibold tracking-[0.18em] sm:tracking-[0.22em] md:tracking-[0.25em]
               text-zinc-100
-              mb-16
+              mb-10 sm:mb-12 md:mb-16
             `}
           >
             PLAY
-            <img src="/logo.png" alt="PlayCrew" className="w-20 h-14 mr-4" />
+            <img
+              src="/logo.png"
+              alt="PlayCrew"
+              className="w-14 h-10 sm:w-16 sm:h-12 md:w-20 md:h-14 mr-1 sm:mr-2 md:mr-4"
+            />
             CREW
           </h1>
 
           {/* Menu */}
-          <ul className="space-y-7">
+          <ul className="space-y-4 sm:space-y-5 md:space-y-7">
             {menuItems.map((item, index) => {
               const isActive = active === index;
               const isContinue = item.action === "continue";
@@ -382,7 +400,7 @@ export default function Dashboard() {
                     onClick={() => {
                       if (!isDisabled) handleAction(item.action);
                     }}
-                    className="group relative flex items-center gap-5 text-left"
+                    className="group relative flex items-center gap-3 sm:gap-4 md:gap-5 text-left"
                   >
                     {/* Hover glass background */}
                     <span
@@ -408,7 +426,7 @@ export default function Dashboard() {
                     <span
                       className={`
                           relative z-10
-                          text-lg sm:text-xl md:text-2xl tracking-wide transition-all duration-300
+                          text-base sm:text-xl md:text-2xl tracking-wide transition-all duration-300
                           ${
                             isDisabled
                               ? "text-zinc-700"
@@ -428,6 +446,13 @@ export default function Dashboard() {
         </motion.div>
 
         {/* SLIDE-OUT PANEL */}
+        {openPanel !== "none" && (
+          <div
+            className="absolute inset-0 z-10"
+            onClick={() => setOpenPanel("none")}
+          />
+        )}
+
         <motion.div
           initial={false}
           animate={{
@@ -437,8 +462,10 @@ export default function Dashboard() {
           }}
           transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="
-            absolute top-1/2 left-[70%] -translate-x-1/2 -translate-y-1/2
-            w-full max-w-5xl
+            absolute inset-x-2 sm:inset-x-4 md:inset-x-8
+            top-1/2 -translate-y-1/2
+            lg:left-[64%] lg:inset-x-auto lg:-translate-x-1/2
+            w-auto lg:w-full lg:max-w-5xl
             z-20
           "
         >
@@ -447,9 +474,10 @@ export default function Dashboard() {
               <motion.div
                 key={openPanel}
                 className="
-                  absolute top-1/2 left-[50%]
-                  -translate-x-1/2 -translate-y-1/2
-                  w-full max-w-5xl
+                  absolute left-0 right-0 top-1/2
+                  -translate-y-1/2
+                  lg:left-1/2 lg:right-auto lg:-translate-x-1/2
+                  w-full lg:max-w-5xl
                   z-20
                 "
               >
@@ -457,6 +485,7 @@ export default function Dashboard() {
                   <AboutPanel
                     containerVariants={containerVariants}
                     itemVariants={itemVariants}
+                    onClose={() => setOpenPanel("none")}
                   />
                 )}
 
@@ -466,6 +495,7 @@ export default function Dashboard() {
                     totalXP={totalXP}
                     gameStats={gameStats}
                     gameXP={gameXP}
+                    onClose={() => setOpenPanel("none")}
                   />
                 )}
               </motion.div>

@@ -3,14 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
-import {
-  collection,
-  doc,
-  getDoc,
-  onSnapshot,
-  setDoc,
-  Timestamp,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
 
 import { db } from "@/app/lib/firebase";
@@ -24,6 +17,7 @@ import { FiArrowRight, FiX } from "react-icons/fi";
 import { FaHeart } from "react-icons/fa";
 import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
+import { useGames } from "@/app/context/GameContext";
 
 const STATUSES = [
   "All",
@@ -60,6 +54,7 @@ interface TrackedGame {
   categoryRatings?: CategoryRatings;
   favorite?: boolean;
   favoriteAllTime?: boolean;
+  notInterested?: boolean;
   lastUpdated?: any;
 
   // IGDB data
@@ -98,6 +93,8 @@ interface UserProfile {
 
 export default function GamesPage() {
   const { profile: userProfile, loading: userLoading, user } = useUser();
+  const { games: sharedGames, gamesLoading } = useGames();
+  const uid = user?.uid as string | undefined;
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("Playing");
   const [releaseFilter, setReleaseFilter] = useState<
@@ -131,61 +128,64 @@ export default function GamesPage() {
     () => void | Promise<void>
   >(() => {});
 
-  // Real-time Firestore subscription
+  // Hydrate local profile from shared games context
   useEffect(() => {
-    if (!user || !userProfile) return;
-    console.log("user:", userProfile);
-
-    const gamesCol = collection(db, "users", user.uid, "games_igdb");
-
-    const unsubscribe = onSnapshot(gamesCol, (snapshot) => {
-      const updatedGames: Record<string, TrackedGame> = {};
-
-      snapshot.forEach((doc) => {
-        const data = doc.data() as TrackedGame;
-
-        updatedGames[doc.id] = {
-          ...data,
-          _docId: doc.id,
-
-          igdb: {
-            ...data.igdb,
-
-            // ✅ Normalize Firestore Timestamp → Date ONCE
-            releaseDate:
-              data.igdb?.releaseDate instanceof Timestamp
-                ? data.igdb.releaseDate.toDate()
-                : data.igdb?.releaseDate,
-          },
-        };
-      });
-
-      setLocalProfile((prev) => {
-        if (!prev) {
-          return {
-            uid: user.uid,
-            username: userProfile.username || "",
-            bio: userProfile.bio || "",
-            email: userProfile.email || "",
-            avatar: userProfile.avatar,
-            wallpaper: userProfile.wallpaper,
-            trackedGames: updatedGames,
-            creationTime: new Date(user.metadata.creationTime),
-            lastSignInTime: new Date(user.metadata.lastSignInTime),
-          };
-        }
-
-        return {
-          ...prev,
-          trackedGames: updatedGames,
-        };
-      });
-
+    if (!uid) {
+      setLocalProfile(null);
       setLoading(false);
+      return;
+    }
+
+    const updatedGames: Record<string, TrackedGame> = {};
+
+    sharedGames.forEach((entry) => {
+      const data = entry as unknown as TrackedGame;
+
+      updatedGames[entry.id] = {
+        ...data,
+        _docId: entry.id,
+        igdb: {
+          ...data.igdb,
+          releaseDate:
+            data.igdb?.releaseDate instanceof Timestamp
+              ? data.igdb.releaseDate.toDate()
+              : data.igdb?.releaseDate,
+        },
+      };
     });
 
-    return () => unsubscribe();
-  }, [user, userProfile]);
+    setLocalProfile((prev) => {
+      if (!prev) {
+        return {
+          uid,
+          username: userProfile?.username || "",
+          bio: userProfile?.bio || "",
+          email: userProfile?.email || "",
+          avatar: userProfile?.avatar,
+          wallpaper: userProfile?.wallpaper,
+          trackedGames: updatedGames,
+          creationTime: user?.metadata?.creationTime
+            ? new Date(user.metadata.creationTime)
+            : undefined,
+          lastSignInTime: user?.metadata?.lastSignInTime
+            ? new Date(user.metadata.lastSignInTime)
+            : undefined,
+        };
+      }
+
+      return {
+        ...prev,
+        username: userProfile?.username || prev.username,
+        bio: userProfile?.bio || prev.bio,
+        email: userProfile?.email || prev.email,
+        avatar: userProfile?.avatar || prev.avatar,
+        wallpaper: userProfile?.wallpaper || prev.wallpaper,
+        trackedGames: updatedGames,
+      };
+    });
+
+    setLoading(false);
+  }, [uid, sharedGames, userProfile, user]);
 
   const getMediaSrc = (media?: any, legacy?: string) => {
     if (!media && legacy) return legacy;
@@ -501,6 +501,7 @@ export default function GamesPage() {
     ));
 
   const formattedDate = localProfile?.creationTime?.toLocaleDateString("en-GB");
+  const profileUsername = localProfile?.username || userProfile?.username || "profile";
 
   useEffect(() => {
     setCurrentPage(1);
@@ -558,6 +559,7 @@ export default function GamesPage() {
     status: string,
     favorite: boolean,
     categoryRatings: CategoryRatings,
+    notInterested: boolean,
   ) => {
     if (!editingGame || saving) return;
 
@@ -578,6 +580,7 @@ export default function GamesPage() {
         playtime,
         status,
         favorite,
+        notInterested,
         notes,
         categoryRatings: safeCategoryRatings,
         lastUpdated: new Date(),
@@ -676,7 +679,7 @@ export default function GamesPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeInOut" }}
     >
-      {loading || userLoading ? (
+      {loading || userLoading || gamesLoading ? (
         <LoadingSpinner />
       ) : (
         <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-18">
@@ -694,44 +697,45 @@ export default function GamesPage() {
 
           {/* Left Panel (Stats) */}
           <div className="w-full lg:w-80 shrink-0 px-4 relative z-10">
-            <div className="bg-zinc-900/50 rounded-2xl p-5 flex flex-col items-center shadow-xl h-full">
+            <div className="bg-zinc-900/55 border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col items-center shadow-xl max-w-[360px] mx-auto lg:mx-0 lg:h-full">
               {/* Avatar */}
               <Link
-                href={`/profile/${userProfile!.username}`}
+                href={`/profile/${profileUsername}`}
                 className="group"
               >
-                {localProfile?.avatar ? (
+                {localProfile?.avatar || userProfile?.avatar ? (
                   <img
-                    src={getMediaSrc(localProfile.avatar)}
-                    style={getMediaStyle(localProfile.avatar)}
+                    src={getMediaSrc(localProfile?.avatar || userProfile?.avatar)}
+                    style={getMediaStyle(localProfile?.avatar || userProfile?.avatar)}
                     alt={localProfile?.username ?? "User"}
-                    className="w-36 h-36 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
+                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-36 h-36 rounded-full bg-zinc-700 flex items-center justify-center text-5xl text-zinc-400 border-4 border-cyan-400 shadow-lg">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-zinc-700 flex items-center justify-center text-4xl sm:text-5xl text-zinc-400 border-4 border-cyan-400 shadow-lg">
                     {localProfile?.username?.[0]?.toUpperCase()}
                   </div>
                 )}
               </Link>
 
               {/* Username / Email */}
-              <div className="text-center mt-4">
-                <h3 className="font-extrabold text-3xl text-white capitalize">
-                  {localProfile?.username}
+              <div className="text-center mt-3.5 w-full">
+                <h3 className="font-extrabold text-2xl sm:text-3xl text-white capitalize truncate px-2">
+                  {localProfile?.username || userProfile?.username || "Player"}
                 </h3>
-                <p className="text-sm capitalize text-zinc-300 mt-1 max-w-[190px] truncate">
+                <p className="text-sm capitalize text-zinc-300 mt-1 max-w-[230px] mx-auto line-clamp-2">
                   {localProfile?.bio ||
+                    userProfile?.bio ||
                     "No bio yet. Click to edit in profile settings!"}
                 </p>
-                <p className="text-sm capitalize text-zinc-300 py-1 cursor-default blur-xs hover:blur-none transition">
+                <p className="hidden sm:block text-sm capitalize text-zinc-300 py-1 cursor-default blur-xs hover:blur-none transition">
                   {localProfile?.email}
                 </p>
               </div>
 
-              <hr className="my-6 w-full border-zinc-700" />
+              <hr className="my-4 sm:my-6 w-full border-zinc-700" />
 
               {/* Stats */}
-              <div className="w-full flex flex-col gap-[7px] text-sm text-zinc-300 h-84 overflow-y-auto px-1">
+              <div className="w-full flex flex-col gap-1.5 sm:gap-[7px] text-sm text-zinc-300 max-h-[320px] sm:max-h-[360px] lg:max-h-none overflow-y-auto px-1">
                 {[
                   ["Member Since", formattedDate],
                   ["Total Games", allGames.length],
@@ -752,10 +756,10 @@ export default function GamesPage() {
                 ))}
               </div>
 
-              <hr className="my-3 w-full border-zinc-700" />
+              <hr className="my-3 sm:my-4 w-full border-zinc-700" />
 
               {/* Quote Section */}
-              <div className="mt-0 lg:pt-12">
+              <div className="mt-1 sm:mt-2 lg:pt-6 w-full">
                 <GameQuote />
               </div>
             </div>
@@ -1066,9 +1070,21 @@ export default function GamesPage() {
                                 : "0h 0m"}
                             </span>
 
-                            <span className="flex items-center gap-1 text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition-colors duration-300">
-                              {Math.round(g.my_rating ?? 0)}{" "}
-                              <IoStarSharp className="w-3 h-3 text-amber-400" />
+                            <span
+                              className={`flex items-center gap-1 text-xs font-semibold bg-white/10 px-2 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
+                                g.notInterested
+                                  ? "text-red-300 group-hover:text-red-200"
+                                  : "text-white/70 group-hover:text-white"
+                              }`}
+                            >
+                              {g.notInterested ? (
+                                "Not Interested"
+                              ) : (
+                                <>
+                                  {Math.round(g.my_rating ?? 0)}{" "}
+                                  <IoStarSharp className="w-3 h-3 text-amber-400" />
+                                </>
+                              )}
                             </span>
                           </div>
                         </div>

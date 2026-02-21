@@ -40,6 +40,7 @@ import { useRouter } from "next/navigation";
 import PresetModal from "@/app/components/PresetModal";
 import CloudUploadAnimation from "@/app/components/CloudUploadAnimation";
 import { IoMdCloudUpload } from "react-icons/io";
+import { useUI } from "@/app/context/UIContext";
 
 /* ---------------- TYPES ---------------- */
 
@@ -67,6 +68,7 @@ type UserProfile = {
 export default function EditProfilePage() {
   const { user, profile, setProfile, loading } = useUser();
   const router = useRouter();
+  const { startRouteLoading } = useUI();
 
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -269,12 +271,6 @@ export default function EditProfilePage() {
     return media.data.length > MAX_BASE64_SIZE;
   };
 
-  const fail = (title: string, hint?: string) => {
-    setIsSaving(false);
-    setUploadProgress(0);
-    uiError(title, hint);
-  };
-
   const saveProfile = async () => {
     if (!draft || !original) return;
 
@@ -287,12 +283,15 @@ export default function EditProfilePage() {
     const progressTimer = startFakeProgress();
     setIsSaving(true);
     setUploadProgress(5);
+    const abortSave = (title: string, hint?: string) => {
+      uiError(title, hint);
+    };
 
     try {
       // ---------------- USERNAME VALIDATION (ON SAVE ONLY) ----------------
       if (draft.username) {
         if (draft.username.length < 3) {
-          uiError(
+          abortSave(
             "Username is too short",
             "Use at least 3 characters (max 15)",
           );
@@ -300,7 +299,7 @@ export default function EditProfilePage() {
         }
 
         if (!USERNAME_REGEX.test(draft.username)) {
-          uiError(
+          abortSave(
             "Username format not allowed",
             "Only letters, numbers, underscores (_) and dashes (-)",
           );
@@ -311,7 +310,10 @@ export default function EditProfilePage() {
       /* ---------------- EMAIL CHANGE ---------------- */
       if (draft.email && draft.email !== original.email) {
         if (!currentPassword) {
-          toast.error("Enter your current password to change email");
+          abortSave(
+            "Current password required",
+            "Enter your current password to change email",
+          );
           return;
         }
 
@@ -333,30 +335,32 @@ export default function EditProfilePage() {
 
           // Optional but recommended
           await auth.signOut();
+          startRouteLoading();
           router.push("/login");
           return;
         } catch (err: any) {
           console.error("Verify-before-update error:", err.code, err.message);
 
           if (err.code === "auth/email-already-in-use") {
-            uiError(
+            abortSave(
               "Email already in use",
               "Try logging in or choose a different email",
             );
           } else if (err.code === "auth/invalid-email") {
-            uiError(
+            abortSave(
               "Invalid email address",
               "Please double-check the spelling",
             );
           } else if (err.code === "auth/requires-recent-login") {
-            uiError(
+            abortSave(
               "Session expired",
               "Please log in again to change your email",
             );
             await auth.signOut();
+            startRouteLoading();
             router.push("/login");
           } else {
-            uiError(
+            abortSave(
               "Could not send verification email",
               "Please try again in a moment",
             );
@@ -371,7 +375,10 @@ export default function EditProfilePage() {
 
       if (wantsPasswordChange) {
         if (!currentPassword) {
-          toast.error("Enter your current password to change password");
+          abortSave(
+            "Current password required",
+            "Enter your current password to change password",
+          );
           return;
         }
 
@@ -384,7 +391,7 @@ export default function EditProfilePage() {
           await reauthenticateWithCredential(user!, cred);
           await updatePassword(user!, newPassword);
         } catch {
-          uiError(
+          abortSave(
             "Current password incorrect",
             "Make sure you entered your existing password",
           );
@@ -400,12 +407,12 @@ export default function EditProfilePage() {
 
       if (draft.username !== original.username) {
         if (!draft.username) {
-          toast.error("Username required");
+          abortSave("Username required");
           return;
         }
 
         if (await isUsernameTaken(draft.username)) {
-          uiError("Username unavailable", "Try adding numbers or underscores");
+          abortSave("Username unavailable", "Try adding numbers or underscores");
 
           return;
         }
@@ -423,12 +430,12 @@ export default function EditProfilePage() {
         JSON.stringify(draft.wallpaper) !== JSON.stringify(original.wallpaper);
 
       if (avatarChanged && isTooLarge(draft.avatar)) {
-        uiError("Avatar image is too large", "Please use a smaller image");
+        abortSave("Avatar image is too large", "Please use a smaller image");
         return;
       }
 
       if (wallpaperChanged && isTooLarge(draft.wallpaper)) {
-        uiError("Wallpaper image is too large", "Try reducing resolution");
+        abortSave("Wallpaper image is too large", "Try reducing resolution");
         return;
       }
 
@@ -446,7 +453,6 @@ export default function EditProfilePage() {
       }
 
       // Finish progress
-      clearInterval(progressTimer);
       setUploadProgress(100);
 
       if (updates.username) {
@@ -454,14 +460,12 @@ export default function EditProfilePage() {
 
         // small delay purely for UX (optional but recommended)
         setTimeout(() => {
+          startRouteLoading();
           router.replace(`/profile/${updates.username}`);
         }, 600);
       }
 
       /* ---------------- CLEANUP ---------------- */
-      clearInterval(progressTimer);
-      setUploadProgress(0);
-      setIsSaving(false);
       setEditing(false);
       setDraft(null);
       setCurrentPassword("");
@@ -469,22 +473,24 @@ export default function EditProfilePage() {
       setPasswordResetRequested(false);
       uiSuccess("Profile updated", "Your changes were saved successfully");
     } catch (err: any) {
-      fail("Avatar image is too large", "Please use a smaller image");
-
       const msg = err?.message ?? "";
 
       if (
         msg.includes("exceeds the maximum size") ||
         msg.includes("INVALID_ARGUMENT")
       ) {
-        uiError(
+        abortSave(
           "Image too large to save",
           "Avatars and wallpapers must be under 1MB. Try cropping or resizing.",
         );
         return;
       }
 
-      uiError("Could not save changes", "Please try again in a moment");
+      abortSave("Could not save changes", "Please try again in a moment");
+    } finally {
+      clearInterval(progressTimer);
+      setUploadProgress(0);
+      setIsSaving(false);
     }
   };
 

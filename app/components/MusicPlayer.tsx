@@ -2,12 +2,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMusic } from "../context/MusicContext";
 import { MdSkipNext, MdSkipPrevious } from "react-icons/md";
 import { FaPause, FaPlay } from "react-icons/fa";
-import { IoRepeat } from "react-icons/io5";
 import { HiVolumeUp } from "react-icons/hi";
 import MarqueeText from "./MarqueeText";
 import { useRef } from "react";
 import { useUI } from "../context/UIContext";
-import { BsRepeat1 } from "react-icons/bs";
 import { TbRepeatOff, TbRepeatOnce } from "react-icons/tb";
 
 export default function MusicPlayer() {
@@ -56,9 +54,11 @@ export default function MusicPlayer() {
       }}
       transition={{ duration: 0.35, ease: "easeInOut" }}
       className="
-    fixed top-16 -right-58 -translate-x-1/2
-    w-[520px]
-    px-6 py-4
+    fixed top-[4.5rem] left-1/2 -translate-x-1/2
+    md:top-16 md:left-auto md:right-4 md:translate-x-0
+    lg:right-6
+    w-[min(95vw,34rem)] md:w-[520px]
+    px-3 sm:px-4 md:px-6 py-3 md:py-4
     rounded-2xl
     bg-linear-to-br from-[#0b1a24]/95 to-[#071118]/95
     backdrop-blur-xl
@@ -68,7 +68,7 @@ export default function MusicPlayer() {
   "
     >
       {/* TOP SECTION */}
-      <div className="flex items-center justify-between w-full gap-6">
+      <div className="flex items-center justify-between w-full gap-3 sm:gap-4 md:gap-6">
         {/* Song Info (skeleton OR real data) */}
         <AnimatePresence mode="wait">
           {!isLoadingTrack ? (
@@ -78,16 +78,17 @@ export default function MusicPlayer() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.4 }}
-              className="flex items-center gap-3 min-w-0"
+              className="flex items-center gap-2 sm:gap-3 min-w-0"
             >
               {currentTrack.cover && (
                 <img
                   src={currentTrack.cover}
-                  className="w-12 h-12 rounded-md object-cover shadow-md"
+                  alt={currentTrack.title ?? "Album cover"}
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-md object-cover shadow-md"
                 />
               )}
 
-              <div className="flex flex-col min-w-0 max-w-[150px] leading-tight gap-1.5">
+              <div className="flex flex-col min-w-0 max-w-[100px] sm:max-w-[130px] md:max-w-[150px] leading-tight gap-1 sm:gap-1.5">
                 <MarqueeText
                   text={currentTrack.title ?? ""}
                   className="text-xs font-semibold"
@@ -111,9 +112,9 @@ export default function MusicPlayer() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="flex items-center gap-3 min-w-0 animate-pulse"
+              className="flex items-center gap-2 sm:gap-3 min-w-0 animate-pulse"
             >
-              <div className="w-12 h-12 bg-zinc-700/60 rounded-md" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-700/60 rounded-md" />
 
               <div className="flex flex-col gap-2">
                 <div className="w-32 h-3 bg-zinc-700/60 rounded" />
@@ -124,43 +125,43 @@ export default function MusicPlayer() {
         </AnimatePresence>
 
         {/* CONTROLS */}
-        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
           <button
             onClick={playPrev}
             className="text-zinc-500 hover:text-cyan-400 transition"
           >
-            <MdSkipPrevious size={24} />
+              <MdSkipPrevious size={20} />
           </button>
 
           <button
             onClick={togglePlay}
             className="
-              p-3 rounded-full
+              p-2.5 sm:p-3 rounded-full
               bg-cyan-400 text-black
               hover:bg-cyan-300
               transition-all duration-300
               shadow-[0_0_20px_rgba(34,211,238,0.35)]
             "
           >
-            {isPlaying ? <FaPause size={16} /> : <FaPlay size={16} />}
+            {isPlaying ? <FaPause size={14} /> : <FaPlay size={14} />}
           </button>
 
           <button
             onClick={playNext}
             className="text-zinc-500 hover:text-cyan-400 transition"
           >
-            <MdSkipNext size={24} />
+              <MdSkipNext size={20} />
           </button>
         </div>
 
         {/* VOLUME + REPEAT */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2">
             <HiVolumeUp size={16} className="text-zinc-500" />
 
             <div
               ref={volumeRef}
-              className="relative w-20 h-1.5 bg-[#0f2532] rounded-full cursor-pointer"
+              className="relative w-14 sm:w-[4.5rem] md:w-20 h-1.5 bg-[#0f2532] rounded-full cursor-pointer"
               onMouseDown={(e) => {
                 handleVolumeChange(e.clientX);
 
@@ -198,9 +199,9 @@ export default function MusicPlayer() {
             layout
             whileTap={{ scale: 0.8 }}
             onClick={toggleRepeat}
-            className={`
+              className={`
               flex items-center justify-center
-              w-9 h-9 rounded-xl
+              w-8 h-8 sm:w-9 sm:h-9 rounded-xl
               transition-all duration-300 cursor-pointer
               ${
                 isRepeating

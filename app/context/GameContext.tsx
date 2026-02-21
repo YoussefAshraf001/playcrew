@@ -15,27 +15,54 @@ type Game = {
   status?: string;
 };
 
-const GameContext = createContext<Game[]>([]);
+type GameContextValue = {
+  games: Game[];
+  gamesLoading: boolean;
+};
+
+const GameContext = createContext<GameContextValue>({
+  games: [],
+  gamesLoading: true,
+});
 
 export const useGames = () => useContext(GameContext);
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser();
   const [games, setGames] = useState<Game[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
+  const uid = user?.uid as string | undefined;
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) {
+      setGames([]);
+      setGamesLoading(false);
+      return;
+    }
 
-    const ref = collection(db, "users", user.uid, "games_igdb");
+    setGamesLoading(true);
+    const ref = collection(db, "users", uid, "games_igdb");
 
-    const unsub = onSnapshot(ref, (snap) => {
-      const list: Game[] = [];
-      snap.forEach((doc) => list.push({ id: doc.id, ...(doc.data() as any) }));
-      setGames(list);
-    });
+    const unsub = onSnapshot(
+      ref,
+      (snap) => {
+        const list: Game[] = [];
+        snap.forEach((doc) => list.push({ id: doc.id, ...(doc.data() as any) }));
+        setGames(list);
+        setGamesLoading(false);
+      },
+      () => {
+        setGames([]);
+        setGamesLoading(false);
+      },
+    );
 
     return () => unsub();
-  }, [user]);
+  }, [uid]);
 
-  return <GameContext.Provider value={games}>{children}</GameContext.Provider>;
+  return (
+    <GameContext.Provider value={{ games, gamesLoading }}>
+      {children}
+    </GameContext.Provider>
+  );
 }

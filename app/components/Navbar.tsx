@@ -294,7 +294,7 @@ import {
 } from "react-icons/fa";
 import { GiGamepad } from "react-icons/gi";
 import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import ConfirmModal from "./ConfirmModal";
 import { GiTrophiesShelf } from "react-icons/gi";
 import SearchModal from "./SearchModal";
@@ -303,6 +303,7 @@ import { useGames } from "@/app/context/GameContext";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthModal } from "../context/AuthModalContext";
 import { CiLogin } from "react-icons/ci";
+import { useUI } from "../context/UIContext";
 
 export default function Navbar() {
   const router = useRouter();
@@ -310,9 +311,10 @@ export default function Navbar() {
 
   const isDashboard = pathname.includes("/dashboard");
   const { open } = useAuthModal();
+  const { startRouteLoading } = useUI();
   const { profile, user, loading } = useUser();
 
-  const games = useGames();
+  const { games } = useGames();
 
   const newUserImage = user?.photoURL;
   const [avatarLoaded, setAvatarLoaded] = useState(false);
@@ -342,30 +344,9 @@ export default function Navbar() {
   const handleLogout = async () => {
     if (!user) return;
     await auth.signOut();
+    startRouteLoading();
     router.push("/dashboard");
   };
-
-  const now = new Date();
-
-  const monthGames = useMemo(() => {
-    return games
-      .map((g) => {
-        const d = g.igdb?.releaseDate;
-        if (!d) return null;
-
-        const date =
-          d?.toDate?.() ??
-          (typeof d === "number" ? new Date(d * 1000) : new Date(d));
-
-        return { ...g, date };
-      })
-      .filter(
-        (g): g is typeof g & { date: Date } =>
-          !!g &&
-          g.date.getMonth() === now.getMonth() &&
-          g.date.getFullYear() === now.getFullYear(),
-      );
-  }, [games]);
 
   useEffect(() => {
     setAvatarLoaded(false);
@@ -380,24 +361,24 @@ export default function Navbar() {
       {!isDashboard && (
         <motion.nav
           className="
-  fixed top-0 left-6 right-6 z-50
+  fixed top-0 left-2 right-2 sm:left-4 sm:right-4 lg:left-6 lg:right-6 z-50
   bg-black/20 backdrop-blur-md
   border-b-3 border-cyan-600
   border-x
   shadow-xl
-  px-6 py-1
-  flex items-center justify-center lg:justify-between
+  px-2 sm:px-3 md:px-4 lg:px-6 py-1.5
+  flex items-center justify-between
   text-white
   transition-colors duration-300
   hover:bg-black/80
-  rounded-b-2xl
+  rounded-b-xl sm:rounded-b-2xl
 "
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
         >
           {/* LEFT: Logo */}
-          <div className="hidden lg:flex items-center">
+          <div className="hidden xl:flex items-center shrink-0">
             <Link href="/dashboard" className="flex items-center gap-2">
               <img src="/logo.png" alt="PlayCrew" className="w-11 h-8" />
               <span className="text-white text-2xl font-semibold uppercase tracking-wider">
@@ -406,7 +387,7 @@ export default function Navbar() {
             </Link>
           </div>
           {/* CENTER: Nav links */}
-          <div className="flex items-center gap-4">
+          <div className="flex-1 flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-4 overflow-x-auto max-w-full px-1">
             {navItems.map(({ href, icon: Icon, label, onClick }, index) => {
               const shiftRight =
                 hoveredIndex !== null && index > hoveredIndex ? 100 : 0;
@@ -423,16 +404,16 @@ export default function Navbar() {
                   {href ? (
                     <Link
                       href={href}
-                      className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer"
+                      className="w-9 h-9 sm:w-10 sm:h-10 md:w-10 md:h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer shrink-0"
                     >
-                      <Icon className="text-xl" />
+                      <Icon className="text-base sm:text-lg" />
                     </Link>
                   ) : (
                     <button
                       onClick={onClick}
-                      className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer"
+                      className="w-9 h-9 sm:w-10 sm:h-10 md:w-10 md:h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer shrink-0"
                     >
-                      <Icon className="text-xl" />
+                      <Icon className="text-base sm:text-lg" />
                     </button>
                   )}
 
@@ -447,7 +428,7 @@ export default function Navbar() {
                           stiffness: 200,
                           damping: 25,
                         }}
-                        className="absolute left-full top-1/2 -translate-y-1/2 bg-zinc-800 text-white text-sm px-3 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none z-50"
+                        className="absolute left-full top-1/2 -translate-y-1/2 bg-zinc-800 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none z-50"
                       >
                         {label}
                       </motion.span>
@@ -458,23 +439,25 @@ export default function Navbar() {
             })}
           </div>
           {/* RIGHT: Player + Account */}
-          <div className="hidden lg:flex items-center gap-4 relative">
-            <NotificationBell games={monthGames} />
+          <div className="ml-2 sm:ml-3 lg:ml-4 flex items-center gap-2 sm:gap-2.5 lg:gap-4 relative shrink-0">
+            <div className="hidden lg:block">
+              <NotificationBell games={games} />
+            </div>
 
             <motion.button
               onClick={togglePlayerVisible}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className={`flex items-center px-3 py-1 rounded-full font-semibold border border-zinc-600 cursor-pointer select-none transition-colors duration-300 ${
+              className={`w-9 h-9 sm:w-auto sm:h-auto flex items-center justify-center sm:px-2.5 lg:px-3 py-1 rounded-full font-semibold border border-zinc-600 cursor-pointer select-none transition-colors duration-300 ${
                 playerVisible
                   ? "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-[0_0_12px_rgba(0,255,255,0.5)]"
                   : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
               }`}
             >
               {playerVisible ? (
-                <MdMusicNote size={20} />
+                <MdMusicNote className="text-sm sm:text-base md:text-lg" />
               ) : (
-                <MdMusicOff size={20} />
+                <MdMusicOff className="text-sm sm:text-base md:text-lg" />
               )}
             </motion.button>
 
@@ -483,7 +466,7 @@ export default function Navbar() {
                 className="relative cursor-pointer"
                 onClick={() => setAccountOpen(!accountOpen)}
               >
-                <div className="relative w-8 h-8">
+                <div className="relative w-7 h-7 sm:w-8 sm:h-8">
                   {/* Skeleton */}
                   <div
                     className={`
@@ -499,7 +482,7 @@ export default function Navbar() {
                     alt="Profile"
                     onLoad={() => setAvatarLoaded(true)}
                     className={`
-      w-8 h-8 rounded-full object-cover cursor-pointer
+      w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover cursor-pointer
       border-2 border-zinc-700
       transition-opacity duration-300
       ${avatarLoaded ? "opacity-100" : "opacity-0"}
@@ -514,7 +497,7 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute right-0 mt-2 w-40 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50 flex flex-col"
+                      className="absolute right-0 top-full mt-2 w-36 sm:w-40 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50 flex flex-col text-sm"
                     >
                       <Link
                         href={`/profile/${profile.username}`}
@@ -533,18 +516,18 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
             ) : loading ? (
-              <div className="w-8 h-8 rounded-full border border-cyan-500 bg-zinc-700 animate-pulse" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-cyan-500 bg-zinc-700 animate-pulse" />
             ) : (
               // --- USER NOT LOGGED IN ---
-              <div className="flex items-center gap-3">
+              <div className="flex items-center">
                 <motion.button
                   onClick={() => setAccountOpen(!accountOpen)}
                   whileTap={{ scale: 0.95 }}
                   whileHover={{ scale: 1.05 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold bg-zinc-800 text-zinc-300 border border-zinc-600 hover:bg-zinc-700 cursor-pointer select-none"
+                  className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full font-semibold bg-zinc-800 text-zinc-300 border border-zinc-600 hover:bg-zinc-700 cursor-pointer select-none"
                 >
-                  <FaUser size={16} />
+                  <FaUser className="text-xs sm:text-sm" />
                 </motion.button>
 
                 {/* DROPDOWN */}
@@ -555,12 +538,7 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -5 }}
                       transition={{ duration: 0.15 }}
-                      className="
-    absolute right-[-24] mt-34 w-36
-    bg-zinc-900 border border-zinc-700
-    rounded-xl shadow-xl
-    overflow-hidden z-50 text-sm
-  "
+                      className="absolute right-0 top-full mt-2 w-32 sm:w-36 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50 text-sm"
                     >
                       <button
                         onClick={() => open("login")}
