@@ -71,8 +71,12 @@ const toDate = (value: unknown): Date | null => {
     return isNaN(parsed.getTime()) ? null : parsed;
   }
 
-  const parsed = new Date(value);
-  return isNaN(parsed.getTime()) ? null : parsed;
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
 };
 
 const dateKey = (d: Date) => {

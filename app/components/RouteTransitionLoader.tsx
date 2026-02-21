@@ -2,18 +2,17 @@
 
 import { useEffect } from "react";
 import { motion } from "framer-motion";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 import { useUI } from "@/app/context/UIContext";
 
 export default function RouteTransitionLoader() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { routeLoading, startRouteLoading, stopRouteLoading } = useUI();
 
   useEffect(() => {
     stopRouteLoading();
-  }, [pathname, searchParams, stopRouteLoading]);
+  }, [pathname, stopRouteLoading]);
 
   useEffect(() => {
     if (!routeLoading) return;
