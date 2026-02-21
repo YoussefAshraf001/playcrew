@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, setDoc } from "firebase/firestore";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
-import { IoMdTrophy } from "react-icons/io";
 import { toast } from "react-hot-toast";
 
 import { db } from "@/app/lib/firebase";
@@ -50,11 +49,8 @@ function Poster({
   alt: string;
   className?: string;
 }) {
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    setLoaded(false);
-  }, [src]);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const loaded = loadedSrc === src;
 
   return (
     <div
@@ -64,9 +60,10 @@ function Poster({
         <div className="absolute inset-0 animate-pulse bg-zinc-800" />
       )}
       <img
+        key={src}
         src={src}
         alt={alt}
-        onLoad={() => setLoaded(true)}
+        onLoad={() => setLoadedSrc(src)}
         className={`h-full w-full object-cover transition-opacity duration-500 ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
@@ -77,6 +74,8 @@ function Poster({
 
 export default function ShelfPage() {
   const { user, profile, loading: userLoading } = useUser();
+  const [showIntro, setShowIntro] = useState(true);
+  const [flickerOn, setFlickerOn] = useState(false);
 
   const initialShelf = useMemo(
     () => Object.fromEntries(CATEGORIES.map((c) => [c, null])) as ShelfMap,
@@ -87,6 +86,12 @@ export default function ShelfPage() {
     useState<ShelfMap>(initialShelf);
   const [modalOpen, setModalOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
+
+  useEffect(() => {
+    if (modalOpen || !currentCategory) return;
+    const id = window.setTimeout(() => setCurrentCategory(null), 220);
+    return () => window.clearTimeout(id);
+  }, [modalOpen, currentCategory]);
 
   useEffect(() => {
     if (!user) return;
@@ -121,6 +126,20 @@ export default function ShelfPage() {
 
     loadShelf();
   }, [user, initialShelf]);
+
+  useEffect(() => {
+    const timers = [
+      window.setTimeout(() => setFlickerOn(true), 1050),
+      window.setTimeout(() => setFlickerOn(false), 1150),
+      window.setTimeout(() => setFlickerOn(true), 1230),
+      window.setTimeout(() => setFlickerOn(false), 1300),
+      window.setTimeout(() => setFlickerOn(true), 1380),
+      window.setTimeout(() => setFlickerOn(false), 1460),
+      window.setTimeout(() => setShowIntro(false), 1800),
+    ];
+
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, []);
 
   const filledCount = useMemo(
     () => Object.values(gamesByCategory).filter(Boolean).length,
@@ -161,7 +180,6 @@ export default function ShelfPage() {
       toast.error("Failed to save game");
     } finally {
       setModalOpen(false);
-      setCurrentCategory(null);
     }
   };
 
@@ -201,14 +219,12 @@ export default function ShelfPage() {
         tabIndex={0}
         whileHover={{ y: -4 }}
         transition={{ duration: 0.2 }}
-        className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/70 text-left backdrop-blur-sm"
+        className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-[#05080d] text-left transition-all duration-300 hover:border-teal-300/55 hover:shadow-[0_0_0_1px_rgba(45,212,191,0.35),0_12px_30px_rgba(20,184,166,0.22)]"
       >
-        <div className="pointer-events-none absolute -inset-[1px] rounded-2xl bg-[conic-gradient(from_0deg,rgba(251,191,36,0),rgba(34,211,238,0.95),rgba(59,130,246,0.85),rgba(251,191,36,0.9),rgba(251,191,36,0))] opacity-0 blur-[1px] transition-opacity duration-300 group-hover:animate-[spin_2.2s_linear_infinite] group-hover:opacity-100" />
-        <div className="pointer-events-none absolute inset-[1px] rounded-2xl bg-zinc-950/92" />
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-amber-300/70 to-transparent opacity-60" />
+        <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-cyan-100/10 to-transparent -translate-x-[125%] transition-transform duration-700 group-hover:translate-x-[125%]" />
 
         <div className="relative z-10 flex min-h-[140px] items-center gap-4 p-4">
-          <div className="relative h-30 w-22 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
+          <div className="relative h-30 w-22 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900 transition-transform duration-300 group-hover:scale-[1.03]">
             {game ? (
               <Poster src={game.cover} alt={game.name} />
             ) : (
@@ -219,27 +235,27 @@ export default function ShelfPage() {
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs uppercase tracking-[0.16em] text-amber-200/85">
+            <p className="truncate text-xs uppercase tracking-[0.16em] text-teal-200/85">
               {category}
             </p>
             <p className="mt-2 line-clamp-2 text-base font-semibold text-white">
               {game ? game.name : "Select a nominee"}
             </p>
           </div>
-
-          {game && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeGame(category);
-              }}
-              className="h-7 w-7 shrink-0 rounded-full border border-red-300/35 bg-black/70 text-red-300 opacity-0 transition group-hover:opacity-100"
-              aria-label={`Remove ${category}`}
-            >
-              x
-            </button>
-          )}
         </div>
+
+        {game && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              removeGame(category);
+            }}
+            className="absolute right-3 top-3 z-20 h-7 w-7 rounded-full border border-red-300/35 bg-black/75 text-red-300 opacity-0 transition group-hover:opacity-100"
+            aria-label={`Remove ${category}`}
+          >
+            x
+          </button>
+        )}
       </motion.div>
     );
   };
@@ -260,34 +276,119 @@ export default function ShelfPage() {
       </Helmet>
 
       <main className="relative min-h-screen overflow-hidden bg-[#07060a] px-4 pb-8 pt-20 sm:px-6 lg:px-8 lg:pt-24">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_-10%,rgba(251,191,36,0.33),transparent_42%),radial-gradient(ellipse_at_0%_35%,rgba(245,158,11,0.14),transparent_42%),radial-gradient(ellipse_at_100%_35%,rgba(245,158,11,0.14),transparent_42%),linear-gradient(180deg,rgba(10,8,13,0.88),rgba(5,6,10,0.97))]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_-10%,rgba(45,212,191,0.3),transparent_42%),radial-gradient(ellipse_at_0%_35%,rgba(20,184,166,0.14),transparent_42%),radial-gradient(ellipse_at_100%_35%,rgba(6,182,212,0.14),transparent_42%),linear-gradient(180deg,rgba(7,10,14,0.9),rgba(4,7,10,0.98))]" />
         <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.02)_0px,rgba(255,255,255,0.02)_1px,transparent_1px,transparent_36px)] opacity-35" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_60%,transparent_28%,rgba(0,0,0,0.58)_100%)]" />
-        <div className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[960px] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,rgba(255,220,130,0.22),rgba(255,220,130,0.08)_46%,transparent_72%)] blur-2xl" />
+        <div className="pointer-events-none absolute left-1/2 top-0 h-[520px] w-[960px] -translate-x-1/2 bg-[radial-gradient(ellipse_at_center,rgba(94,234,212,0.2),rgba(56,189,248,0.08)_46%,transparent_72%)] blur-2xl" />
 
-        <section className="relative z-10 mx-auto flex w-full max-w-[1500px] flex-col gap-6">
-          <header className="overflow-hidden rounded-2xl border border-amber-300/20 bg-zinc-950/75 backdrop-blur-xl">
-            <div className="bg-linear-to-r from-amber-500/20 via-yellow-300/10 to-amber-500/20 px-5 py-2">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-amber-100/85">
+        <AnimatePresence>
+          {showIntro && (
+            <motion.div
+              key="shelf-intro"
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+              className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-black/72 backdrop-blur-[1.5px]"
+            >
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{
+                  opacity: flickerOn ? 0.75 : 0.08,
+                }}
+                transition={{ duration: 0.08 }}
+                className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.95),rgba(125,211,252,0.35)_22%,rgba(6,182,212,0.16)_40%,transparent_62%)]"
+              />
+              <motion.div
+                initial={{ opacity: 0, scaleY: 0.2 }}
+                animate={{
+                  opacity: flickerOn ? 0.5 : 0.02,
+                  scaleY: flickerOn ? 1 : 0.2,
+                }}
+                transition={{ duration: 0.08 }}
+                className="absolute left-1/2 top-[12%] h-[56%] w-[2px] -translate-x-1/2 bg-linear-to-b from-transparent via-cyan-100 to-transparent blur-[0.5px]"
+              />
+              <motion.div
+                initial={{ opacity: 0, scaleY: 0.2 }}
+                animate={{
+                  opacity: flickerOn ? 0.35 : 0.01,
+                  scaleY: flickerOn ? 1 : 0.2,
+                }}
+                transition={{ duration: 0.08, delay: 0.015 }}
+                className="absolute left-[47%] top-[16%] h-[42%] w-[1px] bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
+              />
+              <motion.div
+                initial={{ opacity: 0, scaleY: 0.2 }}
+                animate={{
+                  opacity: flickerOn ? 0.35 : 0.01,
+                  scaleY: flickerOn ? 1 : 0.2,
+                }}
+                transition={{ duration: 0.08, delay: 0.02 }}
+                className="absolute left-[53%] top-[18%] h-[40%] w-[1px] bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
+              />
+              <motion.img
+                src="/Award.png"
+                alt="Awards intro"
+                initial={{
+                  scale: 2.1,
+                  opacity: 0.2,
+                  filter: "brightness(0.75)",
+                }}
+                animate={{
+                  scale: 1,
+                  opacity: 1,
+                  filter: flickerOn
+                    ? "brightness(1.95) drop-shadow(0 0 42px rgba(125,211,252,0.95))"
+                    : "brightness(1.05) drop-shadow(0 0 28px rgba(45,212,191,0.55))",
+                }}
+                transition={{
+                  scale: { duration: 1.05, ease: [0.16, 1, 0.3, 1] },
+                  opacity: { duration: 0.55 },
+                  filter: { duration: 0.08 },
+                }}
+                className="w-[260px] sm:w-[340px] md:w-[430px] select-none"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.section
+          className="relative z-10 mx-auto flex w-full max-w-[1500px] flex-col gap-4 cursor-default"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: showIntro ? 0 : 1, y: showIntro ? 10 : 0 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+        >
+          <header className="overflow-hidden rounded-2xl border border-teal-300/20 bg-zinc-950/75 backdrop-blur-xl">
+            <div className="bg-linear-to-r from-teal-500/20 via-cyan-300/10 to-emerald-500/20 px-5 py-2">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-teal-100/85">
                 PlayCrew Awards
               </p>
             </div>
             <div className="flex flex-wrap items-end justify-between gap-4 p-5 sm:p-6">
               <div>
-                <h1 className="capitalize text-2xl font-bold text-white sm:text-3xl">
-                  {profile?.username ? `${profile.username}'s` : "My"} Hall of
-                  Fame
-                </h1>
-                <p className="mt-2 text-sm text-zinc-300">
-                  Pick winners across categories and build your personal game
-                  awards.
-                </p>
+                <div className="flex items-start gap-4">
+                  <img
+                    src="/Title-Award.png"
+                    alt="Hall of Fame award"
+                    className="mt-0.5 h-16 w-16 shrink-0 object-contain drop-shadow-[0_0_22px_rgba(45,212,191,0.52)] sm:h-20 sm:w-20"
+                  />
+                  <div>
+                    <h1 className="capitalize text-2xl font-bold text-white sm:text-3xl">
+                      {profile?.username ? `${profile.username}'s` : "My"} Hall
+                      of Fame
+                    </h1>
+                    <p className="mt-2 text-sm text-zinc-300">
+                      Pick winners across categories and build your personal
+                      game awards.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="rounded-xl border border-amber-200/20 bg-black/35 px-4 py-3 text-right">
+              <div className="rounded-xl border border-teal-200/20 bg-black/35 px-4 py-3 text-right">
                 <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
                   Locked In
                 </p>
-                <p className="text-2xl font-bold text-amber-300">
+                <p className="text-2xl font-bold text-teal-300">
                   {filledCount}
                   <span className="pl-1 text-zinc-500">
                     / {CATEGORIES.length}
@@ -301,13 +402,13 @@ export default function ShelfPage() {
             <motion.section
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              className="overflow-hidden rounded-2xl border border-amber-300/18 bg-zinc-950/75 backdrop-blur-xl"
+              className="overflow-hidden rounded-2xl border border-teal-300/18 bg-zinc-950/75 backdrop-blur-xl"
             >
               <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-amber-200/85">
+                <p className="text-xs uppercase tracking-[0.2em] text-teal-200/85">
                   Best of All Time
                 </p>
-                <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-[11px] text-amber-200">
+                <span className="rounded-full border border-teal-300/30 bg-teal-400/10 px-2.5 py-1 text-[11px] text-teal-200">
                   #1
                 </span>
               </div>
@@ -324,9 +425,9 @@ export default function ShelfPage() {
                 tabIndex={0}
                 className="group relative block w-full p-4"
               >
-                <div className="relative aspect-2/3 overflow-hidden rounded-2xl bg-black">
-                  <div className="pointer-events-none absolute -inset-[1px] rounded-2xl bg-[conic-gradient(from_0deg,rgba(251,191,36,0),rgba(34,211,238,0.95),rgba(99,102,241,0.88),rgba(251,191,36,0.9),rgba(251,191,36,0))] opacity-0 blur-[1px] transition-opacity duration-300 group-hover:animate-[spin_2s_linear_infinite] group-hover:opacity-100" />
-                  <div className="absolute inset-[1px] rounded-2xl border border-cyan-400/35 bg-black shadow-[0_0_0_1px_rgba(34,211,238,0.15)]">
+                <div className="relative aspect-2/3 overflow-hidden rounded-2xl border border-teal-400/30 bg-[#05080d] shadow-[0_0_0_1px_rgba(45,212,191,0.15)] transition-all duration-300 group-hover:border-teal-300/60 group-hover:shadow-[0_0_0_1px_rgba(45,212,191,0.35),0_14px_34px_rgba(20,184,166,0.28)]">
+                  <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-r from-transparent via-cyan-100/10 to-transparent -translate-x-[125%] transition-transform duration-700 group-hover:translate-x-[125%]" />
+                  <div className="absolute inset-0 rounded-2xl">
                     {bestCover ? (
                       <Poster
                         src={bestCover}
@@ -334,7 +435,11 @@ export default function ShelfPage() {
                       />
                     ) : (
                       <div className="flex h-full flex-col items-center justify-center text-zinc-400">
-                        <IoMdTrophy className="mb-2 text-4xl text-amber-300/80" />
+                        <img
+                          src="/Award.png"
+                          alt="Award trophy"
+                          className="mb-2 h-12 w-12 object-contain opacity-90"
+                        />
                         <span className="text-sm uppercase tracking-[0.18em]">
                           Choose Winner
                         </span>
@@ -380,9 +485,9 @@ export default function ShelfPage() {
               </div>
             </motion.section>
           </div>
-        </section>
+        </motion.section>
 
-        {modalOpen && currentCategory && (
+        {currentCategory && (
           <GamePickerModal
             modalOpen={modalOpen}
             setModalOpen={setModalOpen}

@@ -37,8 +37,6 @@ import { db, auth } from "@/app/lib/firebase";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import { useRouter } from "next/navigation";
-import CloudUploadAnimation from "@/app/components/CloudUploadAnimation";
-import { IoMdCloudUpload } from "react-icons/io";
 import { useUI } from "@/app/context/UIContext";
 
 /* ---------------- TYPES ---------------- */
@@ -62,6 +60,8 @@ type UserProfile = {
   wallpaper?: MediaValue;
 };
 
+type UploadKind = "avatar" | "wallpaper";
+
 /* ---------------- COMPONENT ---------------- */
 
 export default function EditProfilePage() {
@@ -70,7 +70,6 @@ export default function EditProfilePage() {
   const { startRouteLoading } = useUI();
 
   const [isSaving, setIsSaving] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   /* Auth States */
   const [currentPassword, setCurrentPassword] = useState("");
@@ -260,25 +259,79 @@ export default function EditProfilePage() {
       { duration: 4000 },
     );
 
-  const MAX_BASE64_SIZE = 900_000; // ~900 KB safe buffer
+  const uploadMediaToCloudinary = async (
+    media: MediaValue,
+    kind: UploadKind,
+  ): Promise<MediaValue> => {
+    try {
+      if (!media.data.startsWith("data:")) return media;
 
-  const isTooLarge = (media?: MediaValue) => {
-    if (!media) return false;
-    return media.data.length > MAX_BASE64_SIZE;
+      const publicId = `playcrew/users/${user!.uid}/${kind}`;
+
+      const signRes = await fetch("/api/cloudinary/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicId }),
+      });
+
+      if (!signRes.ok) {
+        throw new Error("Signature request failed");
+      }
+
+      const {
+        cloudName,
+        apiKey,
+        timestamp,
+        signature,
+        publicId: signedPublicId,
+      } = (await signRes.json()) as {
+        cloudName: string;
+        apiKey: string;
+        timestamp: number;
+        signature: string;
+        publicId: string;
+      };
+
+      const blob = await fetch(media.data).then((r) => r.blob());
+      const ext = (blob.type.split("/")[1] || "bin").split(";")[0];
+
+      const body = new FormData();
+      body.append("file", blob, `${kind}.${ext}`);
+      body.append("api_key", apiKey);
+      body.append("timestamp", String(timestamp));
+      body.append("signature", signature);
+      body.append("public_id", signedPublicId);
+      body.append("overwrite", "true");
+      body.append("invalidate", "true");
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: "POST",
+          body,
+        },
+      );
+
+      const uploadJson = (await uploadRes.json()) as {
+        secure_url?: string;
+        error?: { message?: string };
+      };
+
+      if (!uploadRes.ok || !uploadJson.secure_url) {
+        throw new Error(uploadJson.error?.message || "Upload failed");
+      }
+
+      return { ...media, data: uploadJson.secure_url };
+    } catch (error: unknown) {
+      const reason =
+        error instanceof Error ? error.message : "Unknown upload failure";
+      throw new Error(`Cloudinary: ${reason}`);
+    }
   };
 
   const saveProfile = async () => {
     if (!draft || !original) return;
-
-    const startFakeProgress = () => {
-      return setInterval(() => {
-        setUploadProgress((p) => (p < 90 ? p + 5 : p));
-      }, 200);
-    };
-
-    const progressTimer = startFakeProgress();
     setIsSaving(true);
-    setUploadProgress(5);
     const abortSave = (title: string, hint?: string) => {
       uiError(title, hint);
     };
@@ -408,7 +461,10 @@ export default function EditProfilePage() {
         }
 
         if (await isUsernameTaken(draft.username)) {
-          abortSave("Username unavailable", "Try adding numbers or underscores");
+          abortSave(
+            "Username unavailable",
+            "Try adding numbers or underscores",
+          );
 
           return;
         }
@@ -425,31 +481,22 @@ export default function EditProfilePage() {
       const wallpaperChanged =
         JSON.stringify(draft.wallpaper) !== JSON.stringify(original.wallpaper);
 
-      if (avatarChanged && isTooLarge(draft.avatar)) {
-        abortSave("Avatar image is too large", "Please use a smaller image");
-        return;
-      }
-
-      if (wallpaperChanged && isTooLarge(draft.wallpaper)) {
-        abortSave("Wallpaper image is too large", "Try reducing resolution");
-        return;
-      }
-
       if (avatarChanged) {
-        updates.avatar = draft.avatar ?? deleteField();
+        updates.avatar = draft.avatar
+          ? await uploadMediaToCloudinary(draft.avatar, "avatar")
+          : deleteField();
       }
 
       if (wallpaperChanged) {
-        updates.wallpaper = draft.wallpaper ?? deleteField();
+        updates.wallpaper = draft.wallpaper
+          ? await uploadMediaToCloudinary(draft.wallpaper, "wallpaper")
+          : deleteField();
       }
 
       if (Object.keys(updates).length > 0) {
         await updateDoc(doc(db, "users", user!.uid), updates);
         setProfile({ ...profile!, ...updates });
       }
-
-      // Finish progress
-      setUploadProgress(100);
 
       if (updates.username) {
         setChangingUsername(true);
@@ -469,23 +516,35 @@ export default function EditProfilePage() {
       setPasswordResetRequested(false);
       uiSuccess("Profile updated", "Your changes were saved successfully");
     } catch (err: any) {
-      const msg = err?.message ?? "";
+      console.error("Profile save failed:", err);
+      const msg = String(err?.message ?? "").toLowerCase();
+      const code = String(err?.code ?? "").toLowerCase();
+
+      if (msg.includes("cloudinary")) {
+        abortSave(
+          "Image upload failed",
+          "Cloudinary could not store your image. Please try again.",
+        );
+        return;
+      }
 
       if (
         msg.includes("exceeds the maximum size") ||
-        msg.includes("INVALID_ARGUMENT")
+        msg.includes("invalid_argument") ||
+        msg.includes("request entity too large") ||
+        msg.includes("payload too large") ||
+        code.includes("invalid-argument") ||
+        code.includes("resource-exhausted")
       ) {
         abortSave(
           "Image too large to save",
-          "Avatars and wallpapers must be under 1MB. Try cropping or resizing.",
+          "Firebase rejected the image size. Try cropping or resizing.",
         );
         return;
       }
 
       abortSave("Could not save changes", "Please try again in a moment");
     } finally {
-      clearInterval(progressTimer);
-      setUploadProgress(0);
       setIsSaving(false);
     }
   };
@@ -513,50 +572,59 @@ export default function EditProfilePage() {
       </Helmet>
 
       <motion.main
-        className="relative min-h-screen flex items-center justify-center overflow-hidden"
+        className="relative min-h-screen overflow-hidden bg-[#04070b] px-4 py-24 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
         {active?.wallpaper?.data && (
           <div
-            className="absolute inset-0 scale-110"
+            className="absolute inset-0 scale-110 opacity-45"
             style={{
               backgroundImage: `url(${active.wallpaper.data})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
-              filter: "blur(10px)",
+              filter: "blur(14px)",
             }}
           />
         )}
 
         <motion.div
-          className="relative z-10 w-full max-w-4xl bg-slate-900/90 backdrop-blur-xl rounded-3xl p-8 shadow-2xl space-y-8"
+          className="relative z-10 mx-auto w-full max-w-6xl rounded-[2rem] border border-cyan-300/15 bg-slate-900/20 p-4 shadow-[0_30px_110px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-6 lg:p-8"
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
         >
-          {/* Header */}
-          <div className="flex justify-between items-center">
-            <h1 className="text-white text-xl font-bold">Account Settings</h1>
+          <div className="mb-5 flex flex-col gap-4 border-b border-cyan-300/15 pb-5 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-300/80">
+                Profile Studio
+              </p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                Account Settings
+              </h1>
+              <p className="mt-1 text-sm text-zinc-300">
+                Customize your identity, security, and visuals in one place.
+              </p>
+            </div>
 
             {editing ? (
-              <div className="flex gap-2">
+              <div className="flex gap-2 self-start md:self-auto">
                 <button
                   onClick={saveProfile}
                   disabled={passwordInvalid}
-                  className={`px-4 py-1 rounded-full flex items-center gap-2 ${
+                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold ${
                     passwordInvalid
-                      ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                      : "bg-cyan-500 text-black"
-                  } cursor-pointer transition-all hover:bg-cyan-400 hover:-translate-y-1 duration-300`}
+                      ? "cursor-not-allowed bg-zinc-700 text-zinc-400"
+                      : "bg-cyan-400 text-black shadow-[0_10px_30px_rgba(34,211,238,0.35)]"
+                  } transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300`}
                 >
-                  <FiCheck size={21} />
+                  <FiCheck size={18} />
                   Save
                 </button>
 
                 <button
                   onClick={cancelEditing}
-                  className="bg-gray-700 px-4 py-1 rounded-full text-white flex items-center gap-2 cursor-pointer transition-all hover:bg-red-500 hover:-translate-y-1 duration-300"
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-500/85"
                 >
                   <FiX /> Cancel
                 </button>
@@ -564,33 +632,79 @@ export default function EditProfilePage() {
             ) : (
               <button
                 onClick={() => setEditing(true)}
-                className="bg-cyan-500 px-4 py-1 rounded-full text-black flex items-center gap-2 cursor-pointer transition-all hover:bg-cyan-400 hover:-translate-y-1 duration-300"
+                className="inline-flex items-center gap-2 self-start rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(34,211,238,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300 md:self-auto"
               >
                 <FiEdit2 /> Edit
               </button>
             )}
           </div>
 
-          {/* Avatar + Wallpaper */}
-          <div className="flex justify-evenly items-center">
-            <ImageOverlay
-              media={active?.avatar}
-              editing={editing}
-              rounded
-              onEdit={() => avatarInputRef.current?.click()}
-              onDelete={() =>
-                setDraft((p) => (p ? { ...p, avatar: undefined } : p))
-              }
-            />
+          <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr]">
+            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/45 p-4 sm:p-5">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/75">
+                Visual Identity
+              </p>
+              <div className="grid gap-4 sm:grid-cols-[170px_1fr] sm:items-start">
+                <ImageOverlay
+                  label="Avatar"
+                  media={active?.avatar}
+                  editing={editing}
+                  rounded
+                  onEdit={() => avatarInputRef.current?.click()}
+                  onDelete={() =>
+                    setDraft((p) => (p ? { ...p, avatar: undefined } : p))
+                  }
+                />
 
-            <ImageOverlay
-              media={active?.wallpaper}
-              editing={editing}
-              onEdit={() => wallpaperInputRef.current?.click()}
-              onDelete={() =>
-                setDraft((p) => (p ? { ...p, wallpaper: undefined } : p))
-              }
-            />
+                <ImageOverlay
+                  label="Wallpaper"
+                  media={active?.wallpaper}
+                  editing={editing}
+                  onEdit={() => wallpaperInputRef.current?.click()}
+                  onDelete={() =>
+                    setDraft((p) => (p ? { ...p, wallpaper: undefined } : p))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/45 p-4 sm:p-5">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/75">
+                Profile Details
+              </p>
+              <motion.div
+                className="grid gap-3 sm:grid-cols-2"
+                variants={fieldsContainerVariants}
+                initial="locked"
+                animate={editing ? "editable" : "locked"}
+              >
+                <AnimatedField
+                  label="Username"
+                  name="username"
+                  value={active?.username || ""}
+                  onChange={handleChange}
+                  disabled={!editing}
+                  maxLength={15}
+                />
+
+                <AnimatedField
+                  label="Email"
+                  name="email"
+                  value={user?.email}
+                  onChange={handleChange}
+                  disabled={!editing}
+                />
+              </motion.div>
+              <div className="mt-3">
+                <Textarea
+                  label="Bio"
+                  name="bio"
+                  value={active?.bio || ""}
+                  onChange={handleChange}
+                  disabled={!editing}
+                />
+              </div>
+            </div>
           </div>
 
           <input
@@ -612,47 +726,13 @@ export default function EditProfilePage() {
             }
           />
 
-          {/* Fields */}
-          <motion.div
-            className="grid grid-cols-2 gap-4"
-            variants={fieldsContainerVariants}
-            initial="locked"
-            animate={editing ? "editable" : "locked"}
-          >
-            <AnimatedField
-              label="Username"
-              name="username"
-              value={active?.username || ""}
-              onChange={handleChange}
-              disabled={!editing}
-              maxLength={15}
-            />
-
-            <AnimatedField
-              label="Email"
-              name="email"
-              value={user?.email}
-              onChange={handleChange}
-              disabled={!editing}
-            />
-          </motion.div>
-
-          <Textarea
-            label="Bio"
-            name="bio"
-            value={active?.bio || ""}
-            onChange={handleChange}
-            disabled={!editing}
-          />
-
-          {/* Security */}
-          <div className="border-t border-slate-700 pt-6 space-y-4">
-            <h2 className="text-white font-semibold mb-6">
-              Privact & Security
+          <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-slate-950/45 p-4 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-white">
+              Privacy & Security
             </h2>
 
             <motion.div
-              className="grid grid-cols-2 gap-4"
+              className="grid gap-3 sm:grid-cols-2"
               variants={fieldsContainerVariants}
               initial="locked"
               animate={editing ? "editable" : "locked"}
@@ -680,7 +760,7 @@ export default function EditProfilePage() {
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="text-sm text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition"
+                className="mt-3 text-sm text-cyan-300 underline underline-offset-2 transition hover:text-cyan-200"
               >
                 Forgot your password?
               </button>
@@ -751,7 +831,7 @@ export default function EditProfilePage() {
                 exit={{ opacity: 0 }}
               >
                 <motion.div
-                  className="flex flex-col items-center gap-4 text-white"
+                  className="flex flex-col items-center gap-4 rounded-2xl border border-cyan-300/25 bg-slate-900/70 px-8 py-7 text-white shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
                   initial={{ scale: 0.9 }}
                   animate={{ scale: 1 }}
                 >
@@ -763,7 +843,6 @@ export default function EditProfilePage() {
               </motion.div>
             ))}
         </AnimatePresence>
-
       </motion.main>
     </>
   );
@@ -772,12 +851,14 @@ export default function EditProfilePage() {
 /* ---------------- UI COMPONENTS ---------------- */
 
 function ImageOverlay({
+  label,
   media,
   editing,
   rounded,
   onEdit,
   onDelete,
 }: {
+  label: string;
   media?: MediaValue;
   editing: boolean;
   rounded?: boolean;
@@ -789,14 +870,20 @@ function ImageOverlay({
   return (
     <div
       className={`relative group ${
-        rounded ? "w-37 h-37 rounded-2xl" : "w-80 h-36 rounded-lg"
-      } overflow-hidden border-3 border-cyan-500 bg-slate-800`}
+        rounded
+          ? "h-40 w-40 rounded-2xl sm:h-[170px] sm:w-[170px]"
+          : "h-40 w-full rounded-2xl"
+      } overflow-hidden border border-cyan-300/35 bg-slate-800/70 shadow-[0_8px_30px_rgba(0,0,0,0.35)]`}
     >
+      <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md border border-cyan-300/35 bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
+        {label}
+      </span>
       {/* IMAGE OR PLACEHOLDER */}
       {media ? (
         media.type === "gif" ? (
           <img
             src={media.data}
+            alt={`${label} gif`}
             style={{
               transform: `
           translate(${media.crop.x}px, ${media.crop.y}px)
@@ -806,7 +893,11 @@ function ImageOverlay({
             className="w-full h-full object-cover"
           />
         ) : (
-          <img src={media.data} className="w-full h-full object-cover" />
+          <img
+            src={media.data}
+            alt={label}
+            className="w-full h-full object-cover"
+          />
         )
       ) : (
         <div className="w-full h-full flex items-center justify-center text-slate-500">
@@ -832,12 +923,12 @@ function ImageOverlay({
                 onEdit();
               }}
               className="
-                w-9 h-9
+                h-10 w-10
                 rounded-full
-                bg-cyan-500 hover:bg-cyan-400
+                bg-cyan-400 hover:bg-cyan-300
                 text-black
                 flex items-center justify-center
-                cursor-pointer transition-all hover:-translate-y-1 duration-300
+                cursor-pointer transition-all hover:-translate-y-0.5 duration-300
               "
               title={hasImage ? "Change image" : "Add image"}
             >
@@ -853,12 +944,12 @@ function ImageOverlay({
                   onDelete();
                 }}
                 className="
-                  w-9 h-9
+                  h-10 w-10
                   rounded-full
                   bg-red-500 hover:bg-red-400
                   text-black
                   flex items-center justify-center
-                  cursor-pointer transition-all hover:-translate-y-1 duration-300
+                  cursor-pointer transition-all hover:-translate-y-0.5 duration-300
                 "
                 title="Delete image"
               >
@@ -904,15 +995,17 @@ function AnimatedField(props: any) {
       initial={false}
       animate={disabled ? "locked" : "editable"}
     >
-      <label className="text-gray-400 text-sm mb-1 block">{props.label}</label>
+      <label className="mb-1 block text-xs font-medium uppercase tracking-[0.1em] text-zinc-400">
+        {props.label}
+      </label>
 
       <input
         {...props}
         disabled={disabled}
-        className={`w-full rounded px-3 py-2 transition-colors duration-300 ${
+        className={`w-full rounded-xl px-3 py-2.5 text-sm transition-colors duration-300 ${
           disabled
-            ? "bg-slate-900 border border-slate-800 text-gray-400"
-            : "bg-slate-800 border border-cyan-400 text-white focus:ring-1 focus:ring-cyan-400"
+            ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
+            : "border border-cyan-300/45 bg-slate-800 text-white focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
         }`}
       />
     </motion.div>
@@ -922,15 +1015,17 @@ function AnimatedField(props: any) {
 function Textarea({ label, disabled, ...props }: any) {
   return (
     <div>
-      <label className="text-gray-400 text-sm mb-1 block">{label}</label>
+      <label className="mb-1 block text-xs font-medium uppercase tracking-[0.1em] text-zinc-400">
+        {label}
+      </label>
       <textarea
         {...props}
         disabled={disabled}
         rows={3}
-        className={`w-full rounded px-3 py-2 resize-none ${
+        className={`w-full resize-none rounded-xl px-3 py-2.5 text-sm ${
           disabled
-            ? "bg-slate-900 border border-slate-800 text-gray-400"
-            : "bg-slate-800 border border-slate-600 text-white focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
+            ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
+            : "border border-cyan-300/45 bg-slate-800 text-white focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
         }`}
       />
     </div>
@@ -958,7 +1053,9 @@ function AnimatedPasswordField({
       initial={false}
       animate={disabled ? "locked" : "editable"}
     >
-      <label className="text-gray-400 text-sm mb-1 block">{label}</label>
+      <label className="mb-1 block text-xs font-medium uppercase tracking-[0.1em] text-zinc-400">
+        {label}
+      </label>
 
       <div className="relative">
         <input
@@ -966,10 +1063,10 @@ function AnimatedPasswordField({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded px-3 py-2 pr-10 transition-colors duration-300 ${
+          className={`w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition-colors duration-300 ${
             disabled
-              ? "bg-slate-900 border border-slate-800 text-gray-400 cursor-not-allowed"
-              : "bg-slate-800 border border-cyan-400 text-white focus:ring-1 focus:ring-cyan-400"
+              ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
+              : "border border-cyan-300/45 bg-slate-800 text-white focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
           }`}
         />
 
@@ -978,7 +1075,7 @@ function AnimatedPasswordField({
           <button
             type="button"
             onClick={toggle}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-cyan-400 cursor-pointer ease-in-out duration-300 transition-all"
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 transition-all duration-300 ease-in-out hover:text-cyan-300"
           >
             {show ? <FiEyeOff /> : <FiEye />}
           </button>
@@ -1011,18 +1108,18 @@ function CropModal({
 }) {
   return (
     <motion.div
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-slate-900 p-4 rounded-lg w-full max-w-xl space-y-4"
+        className="w-full max-w-2xl space-y-4 rounded-2xl border border-cyan-300/25 bg-slate-900/95 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.65)]"
         initial={{ scale: 0.9 }}
         animate={{ scale: 1 }}
         exit={{ scale: 0.9 }}
       >
-        <div className="relative h-80">
+        <div className="relative h-80 overflow-hidden rounded-xl border border-cyan-300/20">
           <Cropper
             image={URL.createObjectURL(file)}
             crop={crop}
@@ -1034,7 +1131,7 @@ function CropModal({
           />
         </div>
         <input
-          className="w-full"
+          className="w-full accent-cyan-300"
           type="range"
           min={1}
           max={3}
@@ -1045,13 +1142,13 @@ function CropModal({
         <div className="flex justify-end gap-2">
           <button
             onClick={onSave}
-            className="bg-cyan-500 px-4 py-1 rounded text-black"
+            className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300"
           >
             Save
           </button>
           <button
             onClick={onCancel}
-            className="bg-red-500 px-4 py-1 rounded text-black"
+            className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-600"
           >
             Cancel
           </button>

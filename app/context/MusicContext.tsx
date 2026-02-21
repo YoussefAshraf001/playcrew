@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import toast from "react-hot-toast";
 import { parseBlob } from "music-metadata-browser";
+import { usePathname } from "next/navigation";
 
 /* ───────────────── TYPES ───────────────── */
 
@@ -43,10 +44,13 @@ interface MusicContextType {
 
   playerVisible: boolean;
   togglePlayerVisible: () => void;
+  closePlayer: () => void;
   playerRef: React.RefObject<HTMLDivElement | null>;
 
   isRepeating: boolean;
   toggleRepeat: () => void;
+  isShuffling: boolean;
+  toggleShuffle: () => void;
 
   isLoadingTrack: boolean;
 }
@@ -57,17 +61,23 @@ const MusicContext = createContext<MusicContextType | undefined>(undefined);
 
 const STATE_KEY = "music-state";
 const WAS_LISTENING_KEY = "music-was-listening";
+const AUTO_RESUME_SILENT_KEY = "music-auto-resume-silent";
+const SHUFFLE_KEY = "music-shuffle";
 
 /* ───────────────── PROVIDER ───────────────── */
 
 export function MusicProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playerRef = useRef<HTMLDivElement | null>(null);
 
   const hydratedRef = useRef(false);
   const repeatRef = useRef(false);
+  const shuffleRef = useRef(false);
+  const shuffleHistoryRef = useRef<number[]>([]);
   const askedRef = useRef(false);
   const wasListeningRef = useRef(false);
+  const tracksLengthRef = useRef(0);
 
   /** These two refs are the heart of the fix */
   const shouldRestoreTimeRef = useRef(true);
@@ -85,6 +95,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
 
   const [playerVisible, setPlayerVisible] = useState(false);
   const [isRepeating, setIsRepeating] = useState(false);
+  const [isShuffling, setIsShuffling] = useState(false);
   const [isLoadingTrack, setIsLoadingTrack] = useState(false);
 
   /* ───────────────── SESSION RESTORE ───────────────── */
@@ -97,6 +108,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     const v = localStorage.getItem("music-volume");
     const vis = localStorage.getItem("music-visible");
     const r = localStorage.getItem("music-repeat");
+    const s = localStorage.getItem(SHUFFLE_KEY);
 
     if (p !== null) setIsPlaying(p === "true");
     if (v) setVolume(Number(v));
@@ -106,6 +118,12 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       const rr = r === "true";
       setIsRepeating(rr);
       repeatRef.current = rr;
+    }
+
+    if (s) {
+      const ss = s === "true";
+      setIsShuffling(ss);
+      shuffleRef.current = ss;
     }
 
     hydratedRef.current = true;
@@ -128,6 +146,12 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem("music-repeat", String(isRepeating));
   }, [isRepeating]);
+
+  useEffect(() => {
+    localStorage.setItem(SHUFFLE_KEY, String(isShuffling));
+    shuffleRef.current = isShuffling;
+    if (!isShuffling) shuffleHistoryRef.current = [];
+  }, [isShuffling]);
 
   /* ───────────────── LOAD TRACK LIST ───────────────── */
 
@@ -154,6 +178,10 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     () => tracks[trackIndex] ?? null,
     [tracks, trackIndex],
   );
+
+  useEffect(() => {
+    tracksLengthRef.current = tracks.length;
+  }, [tracks.length]);
 
   /* ───────────────── AUDIO SETUP ───────────────── */
 
@@ -192,7 +220,20 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         if (repeatRef.current) {
           audio!.play().catch(() => {});
         } else {
-          setTrackIndex((i) => (i + 1) % tracks.length);
+          setTrackIndex((i) => {
+            const total = tracksLengthRef.current;
+            if (total === 0) return i;
+
+            if (shuffleRef.current) {
+              shuffleHistoryRef.current.push(i);
+              if (total === 1) return i;
+              let next = i;
+              while (next === i) next = Math.floor(Math.random() * total);
+              return next;
+            }
+
+            return (i + 1) % total;
+          });
         }
       });
 
@@ -299,47 +340,94 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     if (isActuallyPlaying) return;
     if (askedRef.current) return;
 
+    const shouldAutoResumeSilently =
+      localStorage.getItem(AUTO_RESUME_SILENT_KEY) === "true";
+
+    if (shouldAutoResumeSilently) {
+      askedRef.current = true;
+      setTimeout(() => {
+        resumeFromGesture();
+      }, 0);
+      return;
+    }
+
+    const TOAST_DURATION_MS = 5000;
     askedRef.current = true;
+    let dontShowAgain = false;
+
+    const handleResume = (toastId: string) => {
+      if (dontShowAgain) {
+        localStorage.setItem(AUTO_RESUME_SILENT_KEY, "true");
+      }
+      toast.remove(toastId);
+      resumeFromGesture();
+    };
+
+    const handleDismiss = (toastId: string) => {
+      localStorage.setItem(WAS_LISTENING_KEY, "false");
+      toast.remove(toastId);
+    };
 
     toast.custom(
       (t) => (
-        <div className="bg-zinc-900 text-white px-4 py-3 rounded-xl border border-cyan-400/30 shadow-lg">
-          <p className="text-sm mb-3">
-            Continue playing <strong>{currentTrack.title}</strong>?
-          </p>
-
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => {
-                resumeFromGesture();
-                toast.dismiss(t.id);
-              }}
-              className="px-3 py-1.5 rounded-md bg-cyan-500 text-black font-semibold"
-            >
-              Yes
-            </button>
-
-            <button
-              onClick={() => {
-                localStorage.setItem(WAS_LISTENING_KEY, "false");
-                toast.dismiss(t.id);
-              }}
-              className="px-3 py-1.5 rounded-md bg-zinc-700"
-            >
-              No
-            </button>
+        <div className="w-[min(95vw,28rem)] overflow-hidden rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#07101a]/95 via-[#0a1420]/95 to-[#081927]/95 text-white shadow-[0_22px_65px_rgba(0,0,0,0.65)] backdrop-blur-xl">
+          <div className="px-5 pt-4 pb-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-300/80">
+              Resume Playback
+            </p>
+            <p className="mt-1.5 text-sm leading-snug text-zinc-100">
+              Continue listening to{" "}
+              <strong className="text-cyan-200">{currentTrack.title}</strong>?
+            </p>
           </div>
 
-          {/* Progress bar */}
-          <div className="h-1 w-full bg-zinc-700 rounded overflow-hidden">
+          <div className="px-5 pb-4">
+            <label className="mb-3 flex items-center gap-2 text-[11px] text-zinc-300">
+              <input
+                type="checkbox"
+                onChange={(e) => {
+                  dontShowAgain = e.target.checked;
+                }}
+                className="h-3.5 w-3.5 rounded border-cyan-300/60 accent-cyan-400"
+              />
+              Don&apos;t show again
+            </label>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handleDismiss(t.id);
+                }}
+                className="rounded-lg border border-zinc-600 bg-zinc-800/80 px-3 py-2 text-xs font-medium text-zinc-100 transition hover:bg-zinc-700"
+              >
+                Not now
+              </button>
+              <button
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handleResume(t.id);
+                }}
+                className="rounded-lg bg-cyan-400 px-3 py-2 text-xs font-semibold text-black transition hover:bg-cyan-300"
+              >
+                Resume
+              </button>
+            </div>
+          </div>
+
+          <div className="h-1.5 w-full bg-zinc-800/90">
             <div
-              className="h-full bg-cyan-400 animate-toast-progress"
-              style={{ animationDuration: "4000ms" }}
+              className="h-full bg-linear-to-r from-cyan-300 via-cyan-400 to-sky-300 animate-toast-progress"
+              style={{ animationDuration: `${TOAST_DURATION_MS}ms` }}
             />
           </div>
         </div>
       ),
-      { duration: Infinity },
+      {
+        duration: TOAST_DURATION_MS,
+        removeDelay: 0,
+        position: "top-center",
+      },
     );
   }, [currentTrack, isActuallyPlaying, resumeFromGesture]);
 
@@ -366,13 +454,36 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const playNext = () => {
     shouldRestoreTimeRef.current = false;
     shouldAutoplayNextRef.current = true;
-    setTrackIndex((i) => (i + 1) % tracks.length);
+    setTrackIndex((i) => {
+      const total = tracks.length;
+      if (total === 0) return i;
+
+      if (shuffleRef.current) {
+        shuffleHistoryRef.current.push(i);
+        if (total === 1) return i;
+        let next = i;
+        while (next === i) next = Math.floor(Math.random() * total);
+        return next;
+      }
+
+      return (i + 1) % total;
+    });
   };
 
   const playPrev = () => {
     shouldRestoreTimeRef.current = false;
     shouldAutoplayNextRef.current = true;
-    setTrackIndex((i) => (i - 1 + tracks.length) % tracks.length);
+    setTrackIndex((i) => {
+      const total = tracks.length;
+      if (total === 0) return i;
+
+      if (shuffleRef.current) {
+        const prev = shuffleHistoryRef.current.pop();
+        return typeof prev === "number" ? prev : i;
+      }
+
+      return (i - 1 + total) % total;
+    });
   };
 
   const seek = (t: number) => {
@@ -387,8 +498,17 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       return !r;
     });
   };
+  const toggleShuffle = () => setIsShuffling((s) => !s);
 
   const togglePlayerVisible = () => setPlayerVisible((v) => !v);
+  const closePlayer = () => setPlayerVisible(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setPlayerVisible(false);
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [pathname]);
 
   return (
     <MusicContext.Provider
@@ -408,9 +528,12 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         setVolume,
         playerVisible,
         togglePlayerVisible,
+        closePlayer,
         playerRef,
         isRepeating,
         toggleRepeat,
+        isShuffling,
+        toggleShuffle,
         isLoadingTrack,
       }}
     >

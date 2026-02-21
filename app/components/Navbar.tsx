@@ -319,7 +319,7 @@ export default function Navbar() {
   const newUserImage = user?.photoURL;
   const [avatarLoaded, setAvatarLoaded] = useState(false);
 
-  const { playerVisible, togglePlayerVisible } = useMusic();
+  const { playerVisible, togglePlayerVisible, closePlayer } = useMusic();
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -464,7 +464,13 @@ export default function Navbar() {
             {profile ? (
               <div
                 className="relative cursor-pointer"
-                onClick={() => setAccountOpen(!accountOpen)}
+                onClick={() =>
+                  setAccountOpen((prev) => {
+                    const next = !prev;
+                    if (next) closePlayer();
+                    return next;
+                  })
+                }
               >
                 <div className="relative w-7 h-7 sm:w-8 sm:h-8">
                   {/* Skeleton */}
@@ -521,7 +527,13 @@ export default function Navbar() {
               // --- USER NOT LOGGED IN ---
               <div className="flex items-center">
                 <motion.button
-                  onClick={() => setAccountOpen(!accountOpen)}
+                  onClick={() =>
+                    setAccountOpen((prev) => {
+                      const next = !prev;
+                      if (next) closePlayer();
+                      return next;
+                    })
+                  }
                   whileTap={{ scale: 0.95 }}
                   whileHover={{ scale: 1.05 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}

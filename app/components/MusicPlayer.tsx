@@ -3,10 +3,9 @@ import { useMusic } from "../context/MusicContext";
 import { MdSkipNext, MdSkipPrevious } from "react-icons/md";
 import { FaPause, FaPlay } from "react-icons/fa";
 import { HiVolumeUp } from "react-icons/hi";
-import MarqueeText from "./MarqueeText";
 import { useRef } from "react";
 import { useUI } from "../context/UIContext";
-import { TbRepeatOff, TbRepeatOnce } from "react-icons/tb";
+import { TbArrowsShuffle, TbRepeatOff, TbRepeatOnce } from "react-icons/tb";
 
 export default function MusicPlayer() {
   const {
@@ -24,11 +23,21 @@ export default function MusicPlayer() {
     setVolume,
     isRepeating,
     toggleRepeat,
+    isShuffling,
+    toggleShuffle,
     isLoadingTrack,
   } = useMusic();
 
   const { panelOpen } = useUI();
   const shouldShowPlayer = playerVisible && !panelOpen;
+  const formatTime = (t: number) => {
+    if (!Number.isFinite(t) || t < 0) return "0:00";
+    const mins = Math.floor(t / 60);
+    const secs = Math.floor(t % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
 
   const volumeRef = useRef<HTMLDivElement | null>(null);
 
@@ -53,22 +62,9 @@ export default function MusicPlayer() {
         pointerEvents: shouldShowPlayer ? "auto" : "none",
       }}
       transition={{ duration: 0.35, ease: "easeInOut" }}
-      className="
-    fixed top-[4.5rem] left-1/2 -translate-x-1/2
-    md:top-16 md:left-auto md:right-4 md:translate-x-0
-    lg:right-6
-    w-[min(95vw,34rem)] md:w-[520px]
-    px-3 sm:px-4 md:px-6 py-3 md:py-4
-    rounded-2xl
-    bg-linear-to-br from-[#0b1a24]/95 to-[#071118]/95
-    backdrop-blur-xl
-    border border-cyan-400/20
-    shadow-[0_15px_60px_rgba(0,0,0,0.6)]
-    z-50
-  "
+      className="fixed top-[4.5rem] left-1/2 z-50 w-[min(95vw,38rem)] -translate-x-1/2 rounded-2xl border border-white/10 bg-[#121212]/95 px-3 py-2.5 shadow-[0_16px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl md:left-auto md:right-4 md:top-16 md:w-[580px] md:translate-x-0 lg:right-6"
     >
-      {/* TOP SECTION */}
-      <div className="flex items-center justify-between w-full gap-3 sm:gap-4 md:gap-6">
+      <div className="grid w-full grid-cols-[170px_1fr_160px] items-center gap-2 sm:grid-cols-[190px_1fr_170px] md:grid-cols-[200px_1fr_180px]">
         {/* Song Info (skeleton OR real data) */}
         <AnimatePresence mode="wait">
           {!isLoadingTrack ? (
@@ -78,30 +74,27 @@ export default function MusicPlayer() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.4 }}
-              className="flex items-center gap-2 sm:gap-3 min-w-0"
+              className="flex min-w-0 items-center gap-2"
             >
-              {currentTrack.cover && (
+              {currentTrack.cover ? (
                 <img
                   src={currentTrack.cover}
                   alt={currentTrack.title ?? "Album cover"}
-                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-md object-cover shadow-md"
+                  className="h-10 w-10 shrink-0 rounded object-cover shadow-md"
                 />
+              ) : (
+                <div className="h-10 w-10 shrink-0 rounded bg-zinc-700/60" />
               )}
 
-              <div className="flex flex-col min-w-0 max-w-[100px] sm:max-w-[130px] md:max-w-[150px] leading-tight gap-1 sm:gap-1.5">
-                <MarqueeText
-                  text={currentTrack.title ?? ""}
-                  className="text-xs font-semibold"
-                />
-
-                <MarqueeText
-                  text={
-                    Array.isArray(currentTrack.artist)
-                      ? currentTrack.artist.join(", ")
-                      : (currentTrack.artist ?? "")
-                  }
-                  className="text-xs text-zinc-400"
-                />
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-semibold text-white">
+                  {currentTrack.title ?? ""}
+                </p>
+                <p className="truncate text-[11px] text-zinc-400">
+                  {Array.isArray(currentTrack.artist)
+                    ? currentTrack.artist.join(", ")
+                    : (currentTrack.artist ?? "")}
+                </p>
               </div>
             </motion.div>
           ) : (
@@ -112,56 +105,73 @@ export default function MusicPlayer() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
-              className="flex items-center gap-2 sm:gap-3 min-w-0 animate-pulse"
+              className="flex min-w-0 items-center gap-2 animate-pulse"
             >
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-zinc-700/60 rounded-md" />
+              <div className="h-10 w-10 rounded bg-zinc-700/60" />
 
-              <div className="flex flex-col gap-2">
-                <div className="w-32 h-3 bg-zinc-700/60 rounded" />
-                <div className="w-24 h-3 bg-zinc-700/50 rounded" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div className="h-3 w-full rounded bg-zinc-700/60" />
+                <div className="h-3 w-2/3 rounded bg-zinc-700/50" />
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* CONTROLS */}
-          <div className="flex items-center gap-2 sm:gap-3 md:gap-5">
+        <div className="flex items-center justify-center gap-2 sm:gap-3">
           <button
             onClick={playPrev}
-            className="text-zinc-500 hover:text-cyan-400 transition"
+            className="text-zinc-500 transition hover:text-white"
           >
-              <MdSkipPrevious size={20} />
+            <MdSkipPrevious size={19} />
           </button>
 
           <button
             onClick={togglePlay}
-            className="
-              p-2.5 sm:p-3 rounded-full
-              bg-cyan-400 text-black
-              hover:bg-cyan-300
-              transition-all duration-300
-              shadow-[0_0_20px_rgba(34,211,238,0.35)]
-            "
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1db954] text-black transition-all duration-300 hover:scale-105 hover:bg-[#1ed760]"
           >
-            {isPlaying ? <FaPause size={14} /> : <FaPlay size={14} />}
+            {isPlaying ? <FaPause size={13} /> : <FaPlay size={13} />}
           </button>
 
           <button
             onClick={playNext}
-            className="text-zinc-500 hover:text-cyan-400 transition"
+            className="text-zinc-500 transition hover:text-white"
           >
-              <MdSkipNext size={20} />
+            <MdSkipNext size={19} />
           </button>
         </div>
 
-        {/* VOLUME + REPEAT */}
-        <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-          <div className="flex items-center gap-2">
-            <HiVolumeUp size={16} className="text-zinc-500" />
+        <div className="flex items-center justify-end gap-2">
+          <motion.button
+            layout
+            whileTap={{ scale: 0.85 }}
+            onClick={toggleShuffle}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 ${
+              isShuffling
+                ? "bg-[#1db954] text-black"
+                : "border border-white/15 text-zinc-400 hover:text-white"
+            }`}
+          >
+            <TbArrowsShuffle size={16} />
+          </motion.button>
 
+          <motion.button
+            layout
+            whileTap={{ scale: 0.85 }}
+            onClick={toggleRepeat}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-300 ${
+              isRepeating
+                ? "bg-[#1db954] text-black"
+                : "border border-white/15 text-zinc-400 hover:text-white"
+            }`}
+          >
+            {isRepeating ? <TbRepeatOnce size={18} /> : <TbRepeatOff size={18} />}
+          </motion.button>
+
+          <div className="ml-1 flex items-center gap-2">
+            <HiVolumeUp size={15} className="text-zinc-500" />
             <div
               ref={volumeRef}
-              className="relative w-14 sm:w-[4.5rem] md:w-20 h-1.5 bg-[#0f2532] rounded-full cursor-pointer"
+              className="relative h-1.5 w-14 cursor-pointer rounded-full bg-white/15 sm:w-[4rem] md:w-[4.25rem]"
               onMouseDown={(e) => {
                 handleVolumeChange(e.clientX);
 
@@ -175,75 +185,44 @@ export default function MusicPlayer() {
                 window.addEventListener("mouseup", up);
               }}
             >
-              {/* Fill */}
               <div
-                className="absolute top-0 left-0 h-1.5 bg-cyan-400 rounded-full transition-none"
+                className="absolute left-0 top-0 h-1.5 rounded-full bg-[#1db954] transition-none"
                 style={{ width: `${volume * 100}%` }}
               />
-
-              {/* Knob */}
               <div
-                className="
-      absolute top-1/2 -translate-y-1/2
-      w-3 h-3 rounded-full
-      bg-cyan-400
-      shadow-[0_0_12px_rgba(34,211,238,0.7)]
-      transition-none
-    "
+                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-[#1db954] transition-none"
                 style={{ left: `calc(${volume * 100}% - 6px)` }}
               />
             </div>
           </div>
-
-          <motion.div
-            layout
-            whileTap={{ scale: 0.8 }}
-            onClick={toggleRepeat}
-              className={`
-              flex items-center justify-center
-              w-8 h-8 sm:w-9 sm:h-9 rounded-xl
-              transition-all duration-300 cursor-pointer
-              ${
-                isRepeating
-                  ? "bg-cyan-400 text-black shadow-[0_0_20px_rgba(34,211,238,0.4)]"
-                  : "border border-cyan-400/30 text-zinc-400 hover:text-cyan-400"
-              }
-            `}
-          >
-            {isRepeating ? (
-              <TbRepeatOnce size={18} />
-            ) : (
-              <TbRepeatOff size={18} />
-            )}
-          </motion.div>
         </div>
       </div>
 
-      {/* PROGRESS BAR */}
-      <div
-        className="
-          w-full h-2 mt-4
-          bg-[#0f2532]
-          rounded-full relative overflow-hidden cursor-pointer
-        "
-        onClick={(e) => {
-          if (isLoadingTrack) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const pct = (e.clientX - rect.left) / rect.width;
-          seek(pct * duration);
-        }}
-      >
+      <div className="mt-2 flex items-center gap-2 text-[10px] text-zinc-500">
+        <span className="w-8 text-right tabular-nums">{formatTime(progress)}</span>
         <div
-          className="h-2 rounded-full transition-all bg-cyan-400"
-          style={{
-            width: isLoadingTrack
-              ? "30%"
-              : duration
-                ? `${(progress / duration) * 100}%`
-                : "0%",
+          className="relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/15"
+          onClick={(e) => {
+            if (isLoadingTrack) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            seek(pct * duration);
           }}
-        />
+        >
+          <div
+            className="h-1.5 rounded-full bg-[#1db954] transition-all"
+            style={{
+              width: isLoadingTrack
+                ? "30%"
+                : duration
+                  ? `${(progress / duration) * 100}%`
+                  : "0%",
+            }}
+          />
+        </div>
+        <span className="w-8 tabular-nums">{formatTime(duration)}</span>
       </div>
+
     </motion.div>
   );
 }

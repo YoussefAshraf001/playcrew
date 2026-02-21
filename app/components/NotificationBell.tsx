@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "../context/UserContext";
+import { useMusic } from "../context/MusicContext";
 
 type Game = {
   id: string;
@@ -88,6 +89,7 @@ const dateKey = (d: Date) => {
 
 export default function NotificationBell({ games }: { games: Game[] }) {
   const { user } = useUser();
+  const { closePlayer } = useMusic();
   const uid = user?.uid as string | undefined;
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
@@ -277,7 +279,13 @@ export default function NotificationBell({ games }: { games: Game[] }) {
           open &&
           "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-[0_0_12px_rgba(0,255,255,0.5)]"
         }`}
-        onClick={() => setOpen((p) => !p)}
+        onClick={() =>
+          setOpen((p) => {
+            const next = !p;
+            if (next) closePlayer();
+            return next;
+          })
+        }
       >
         <button className="relative p-2 rounded-full">
           <BsBellFill size={14} />

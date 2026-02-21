@@ -110,7 +110,14 @@ export default function GamePickerModal({
     page * PAGE_SIZE,
   );
 
-  if (!modalOpen || !currentCategory) return null;
+  useEffect(() => {
+    if (modalOpen) {
+      setSearch("");
+      setPage(1);
+    }
+  }, [modalOpen]);
+
+  if (!currentCategory) return null;
 
   const pageVariants = {
     enter: (dir: "left" | "right") => ({
@@ -124,29 +131,23 @@ export default function GamePickerModal({
     }),
   };
 
-  useEffect(() => {
-    if (modalOpen) {
-      setSearch("");
-      setPage(1);
-    }
-  }, [modalOpen]);
-
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {modalOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-        >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.85, opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="bg-zinc-800 rounded-xl p-6 min-w-[320px] w-full max-w-[800px] h-[860px] flex flex-col"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
           >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="bg-zinc-800 rounded-xl p-6 min-w-[320px] w-full max-w-[800px] h-[860px] flex flex-col"
+            >
             <h3 className="text-xl font-bold text-white mb-4 text-center">
               {currentCategory === "Best of All Time" ? (
                 <p className="flex justify-center items-center gap-2">
