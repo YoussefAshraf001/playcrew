@@ -288,7 +288,7 @@ export default function Dashboard() {
             mt-20 sm:mt-24 md:mt-28
             px-4 sm:px-6 md:px-10 lg:px-16
             md:max-w-[640px]
-            lg:translate-x-[80px]
+            lg:translate-x-20
             xl:translate-x-[120px]
             ${playerVisible ? "pt-24 sm:pt-20 md:pt-0" : ""}
           `}
@@ -313,7 +313,7 @@ export default function Dashboard() {
                   sm:absolute sm:-top-16 sm:right-0
                   md:-top-16 md:-right-38
                   lg:-top-20 lg:-right-330
-                  ${playerVisible ? "md:translate-y-33 lg:translate-y-38 lg:translate-x-10" : "md:translate-y-0 lg:translate-y-0"}
+                  ${playerVisible ? "md:translate-y-18 lg:translate-y-21 lg:translate-x-10" : "md:translate-y-0 lg:translate-y-0"}
                   group cursor-pointer
                   origin-top-right
                 `}
@@ -502,42 +502,6 @@ export default function Dashboard() {
             )}
           </AnimatePresence>
         </motion.div>
-
-        {/* CTA */}
-        {/* {!user && (
-          <motion.div
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50
-              bg-zinc-900/80 backdrop-blur-md
-              px-8 py-4 rounded-2xl
-              border border-cyan-500/30
-              shadow-[0_0_40px_rgba(34,211,238,0.15)]"
-          >
-            <p className="text-xs text-zinc-400 mb-4 text-center uppercase tracking-[0.3em]">
-              Begin Your Progression
-            </p>
-
-            <div className="flex gap-4">
-              <button
-                onClick={() => open("signup")}
-                className="bg-cyan-500 text-black px-6 py-2 rounded-full font-semibold
-                  hover:bg-cyan-400 hover:-translate-y-0.5 transition cursor-pointer"
-              >
-                Get Started
-              </button>
-
-              <button
-                onClick={() => open("login")}
-                className="border border-cyan-500 text-cyan-400 px-6 py-2 rounded-full
-                  hover:bg-cyan-400 hover:text-black hover:-translate-y-0.5 transition cursor-pointer"
-              >
-                Log in
-              </button>
-            </div>
-          </motion.div>
-        )} */}
 
         {typeof window !== "undefined" &&
           createPortal(

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { IoCloseCircle } from "react-icons/io5";
+import { MdOutlineFileDownload } from "react-icons/md";
 
 interface Screenshot {
   id?: number | string;
@@ -88,7 +89,7 @@ export default function ScreenshotsCarousel({
 
   if (screenshots.length === 0) {
     return (
-      <div className="w-[1400px] h-48 flex items-center justify-center">
+      <div className="w-full max-w-[1400px] mx-auto h-48 flex items-center justify-center">
         <div className="h-48 w-64 flex items-center justify-center bg-zinc-900/50 rounded-lg border border-zinc-700 text-zinc-400 text-sm">
           No screenshots available
         </div>
@@ -106,12 +107,12 @@ export default function ScreenshotsCarousel({
         ref={containerRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="flex gap-4 overflow-x-auto hide-scrollbar w-[1400px] cursor-pointer"
+        className="flex gap-4 overflow-x-auto hide-scrollbar w-full max-w-[1400px] mx-auto cursor-pointer"
       >
         {allScreenshots.map((s, i) => (
           <div
             key={i}
-            className="relative shrink-0"
+            className="relative shrink-0 overflow-hidden rounded-lg"
             style={{
               width: THUMBNAIL_WIDTH,
               height: THUMBNAIL_HEIGHT,
@@ -128,7 +129,7 @@ export default function ScreenshotsCarousel({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onLoad={() => handleImageLoad(s.image)}
-              className="rounded-lg shadow-md"
+              className="shadow-md"
               style={{
                 width: THUMBNAIL_WIDTH,
                 height: THUMBNAIL_HEIGHT,
@@ -150,14 +151,19 @@ export default function ScreenshotsCarousel({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={() => setModalOpen(false)}
           >
-            <div className="relative flex flex-col items-center">
+            <div
+              className="relative flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Close button */}
               <button
-                className="absolute cursor-pointer hover:scale-105 ease-in-out duration-200 transition-all top-4 right-4 text-red-500 text-3xl font-bold z-50"
+                aria-label="Close screenshot viewer"
+                className="absolute top-4 right-4 z-50 h-11 w-11 rounded-full border border-white/30 bg-black/50 text-red-300 backdrop-blur-sm flex items-center justify-center transition-all duration-200 hover:scale-105 hover:bg-black/75 hover:border-red-300/70 hover:text-red-200 active:scale-95"
                 onClick={() => setModalOpen(false)}
               >
-                <IoCloseCircle size={35} />
+                <IoCloseCircle size={28} />
               </button>
 
               {/* Carousel image */}
@@ -176,13 +182,15 @@ export default function ScreenshotsCarousel({
               <div className="absolute inset-x-0 flex justify-between top-1/2 transform -translate-y-1/2 px-4">
                 <button
                   onClick={handlePrev}
-                  className="cursor-pointer hover:scale-105 ease-in-out duration-200 transition-all text-white bg-black/40 hover:bg-black/60 px-2 py-4 rounded-full"
+                  aria-label="Previous screenshot"
+                  className="cursor-pointer h-11 w-11 rounded-full border border-white/30 bg-black/45 text-white text-xl backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-black/70 hover:border-cyan-300/70 active:scale-95 flex items-center justify-center"
                 >
                   &#10094;
                 </button>
                 <button
                   onClick={handleNext}
-                  className="cursor-pointer hover:scale-105 ease-in-out duration-200 transition-all text-white bg-black/40 hover:bg-black/60 px-2 py-4 rounded-full"
+                  aria-label="Next screenshot"
+                  className="cursor-pointer h-11 w-11 rounded-full border border-white/30 bg-black/45 text-white text-xl backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-black/70 hover:border-cyan-300/70 active:scale-95 flex items-center justify-center"
                 >
                   &#10095;
                 </button>
@@ -190,12 +198,13 @@ export default function ScreenshotsCarousel({
 
               {/* Download button */}
               <button
-                className="cursor-pointer hover:scale-105 ease-in-out duration-300 transition-all mt-4 px-4 py-2
+                className="cursor-pointer hover:scale-105 ease-in-out duration-300 transition-all mt-4 px-4 py-2 flex items-center gap-2
              bg-cyan-500 text-black font-semibold rounded-lg
              hover:outline hover:outline-cyan-500
              hover:bg-black hover:text-cyan-500"
                 onClick={() => handleDownload(screenshots[activeIndex])}
               >
+                <MdOutlineFileDownload size={18} />
                 Download
               </button>
             </div>

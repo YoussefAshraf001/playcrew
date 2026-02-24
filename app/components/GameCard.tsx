@@ -42,6 +42,15 @@ export default function GameCard({
     releaseDate instanceof Date &&
     !isNaN(releaseDate.getTime()) &&
     releaseDate.getTime() <= Date.now();
+  const daysUntilRelease =
+    releaseDate && !isReleased
+      ? Math.max(
+          0,
+          Math.ceil(
+            (releaseDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          ),
+        )
+      : null;
 
   const isNotInterested = game?.notInterested === true;
   const hasRating =
@@ -82,18 +91,18 @@ export default function GameCard({
             alt={game.name}
             onLoad={() => setLoaded(true)}
             className={`
-    w-full h-full object-cover
-    transform-gpu scale-[1.001]
-    transition-transform duration-500
-    ${loaded ? "opacity-100" : "opacity-0"}
-    group-hover:scale-[1.10]
-  `}
+              w-full h-full object-cover
+              transform-gpu scale-[1.001]
+              transition-transform duration-500
+              ${loaded ? "opacity-100" : "opacity-0"}
+              group-hover:scale-[1.10]
+            `}
           />
         </div>
       </Link>
 
       <div
-        className={`${isReleased ? "h-[50px]" : "h-10"} px-3 pt-2 flex flex-col justify-center`}
+        className={`h-[50px] px-3 ${isReleased && "pt-2"} flex flex-col justify-center`}
       >
         {isReleased ? (
           <>
@@ -136,14 +145,13 @@ export default function GameCard({
             </div>
           </>
         ) : (
-          <div className="flex items-center justify-center pb-2">
-            <span className="text-sm text-zinc-300">
-              {releaseDate
-                ? releaseDate.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })
+          <div className="flex flex-col items-center justify-center text-center">
+            <span className="text-[10px] uppercase tracking-[0.16em] text-cyan-200/75">
+              Releases in
+            </span>
+            <span className="text-sm font-semibold text-white">
+              {daysUntilRelease !== null
+                ? `${daysUntilRelease} ${daysUntilRelease === 1 ? "day" : "days"}`
                 : "TBA"}
             </span>
           </div>

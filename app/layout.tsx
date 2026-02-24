@@ -45,7 +45,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       "/login",
       "/signup",
       "/auth",
-      "/dashboard", // 👈 important
+      "/dashboard",
     ];
 
     if (!blockedRoutes.includes(pathname)) {

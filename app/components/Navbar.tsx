@@ -445,19 +445,20 @@ export default function Navbar() {
             </div>
 
             <motion.button
+              data-music-toggle="true"
               onClick={togglePlayerVisible}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className={`w-9 h-9 sm:w-auto sm:h-auto flex items-center justify-center sm:px-2.5 lg:px-3 py-1 rounded-full font-semibold border border-zinc-600 cursor-pointer select-none transition-colors duration-300 ${
+              className={`h-8 w-10.5 flex items-center justify-center rounded-full border cursor-pointer select-none transition-all duration-300 ${
                 playerVisible
-                  ? "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-[0_0_12px_rgba(0,255,255,0.5)]"
-                  : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  ? "border-cyan-300/60 bg-white/10 text-white shadow-[0_0_18px_rgba(125,211,252,0.35)]"
+                  : "border-white/15 bg-zinc-900/70 text-zinc-200 hover:bg-zinc-800/85"
               }`}
             >
               {playerVisible ? (
-                <MdMusicNote className="text-sm sm:text-base md:text-lg" />
+                <MdMusicNote className="text-sm" />
               ) : (
-                <MdMusicOff className="text-sm sm:text-base md:text-lg" />
+                <MdMusicOff className="text-sm" />
               )}
             </motion.button>
 

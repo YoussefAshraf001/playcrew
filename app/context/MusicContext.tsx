@@ -273,19 +273,35 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         const blob = await res.blob();
         const metadata = await parseBlob(blob);
 
-        let cover: string | undefined;
+        const clean = (s?: string | null) => (s ? s.trim() : "");
+        const artist =
+          clean(metadata.common.artist) ||
+          metadata.common.artists?.map((a) => a?.trim()).filter(Boolean).join(", ") ||
+          clean(metadata.common.albumartist);
+
+        let embeddedCover: string | undefined;
         if (metadata.common.picture?.length) {
           const pic = metadata.common.picture[0];
-          const binary = String.fromCharCode(...pic.data);
-          cover = `data:${pic.format};base64,${btoa(binary)}`;
+          let binary = "";
+          const bytes = pic.data;
+          const chunkSize = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          embeddedCover = `data:${pic.format};base64,${btoa(binary)}`;
         }
 
         setTracks((prev) =>
-          prev.map((t, i) =>
-            i === trackIndex
-              ? { ...t, artist: metadata.common.artist, cover }
-              : t,
-          ),
+          prev.map((t, i) => {
+            if (i !== trackIndex) return t;
+            return {
+              ...t,
+              title: clean(metadata.common.title) || t.title,
+              artist: artist || t.artist,
+              // Keep existing cover from /api/music when file has no embedded artwork.
+              cover: embeddedCover ?? t.cover,
+            };
+          }),
         );
       } catch {}
     })();
@@ -364,6 +380,9 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     };
 
     const handleDismiss = (toastId: string) => {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      localStorage.setItem("music-isPlaying", "false");
       localStorage.setItem(WAS_LISTENING_KEY, "false");
       toast.remove(toastId);
     };

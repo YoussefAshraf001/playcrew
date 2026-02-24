@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useParams } from "next/navigation";
 import toast from "react-hot-toast";
@@ -37,6 +37,8 @@ import { useUser } from "@/app/context/UserContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
+import { GoBlocked } from "react-icons/go";
+import { ImSad2 } from "react-icons/im";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing → blue = focus
@@ -60,6 +62,13 @@ const statuses = [
 ];
 
 type StatusType = string | null;
+type PCGWRow = Record<string, string | null>;
+
+type PCGamingWikiApiResponse = {
+  data?: {
+    cargoquery?: Array<{ title?: PCGWRow }>;
+  };
+};
 
 export default function GamePage() {
   const { id } = useParams();
@@ -74,10 +83,17 @@ export default function GamePage() {
   const [loadingGame, setLoadingGame] = useState(false);
   const [dlcs, setDlcs] = useState<any[]>([]);
   const [loadingDlcs, setLoadingDlcs] = useState(false);
+  const [drmRows, setDrmRows] = useState<PCGWRow[]>([]);
+  const [loadingDrm, setLoadingDrm] = useState(false);
+  const [drmError, setDrmError] = useState<string | null>(null);
 
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const [tab, setTab] = useState<"screenshots" | "trailers">("screenshots");
+  const genreContainerRef = useRef<HTMLDivElement>(null);
+  const genreTrackRef = useRef<HTMLDivElement>(null);
+  const [genreShouldScroll, setGenreShouldScroll] = useState(false);
+  const [genreScrollDistance, setGenreScrollDistance] = useState(0);
 
   const requireLogin = () => {
     if (!user) {
@@ -99,7 +115,6 @@ export default function GamePage() {
         });
         const data = await res.json();
         setGame(data);
-        console.log(data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -108,6 +123,60 @@ export default function GamePage() {
     };
     fetchGame();
   }, [id]);
+
+  useEffect(() => {
+    if (!game?.name) return;
+
+    let cancelled = false;
+
+    const fetchDrm = async () => {
+      setLoadingDrm(true);
+      setDrmError(null);
+
+      try {
+        const res = await fetch(
+          `/api/pcgamingwiki?title=${encodeURIComponent(game.name)}`,
+          {
+            cache: "no-store",
+          },
+        );
+
+        const payload: PCGamingWikiApiResponse = await res.json();
+        console.log("[PCGamingWiki] payload", {
+          game: game.name,
+          status: res.status,
+          payload,
+        });
+        const rows =
+          payload?.data?.cargoquery
+            ?.map((entry) => entry?.title)
+            .filter(Boolean) ?? [];
+        console.log("[PCGamingWiki] parsed rows", {
+          game: game.name,
+          rows,
+        });
+
+        if (!cancelled) {
+          setDrmRows(rows as PCGWRow[]);
+        }
+      } catch {
+        if (!cancelled) {
+          setDrmRows([]);
+          setDrmError("Failed to load DRM data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingDrm(false);
+        }
+      }
+    };
+
+    fetchDrm();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [game?.name]);
 
   // Screenshots (if IGDB returns an array of objects with .url)
   const screenshots = useMemo(() => {
@@ -198,6 +267,26 @@ export default function GamePage() {
     if (!user || !game) return;
     requestIdleCallback(() => fetchUserTrackedGame());
   }, [user, game]);
+
+  useEffect(() => {
+    if (!Array.isArray(game?.genres) || game.genres.length === 0) {
+      setGenreShouldScroll(false);
+      setGenreScrollDistance(0);
+      return;
+    }
+
+    const measure = () => {
+      const containerWidth = genreContainerRef.current?.clientWidth ?? 0;
+      const singleTrackWidth = genreTrackRef.current?.scrollWidth ?? 0;
+
+      setGenreShouldScroll(singleTrackWidth > containerWidth);
+      setGenreScrollDistance(singleTrackWidth);
+    };
+
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [game?.genres]);
 
   const normalizeGenres = (genres: any[] = []) =>
     genres.map((g) => (typeof g === "object" ? g.name : g)).filter(Boolean);
@@ -478,13 +567,20 @@ export default function GamePage() {
     const isFuture = diffMs > 0;
 
     const abs = Math.abs(diffMs);
+    const days = Math.floor(abs / (1000 * 60 * 60 * 24));
     const years = Math.floor(abs / (1000 * 60 * 60 * 24 * 365));
     const months = Math.floor(
       (abs % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30),
     );
 
-    if (years === 0 && months === 0) {
-      return isFuture ? "Coming soon" : "Just released";
+    if (years === 0 && months === 0 && days > 0) {
+      return isFuture
+        ? `Releases in ${days} day${days > 1 ? "s" : ""}`
+        : `${days} day${days > 1 ? "s" : ""} ago`;
+    }
+
+    if (years === 0 && months === 0 && days === 0) {
+      return isFuture ? "Coming today" : "Just released";
     }
 
     const parts = [];
@@ -506,6 +602,119 @@ export default function GamePage() {
 
   // Overlay only if NO stores or NO release date
   const showStoreOverlay = !hasOfficialStores || !hasReleaseDate;
+
+  const drmLabels = useMemo(() => {
+    if (!drmRows.length) return [];
+
+    const values = new Set<string>();
+    const keys = [
+      "Uses DRM",
+      "Retail DRM",
+      "Steam DRM",
+      "GOGcom DRM",
+      "Epic Games Store DRM",
+      "EA app DRM",
+      "Ubisoft Store DRM",
+      "Microsoft Store DRM",
+      "Developer website DRM",
+      "Publisher website DRM",
+      "Official website DRM",
+    ];
+
+    const pushValues = (raw: string | null | undefined) => {
+      if (!raw) return;
+      raw
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .forEach((part) => values.add(part));
+    };
+
+    drmRows.forEach((row) => {
+      keys.forEach((key) => pushValues(row[key]));
+    });
+
+    return Array.from(values);
+  }, [drmRows]);
+
+  const hasDenuvo = useMemo(
+    () =>
+      drmLabels.some((label) => {
+        const normalized = label.toLowerCase();
+        return (
+          normalized.includes("denuvo") ||
+          normalized.includes("denovu") ||
+          normalized.includes("denuvo anti-tamper") ||
+          normalized.includes("denovu anti-tamper")
+        );
+      }),
+    [drmLabels],
+  );
+
+  const isOnlineOnly = useMemo(() => {
+    const hasAlwaysOnline = drmLabels.some((label) =>
+      label.toLowerCase().includes("always online"),
+    );
+    const hasSingleplayerMode = drmRows.some((row) => {
+      const modes = (row["Modes"] ?? "").toLowerCase();
+      return modes
+        .split(",")
+        .map((part) => part.trim())
+        .includes("singleplayer");
+    });
+
+    const parseTriState = (
+      value: string | null | undefined,
+    ): boolean | null => {
+      if (!value) return null;
+      const normalized = value.trim().toLowerCase();
+      if (normalized === "true" || normalized === "yes" || normalized === "1")
+        return true;
+      if (normalized === "false" || normalized === "no" || normalized === "0")
+        return false;
+      return null;
+    };
+
+    const rowIndicatesOnlineOnly = drmRows.some((row) => {
+      const online = parseTriState(row["Online"]);
+      const local = parseTriState(row["Local"]);
+      return online === true && local === false;
+    });
+
+    if (hasAlwaysOnline) return true;
+    if (hasSingleplayerMode) return false;
+    return rowIndicatesOnlineOnly;
+  }, [drmLabels, drmRows]);
+
+  const drmStatus = useMemo<
+    "denuvo" | "online_only" | "crackable" | "unknown"
+  >(() => {
+    if (hasDenuvo) return "denuvo";
+    if (isOnlineOnly) return "online_only";
+    if (!drmRows.length) return "unknown";
+    return "crackable";
+  }, [hasDenuvo, isOnlineOnly, drmRows.length]);
+
+  useEffect(() => {
+    console.log("[PCGamingWiki] DRM evaluation", {
+      game: game?.name,
+      drmLabels,
+      hasDenuvo,
+      isOnlineOnly,
+    });
+  }, [game?.name, drmLabels, hasDenuvo, isOnlineOnly]);
+
+  const lockCrackedLinks =
+    !isReleased || loadingDrm || hasDenuvo || isOnlineOnly;
+  const crackedOverlayMessage = hasDenuvo
+    ? "Denuvo detected - currently uncrackable"
+    : isOnlineOnly
+      ? "Online-only game - crack status not applicable"
+      : !isReleased
+        ? "Locked until release day"
+        : loadingDrm
+          ? "Checking DRM status..."
+          : "";
 
   const slugFromName = game?.name
     ?.toLowerCase()
@@ -538,7 +747,7 @@ export default function GamePage() {
         <title>PlayCrew - {game.name}</title>
       </Helmet>
 
-      <div className="relative min-h-screen text-white bg-transparent pt-15 lg:pt-8">
+      <div className="relative min-h-screen text-white bg-transparent pt-12 sm:pt-14 lg:pt-12">
         {/* HERO BACKGROUND */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -564,7 +773,7 @@ export default function GamePage() {
         {/* MAIN CONTENT */}
 
         <motion.main
-          className="relative flex flex-col lg:flex-row gap-12 z-10 p-6 md:p-12 max-w-[1800px] mx-auto"
+          className="relative flex flex-col lg:flex-row gap-8 lg:gap-12 z-10 px-4 py-6 sm:px-6 md:p-10 lg:p-12 max-w-[1800px] mx-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -572,11 +781,11 @@ export default function GamePage() {
           {/* Center content */}
           <div className="flex-1 flex flex-col gap-8 just">
             {/* Poster + Header */}
-            <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
+            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
               <div className="flex flex-col items-center gap-3 shrink-0">
                 <motion.img
                   src={game.background_image}
-                  className="w-56 md:w-72 h-80 md:h-96 object-cover rounded-2xl shadow-xl"
+                  className="w-44 sm:w-52 md:w-72 h-64 sm:h-72 md:h-96 object-cover rounded-2xl shadow-xl"
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                 />
@@ -588,20 +797,20 @@ export default function GamePage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="
-    group inline-flex items-center gap-2
-    px-3 py-1
-    text-[14px] font-medium tracking-wide
-    text-white/60
-    bg-white/5
-    border border-white/15
-    rounded-full
-    backdrop-blur-md
-    transition-all duration-300
-    hover:text-cyan-300
-    hover:border-cyan-400/40
-    hover:bg-cyan-500/10
-    hover:-translate-y-0.5
-  "
+                      group inline-flex items-center gap-2
+                      px-3 py-1
+                      text-[14px] font-medium tracking-wide
+                      text-white/60
+                      bg-white/5
+                      border border-white/15
+                      rounded-full
+                      backdrop-blur-md
+                      transition-all duration-300
+                      hover:text-cyan-300
+                      hover:border-cyan-400/40
+                      hover:bg-cyan-500/10
+                      hover:-translate-y-0.5
+                    "
                   >
                     <span className="uppercase tracking-[0.15em] text-[10px]">
                       IGDB
@@ -611,11 +820,45 @@ export default function GamePage() {
                     </span>
                   </a>
                 </div>
+
+                <div>
+                  {loadingDrm ? (
+                    <div className="flex justify-center items-center">
+                      <span className="loading loading-spinner loading-sm" />
+                    </div>
+                  ) : drmError ? (
+                    <p className="text-sm text-red-300 text-center">
+                      {drmError}
+                    </p>
+                  ) : (
+                    <div className="flex justify-center">
+                      <span
+                        className={`text-xs uppercase tracking-widest leading-relaxed px-3 py-1 rounded-full border ${
+                          drmStatus === "denuvo"
+                            ? "bg-red-500/20 border-red-400/60 text-red-200"
+                            : drmStatus === "online_only"
+                              ? "bg-amber-500/20 border-amber-400/60 text-amber-200"
+                              : drmStatus === "crackable"
+                                ? "bg-emerald-500/20 border-emerald-400/60 text-emerald-200"
+                                : "bg-zinc-500/20 border-zinc-400/60 text-zinc-200"
+                        }`}
+                      >
+                        {drmStatus === "denuvo"
+                          ? "Denuvo Anti-Tamper"
+                          : drmStatus === "online_only"
+                            ? "Online Only"
+                            : drmStatus === "crackable"
+                              ? "Crackable"
+                              : "Check main game"}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 space-y-4">
                 <div className="flex items-center gap-4">
-                  <h1 className="text-5xl md:text-6xl font-extrabold drop-shadow-xl">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold drop-shadow-xl wrap-break-word">
                     {game.name}
                   </h1>
                 </div>
@@ -670,19 +913,78 @@ export default function GamePage() {
                 </div>
 
                 {/* About */}
+                <div className="bg-white/5 border border-white/10 p-2 rounded-2xl">
+                  {Array.isArray(game.genres) && game.genres.length > 0 ? (
+                    <div
+                      ref={genreContainerRef}
+                      className="relative w-full max-w-260 overflow-hidden"
+                    >
+                      <motion.div
+                        className="flex w-max items-center gap-2 whitespace-nowrap"
+                        animate={
+                          genreShouldScroll && genreScrollDistance > 0
+                            ? { x: [0, -genreScrollDistance] }
+                            : { x: 0 }
+                        }
+                        transition={
+                          genreShouldScroll && genreScrollDistance > 0
+                            ? {
+                                duration: Math.max(
+                                  12,
+                                  genreScrollDistance / 35,
+                                ),
+                                repeat: Infinity,
+                                ease: "linear",
+                              }
+                            : { duration: 0 }
+                        }
+                      >
+                        <div
+                          ref={genreTrackRef}
+                          className="flex items-center gap-2 whitespace-nowrap shrink-0"
+                        >
+                          {game.genres.map((genre: string, index: number) => (
+                            <span
+                              key={`${genre}-base-${index}`}
+                              className="px-3 py-1 rounded-full text-xs uppercase tracking-wide bg-white/10 border border-white/15 text-white/80"
+                            >
+                              {genre}
+                            </span>
+                          ))}
+                        </div>
+                        {genreShouldScroll && (
+                          <div className="flex items-center gap-2 whitespace-nowrap shrink-0">
+                            {game.genres.map((genre: string, index: number) => (
+                              <span
+                                key={`${genre}-loop-${index}`}
+                                className="px-3 py-1 rounded-full text-xs uppercase tracking-wide bg-white/10 border border-white/15 text-white/80"
+                              >
+                                {genre}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-white/60">
+                      No genres available.
+                    </p>
+                  )}
+                </div>
 
                 <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-white/80 hover:text-white">
                   <h2 className="text-2xl font-bold mb-3">Story</h2>
 
                   <p className="text-base leading-relaxed transition">
                     {description ? (
-                      truncate(description, 460)
+                      truncate(description, 330)
                     ) : (
                       <span>No Description found</span>
                     )}
                   </p>
 
-                  {description?.length > 460 && (
+                  {description?.length > 330 && (
                     <p
                       className="text-cyan-300 mt-2 text-sm cursor-pointer hover:underline w-[70px]"
                       onClick={() => setAboutOpen(true)}
@@ -709,7 +1011,7 @@ export default function GamePage() {
                       {/* Modal Content */}
                       <motion.div
                         key="modal"
-                        className="fixed inset-x-0 top-1/2 -translate-y-1/2 mx-auto bg-white/10 border border-white/20 rounded-2xl p-6 max-w-3xl w-full z-1000 shadow-2xl"
+                        className="fixed inset-x-0 top-1/2 -translate-y-1/2 mx-auto w-[95vw] sm:w-[92vw] bg-white/10 border border-white/20 rounded-2xl p-4 sm:p-6 max-w-3xl z-1000 shadow-2xl"
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
@@ -936,7 +1238,7 @@ export default function GamePage() {
           </div>
 
           {/* Right column: Stores & repacks */}
-          <div className="w-95 shrink-0 space-y-6 lg:sticky lg:top-28 ">
+          <div className="w-full lg:w-[380px] shrink-0 space-y-6 lg:sticky lg:top-28">
             <div className="relative bg-white/5 border border-white/10 p-6 rounded-2xl">
               <h2 className="text-center text-lg font-bold mb-2">Stores</h2>
               <hr className="w-full border-zinc-700 mb-4" />
@@ -946,7 +1248,7 @@ export default function GamePage() {
                   game.platforms.length > 10 && "pr-4"
                 }`}
               >
-                <h3>Platforms</h3>
+                <h3>Official</h3>
                 <div className="relative mt-3">
                   {/* BLURRED CONTENT */}
                   <div
@@ -1048,35 +1350,12 @@ export default function GamePage() {
               <div
                 className={`relative mt-5 ${game.platforms.length > 10 && "pr-4"}  p-2`}
               >
-                <h3 className="relative group flex items-center gap-1 cursor-help overflow-visible">
-                  Cracked
-                  <span className="text-white/60 text-sm">ⓘ</span>
-                  <span
-                    className="
-                        absolute left-1/2 -translate-x-1/2 top-full mt-2
-                        opacity-0 scale-95
-                        pointer-events-none
-                        group-hover:opacity-100
-                        group-hover:scale-100
-                        group-hover:pointer-events-auto
-                        transition-all duration-150
-                        bg-white/10 backdrop-blur
-                        text-white text-xs px-3 py-1 rounded-md
-                        border border-white/10
-                        whitespace-nowrap
-                        z-50
-                      "
-                  >
-                    Games with{" "}
-                    <span className="font-bold text-red-400">Denuvo</span> are
-                    unlikely to be cracked
-                  </span>
-                </h3>
+                <h2 className="text-lg font-bold mb-2">Cracked</h2>
 
                 <div className="relative mt-3">
                   <div
                     className={`space-y-3 transition ${
-                      !isReleased
+                      lockCrackedLinks
                         ? "blur-sm pointer-events-none select-none"
                         : ""
                     }`}
@@ -1148,9 +1427,9 @@ export default function GamePage() {
                   </div>
                 </div>
 
-                {!isReleased && (
+                {lockCrackedLinks && (
                   <div
-                    className="mt-9 
+                    className="mt-10 
                         absolute inset-0
                         flex items-center justify-center
                         rounded-xl
@@ -1170,12 +1449,18 @@ export default function GamePage() {
                           border border-white/10
                         "
                       >
-                        <FaLock size={18} className="text-white/70" />
+                        {hasDenuvo ? (
+                          <GoBlocked size={30} className="text-white/70" />
+                        ) : (
+                          <FaLock size={18} className="text-white/70" />
+                        )}
                       </div>
 
                       {/* Text */}
-                      <p className="text-xs uppercase tracking-wide text-white/60 leading-relaxed">
-                        Locked until release day
+                      <p
+                        className={`text-xs uppercase ${hasDenuvo ? "tracking-widest" : "tracking-wide"} text-white/60 leading-relaxed`}
+                      >
+                        {crackedOverlayMessage}
                       </p>
                     </div>
                   </div>

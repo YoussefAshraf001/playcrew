@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 
 type Game = {
@@ -43,13 +43,11 @@ export default function SearchModal({
       });
 
       const data = await res.json();
-
-      const withCovers = data.filter(
-        (game: any) => game.cover && game.cover.url,
+      const withCovers = (data as Game[]).filter(
+        (game) => game.cover && game.cover.url,
       );
 
       setResults(withCovers);
-
       setLoading(false);
     }, 300);
 
@@ -68,11 +66,10 @@ export default function SearchModal({
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-[#161616] w-full max-w-3xl rounded-xl overflow-hidden"
+        className="bg-[#161616] w-full max-w-3xl h-[560px] rounded-xl overflow-hidden flex flex-col"
         initial={{ scale: 0.9 }}
         animate={{ scale: 1 }}
       >
-        {/* SEARCH BAR */}
         <div className="p-4 border-b border-white/10 flex gap-3">
           <input
             autoFocus
@@ -81,58 +78,77 @@ export default function SearchModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose}>x</button>
         </div>
 
-        {/* RESULTS */}
-        <div className="max-h-[420px] overflow-y-auto p-3 space-y-2">
-          {loading && (
-            <div className="text-white/50 text-center py-10">
-              <span className="loading loading-dots loading-lg" />
-            </div>
-          )}
+        <div className="h-[480px] overflow-y-auto p-3">
+          <AnimatePresence mode="wait">
+            {loading ? (
+              <motion.div
+                key="loading"
+                className="text-white/50 text-center py-10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <span className="loading loading-dots loading-lg" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="results"
+                className="space-y-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                {results.length === 0 && query.trim().length > 0 ? (
+                  <div className="text-white/40 text-center py-10">
+                    No games found
+                  </div>
+                ) : (
+                  results.map((game) => (
+                    <Link
+                      key={game.id}
+                      href={`/game/${game.id}`}
+                      onClick={onClose}
+                      className="flex items-center gap-4 p-3 rounded-lg bg-black hover:bg-zinc-800 transition"
+                    >
+                      <img
+                        src={
+                          game.cover?.url
+                            ? `https:${game.cover.url.replace(
+                                "t_thumb",
+                                "t_cover_small",
+                              )}`
+                            : "/placeholder.jpg"
+                        }
+                        className="w-12 h-16 rounded object-cover"
+                      />
 
-          {!loading && results.length === 0 && query.length > 1 && (
-            <div className="text-white/40 text-center py-10">
-              No games found
-            </div>
-          )}
+                      <div className="flex-1">
+                        <div className="text-white font-semibold">
+                          {game.name}
+                        </div>
 
-          {results.map((game) => (
-            <Link
-              key={game.id}
-              href={`/game/${game.id}`}
-              onClick={onClose}
-              className="flex items-center gap-4 p-3 rounded-lg bg-black hover:bg-zinc-800 transition"
-            >
-              <img
-                src={
-                  game.cover?.url
-                    ? `https:${game.cover.url.replace(
-                        "t_thumb",
-                        "t_cover_small",
-                      )}`
-                    : "/placeholder.jpg"
-                }
-                className="w-12 h-16 rounded object-cover"
-              />
+                        <div className="text-sm text-white/50">
+                          {game.first_release_date && (
+                            <>
+                              {" "}
+                              {new Date(
+                                game.first_release_date * 1000,
+                              ).getFullYear()}
+                            </>
+                          )}
+                        </div>
+                      </div>
 
-              <div className="flex-1">
-                <div className="text-white font-semibold">{game.name}</div>
-
-                <div className="text-sm text-white/50">
-                  {game.first_release_date && (
-                    <>
-                      {" "}
-                      {new Date(game.first_release_date * 1000).getFullYear()}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <span className="text-white/40">›</span>
-            </Link>
-          ))}
+                      <span className="text-white/40">{">"}</span>
+                    </Link>
+                  ))
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
     </motion.div>

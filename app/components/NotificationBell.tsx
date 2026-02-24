@@ -87,12 +87,36 @@ const dateKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
+const formatTimeAgo = (value: Date | null, nowMs: number) => {
+  if (!value) return "";
+
+  const diffMs = nowMs - value.getTime();
+  if (diffMs < 0) return "now";
+
+  const mins = Math.floor(diffMs / (1000 * 60));
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d`;
+
+  return value.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+};
+
 export default function NotificationBell({ games }: { games: Game[] }) {
   const { user } = useUser();
   const { closePlayer } = useMusic();
   const uid = user?.uid as string | undefined;
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
+  const [nowMs, setNowMs] = useState(Date.now());
   const [knownByUser, setKnownByUser] = useState<{
     uid: string;
     ids: Set<string>;
@@ -104,6 +128,11 @@ export default function NotificationBell({ games }: { games: Game[] }) {
     () => currentItems.filter((item) => !item.read).length,
     [currentItems],
   );
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -195,7 +224,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
             gameName: game.name,
             gameCover: game.igdb?.cover,
             releaseDate: release,
-            message: `${game.name} releases today.`,
+            message: `Releases today.`,
           });
         }
         continue;
@@ -217,7 +246,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
           gameName: game.name,
           gameCover: game.igdb?.cover,
           releaseDate: release,
-          message: `${game.name} releases ${inDaysLabel}.`,
+          message: `Releases ${inDaysLabel}.`,
         });
       }
     }
@@ -227,13 +256,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
     const batch = writeBatch(db);
 
     for (const entry of writes) {
-      const notificationRef = doc(
-        db,
-        "users",
-        uid,
-        "notifications",
-        entry.id,
-      );
+      const notificationRef = doc(db, "users", uid, "notifications", entry.id);
 
       batch.set(notificationRef, {
         type: "game_release",
@@ -274,10 +297,11 @@ export default function NotificationBell({ games }: { games: Game[] }) {
       {/* BELL */}
       <div
         ref={ref}
-        className={`relative z-50 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-600 rounded-full px-2 cursor-pointer transition-colors duration-300
+        className={`relative z-50 rounded-full px-1.5 cursor-pointer transition-all duration-300 border
+        bg-zinc-900/70 text-zinc-200 border-white/15 backdrop-blur-xl hover:bg-zinc-800/85
         ${
           open &&
-          "bg-linear-to-r from-cyan-500 to-cyan-600 text-white shadow-[0_0_12px_rgba(0,255,255,0.5)]"
+          "bg-white/10 text-white border-cyan-300/60 shadow-[0_0_18px_rgba(125,211,252,0.35)]"
         }`}
         onClick={() =>
           setOpen((p) => {
@@ -291,12 +315,20 @@ export default function NotificationBell({ games }: { games: Game[] }) {
           <BsBellFill size={14} />
 
           {unreadCount > 0 && (
-            <>
-              <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-red-500 ring-2 ring-zinc-900 animate-pulse" />
-              <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 bg-red-500 border border-red-300/40 rounded-full text-[10px] text-white leading-[16px] text-center font-semibold shadow-[0_0_10px_rgba(239,68,68,0.55)]">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            </>
+            <span
+              className="
+                absolute -top-2 -right-2
+                min-w-[20px] h-5 px-1.5
+                rounded-full
+                bg-cyan-500
+                border border-cyan-200/70
+                text-[11px] text-white font-bold leading-[18px] text-center
+                shadow-[0_0_14px_rgba(34,211,238,0.65)]
+                ring-1 ring-white
+              "
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
           )}
         </button>
 
@@ -313,15 +345,15 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                 damping: 22,
               }}
               className="
-        absolute right-0 mt-3 w-[22rem] sm:w-[26rem] md:w-[30rem] max-w-[94vw]
+        absolute right-0 mt-3 w-[22rem] sm:w-[25rem] max-w-[94vw]
         rounded-2xl overflow-hidden
-        bg-zinc-900 backdrop-blur-xl
-        border border-white/10
-        shadow-[0_24px_70px_rgba(0,0,0,0.65)]
+        bg-zinc-900/92 backdrop-blur-xl
+        border border-cyan-300/25
+        shadow-[0_18px_44px_rgba(0,0,0,0.55)]
         z-50
       "
             >
-              <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between gap-3">
+              <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-base font-semibold text-white">
                     Notifications
@@ -335,7 +367,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                     e.stopPropagation();
                     markAllRead();
                   }}
-                  className="text-xs sm:text-sm text-cyan-300 hover:text-cyan-200 transition whitespace-nowrap"
+                  className="text-xs px-2.5 py-1 rounded-full border border-cyan-300/35 text-cyan-200 hover:bg-cyan-400/10 transition whitespace-nowrap"
                 >
                   Mark all read
                 </button>
@@ -352,43 +384,65 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {currentItems.map((item) => (
                       <Link
                         key={item.id}
                         href={item.gameId ? `/game/${item.gameId}` : "#"}
-                        className={`block p-3 rounded-xl border transition ${
+                        className={`relative block p-3.5 rounded-[1.6rem] transition ${
                           item.read
-                            ? "border-white/5 bg-transparent hover:bg-white/5"
-                            : "border-cyan-400/20 bg-cyan-500/5 hover:bg-cyan-500/10"
+                            ? "bg-[#121a24]/65 hover:bg-[#172130]/75 opacity-80"
+                            : "bg-[#141f2b]/95 hover:bg-[#1a2735]/95 shadow-[inset_0_0_0_1px_rgba(125,211,252,0.35)]"
                         }`}
                       >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-center gap-3">
                           <img
                             src={item.gameCover || "/placeholder-game.jpg"}
                             alt={item.gameName}
-                            className="w-12 h-16 sm:w-14 sm:h-[4.5rem] object-cover rounded-lg shrink-0"
+                            className={`w-10 h-10 object-cover rounded-lg shrink-0 ${
+                              item.read ? "opacity-80" : ""
+                            }`}
                           />
 
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <p
+                                className={`text-sm leading-none ${
+                                  item.read
+                                    ? "text-white/70"
+                                    : "text-white font-semibold max-w-[190px] truncate"
+                                }`}
+                              >
+                                {item.gameName}
+                              </p>
+                              <div className=" flex items-center gap-2 text-[11px] text-white/45">
+                                {item.releaseDate && (
+                                  <>
+                                    <span className="uppercase tracking-wide text-white/40">
+                                      {item.releaseDate.toLocaleDateString(
+                                        undefined,
+                                        {
+                                          month: "short",
+                                          day: "numeric",
+                                        },
+                                      )}
+                                    </span>
+                                    <span className="text-white/25">•</span>
+                                  </>
+                                )}
+
+                                <span className="text-white/50 shrink-0">
+                                  {formatTimeAgo(item.createdAt, nowMs)} ago
+                                </span>
+                              </div>
+                            </div>
                             <p
-                              className={`text-sm sm:text-base leading-snug ${
-                                item.read
-                                  ? "text-white/80"
-                                  : "text-white font-medium"
+                              className={`text-xs leading-snug mt-1 ${
+                                item.read ? "text-white/55" : "text-white"
                               }`}
                             >
                               {item.message}
                             </p>
-                            {item.releaseDate && (
-                              <p className="text-xs sm:text-sm text-white/50 mt-1.5">
-                                {item.releaseDate.toLocaleDateString(undefined, {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </p>
-                            )}
                           </div>
                         </div>
                       </Link>
