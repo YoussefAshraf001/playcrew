@@ -13,7 +13,14 @@ import GameTrackingModal from "@/app/components/GameTrackingModal";
 
 import toast from "react-hot-toast";
 import ConfirmModal from "@/app/components/ConfirmModal";
-import { FiArrowRight, FiX } from "react-icons/fi";
+import {
+  FiArrowRight,
+  FiChevronLeft,
+  FiChevronRight,
+  FiSearch,
+  FiSliders,
+  FiX,
+} from "react-icons/fi";
 import { FaHeart } from "react-icons/fa";
 import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
@@ -501,7 +508,8 @@ export default function GamesPage() {
     ));
 
   const formattedDate = localProfile?.creationTime?.toLocaleDateString("en-GB");
-  const profileUsername = localProfile?.username || userProfile?.username || "profile";
+  const profileUsername =
+    localProfile?.username || userProfile?.username || "profile";
 
   useEffect(() => {
     setCurrentPage(1);
@@ -611,7 +619,6 @@ export default function GamesPage() {
     }
   };
 
-
   const openConfirmModal = (
     message: string,
     action: () => void | Promise<void>,
@@ -695,14 +702,15 @@ export default function GamesPage() {
           <div className="w-full lg:w-80 shrink-0 px-4 relative z-10">
             <div className="bg-zinc-900/55 border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col items-center shadow-xl max-w-[360px] mx-auto lg:mx-0 lg:h-full">
               {/* Avatar */}
-              <Link
-                href={`/profile/${profileUsername}`}
-                className="group"
-              >
+              <Link href={`/profile/${profileUsername}`} className="group">
                 {localProfile?.avatar || userProfile?.avatar ? (
                   <img
-                    src={getMediaSrc(localProfile?.avatar || userProfile?.avatar)}
-                    style={getMediaStyle(localProfile?.avatar || userProfile?.avatar)}
+                    src={getMediaSrc(
+                      localProfile?.avatar || userProfile?.avatar,
+                    )}
+                    style={getMediaStyle(
+                      localProfile?.avatar || userProfile?.avatar,
+                    )}
                     alt={localProfile?.username ?? "User"}
                     className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
                   />
@@ -762,10 +770,12 @@ export default function GamesPage() {
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 relative z-10 px-6 lg:px-0">
+          <div className="relative z-10 flex-1 min-w-0 px-6 lg:px-0">
             {/* Tabs */}
             <motion.div
-              className="flex flex-wrap gap-3 mb-5 items-center relative"
+              className={`flex max-w-full flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm ${
+                selectedStatus === "Want To Play" ? "w-full" : "w-fit"
+              }`}
               initial={false}
               animate={{
                 marginLeft: selectedStatus === "Want To Play" ? "0px" : "120px",
@@ -789,10 +799,10 @@ export default function GamesPage() {
                     className="relative flex items-center gap-2"
                   >
                     <button
-                      className={`px-4 py-2 rounded-full font-semibold transition whitespace-nowrap ${
+                      className={`rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide whitespace-nowrap transition ${
                         selectedStatus === status
-                          ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                          : "bg-zinc-800 text-white hover:bg-zinc-700"
+                          ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black shadow-[0_0_16px_rgba(34,211,238,0.35)]"
+                          : "border-white/10 bg-zinc-800/80 text-white hover:border-white/20 hover:bg-zinc-700/80"
                       }`}
                       onClick={() => {
                         handleTabChange(status);
@@ -810,8 +820,8 @@ export default function GamesPage() {
                           <motion.div
                             key="release-filter"
                             className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
-                         lg:bg-zinc-900 lg:rounded-xl lg:p-1 lg:shadow-lg
-                         relative lg:absolute lg:left-full lg:ml-2"
+                         lg:rounded-xl lg:border lg:border-white/10 lg:bg-black/35 lg:p-1
+                         relative lg:absolute lg:left-full lg:ml-10"
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -10 }}
@@ -820,10 +830,10 @@ export default function GamesPage() {
                             {["All", "Released", "Unreleased"].map((filter) => (
                               <button
                                 key={filter}
-                                className={`px-3 py-1 rounded-full text-sm font-semibold transition whitespace-nowrap ${
+                                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition ${
                                   releaseFilter === filter
-                                    ? "bg-linear-to-r from-cyan-400 to-blue-500 text-black"
-                                    : "bg-zinc-800 text-white hover:bg-zinc-700"
+                                    ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black"
+                                    : "border-white/10 bg-zinc-800/70 text-white hover:border-white/20 hover:bg-zinc-700/70"
                                 }`}
                                 onClick={() => setReleaseFilter(filter as any)}
                               >
@@ -838,145 +848,139 @@ export default function GamesPage() {
               )}
             </motion.div>
 
-            {/* Pagination and Search */}
-            <div className="flex justify-between mb-2 gap-4 items-center">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => {
-                  setAnimationType("page");
-                  setPageDirection(-1);
-                  setCurrentPage((prev) => prev - 1);
-                }}
-                className={`cursor-pointer placeholder:pl-2 px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
-                  currentPage === 1
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-zinc-700"
-                }`}
-              >
-                Prev
-              </button>
-
-              <input
-                type="text"
-                placeholder={`${
-                  showFavoritesOnly
-                    ? "Search for a favorite game"
-                    : "Search for a game in " + selectedStatus
-                }`}
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-6 px-4 py-2 rounded-full bg-zinc-800 text-white w-1/2 focus:outline-none"
-              />
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => {
-                  setAnimationType("page");
-                  setPageDirection(1);
-                  setCurrentPage((prev) => prev + 1);
-                }}
-                className={`cursor-pointer px-4 py-2 border-2 border-cyan-400 text-white rounded-lg transition ${
-                  currentPage === totalPages
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-zinc-700"
-                }`}
-              >
-                Next
-              </button>
-            </div>
-
-            <div className="relative w-full flex items-center justify-center mb-4">
-              <div className="bg-zinc-800 rounded-full px-4 py-1 flex items-center gap-5">
-                {/* Label */}
-                <label className="text-sm text-white whitespace-nowrap ml-2">
-                  Sort By:
-                </label>
-
-                {/* Select */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => {
-                    setSortBy(e.target.value as any);
-                    setCurrentPage(1);
-                  }}
-                  className="border-2 border-zinc-600 bg-zinc-800 text-white px-4 py-2 rounded-lg
-             focus:outline-none transition duration-200 ease-in-out cursor-pointer"
-                >
-                  <option className="bg-zinc-800 text-white" value="name">
-                    Name
-                  </option>
-
-                  {selectedStatus !== "Want To Play" && (
-                    <option className="bg-zinc-800 text-white" value="playtime">
-                      Playtime
-                    </option>
-                  )}
-
-                  {selectedStatus !== "Want To Play" && (
-                    <option className="bg-zinc-800 text-white" value="tier">
-                      Rating
-                    </option>
-                  )}
-
-                  <option className="bg-zinc-800 text-white" value="release">
-                    Release Date
-                  </option>
-                  <option className="bg-zinc-800 text-white" value="date">
-                    Latest Changes
-                  </option>
-                </select>
-
-                {/* Sort Order Button */}
+            <div className="mb-4 rounded-2xl border border-white/10 bg-zinc-900/55 p-2.5 backdrop-blur-sm">
+              <div className="flex min-w-0 items-center gap-2">
                 <button
-                  onClick={() =>
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                  }
-                  className="px-4 py-2 rounded-lg border-2 border-zinc-600 text-white text-xs font-medium
-                 hover:bg-zinc-600 transition duration-200 ease-in-out cursor-pointer"
+                  disabled={currentPage === 1}
+                  onClick={() => {
+                    setAnimationType("page");
+                    setPageDirection(-1);
+                    setCurrentPage((prev) => prev - 1);
+                  }}
+                  className={`inline-flex h-10 min-w-[86px] items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition ${
+                    currentPage === 1
+                      ? "cursor-not-allowed border-white/10 bg-zinc-900/40 text-white/40"
+                      : "cursor-pointer border-cyan-400/70 bg-black/20 text-white hover:border-cyan-300 hover:bg-cyan-500/10"
+                  }`}
                 >
-                  {sortBy === "name"
-                    ? sortOrder === "asc"
-                      ? "A → Z"
-                      : "Z → A"
-                    : sortBy === "date" || sortBy === "release"
-                      ? sortOrder === "asc"
-                        ? "Oldest to Newest"
-                        : "Newest to Oldest"
-                      : sortBy === "playtime"
-                        ? sortOrder === "asc"
-                          ? "Least Played"
-                          : "Most Played"
-                        : sortBy === "tier"
-                          ? sortOrder === "asc"
-                            ? "Lowest to Highest"
-                            : "Highest to Lowest"
-                          : "Sort"}
+                  <FiChevronLeft className="h-4 w-4" />
+                  Prev
                 </button>
 
-                {/* Info Tooltip */}
-                {(sortBy === "tier" || sortBy === "playtime") && (
-                  <div className="relative group">
-                    <span className="text-zinc-400 text-xs cursor-help select-none">
-                      ⓘ
-                    </span>
+                <div className="relative min-w-0 flex-1">
+                  <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+                  <input
+                    type="text"
+                    placeholder={`${
+                      showFavoritesOnly
+                        ? "Search for a favorite game"
+                        : "Search for a game in " + selectedStatus
+                    }`}
+                    value={searchQuery}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-white/10 bg-black/25 pl-9 pr-3 text-sm text-white placeholder:text-white/45 focus:border-cyan-300/70 focus:outline-none"
+                  />
+                </div>
 
-                    <div
-                      className="
-            absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-            hidden group-hover:block
-            bg-zinc-900 text-white text-xs px-3 py-1 rounded
-            shadow-lg whitespace-nowrap z-50
-          "
-                    >
-                      {sortBy === "tier"
-                        ? "Only rated games are shown (Want To Play excluded)"
-                        : "Only played games are shown (Want To Play excluded)"}
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => {
+                    setAnimationType("page");
+                    setPageDirection(1);
+                    setCurrentPage((prev) => prev + 1);
+                  }}
+                  className={`inline-flex h-10 min-w-[86px] items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition ${
+                    currentPage === totalPages
+                      ? "cursor-not-allowed border-white/10 bg-zinc-900/40 text-white/40"
+                      : "cursor-pointer border-cyan-400/70 bg-black/20 text-white hover:border-cyan-300 hover:bg-cyan-500/10"
+                  }`}
+                >
+                  Next
+                  <FiChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2">
+                  <FiSliders className="h-4 w-4 text-cyan-300/90" />
+                  <label className="text-xs font-semibold uppercase tracking-wide text-white/70">
+                    Sort
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => {
+                      setSortBy(e.target.value as any);
+                      setCurrentPage(1);
+                    }}
+                    className="h-8 rounded-lg border border-white/10 bg-zinc-900/70 px-3 text-sm text-white focus:border-cyan-300/70 focus:outline-none"
+                  >
+                    <option className="bg-zinc-800 text-white" value="name">
+                      Name
+                    </option>
+                    {selectedStatus !== "Want To Play" && (
+                      <option
+                        className="bg-zinc-800 text-white"
+                        value="playtime"
+                      >
+                        Playtime
+                      </option>
+                    )}
+                    {selectedStatus !== "Want To Play" && (
+                      <option className="bg-zinc-800 text-white" value="tier">
+                        Rating
+                      </option>
+                    )}
+                    <option className="bg-zinc-800 text-white" value="release">
+                      Release Date
+                    </option>
+                    <option className="bg-zinc-800 text-white" value="date">
+                      Latest Changes
+                    </option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                    }
+                    className="h-10 rounded-xl border border-white/15 bg-black/25 px-4 text-xs font-semibold tracking-wide text-white/90 transition hover:border-white/25 hover:bg-white/10"
+                  >
+                    {sortBy === "name"
+                      ? sortOrder === "asc"
+                        ? "A to Z"
+                        : "Z to A"
+                      : sortBy === "date" || sortBy === "release"
+                        ? sortOrder === "asc"
+                          ? "Oldest to Newest"
+                          : "Newest to Oldest"
+                        : sortBy === "playtime"
+                          ? sortOrder === "asc"
+                            ? "Least Played"
+                            : "Most Played"
+                          : sortBy === "tier"
+                            ? sortOrder === "asc"
+                              ? "Lowest to Highest"
+                              : "Highest to Lowest"
+                            : "Sort"}
+                  </button>
+
+                  {(sortBy === "tier" || sortBy === "playtime") && (
+                    <div className="relative group">
+                      <span className="flex h-8 w-8 cursor-help select-none items-center justify-center rounded-full border border-white/15 bg-black/25 text-xs text-white/70">
+                        i
+                      </span>
+
+                      <div className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden whitespace-nowrap rounded-lg border border-white/15 bg-zinc-900 px-3 py-1 text-xs text-white shadow-lg group-hover:block">
+                        {sortBy === "tier"
+                          ? "Only rated games are shown (Want To Play excluded)"
+                          : "Only played games are shown (Want To Play excluded)"}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-
             {/* Game Grid */}
             <AnimatePresence
               mode="wait"
@@ -990,7 +994,7 @@ export default function GamesPage() {
                 animate="center"
                 exit="exit"
                 transition={{ duration: 0.35, ease: "easeOut" }}
-                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-6"
+                className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
               >
                 {visibleGames.map((game) => (
                   <GameCard
@@ -1005,7 +1009,7 @@ export default function GamesPage() {
           </div>
 
           {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="relative z-10 w-full lg:w-80 shrink-0 flex flex-col gap-6">
+          <div className="relative z-10 w-full shrink-0 flex flex-col gap-6 lg:w-72 xl:w-80">
             {/* Favorites */}
             <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar  max-h-[44vh] min-h-[44vh]">
               <div className="flex items-center justify-between py-2">
