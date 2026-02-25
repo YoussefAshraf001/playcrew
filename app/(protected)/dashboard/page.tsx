@@ -78,7 +78,7 @@ export default function Dashboard() {
 
   //   /* background video */
   useEffect(() => {
-    const vids = Array.from({ length: 12 }, (_, i) => `/videos/${i + 1}.mp4`);
+    const vids = Array.from({ length: 20 }, (_, i) => `/videos/${i + 1}.mp4`);
     const chosen = vids[Math.floor(Math.random() * vids.length)];
     setBgVideo(chosen);
 

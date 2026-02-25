@@ -30,15 +30,15 @@ import { DiAndroid } from "react-icons/di";
 import { SiEpicgames, SiStadia, SiWii } from "react-icons/si";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { Helmet } from "react-helmet-async";
-import Link from "next/link";
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
+import GameTrackingModal from "@/app/components/GameTrackingModal";
+import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
 import { GoBlocked } from "react-icons/go";
-import { ImSad2 } from "react-icons/im";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing → blue = focus
@@ -63,6 +63,54 @@ const statuses = [
 
 type StatusType = string | null;
 type PCGWRow = Record<string, string | null>;
+type StoredRating = number | "excluded";
+
+interface CategoryRatings {
+  graphics: StoredRating;
+  gameplay: StoredRating;
+  story: StoredRating;
+  ost: StoredRating;
+  cinematics: StoredRating;
+  voiceActing: StoredRating;
+}
+
+interface TrackedGameModalData {
+  _docId: string;
+  name: string;
+  playtime?: number;
+  my_rating?: number;
+  status?: string;
+  progress?: number;
+  notes?: string;
+  categoryRatings?: CategoryRatings;
+  favorite?: boolean;
+  notInterested?: boolean;
+  igdb: {
+    id: number;
+    name: string;
+    cover?: string;
+    rating?: number;
+    genres?: string[];
+    releaseDate?: Date;
+  };
+}
+
+interface SimilarGame {
+  id: number;
+  name: string;
+  cover?: string;
+  rating?: number;
+  released?: number | null;
+}
+
+interface CastVoiceEntry {
+  id: number;
+  character: string;
+  characterSlug?: string | null;
+  actor: string;
+  actorSlug?: string | null;
+  actorImage?: string | null;
+}
 
 type PCGamingWikiApiResponse = {
   data?: {
@@ -81,19 +129,26 @@ export default function GamePage() {
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [loadingGame, setLoadingGame] = useState(false);
-  const [dlcs, setDlcs] = useState<any[]>([]);
-  const [loadingDlcs, setLoadingDlcs] = useState(false);
+  // const [dlcs, setDlcs] = useState<any[]>([]);
+  // const [loadingDlcs, setLoadingDlcs] = useState(false);
   const [drmRows, setDrmRows] = useState<PCGWRow[]>([]);
   const [loadingDrm, setLoadingDrm] = useState(false);
   const [drmError, setDrmError] = useState<string | null>(null);
+  const [trackedGameData, setTrackedGameData] = useState<any>(null);
+  const [trackingModalOpen, setTrackingModalOpen] = useState(false);
+  const [trackingSaving, setTrackingSaving] = useState(false);
 
   const [aboutOpen, setAboutOpen] = useState(false);
 
-  const [tab, setTab] = useState<"screenshots" | "trailers">("screenshots");
+  const [tab, setTab] = useState<"screenshots" | "trailers" | "similar">(
+    "screenshots",
+  );
   const genreContainerRef = useRef<HTMLDivElement>(null);
   const genreTrackRef = useRef<HTMLDivElement>(null);
   const [genreShouldScroll, setGenreShouldScroll] = useState(false);
   const [genreScrollDistance, setGenreScrollDistance] = useState(0);
+  const [posterLoaded, setPosterLoaded] = useState(false);
+  const [screenshotsReady, setScreenshotsReady] = useState(false);
 
   const requireLogin = () => {
     if (!user) {
@@ -114,6 +169,16 @@ export default function GamePage() {
           cache: "force-cache",
         });
         const data = await res.json();
+        console.log("[GamePage] /api/igdb/game response", {
+          id,
+          game: data?.name,
+          castVoiceCount: Array.isArray(data?.cast_voice)
+            ? data.cast_voice.length
+            : 0,
+          castVoiceSample: Array.isArray(data?.cast_voice)
+            ? data.cast_voice.slice(0, 3)
+            : [],
+        });
         setGame(data);
       } catch (err) {
         console.error(err);
@@ -203,9 +268,72 @@ export default function GamePage() {
     videoId: v.video_id,
   }));
 
+  const similarGames = useMemo<SimilarGame[]>(
+    () =>
+      Array.isArray(game?.similar_games)
+        ? (game.similar_games as SimilarGame[])
+        : [],
+    [game?.similar_games],
+  );
+
+  const posterImage = useMemo(() => {
+    if (!game) return "/placeholder-game.jpg";
+
+    if (game.cover) {
+      if (typeof game.cover === "string") {
+        const rawCover = game.cover.startsWith("//")
+          ? `https:${game.cover}`
+          : game.cover;
+        return rawCover.replace(/t_[^/]+/, "t_1080p");
+      }
+
+      if (game.cover.url) {
+        const rawCover = game.cover.url.startsWith("//")
+          ? `https:${game.cover.url}`
+          : game.cover.url;
+        return rawCover.replace(/t_[^/]+/, "t_1080p");
+      }
+    }
+
+    if (game.background_image) {
+      const rawBg = game.background_image.startsWith("//")
+        ? `https:${game.background_image}`
+        : game.background_image;
+      return rawBg.replace(/t_[^/]+/, "t_1080p");
+    }
+    return "/placeholder-game.jpg";
+  }, [game]);
+
   useEffect(() => {
     if (!screenshots?.length) return;
     setBgImage(screenshots[0].bg);
+  }, [screenshots]);
+
+  useEffect(() => {
+    setPosterLoaded(false);
+  }, [posterImage]);
+
+  useEffect(() => {
+    if (!screenshots?.length) {
+      setScreenshotsReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setScreenshotsReady(false);
+
+    const previewImage = new Image();
+    previewImage.src = screenshots[0].image;
+    previewImage.onload = () => {
+      if (!cancelled) setScreenshotsReady(true);
+    };
+    previewImage.onerror = () => {
+      if (!cancelled) setScreenshotsReady(true);
+    };
+
+    return () => {
+      cancelled = true;
+    };
   }, [screenshots]);
 
   useEffect(() => {
@@ -223,30 +351,30 @@ export default function GamePage() {
     return () => clearInterval(interval);
   }, [screenshots]);
 
-  useEffect(() => {
-    setLoadingDlcs(true);
-    if (!game) return;
+  // useEffect(() => {
+  //   setLoadingDlcs(true);
+  //   if (!game) return;
 
-    const ids = [
-      ...(game.dlcs ?? []),
-      ...(game.expansions ?? []),
-      ...(game.standalone_expansions ?? []),
-    ];
+  //   const ids = [
+  //     ...(game.dlcs ?? []),
+  //     ...(game.expansions ?? []),
+  //     ...(game.standalone_expansions ?? []),
+  //   ];
 
-    if (!ids.length) return;
+  //   if (!ids.length) return;
 
-    const fetchDlcs = async () => {
-      const res = await fetch("/api/igdb/dlcs", {
-        method: "POST",
-        body: JSON.stringify({ ids }),
-      });
+  //   const fetchDlcs = async () => {
+  //     const res = await fetch("/api/igdb/dlcs", {
+  //       method: "POST",
+  //       body: JSON.stringify({ ids }),
+  //     });
 
-      const data = await res.json();
-      setDlcs(data);
-      setLoadingDlcs(false);
-    };
-    fetchDlcs();
-  }, [game]);
+  //     const data = await res.json();
+  //     setDlcs(data);
+  //     setLoadingDlcs(false);
+  //   };
+  //   fetchDlcs();
+  // }, [game]);
 
   const fetchUserTrackedGame = async () => {
     try {
@@ -257,6 +385,9 @@ export default function GamePage() {
         const tracked = snap.data();
         setIsFavorited(Boolean(tracked.favorite));
         setCurrentStatus(tracked.status || null);
+        setTrackedGameData(tracked);
+      } else {
+        setTrackedGameData(null);
       }
     } catch (err) {
       console.error("Failed to fetch tracked game:", err);
@@ -324,7 +455,7 @@ export default function GamePage() {
           : `https:${game.cover}`;
       } else if (game.cover.url) {
         // If cover is an object with url property
-        coverUrl = `https:${game.cover.url.replace("t_thumb", "t_cover_big")}`;
+        coverUrl = `https:${game.cover.url.replace("t_thumb", "t_1080p")}`;
       }
     } else if (game.background_image) {
       // Fallback to background image
@@ -687,7 +818,7 @@ export default function GamePage() {
   }, [drmLabels, drmRows]);
 
   const drmStatus = useMemo<
-    "denuvo" | "online_only" | "crackable" | "unknown"
+    "denuvo" | "online_only" | "online" | "crackable" | "unknown"
   >(() => {
     if (hasDenuvo) return "denuvo";
     if (isOnlineOnly) return "online_only";
@@ -720,6 +851,99 @@ export default function GamePage() {
     ?.toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+
+  const trackingModalGame = useMemo<TrackedGameModalData | null>(() => {
+    if (!game?.id) return null;
+
+    let coverUrl = "/placeholder-game.jpg";
+    if (game.cover) {
+      if (typeof game.cover === "string") {
+        coverUrl = game.cover.includes("https:")
+          ? game.cover
+          : `https:${game.cover}`;
+      } else if (game.cover.url) {
+        coverUrl = `https:${game.cover.url.replace("t_thumb", "t_1080p")}`;
+      }
+    } else if (game.background_image) {
+      coverUrl = game.background_image;
+    }
+
+    const releaseDate =
+      typeof game.released === "number"
+        ? new Date(game.released * 1000)
+        : undefined;
+
+    return {
+      _docId: String(game.id),
+      name: game.name,
+      playtime: trackedGameData?.playtime ?? 0,
+      my_rating: trackedGameData?.my_rating ?? 0,
+      status: trackedGameData?.status ?? currentStatus ?? "Playing",
+      progress: trackedGameData?.progress ?? 0,
+      notes: trackedGameData?.notes ?? "",
+      categoryRatings: trackedGameData?.categoryRatings,
+      favorite: trackedGameData?.favorite ?? isFavorited ?? false,
+      notInterested: trackedGameData?.notInterested ?? false,
+      igdb: {
+        id: game.id,
+        name: game.name,
+        cover: coverUrl,
+        rating: game.rating || 0,
+        genres: normalizeGenres(game.genres),
+        releaseDate,
+      },
+    };
+  }, [game, trackedGameData, currentStatus, isFavorited]);
+  const hasTrackedEntry = Boolean(trackedGameData);
+
+  const handleSaveTrackingModal = async (
+    notes: string,
+    rating: number,
+    progress: number,
+    playtime: number,
+    status: string,
+    favorite: boolean,
+    categoryRatings: CategoryRatings,
+    notInterested: boolean,
+  ) => {
+    if (!user || !game || trackingSaving) return;
+
+    try {
+      setTrackingSaving(true);
+      await updateTrackedGame({
+        notes,
+        my_rating: rating,
+        progress,
+        playtime,
+        status,
+        favorite,
+        categoryRatings,
+        notInterested,
+        lastUpdated: serverTimestamp(),
+      });
+
+      setCurrentStatus(status);
+      setIsFavorited(favorite);
+      setTrackedGameData((prev: any) => ({
+        ...(prev ?? {}),
+        notes,
+        my_rating: rating,
+        progress,
+        playtime,
+        status,
+        favorite,
+        categoryRatings,
+        notInterested,
+      }));
+      setTrackingModalOpen(false);
+      toast.success("Game saved!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save game.");
+    } finally {
+      setTrackingSaving(false);
+    }
+  };
 
   ///////////////////////////////////////// UI /////////////////////////////////////////////
 
@@ -758,7 +982,7 @@ export default function GamePage() {
           <AnimatePresence mode="wait">
             <motion.img
               key={bgImage}
-              src={bgImage ?? game.background_image}
+              src={bgImage!}
               className="w-full h-full object-cover absolute inset-0"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -783,12 +1007,21 @@ export default function GamePage() {
             {/* Poster + Header */}
             <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
               <div className="flex flex-col items-center gap-3 shrink-0">
-                <motion.img
-                  src={game.background_image}
-                  className="w-44 sm:w-52 md:w-72 h-64 sm:h-72 md:h-96 object-cover rounded-2xl shadow-xl"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                />
+                <div className="relative w-44 sm:w-52 md:w-72 h-64 sm:h-72 md:h-96">
+                  {!posterLoaded && (
+                    <div className="absolute inset-0 rounded-2xl bg-zinc-800/80 animate-pulse shadow-xl" />
+                  )}
+                  <motion.img
+                    src={posterImage}
+                    onLoad={() => setPosterLoaded(true)}
+                    onError={() => setPosterLoaded(true)}
+                    className={`w-full h-full object-cover rounded-2xl shadow-xl transition-opacity duration-500 ${
+                      posterLoaded ? "opacity-100" : "opacity-0"
+                    }`}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                  />
+                </div>
 
                 {/* Small game name under poster */}
                 <div className="flex justify-center">
@@ -820,40 +1053,6 @@ export default function GamePage() {
                     </span>
                   </a>
                 </div>
-
-                <div>
-                  {loadingDrm ? (
-                    <div className="flex justify-center items-center">
-                      <span className="loading loading-spinner loading-sm" />
-                    </div>
-                  ) : drmError ? (
-                    <p className="text-sm text-red-300 text-center">
-                      {drmError}
-                    </p>
-                  ) : (
-                    <div className="flex justify-center">
-                      <span
-                        className={`text-xs uppercase tracking-widest leading-relaxed px-3 py-1 rounded-full border ${
-                          drmStatus === "denuvo"
-                            ? "bg-red-500/20 border-red-400/60 text-red-200"
-                            : drmStatus === "online_only"
-                              ? "bg-amber-500/20 border-amber-400/60 text-amber-200"
-                              : drmStatus === "crackable"
-                                ? "bg-emerald-500/20 border-emerald-400/60 text-emerald-200"
-                                : "bg-zinc-500/20 border-zinc-400/60 text-zinc-200"
-                        }`}
-                      >
-                        {drmStatus === "denuvo"
-                          ? "Denuvo Anti-Tamper"
-                          : drmStatus === "online_only"
-                            ? "Online Only"
-                            : drmStatus === "crackable"
-                              ? "Crackable"
-                              : "Check main game"}
-                      </span>
-                    </div>
-                  )}
-                </div>
               </div>
 
               <div className="flex-1 space-y-4">
@@ -863,8 +1062,8 @@ export default function GamePage() {
                   </h1>
                 </div>
 
-                {/* Favorite */}
-                <div className="flex justify-between">
+                {/* Quick Actions */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <button
                     onClick={handleFavoriteToggle}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-base border border-white/10 hover:bg-red-500 hover:scale-105 transition cursor-pointer ${
@@ -879,6 +1078,15 @@ export default function GamePage() {
                         <FaHeart /> {isFavorited ? "Favorited" : "Favorite"}
                       </>
                     )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!requireLogin()) return;
+                      setTrackingModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-lg text-base border border-white/10 bg-white/10 hover:bg-cyan-500/20 hover:border-cyan-400/40 transition cursor-pointer hover:scale-105"
+                  >
+                    {hasTrackedEntry ? "Edit Tracking" : "Add Tracking"}
                   </button>
                 </div>
 
@@ -911,7 +1119,6 @@ export default function GamePage() {
                     );
                   })}
                 </div>
-
                 {/* About */}
                 <div className="bg-white/5 border border-white/10 p-2 rounded-2xl">
                   {Array.isArray(game.genres) && game.genres.length > 0 ? (
@@ -1095,7 +1302,45 @@ export default function GamePage() {
                       )}
                     </div>
                   </div>
-                  {game.dlcs ? (
+                  <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
+                    <div className="w-full h-full flex flex-col items-center justify-center">
+                      <h3 className="text-lg font-bold mb-2">Crack Status</h3>
+
+                      {loadingDrm ? (
+                        <div className="flex justify-center items-center">
+                          <span className="loading loading-spinner loading-sm" />
+                        </div>
+                      ) : drmError ? (
+                        <p className="text-sm text-red-300 text-center">
+                          {drmError}
+                        </p>
+                      ) : (
+                        <div className="flex justify-center">
+                          <span
+                            className={`text-xs uppercase tracking-widest leading-relaxed px-3 py-1 rounded-full border ${
+                              drmStatus === "denuvo"
+                                ? "bg-red-500/20 border-red-400/60 text-red-200"
+                                : drmStatus === "online_only"
+                                  ? "bg-amber-500/20 border-amber-400/60 text-amber-200"
+                                  : drmStatus === "crackable"
+                                    ? "bg-emerald-500/20 border-emerald-400/60 text-emerald-200"
+                                    : "bg-zinc-500/20 border-zinc-400/60 text-zinc-200"
+                            }`}
+                          >
+                            {drmStatus === "denuvo"
+                              ? "Denuvo Anti-Tamper"
+                              : drmStatus === "online_only"
+                                ? "Online Only"
+                                : drmStatus === "crackable"
+                                  ? "No DRM Protection"
+                                  : "Unknown"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* {game.dlcs ? (
                     <div className="p-4 bg-white/5 rounded-lg border border-white/10">
                       <h3 className="text-sm opacity-70 mb-2 text-center">
                         DLCs
@@ -1126,90 +1371,69 @@ export default function GamePage() {
                   ) : (
                     <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
                       <div className="w-full h-full flex flex-col items-center justify-center">
-                        <h3 className="text-lg font-bold mb-2">
-                          Time to Beat
-                          {game.time_to_beat?.count && (
-                            <div className="text-xs text-white/60 mt-1">
-                              Based on {game.time_to_beat.count} submissions
-                            </div>
-                          )}
-                        </h3>
-                        {game.time_to_beat ? (
-                          <div className="flex gap-3 text-sm justify-center">
-                            {game.time_to_beat.hastily !== undefined && (
-                              <span className="flex flex-col text-center min-w-20">
-                                <span>Main Story</span>
-                                <span>
-                                  {Math.floor(game.time_to_beat.hastily / 3600)}
-                                  h{" "}
-                                  {Math.floor(
-                                    (game.time_to_beat.hastily % 3600) / 60,
-                                  )}
-                                  m
-                                </span>
-                              </span>
-                            )}
+                        <h3 className="text-lg font-bold mb-2">Crack Status</h3>
 
-                            {game.time_to_beat.normally !== undefined && (
-                              <span className="flex flex-col text-center min-w-20">
-                                <span>Normal Run</span>
-                                <span>
-                                  {Math.floor(
-                                    game.time_to_beat.normally / 3600,
-                                  )}
-                                  h{" "}
-                                  {Math.floor(
-                                    (game.time_to_beat.normally % 3600) / 60,
-                                  )}
-                                  m
-                                </span>
-                              </span>
-                            )}
-
-                            {game.time_to_beat.completely !== undefined && (
-                              <span className="flex flex-col text-center min-w-20">
-                                <span>Completionist</span>
-                                <span>
-                                  {Math.floor(
-                                    game.time_to_beat.completely / 3600,
-                                  )}
-                                  h{" "}
-                                  {Math.floor(
-                                    (game.time_to_beat.completely % 3600) / 60,
-                                  )}
-                                  m
-                                </span>
-                              </span>
-                            )}
+                        {loadingDrm ? (
+                          <div className="flex justify-center items-center">
+                            <span className="loading loading-spinner loading-sm" />
                           </div>
-                        ) : (
-                          <p className="text-sm text-white/60">
-                            No data available
+                        ) : drmError ? (
+                          <p className="text-sm text-red-300 text-center">
+                            {drmError}
                           </p>
+                        ) : (
+                          <div className="flex justify-center">
+                            <span
+                              className={`text-xs uppercase tracking-widest leading-relaxed px-3 py-1 rounded-full border ${
+                                drmStatus === "denuvo"
+                                  ? "bg-red-500/20 border-red-400/60 text-red-200"
+                                  : drmStatus === "online_only"
+                                    ? "bg-amber-500/20 border-amber-400/60 text-amber-200"
+                                    : drmStatus === "crackable"
+                                      ? "bg-emerald-500/20 border-emerald-400/60 text-emerald-200"
+                                      : "bg-zinc-500/20 border-zinc-400/60 text-zinc-200"
+                              }`}
+                            >
+                              {drmStatus === "denuvo"
+                                ? "Denuvo Anti-Tamper"
+                                : drmStatus === "online_only"
+                                  ? "Online Only"
+                                  : drmStatus === "crackable"
+                                    ? "Crackable"
+                                    : "Check main game"}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
             </div>
 
-            {/* Tabs: Screenshots / Trailers */}
+            {/* Tabs: Screenshots / Trailers / Similar */}
             <div>
               <div className="flex gap-2 justify-center mb-4">
                 <button
                   onClick={() => setTab("screenshots")}
-                  className={`px-4 py-2 cursor-pointer hover:scale-105 hover:opacity-100 ease-in-out transition-all duration-300 rounded-lg border 
+                  className={`px-4 py-2 cursor-pointer hover:scale-105 hover:opacity-100 ease-in-out transition-all duration-300 rounded-full border 
                     ${tab === "screenshots" ? "bg-cyan-500 text-black" : "bg-white/10"}`}
                 >
                   Screenshots
                 </button>
                 <button
                   onClick={() => setTab("trailers")}
-                  className={`px-4 py-2 cursor-pointer hover:scale-105 hover:opacity-100 ease-in-out transition-all duration-300 rounded-lg border 
+                  className={`px-4 py-2 cursor-pointer hover:scale-105 hover:opacity-100 ease-in-out transition-all duration-300 rounded-full border 
                     ${tab === "trailers" ? "bg-cyan-500 text-black" : "bg-white/10"}`}
                 >
                   Trailers
+                </button>
+                <button
+                  onClick={() => setTab("similar")}
+                  className={`px-4 py-2 cursor-pointer hover:scale-105 hover:opacity-100 ease-in-out transition-all duration-300 rounded-full border 
+                    ${tab === "similar" ? "bg-cyan-500 text-black" : "bg-white/10"}`}
+                >
+                  Similar Games
                 </button>
               </div>
               <AnimatePresence mode="wait">
@@ -1220,7 +1444,25 @@ export default function GamePage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
                   >
-                    <ScreenshotsCarousel screenshots={screenshots} />
+                    <div className="relative">
+                      {!screenshotsReady && (
+                        <div className="w-[1400px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {Array.from({ length: 4 }).map((_, idx) => (
+                            <div
+                              key={`skeleton-shot-${idx}`}
+                              className="h-48 rounded-lg bg-zinc-800/80 animate-pulse"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      <div
+                        className={`transition-opacity duration-500 ${
+                          screenshotsReady ? "opacity-100" : "opacity-0"
+                        }`}
+                      >
+                        <ScreenshotsCarousel screenshots={screenshots} />
+                      </div>
+                    </div>
                   </motion.div>
                 )}
                 {tab === "trailers" && (
@@ -1233,6 +1475,16 @@ export default function GamePage() {
                     <VideoCarousel videos={videoThumbnails} />
                   </motion.div>
                 )}
+                {tab === "similar" && (
+                  <motion.div
+                    key="similar"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                  >
+                    <SimilarGamesGrid games={similarGames} maxItems={20} />
+                  </motion.div>
+                )}
               </AnimatePresence>
             </div>
           </div>
@@ -1240,19 +1492,19 @@ export default function GamePage() {
           {/* Right column: Stores & repacks */}
           <div className="w-full lg:w-[380px] shrink-0 space-y-6 lg:sticky lg:top-28">
             <div className="relative bg-white/5 border border-white/10 p-6 rounded-2xl">
-              <h2 className="text-center text-lg font-bold mb-2">Stores</h2>
+              <h2 className="text-center text-lg font-bold mb-2">Download</h2>
               <hr className="w-full border-zinc-700 mb-4" />
 
               <div
-                className={`relative mt-5 max-h-[42vh] overflow-y-auto p-2 ${
-                  game.platforms.length > 10 && "pr-4"
-                }`}
+                className={`relative mt-5 ${game.platforms.length > 10 && "pr-4"}  p-2`}
               >
-                <h3>Official</h3>
+                <h2 className="text-lg font-bold mb-2">Official</h2>
+
                 <div className="relative mt-3">
-                  {/* BLURRED CONTENT */}
                   <div
-                    className={`${showStoreOverlay ? "blur-sm" : ""} space-y-3`}
+                    className={`space-y-3 transition ${
+                      showStoreOverlay ? "blur-sm pointer-events-none select-none" : ""
+                    }`}
                   >
                     {hasOfficialStores ? (
                       <>
@@ -1308,21 +1560,18 @@ export default function GamePage() {
                   </div>
                 </div>
 
-                {/* OVERLAY */}
-
                 {showStoreOverlay && (
                   <div
-                    className="
-                      absolute inset-0
-                      flex items-center justify-center
-                      rounded-xl
-                      bg-black/55
-                      backdrop-blur-sm
-                      z-10
-                    "
+                    className="mt-10 
+                        absolute inset-0
+                        flex items-center justify-center
+                        rounded-xl
+                        bg-black/55
+                        backdrop-blur-sm
+                        z-10
+                      "
                   >
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
-                      {/* Lock */}
                       <div
                         className="
                           w-12 h-12
@@ -1334,8 +1583,6 @@ export default function GamePage() {
                       >
                         <FaLock size={18} className="text-white/70" />
                       </div>
-
-                      {/* Text */}
                       <p className="text-xs uppercase tracking-wide text-white/60 leading-relaxed">
                         Locked until preorder
                         <br />
@@ -1541,6 +1788,25 @@ export default function GamePage() {
             </div>
           </div>
         </motion.main>
+
+        {trackingModalGame && (
+          <GameTrackingModal
+            open={trackingModalOpen}
+            onClose={() => setTrackingModalOpen(false)}
+            onSave={handleSaveTrackingModal}
+            saving={trackingSaving}
+            game={trackingModalGame}
+            initialNotes={trackingModalGame.notes ?? ""}
+            initialRating={trackingModalGame.my_rating ?? 0}
+            initialCategoryRatings={trackingModalGame.categoryRatings}
+            initialProgress={trackingModalGame.progress ?? 0}
+            initialPlaytime={trackingModalGame.playtime ?? 0}
+            initialStatus={trackingModalGame.status ?? "Playing"}
+            initialFavorite={trackingModalGame.favorite ?? false}
+            showStatus={true}
+            showFavorite={true}
+          />
+        )}
       </div>
     </>
   );

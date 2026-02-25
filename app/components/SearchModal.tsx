@@ -24,6 +24,14 @@ export default function SearchModal({
   const [loading, setLoading] = useState(false);
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleClear = () => {
+    setQuery("");
+    setResults([]);
+    setLoading(false);
+    inputRef.current?.focus();
+  };
 
   useEffect(() => {
     if (!query || query.length < 2) {
@@ -64,21 +72,42 @@ export default function SearchModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
+      onClick={onClose}
     >
       <motion.div
         className="bg-[#161616] w-full max-w-3xl h-[560px] rounded-xl overflow-hidden flex flex-col"
         initial={{ scale: 0.9 }}
         animate={{ scale: 1 }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-white/10 flex gap-3">
           <input
             autoFocus
+            ref={inputRef}
             className="flex-1 bg-transparent text-white text-lg outline-none"
             placeholder="Search a game..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button onClick={onClose}>x</button>
+          <button
+            type="button"
+            onClick={handleClear}
+            disabled={query.length === 0 && results.length === 0}
+            className={`px-3 py-1.5 rounded-md text-sm border transition ${
+              query.length === 0 && results.length === 0
+                ? "border-white/10 text-white/30 cursor-not-allowed"
+                : "border-white/30 text-white/85 hover:bg-white/10 cursor-pointer"
+            }`}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md text-sm font-semibold border border-red-400/70 text-red-200 bg-red-500/20 hover:bg-red-500/30 transition cursor-pointer"
+          >
+            Close
+          </button>
         </div>
 
         <div className="h-[480px] overflow-y-auto p-3">

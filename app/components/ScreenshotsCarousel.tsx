@@ -38,7 +38,7 @@ export default function ScreenshotsCarousel({
     const speed = 0.5;
 
     const scroll = () => {
-      if (!isHovered) {
+      if (!isHovered && !modalOpen) {
         scrollPosRef.current += speed;
         if (scrollPosRef.current >= container.scrollWidth / 2) {
           scrollPosRef.current -= container.scrollWidth / 2;
@@ -50,7 +50,7 @@ export default function ScreenshotsCarousel({
 
     animationFrame = requestAnimationFrame(scroll);
     return () => cancelAnimationFrame(animationFrame);
-  }, [isHovered, screenshots]);
+  }, [isHovered, modalOpen, screenshots]);
 
   const handleOpenModal = (index: number) => {
     setActiveIndex(index);
@@ -89,7 +89,7 @@ export default function ScreenshotsCarousel({
 
   if (screenshots.length === 0) {
     return (
-      <div className="w-full max-w-[1400px] mx-auto h-48 flex items-center justify-center">
+      <div className="w-[1400px] mx-auto h-48 flex items-center justify-center">
         <div className="h-48 w-64 flex items-center justify-center bg-zinc-900/50 rounded-lg border border-zinc-700 text-zinc-400 text-sm">
           No screenshots available
         </div>
@@ -107,7 +107,7 @@ export default function ScreenshotsCarousel({
         ref={containerRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="flex gap-4 overflow-x-auto hide-scrollbar w-full max-w-[1400px] mx-auto cursor-pointer"
+        className="flex gap-4 overflow-x-auto hide-scrollbar w-[1400px] mx-auto cursor-pointer"
       >
         {allScreenshots.map((s, i) => (
           <div
@@ -171,7 +171,7 @@ export default function ScreenshotsCarousel({
                 key={activeIndex}
                 src={screenshots[activeIndex].image}
                 alt={`screenshot ${activeIndex + 1}`}
-                className="w-[70vw] h-[70vh] object-cover rounded-lg shadow-lg"
+                className="w-[70vw] h-[70vh] object-contain rounded-lg shadow-lg bg-black/40"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}

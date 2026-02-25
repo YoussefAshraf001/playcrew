@@ -1,15 +1,28 @@
 import { getIGDBToken } from "@/app/lib/igdb";
 import { NextResponse } from "next/server";
 
+const SIMILAR_TARGET = 20;
+
+const mapSimilarEntry = (entry: any) => ({
+  id: entry.id,
+  name: entry.name,
+  cover: entry.cover?.url
+    ? `https:${entry.cover.url.replace("t_thumb", "t_cover_big")}`
+    : "/placeholder-game.jpg",
+  rating: entry.aggregated_rating ? Math.round(entry.aggregated_rating) : 0,
+  released: entry.first_release_date ?? null,
+});
+
 export async function POST(req: Request) {
   const { id } = await req.json();
-  if (!id)
+  if (!id) {
     return NextResponse.json({ error: "No ID provided" }, { status: 400 });
+  }
 
   try {
     const token = await getIGDBToken();
 
-    // 1️⃣ Fetch game details
+    // 1) Fetch game details
     const gameRes = await fetch("https://api.igdb.com/v4/games", {
       method: "POST",
       headers: {
@@ -18,10 +31,11 @@ export async function POST(req: Request) {
         "Content-Type": "text/plain",
       },
       body: `
-        fields id, name, slug, tags, genres, cover.url, 
-        aggregated_rating, total_rating, total_rating_count, 
-        first_release_date, summary, storyline, platforms.name, 
-        screenshots.url, videos.video_id, dlcs, franchises, 
+        fields id, name, slug, tags, genres, cover.url,
+        aggregated_rating, total_rating, total_rating_count,
+        first_release_date, summary, storyline, platforms.name,
+        screenshots.url, videos.video_id, dlcs, similar_games,
+        franchises,
         game_engines, game_status, websites;
         where id = ${id};
       `,
@@ -34,7 +48,7 @@ export async function POST(req: Request) {
 
     const [game] = await gameRes.json();
 
-    // 2️⃣ Fetch time to beat
+    // 2) Fetch time to beat
     const timeRes = await fetch("https://api.igdb.com/v4/game_time_to_beats", {
       method: "POST",
       headers: {
@@ -55,8 +69,72 @@ export async function POST(req: Request) {
 
     const [timeToBeat] = await timeRes.json();
 
-    // 3️⃣ Fetch genre names if any
-    let genreMap: Record<number, string> = {};
+    // 3) Fetch similar games
+    let similarGames: any[] = [];
+    if (game.similar_games?.length) {
+      const similarRes = await fetch("https://api.igdb.com/v4/games", {
+        method: "POST",
+        headers: {
+          "Client-ID": process.env.IGDB_CLIENT_ID!,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "text/plain",
+        },
+        body: `
+          fields id, name, cover.url, aggregated_rating, first_release_date;
+          where id = (${game.similar_games.join(",")});
+          limit ${SIMILAR_TARGET};
+        `,
+      });
+
+      if (similarRes.ok) {
+        const similarData = await similarRes.json();
+        const byId = new Map<number, any>(
+          similarData.map((entry: any) => [entry.id, entry]),
+        );
+
+        similarGames = game.similar_games
+          .map((similarId: number) => byId.get(similarId))
+          .filter(Boolean)
+          .map((entry: any) => mapSimilarEntry(entry));
+      }
+    }
+
+    // Backfill if similar_games returns fewer than requested.
+    if (similarGames.length < SIMILAR_TARGET && game.genres?.length) {
+      const excludedIds = new Set<number>([
+        Number(id),
+        ...similarGames.map((g: any) => g.id),
+      ]);
+
+      const extraRes = await fetch("https://api.igdb.com/v4/games", {
+        method: "POST",
+        headers: {
+          "Client-ID": process.env.IGDB_CLIENT_ID!,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "text/plain",
+        },
+        body: `
+          fields id, name, cover.url, aggregated_rating, first_release_date;
+          where id != ${id}
+            & cover != null
+            & genres = (${game.genres.join(",")});
+          sort total_rating_count desc;
+          limit 60;
+        `,
+      });
+
+      if (extraRes.ok) {
+        const extraData = await extraRes.json();
+        const extras = extraData
+          .filter((entry: any) => !excludedIds.has(entry.id))
+          .map((entry: any) => mapSimilarEntry(entry));
+
+        similarGames = [...similarGames, ...extras].slice(0, SIMILAR_TARGET);
+      }
+    }
+
+    // 4) Fetch genre names if any
+    const genreMap: Record<number, string> = {};
     if (game.genres?.length) {
       const genreRes = await fetch("https://api.igdb.com/v4/genres", {
         method: "POST",
@@ -77,8 +155,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4️⃣ Fetch tag names if any
-    let tagMap: Record<number, string> = {};
+    // 5) Fetch tag names if any
+    const tagMap: Record<number, string> = {};
     if (game.tags?.length) {
       const tagRes = await fetch("https://api.igdb.com/v4/tags", {
         method: "POST",
@@ -99,7 +177,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 5️⃣ Map game data
+    // 6) Map game data
     const mappedGame = {
       id: game.id,
       name: game.name,
@@ -120,15 +198,15 @@ export async function POST(req: Request) {
       total_rating_count: game.total_rating_count,
       videos: game.videos,
       dlcs: game.dlcs,
+      similar_games: similarGames,
       franchises: game.franchises,
       game_engines: game.game_engines,
       game_status: game.game_status,
       websites: game.websites,
       genres:
-        game.genres?.map((id: number) => genreMap[id] ?? `Unknown (${id})`) ||
+        game.genres?.map((genreId: number) => genreMap[genreId] ?? `Unknown (${genreId})`) ||
         [],
-      tags:
-        game.tags?.map((id: number) => tagMap[id] ?? `Unknown (${id})`) || [],
+      tags: game.tags?.map((tagId: number) => tagMap[tagId] ?? `Unknown (${tagId})`) || [],
       time_to_beat: timeToBeat || null,
     };
 
