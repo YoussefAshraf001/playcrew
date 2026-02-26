@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { FaStar } from "react-icons/fa";
 
 interface SimilarGame {
   id: number;
@@ -66,14 +67,14 @@ export default function SimilarGamesGrid({
 
   if (visibleGames.length === 0) {
     return (
-      <div className="w-full lg:w-[1400px] h-53 lg:h-44 mx-auto flex items-center justify-center">
+      <div className="w-full lg:w-[1250px] h-50 mx-auto flex items-center justify-center">
         <p className="text-sm text-white/60">No similar games found.</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full lg:w-[1400px] h-53 mx-auto">
+    <div className="w-full lg:w-[1250px] h-45 mx-auto">
       <div className="relative w-full h-full">
         <button
           type="button"
@@ -91,7 +92,7 @@ export default function SimilarGamesGrid({
 
         <div
           ref={carouselRef}
-          className="flex gap-4 lg:gap-2 overflow-x-auto hide-scrollbar h-full scroll-smooth"
+          className="flex gap-4 lg:gap-3 overflow-x-auto hide-scrollbar h-full scroll-smooth"
         >
           {visibleGames.map((similar) => {
             const releasedUnix =
@@ -104,7 +105,7 @@ export default function SimilarGamesGrid({
               <Link
                 key={similar.id}
                 href={`/game/${similar.id}`}
-                className="group relative overflow-hidden rounded-lg shrink-0 w-[336px] lg:w-[148px] h-full"
+                className="group relative overflow-hidden rounded-lg shrink-0 w-[336px] lg:w-[140px] h-full"
               >
                 <img
                   src={similar.cover || "/placeholder-game.jpg"}
@@ -112,19 +113,25 @@ export default function SimilarGamesGrid({
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   draggable={false}
                 />
-                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/85 to-transparent p-3">
-                  <p className="text-xs font-semibold text-white line-clamp-1">
+                <div className="pointer-events-none absolute inset-0 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3 translate-y-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+                  <p className="text-xs font-semibold text-white line-clamp-2">
                     {similar.name}
                   </p>
-                  <p className="text-xs text-white/70">
-                    {!hasReleaseDate
-                      ? "TBA"
-                      : isUpcoming
-                        ? "Upcoming"
-                        : similar.rating
-                          ? `${similar.rating}/100`
-                          : "Not Rated"}
-                  </p>
+                  <div className="mt-1 text-xs text-white/80">
+                    {!hasReleaseDate ? (
+                      "TBA"
+                    ) : isUpcoming ? (
+                      "Upcoming"
+                    ) : similar.rating ? (
+                      <div className="flex items-center gap-1 text-xs font-semibold">
+                        <FaStar size={12} className="text-amber-300" />
+                        <span>{Math.round(similar.rating)}</span>
+                      </div>
+                    ) : (
+                      "Not Rated"
+                    )}
+                  </div>
                 </div>
               </Link>
             );

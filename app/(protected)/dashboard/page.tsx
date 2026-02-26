@@ -25,9 +25,6 @@ type Panel = "none" | "about" | "overview";
 
 type StatusKey = "All" | "Completed" | "Playing" | "On Hold" | "Dropped";
 
-const canContinue =
-  typeof window !== "undefined" && !!localStorage.getItem("lastPage");
-
 interface ModalGame {
   id: string;
   name: string;
@@ -53,10 +50,35 @@ export default function Dashboard() {
   const [games, setGames] = useState<ModalGame[]>([]);
   const [bgVideo, setBgVideo] = useState<string | null>(null);
   const [videoReady, setVideoReady] = useState(false);
+  const [isLg, setIsLg] = useState(false);
+  const [canContinue, setCanContinue] = useState(false);
 
   useEffect(() => {
     setPanelOpen(openPanel !== "none");
   }, [openPanel, setPanelOpen]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const sync = () => setIsLg(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    const syncCanContinue = () => {
+      setCanContinue(!!localStorage.getItem("lastPage"));
+    };
+
+    syncCanContinue();
+    window.addEventListener("storage", syncCanContinue);
+    window.addEventListener("focus", syncCanContinue);
+
+    return () => {
+      window.removeEventListener("storage", syncCanContinue);
+      window.removeEventListener("focus", syncCanContinue);
+    };
+  }, []);
 
   //   /* ───────────────── LOGIC ───────────────── */
   const gameStats = useMemo(() => {
@@ -131,6 +153,8 @@ export default function Dashboard() {
   }, [gameXP]);
 
   const level = Math.max(1, Math.floor(totalXP / 1000) + 1);
+  const accountY = panelOpen ? -20 : playerVisible ? 88 : 0;
+  const accountX = panelOpen ? 40 : playerVisible && isLg ? 52 : 0;
 
   const menuItems = [
     { label: "Continue", action: "continue" },
@@ -154,14 +178,13 @@ export default function Dashboard() {
 
     switch (action) {
       case "continue": {
-        if (!canContinue) {
+        const lastPage = localStorage.getItem("lastPage");
+        if (!lastPage) {
           toast("No previous session found.", {
             icon: "ℹ️",
           });
           return;
         }
-
-        const lastPage = localStorage.getItem("lastPage")!;
         startRouteLoading();
         router.push(lastPage);
         break;
@@ -278,6 +301,79 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-black/10" />
         </div>
 
+        {user && profile && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{
+              opacity: panelOpen ? 0 : 1,
+              scale: panelOpen ? 0.95 : 1,
+              y: accountY,
+              x: accountX,
+            }}
+            transition={{
+              x: { type: "spring", stiffness: 220, damping: 26 },
+              y: { type: "spring", stiffness: 220, damping: 26 },
+              opacity: { duration: 0.25 },
+              scale: { duration: 0.25 },
+            }}
+            onClick={() => {
+              startRouteLoading();
+              router.push(`/profile/${profile.username}`);
+            }}
+            className={`
+              absolute top-6 right-3 sm:top-7 sm:right-6 md:top-8 md:right-10 lg:right-14 xl:right-20
+              z-20
+              group cursor-pointer
+              origin-top-right
+            `}
+          >
+            <div
+              className="
+                relative
+                flex items-center justify-between
+                w-60 sm:w-[260px] md:w-[270px]
+                px-4 sm:px-5 md:px-6 py-3 sm:py-4
+                rounded-2xl
+                bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
+                backdrop-blur-xl
+                border border-cyan-400/20
+                shadow-[0_10px_40px_rgba(0,0,0,0.6)]
+                transition-all duration-300
+                group-hover:scale-105
+                group-hover:border-cyan-400/40
+                group-hover:shadow-[0_15px_60px_rgba(0,255,255,0.15)]
+              "
+            >
+              {/* LEFT SIDE TEXT */}
+              <div className="flex flex-col max-w-[110px] sm:max-w-[120px]">
+                <span className="text-sm sm:text-base font-semibold text-white capitalize truncate">
+                  {profile.username}
+                </span>
+
+                <span className="text-xs sm:text-sm text-cyan-300 font-medium truncate">
+                  Level {level}
+                </span>
+
+                <span className="text-[11px] sm:text-xs text-white/60 mt-1 tracking-wide sm:tracking-widest truncate">
+                  {profile.bio ? profile.bio : `XP ${totalXP}`}
+                </span>
+              </div>
+
+              {/* RIGHT SIDE AVATAR */}
+              <div className="relative">
+                <img
+                  src={profile.avatar.data}
+                  alt={profile.username}
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-white/30"
+                />
+
+                {/* Online Dot */}
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-black" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* MENU COLUMN */}
         <motion.div
           animate={{ x: openPanel === "none" ? 0 : -80 }}
@@ -293,78 +389,6 @@ export default function Dashboard() {
             ${playerVisible ? "pt-24 sm:pt-20 md:pt-0" : ""}
           `}
         >
-          {user && profile && (
-            <motion.div
-              layout
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{
-                opacity: panelOpen ? 0 : 1,
-                scale: panelOpen ? 0.95 : 1,
-                y: panelOpen ? -20 : 0,
-                x: panelOpen ? 80 : 0,
-              }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              onClick={() => {
-                startRouteLoading();
-                router.push(`/profile/${profile.username}`);
-              }}
-              className={`
-                  relative mb-6 w-fit self-start
-                  sm:absolute sm:-top-16 sm:right-0
-                  md:-top-16 md:-right-38
-                  lg:-top-20 lg:-right-330
-                  ${playerVisible ? "md:translate-y-18 lg:translate-y-21 lg:translate-x-10" : "md:translate-y-0 lg:translate-y-0"}
-                  group cursor-pointer
-                  origin-top-right
-                `}
-            >
-              <div
-                className="
-                  relative
-                  flex items-center justify-between
-                  w-60 sm:w-[260px] md:w-[270px]
-                  px-4 sm:px-5 md:px-6 py-3 sm:py-4
-                  rounded-2xl
-                  bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
-                  backdrop-blur-xl
-                  border border-cyan-400/20
-                  shadow-[0_10px_40px_rgba(0,0,0,0.6)]
-                  transition-all duration-300
-                  group-hover:scale-105
-                  group-hover:border-cyan-400/40
-                  group-hover:shadow-[0_15px_60px_rgba(0,255,255,0.15)]
-                "
-              >
-                {/* LEFT SIDE TEXT */}
-                <div className="flex flex-col max-w-[110px] sm:max-w-[120px]">
-                  <span className="text-sm sm:text-base font-semibold text-white capitalize truncate">
-                    {profile.username}
-                  </span>
-
-                  <span className="text-xs sm:text-sm text-cyan-300 font-medium truncate">
-                    Level {level}
-                  </span>
-
-                  <span className="text-[11px] sm:text-xs text-white/60 mt-1 tracking-wide sm:tracking-widest truncate">
-                    {profile.bio ? profile.bio : `XP ${totalXP}`}
-                  </span>
-                </div>
-
-                {/* RIGHT SIDE AVATAR */}
-                <div className="relative">
-                  <img
-                    src={profile.avatar.data}
-                    alt={profile.username}
-                    className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-white/30"
-                  />
-
-                  {/* Online Dot */}
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-black" />
-                </div>
-              </div>
-            </motion.div>
-          )}
-
           {/* Title */}
           <h1
             className={`
@@ -891,3 +915,5 @@ export default function Dashboard() {
 //     </>
 //   );
 // }
+
+

@@ -44,10 +44,12 @@ function Poster({
   src,
   alt,
   className,
+  imgClassName,
 }: {
   src: string;
   alt: string;
   className?: string;
+  imgClassName?: string;
 }) {
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const loaded = loadedSrc === src;
@@ -64,7 +66,7 @@ function Poster({
         src={src}
         alt={alt}
         onLoad={() => setLoadedSrc(src)}
-        className={`h-full w-full object-cover transition-opacity duration-500 ${
+        className={`h-full w-full ${imgClassName || "object-cover"} transition-opacity duration-500 ${
           loaded ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -275,7 +277,7 @@ export default function ShelfPage() {
         <title>PlayCrew - Awards Shelf</title>
       </Helmet>
 
-      <main className="relative min-h-screen overflow-hidden bg-[#07060a] px-4 pb-8 pt-20 sm:px-6 lg:px-8 lg:pt-24">
+      <main className="relative min-h-screen overflow-y-auto bg-[#07060a] px-4 pb-8 pt-20 sm:px-6 lg:px-8 xl:h-svh xl:overflow-hidden xl:pb-3">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_-10%,rgba(45,212,191,0.3),transparent_42%),radial-gradient(ellipse_at_0%_35%,rgba(20,184,166,0.14),transparent_42%),radial-gradient(ellipse_at_100%_35%,rgba(6,182,212,0.14),transparent_42%),linear-gradient(180deg,rgba(7,10,14,0.9),rgba(4,7,10,0.98))]" />
         <div className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.02)_0px,rgba(255,255,255,0.02)_1px,transparent_1px,transparent_36px)] opacity-35" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_60%,transparent_28%,rgba(0,0,0,0.58)_100%)]" />
@@ -306,7 +308,7 @@ export default function ShelfPage() {
                   scaleY: flickerOn ? 1 : 0.2,
                 }}
                 transition={{ duration: 0.08 }}
-                className="absolute left-1/2 top-[12%] h-[56%] w-[2px] -translate-x-1/2 bg-linear-to-b from-transparent via-cyan-100 to-transparent blur-[0.5px]"
+                className="absolute left-1/2 top-[12%] h-[56%] w-0.5 -translate-x-1/2 bg-linear-to-b from-transparent via-cyan-100 to-transparent blur-[0.5px]"
               />
               <motion.div
                 initial={{ opacity: 0, scaleY: 0.2 }}
@@ -315,7 +317,7 @@ export default function ShelfPage() {
                   scaleY: flickerOn ? 1 : 0.2,
                 }}
                 transition={{ duration: 0.08, delay: 0.015 }}
-                className="absolute left-[47%] top-[16%] h-[42%] w-[1px] bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
+                className="absolute left-[47%] top-[16%] h-[42%] w-0.5 bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
               />
               <motion.div
                 initial={{ opacity: 0, scaleY: 0.2 }}
@@ -324,7 +326,7 @@ export default function ShelfPage() {
                   scaleY: flickerOn ? 1 : 0.2,
                 }}
                 transition={{ duration: 0.08, delay: 0.02 }}
-                className="absolute left-[53%] top-[18%] h-[40%] w-[1px] bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
+                className="absolute left-[53%] top-[18%] h-[40%] w-0.5 bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
               />
               <motion.img
                 src="/Award.png"
@@ -353,12 +355,12 @@ export default function ShelfPage() {
         </AnimatePresence>
 
         <motion.section
-          className="relative z-10 mx-auto flex w-full max-w-[1500px] flex-col gap-4 cursor-default"
+          className="relative z-10 mx-auto flex w-full max-w-[1500px] flex-col gap-4 cursor-default xl:h-full xl:min-h-0"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: showIntro ? 0 : 1, y: showIntro ? 10 : 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         >
-          <header className="overflow-hidden rounded-2xl border border-teal-300/20 bg-zinc-950/75 backdrop-blur-xl">
+          <header className="shrink-0 overflow-hidden rounded-2xl border border-teal-300/20 bg-zinc-950/75 backdrop-blur-xl">
             <div className="bg-linear-to-r from-teal-500/20 via-cyan-300/10 to-emerald-500/20 px-5 py-2">
               <p className="text-[11px] uppercase tracking-[0.22em] text-teal-100/85">
                 PlayCrew Awards
@@ -398,11 +400,11 @@ export default function ShelfPage() {
             </div>
           </header>
 
-          <div className="grid gap-6 xl:grid-cols-[430px_1fr]">
+          <div className="grid gap-4 xl:grid-cols-[430px_minmax(0,1fr)] xl:flex-1 xl:min-h-0">
             <motion.section
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              className="overflow-hidden rounded-2xl border border-teal-300/18 bg-zinc-950/75 backdrop-blur-xl"
+              className="flex flex-col overflow-hidden rounded-2xl border border-teal-300/18 bg-zinc-950/75 backdrop-blur-xl xl:min-h-0"
             >
               <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-teal-200/85">
@@ -425,13 +427,14 @@ export default function ShelfPage() {
                 tabIndex={0}
                 className="group relative block w-full p-4"
               >
-                <div className="relative aspect-2/3 overflow-hidden rounded-2xl border border-teal-400/30 bg-[#05080d] shadow-[0_0_0_1px_rgba(45,212,191,0.15)] transition-all duration-300 group-hover:border-teal-300/60 group-hover:shadow-[0_0_0_1px_rgba(45,212,191,0.35),0_14px_34px_rgba(20,184,166,0.28)]">
+                <div className="relative mx-auto h-[410px] md:h-[530px] lg:h-[528px] w-full max-w-[400px] overflow-hidden rounded-2xl border border-teal-400/30 bg-[#05080d] shadow-[0_0_0_1px_rgba(45,212,191,0.15)] transition-all duration-300 group-hover:border-teal-300/60 group-hover:shadow-[0_0_0_1px_rgba(45,212,191,0.35),0_14px_34px_rgba(20,184,166,0.28)]">
                   <div className="pointer-events-none absolute inset-0 z-10 bg-linear-to-r from-transparent via-cyan-100/10 to-transparent -translate-x-[125%] transition-transform duration-700 group-hover:translate-x-[125%]" />
                   <div className="absolute inset-0 rounded-2xl">
                     {bestCover ? (
                       <Poster
                         src={bestCover}
                         alt={bestGame?.name || "Best game"}
+                        imgClassName="object-contain bg-[#05080d]"
                       />
                     ) : (
                       <div className="flex h-full flex-col items-center justify-center text-zinc-400">
@@ -467,7 +470,7 @@ export default function ShelfPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/72 backdrop-blur-xl"
+              className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/72 backdrop-blur-xl xl:min-h-0"
             >
               <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">
@@ -478,7 +481,7 @@ export default function ShelfPage() {
                 </span>
               </div>
 
-              <div className="grid gap-2 p-4 md:grid-cols-2">
+              <div className="grid gap-2 p-4 md:grid-cols-2 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
                 {CATEGORIES.filter((c) => c !== "Best of All Time").map(
                   (category) => renderNomineeCard(category),
                 )}

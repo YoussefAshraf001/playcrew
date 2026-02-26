@@ -89,7 +89,7 @@ export default function ScreenshotsCarousel({
 
   if (screenshots.length === 0) {
     return (
-      <div className="w-[1400px] mx-auto h-48 flex items-center justify-center">
+      <div className="w-[1250px] mx-auto h-48 flex items-center justify-center">
         <div className="h-48 w-64 flex items-center justify-center bg-zinc-900/50 rounded-lg border border-zinc-700 text-zinc-400 text-sm">
           No screenshots available
         </div>
@@ -107,7 +107,7 @@ export default function ScreenshotsCarousel({
         ref={containerRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="flex gap-4 overflow-x-auto hide-scrollbar w-[1400px] mx-auto cursor-pointer"
+        className="flex gap-4 overflow-x-auto hide-scrollbar w-[1250px] mx-auto cursor-pointer"
       >
         {allScreenshots.map((s, i) => (
           <div

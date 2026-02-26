@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Helmet } from "react-helmet-async";
 import { AnimatePresence, motion } from "framer-motion";
@@ -106,15 +106,48 @@ export default function CalendarPage() {
   const isCurrentMonth =
     month === today.getMonth() && year === today.getFullYear();
 
+  useEffect(() => {
+    const syncToCurrentMonth = () => {
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      setCursor((prev) => {
+        if (
+          prev.getFullYear() === currentMonthStart.getFullYear() &&
+          prev.getMonth() === currentMonthStart.getMonth()
+        ) {
+          return prev;
+        }
+
+        return currentMonthStart;
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) syncToCurrentMonth();
+    };
+
+    syncToCurrentMonth();
+    window.addEventListener("focus", syncToCurrentMonth);
+    window.addEventListener("pageshow", syncToCurrentMonth);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", syncToCurrentMonth);
+      window.removeEventListener("pageshow", syncToCurrentMonth);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   return (
     <>
       <Helmet>
         <title>PlayCrew - Release Calendar</title>
       </Helmet>
 
-      <main className="min-h-screen bg-black text-white pt-16 px-3 sm:px-4 lg:px-7 pb-5">
-        <section className="mx-auto max-w-[1500px]">
-          <div className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-linear-to-br from-[#07121c]/95 via-[#050a10]/95 to-black/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)]">
+      <main className="h-svh overflow-hidden bg-black text-white pt-22 px-3 sm:px-4 lg:px-7">
+        <section className="mx-auto h-full max-w-[1500px]">
+          <div className="origin-top scale-[0.9] sm:scale-[0.92] lg:scale-[0.9] 2xl:scale-[0.93] relative h-full overflow-hidden rounded-2xl border border-cyan-500/20 bg-linear-to-br from-[#07121c]/95 via-[#050a10]/95 to-black/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)] flex flex-col">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.14),transparent_50%)] pointer-events-none" />
 
             <div className="relative z-10 p-3.5 sm:p-5 lg:p-6 border-b border-white/10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -159,7 +192,7 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[1.55fr_0.95fr] xl:h-[860px]">
+            <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_460px] flex-1 min-h-0">
               <section className="p-3.5 sm:p-5 lg:p-6 border-b xl:border-b-0 xl:border-r border-white/10 h-full flex flex-col min-h-0">
                 <div className="grid grid-cols-7 gap-2 mb-2">
                   {WEEK_DAYS.map((d) => (
@@ -179,7 +212,7 @@ export default function CalendarPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -14 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
-                    className="grid grid-cols-7 auto-rows-[82px] sm:auto-rows-[102px] lg:auto-rows-[118px] gap-2 overflow-y-auto pr-1"
+                    className="grid grid-cols-7 grid-rows-6 gap-1.5 sm:gap-2 flex-1 min-h-0"
                   >
                     {Array.from({ length: totalCalendarCells }).map((_, i) => {
                       const day = i - firstDayOffset + 1;
@@ -234,13 +267,13 @@ export default function CalendarPage() {
 
                           <div className="absolute inset-0 bg-black/55" />
 
-                          <span className="relative z-10 block p-2 text-[11px] sm:text-xs font-medium text-white/95">
+                          <span className="absolute top-2 right-3 z-10 text-[11px] sm:text-xs font-medium text-white/95">
                             {day}
                           </span>
 
                           {dayGames.length > 1 && (
                             <span className="absolute right-1.5 bottom-1.5 z-10 text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-md bg-black/70 text-white/90">
-                              {dayGames.length}
+                              {dayGames.length} Games
                             </span>
                           )}
                         </button>
@@ -255,49 +288,70 @@ export default function CalendarPage() {
                   <h2 className="text-base sm:text-lg font-semibold tracking-wide">
                     Upcoming This Month
                   </h2>
-                  <span className="text-xs text-white/60">
-                    {gamesLoading ? "..." : `${monthGames.length} releases`}
-                  </span>
                 </div>
 
-                <div className="space-y-3 flex-1 min-h-0 overflow-y-auto pr-1">
-                  {(gamesLoading ? [] : sidebarMonthGames).map((g) => (
-                    <Link
-                      key={g.id}
-                      href={`/game/${g.id}`}
-                      className="group block rounded-xl border border-white/10 bg-black/35 overflow-hidden hover:border-cyan-400/35 transition"
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`${year}-${month}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2, ease: "easeOut" }}
+                      className="space-y-3"
                     >
-                      <div className="flex gap-3 p-2.5">
-                        <img
-                          src={g.igdb?.cover || "/placeholder-game.jpg"}
-                          alt={g.name}
-                          className="w-14 h-20 sm:w-16 sm:h-22 rounded-lg object-cover shrink-0"
-                        />
-
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm sm:text-base font-medium truncate">
-                            {g.name}
-                          </p>
-                          <p className="text-xs text-white/60 mt-1">
-                            {g.date.toLocaleDateString(undefined, {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </p>
-                          <div className="mt-2 text-xs text-cyan-300">
-                            <Countdown date={g.date} />
-                          </div>
+                      {gamesLoading && (
+                        <div className="h-full min-h-[638px] flex items-center justify-center">
+                          <span className="loading loading-infinity loading-xl" />
                         </div>
-                      </div>
-                    </Link>
-                  ))}
+                      )}
 
-                  {!gamesLoading && monthGames.length === 0 && (
-                    <div className="rounded-xl border border-white/10 bg-black/35 p-5 text-sm text-white/60">
-                      No tracked releases in this month.
-                    </div>
-                  )}
+                      {!gamesLoading &&
+                        sidebarMonthGames.map((g, index) => (
+                          <motion.div
+                            key={g.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: index * 0.03 }}
+                          >
+                            <Link
+                              href={`/game/${g.id}`}
+                              className="group block rounded-xl border border-white/10 bg-black/35 overflow-hidden hover:border-cyan-400/35 transition"
+                            >
+                              <div className="flex gap-3 px-2.5 py-2">
+                                <img
+                                  src={g.igdb?.cover || "/placeholder-game.jpg"}
+                                  alt={g.name}
+                                  className="w-14 h-20 sm:w-16 sm:h-22 rounded-lg object-cover shrink-0"
+                                />
+
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm sm:text-base font-medium truncate">
+                                    {g.name}
+                                  </p>
+                                  <p className="text-xs text-white/60 mt-1">
+                                    {g.date.toLocaleDateString(undefined, {
+                                      weekday: "short",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}
+                                  </p>
+                                  <div className="mt-2 text-xs text-cyan-300">
+                                    <Countdown date={g.date} />
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                          </motion.div>
+                        ))}
+
+                      {gamesLoading && monthGames.length === 0 && (
+                        <div className="rounded-xl border border-white/10 bg-black/35 p-5 text-sm text-white/60">
+                          No tracked releases in this month.
+                        </div>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </aside>
             </div>

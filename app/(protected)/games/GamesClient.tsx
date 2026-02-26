@@ -111,7 +111,7 @@ export default function GamesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 8;
+  const PAGE_SIZE = 10;
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -677,7 +677,7 @@ export default function GamesPage() {
 
   return (
     <motion.main
-      className={`min-h-screen bg-black text-white`}
+      className={`min-h-screen overflow-y-auto bg-black text-white lg:h-svh lg:overflow-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -685,7 +685,7 @@ export default function GamesPage() {
       {loading || userLoading || gamesLoading ? (
         <LoadingSpinner />
       ) : (
-        <div className="max-w-[1850px] mx-auto flex flex-col lg:flex-row gap-8 lg:gap-22 pt-18">
+        <div className="max-w-[1850px] mx-auto flex flex-col gap-4 pt-14 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8">
           {/* Blurred Background */}
           {userProfile?.wallpaper && (
             <div className="fixed inset-0 z-10 overflow-hidden blur-sm brightness-25">
@@ -699,8 +699,8 @@ export default function GamesPage() {
           )}
 
           {/* Left Panel (Stats) */}
-          <div className="w-full lg:w-80 shrink-0 px-4 relative z-10">
-            <div className="bg-zinc-900/55 border border-white/10 rounded-2xl p-4 sm:p-5 flex flex-col items-center shadow-xl max-w-[360px] mx-auto lg:mx-0 lg:h-full">
+          <div className="w-full lg:w-72 lg:h-[calc(100svh-5.5rem)] shrink-0 px-4 relative z-10 pt-3">
+            <div className="bg-zinc-900/55 border border-white/10 rounded-2xl p-3 sm:p-4 flex flex-col items-center shadow-xl max-w-[330px] mx-auto lg:mx-0 lg:h-full">
               {/* Avatar */}
               <Link href={`/profile/${profileUsername}`} className="group">
                 {localProfile?.avatar || userProfile?.avatar ? (
@@ -739,7 +739,7 @@ export default function GamesPage() {
               <hr className="my-4 sm:my-6 w-full border-zinc-700" />
 
               {/* Stats */}
-              <div className="w-full flex flex-col gap-1.5 sm:gap-[7px] text-sm text-zinc-300 max-h-[320px] sm:max-h-[360px] lg:max-h-none overflow-y-auto px-1">
+              <div className="w-full flex flex-col gap-0.5 text-sm text-zinc-300 overflow-y-auto px-1">
                 {[
                   ["Member Since", formattedDate],
                   ["Total Games", allGames.length],
@@ -763,90 +763,108 @@ export default function GamesPage() {
               <hr className="my-3 sm:my-4 w-full border-zinc-700" />
 
               {/* Quote Section */}
-              <div className="mt-1 sm:mt-2 lg:pt-6 w-full">
+              <div className="mt-1 sm:mt-2 lg:pt-[clamp(0.5rem,2vh,1.5rem)] w-full">
                 <GameQuote />
               </div>
             </div>
           </div>
 
           {/* Main Content */}
-          <div className="relative z-10 flex-1 min-w-0 px-6 lg:px-0">
+          <div className="relative z-10 flex-1 min-w-0 px-6 lg:px-0 lg:h-full">
             {/* Tabs */}
-            <motion.div
-              className={`flex max-w-full flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm ${
-                selectedStatus === "Want To Play" ? "w-full" : "w-fit"
-              }`}
-              initial={false}
-              animate={{
-                marginLeft: selectedStatus === "Want To Play" ? "0px" : "120px",
-              }}
-              transition={{ type: "spring", stiffness: 200, damping: 30 }}
-            >
-              {showFavoritesOnly ? (
-                <div className="flex mx-auto items-center pr-30">
-                  <button
-                    className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold bg-cyan-500 text-black"
-                    disabled
-                  >
-                    <FaHeart className="w-4 h-4 text-red-700" /> Favorite Games
-                    <FaHeart className="w-4 h-4 text-red-700" />
-                  </button>
-                </div>
-              ) : (
-                STATUSES.map((status) => (
-                  <div
-                    key={status}
-                    className="relative flex items-center gap-2"
-                  >
+            <div className="relative w-full pt-5">
+              <motion.div
+                layout
+                className="relative flex w-fit max-w-full flex-nowrap items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm"
+                initial={false}
+                animate={{
+                  left: selectedStatus === "Want To Play" ? "44%" : "50%",
+                  x: "-50%",
+                }}
+                transition={{
+                  type: "spring",
+                  stiffness: 210,
+                  damping: 30,
+                  layout: { duration: 0.24, ease: "easeInOut" },
+                }}
+              >
+                {showFavoritesOnly ? (
+                  <div className="flex mx-auto items-center pr-30">
                     <button
-                      className={`rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide whitespace-nowrap transition ${
-                        selectedStatus === status
-                          ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black shadow-[0_0_16px_rgba(34,211,238,0.35)]"
-                          : "border-white/10 bg-zinc-800/80 text-white hover:border-white/20 hover:bg-zinc-700/80"
-                      }`}
-                      onClick={() => {
-                        handleTabChange(status);
-                        if (status !== "Want To Play") setReleaseFilter("All");
-                      }}
-                      disabled={selectedStatus === status}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold bg-cyan-500 text-black"
+                      disabled
                     >
-                      {status}
+                      <FaHeart className="w-4 h-4 text-red-700" /> Favorite
+                      Games
+                      <FaHeart className="w-4 h-4 text-red-700" />
                     </button>
-
-                    {/* Sub-filters */}
-                    <AnimatePresence>
-                      {status === "Want To Play" &&
-                        selectedStatus === "Want To Play" && (
-                          <motion.div
-                            key="release-filter"
-                            className="mt-2 lg:mt-0 flex flex-col lg:flex-row flex-wrap lg:flex-nowrap gap-2
-                         lg:rounded-xl lg:border lg:border-white/10 lg:bg-black/35 lg:p-1
-                         relative lg:absolute lg:left-full lg:ml-10"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            {["All", "Released", "Unreleased"].map((filter) => (
-                              <button
-                                key={filter}
-                                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition ${
-                                  releaseFilter === filter
-                                    ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black"
-                                    : "border-white/10 bg-zinc-800/70 text-white hover:border-white/20 hover:bg-zinc-700/70"
-                                }`}
-                                onClick={() => setReleaseFilter(filter as any)}
-                              >
-                                {filter}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                    </AnimatePresence>
                   </div>
-                ))
-              )}
-            </motion.div>
+                ) : (
+                  <>
+                    {STATUSES.map((status) => (
+                      <div
+                        key={status}
+                        className="relative flex shrink-0 items-center gap-2"
+                      >
+                        <button
+                          className={`rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide whitespace-nowrap transition ${
+                            selectedStatus === status
+                              ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black shadow-[0_0_16px_rgba(34,211,238,0.35)]"
+                              : "border-white/10 bg-zinc-800/80 text-white hover:border-white/20 hover:bg-zinc-700/80"
+                          }`}
+                          onClick={() => {
+                            handleTabChange(status);
+                            if (status !== "Want To Play")
+                              setReleaseFilter("All");
+                          }}
+                          disabled={selectedStatus === status}
+                        >
+                          {status}
+                        </button>
+                      </div>
+                    ))}
+
+                    <AnimatePresence mode="wait">
+                      {selectedStatus === "Want To Play" && (
+                        <motion.div
+                          key="release-filter"
+                          layout
+                          className="flex shrink-0 items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-black/35 p-1"
+                          initial={{ opacity: 0, width: 0, x: -8 }}
+                          animate={{ opacity: 1, width: "auto", x: 0 }}
+                          exit={{
+                            opacity: 0,
+                            width: 0,
+                            x: -8,
+                            padding: 0,
+                            borderWidth: 0,
+                          }}
+                          transition={{ duration: 0.22, ease: "easeInOut" }}
+                        >
+                          {["All", "Released", "Unreleased"].map((filter) => (
+                            <button
+                              key={filter}
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition ${
+                                releaseFilter === filter
+                                  ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black"
+                                  : "border-white/10 bg-zinc-800/70 text-white hover:border-white/20 hover:bg-zinc-700/70"
+                              }`}
+                              onClick={() =>
+                                setReleaseFilter(
+                                  filter as "All" | "Released" | "Unreleased",
+                                )
+                              }
+                            >
+                              {filter}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
+              </motion.div>
+            </div>
 
             <div className="mb-4 rounded-2xl border border-white/10 bg-zinc-900/55 p-2.5 backdrop-blur-sm">
               <div className="flex min-w-0 items-center gap-2">
@@ -857,7 +875,7 @@ export default function GamesPage() {
                     setPageDirection(-1);
                     setCurrentPage((prev) => prev - 1);
                   }}
-                  className={`inline-flex h-10 min-w-[86px] items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition ${
+                  className={`inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition ${
                     currentPage === 1
                       ? "cursor-not-allowed border-white/10 bg-zinc-900/40 text-white/40"
                       : "cursor-pointer border-cyan-400/70 bg-black/20 text-white hover:border-cyan-300 hover:bg-cyan-500/10"
@@ -878,7 +896,7 @@ export default function GamesPage() {
                     }`}
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-white/10 bg-black/25 pl-9 pr-3 text-sm text-white placeholder:text-white/45 focus:border-cyan-300/70 focus:outline-none"
+                    className="h-9 w-full rounded-xl border border-white/10 bg-black/25 pl-9 pr-3 text-sm text-white placeholder:text-white/45 focus:border-cyan-300/70 focus:outline-none"
                   />
                 </div>
 
@@ -889,7 +907,7 @@ export default function GamesPage() {
                     setPageDirection(1);
                     setCurrentPage((prev) => prev + 1);
                   }}
-                  className={`inline-flex h-10 min-w-[86px] items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition ${
+                  className={`inline-flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition ${
                     currentPage === totalPages
                       ? "cursor-not-allowed border-white/10 bg-zinc-900/40 text-white/40"
                       : "cursor-pointer border-cyan-400/70 bg-black/20 text-white hover:border-cyan-300 hover:bg-cyan-500/10"
@@ -901,7 +919,7 @@ export default function GamesPage() {
               </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2">
+                <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2">
                   <FiSliders className="h-4 w-4 text-cyan-300/90" />
                   <label className="text-xs font-semibold uppercase tracking-wide text-white/70">
                     Sort
@@ -944,7 +962,7 @@ export default function GamesPage() {
                     onClick={() =>
                       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
                     }
-                    className="h-10 rounded-xl border border-white/15 bg-black/25 px-4 text-xs font-semibold tracking-wide text-white/90 transition hover:border-white/25 hover:bg-white/10"
+                    className="h-9 rounded-xl border border-white/15 bg-black/25 px-4 text-xs font-semibold tracking-wide text-white/90 transition hover:border-white/25 hover:bg-white/10"
                   >
                     {sortBy === "name"
                       ? sortOrder === "asc"
@@ -982,38 +1000,40 @@ export default function GamesPage() {
               </div>
             </div>
             {/* Game Grid */}
-            <AnimatePresence
-              mode="wait"
-              custom={{ type: animationType, direction: pageDirection }}
-            >
-              <motion.div
-                key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}`}
+            <div className="lg:h-[calc(100svh-260px)] overflow-hidden">
+              <AnimatePresence
+                mode="wait"
                 custom={{ type: animationType, direction: pageDirection }}
-                variants={pageVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.35, ease: "easeOut" }}
-                className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
               >
-                {visibleGames.map((game) => (
-                  <GameCard
-                    key={game.igdb.id}
-                    game={game}
-                    openEditModal={openEditModal}
-                    openConfirmModal={openConfirmModal}
-                  />
-                ))}
-              </motion.div>
-            </AnimatePresence>
+                <motion.div
+                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}`}
+                  custom={{ type: animationType, direction: pageDirection }}
+                  variants={pageVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
+                >
+                  {visibleGames.map((game) => (
+                    <GameCard
+                      key={game.igdb.id}
+                      game={game}
+                      openEditModal={openEditModal}
+                      openConfirmModal={openConfirmModal}
+                    />
+                  ))}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="relative z-10 w-full shrink-0 flex flex-col gap-6 lg:w-72 xl:w-80">
+          <div className="relative pt-3 z-10 w-full lg:h-[calc(100svh-5.5rem)] shrink-0 flex flex-col gap-3 lg:w-64 xl:w-72">
             {/* Favorites */}
-            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 overflow-y-auto custom-scrollbar  max-h-[44vh] min-h-[44vh]">
+            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-2.5 overflow-y-auto custom-scrollbar max-h-[45vh] min-h-[45vh]">
               <div className="flex items-center justify-between py-2">
-                <h3 className="font-bold text-xl text-white/90">
+                <h3 className="font-bold text-lg text-white/90">
                   Favorite Games
                 </h3>
                 <button
@@ -1051,18 +1071,18 @@ export default function GamesPage() {
                 ) : (
                   favoriteGames.map((g) => (
                     <Link key={g.igdb.id} href={`/game/${g.igdb.id}`}>
-                      <div className="flex items-center gap-3 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md">
+                      <div className="flex items-center gap-2 p-2 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md">
                         <img
-                          className="w-15 h-20 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
+                          className="w-12 h-16 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
                           src={g.igdb.cover}
                           alt={g.name}
                         />
                         <div className="flex-1 flex flex-col justify-center">
-                          <span className="text-white/90 font-medium text-sm group-hover:text-white transition-colors duration-300">
+                          <span className="text-white/90 font-medium text-[11px] group-hover:text-white transition-colors duration-300">
                             {g.name}
                           </span>
-                          <div className="flex gap-2 mt-1">
-                            <span className="text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
+                          <div className="flex gap-1.5 mt-1">
+                            <span className="text-[9px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
                               {g.playtime
                                 ? `${Math.floor(g.playtime)}h ${Math.round(
                                     (g.playtime % 1) * 60,
@@ -1071,7 +1091,7 @@ export default function GamesPage() {
                             </span>
 
                             <span
-                              className={`flex items-center gap-1 text-xs font-semibold bg-white/10 px-2 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
+                              className={`flex items-center gap-1 text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
                                 g.notInterested
                                   ? "text-red-300 group-hover:text-red-200"
                                   : "text-white/70 group-hover:text-white"
@@ -1081,8 +1101,8 @@ export default function GamesPage() {
                                 "Not Interested"
                               ) : (
                                 <>
-                                  {(g.my_rating ?? 0).toFixed(1)}{" "}
-                                  <IoStarSharp className="w-3 h-3 text-amber-400" />
+                                  <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
+                                  {(g.my_rating ?? 0).toFixed(1)}
                                 </>
                               )}
                             </span>
@@ -1096,8 +1116,8 @@ export default function GamesPage() {
             </div>
 
             {/* Recently Edited */}
-            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[45.2vh] min-h-[45.2vh] mb-8 lg:mb-0">
-              <h3 className="font-bold text-xl pt-2 pl-1 text-white/90">
+            <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[45vh] min-h-[45vh] mb-8 lg:mb-0">
+              <h3 className="font-bold text-lg pt-2 pl-1 text-white/90">
                 Recent Games
               </h3>
               <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
@@ -1110,20 +1130,20 @@ export default function GamesPage() {
                 ) : (
                   recentlyEditedGames.map((g) => (
                     <Link key={g.igdb.id} href={`/game/${g.igdb?.id}`}>
-                      <div className="flex flex-col gap-2 p-3 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200">
-                        <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-1.5 p-2 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-200">
+                        <div className="flex items-center gap-2">
                           <img
-                            className="w-15 h-20 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
+                            className="w-12 h-16 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
                             src={g.igdb.cover}
                             alt={g.name}
                           />
                           <div className="flex-1 flex flex-col justify-center">
-                            <span className="text-white/90 font-medium text-sm group-hover:text-white transition max-w-[200px] line-clamp-2">
+                            <span className="text-white/90 font-bold text-[11px] group-hover:text-white transition max-w-[200px] line-clamp-2">
                               {g.name}
                             </span>
 
-                            <div className="flex gap-2 mt-2">
-                              <span className="text-xs font-semibold bg-white/10 text-white/70 px-2 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
+                            <div className="flex gap-1.5 mt-1.5">
+                              <span className="text-[9px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
                                 {g.playtime
                                   ? `${Math.floor(g.playtime)}h ${Math.round(
                                       (g.playtime % 1) * 60,

@@ -38,7 +38,7 @@ import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
-import { GoBlocked } from "react-icons/go";
+import Link from "next/link";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing → blue = focus
@@ -90,6 +90,7 @@ interface TrackedGameModalData {
     name: string;
     cover?: string;
     rating?: number;
+    total_rating?: number;
     genres?: string[];
     releaseDate?: Date;
   };
@@ -129,8 +130,6 @@ export default function GamePage() {
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [loadingGame, setLoadingGame] = useState(false);
-  // const [dlcs, setDlcs] = useState<any[]>([]);
-  // const [loadingDlcs, setLoadingDlcs] = useState(false);
   const [drmRows, setDrmRows] = useState<PCGWRow[]>([]);
   const [loadingDrm, setLoadingDrm] = useState(false);
   const [drmError, setDrmError] = useState<string | null>(null);
@@ -275,6 +274,18 @@ export default function GamePage() {
         : [],
     [game?.similar_games],
   );
+
+  const dlcCount = useMemo(() => {
+    if (!game) return 0;
+    const dlcs = Array.isArray(game.dlcs) ? game.dlcs.length : 0;
+    const expansions = Array.isArray(game.expansions)
+      ? game.expansions.length
+      : 0;
+    const standalone = Array.isArray(game.standalone_expansions)
+      ? game.standalone_expansions.length
+      : 0;
+    return dlcs + expansions + standalone;
+  }, [game]);
 
   const posterImage = useMemo(() => {
     if (!game) return "/placeholder-game.jpg";
@@ -817,15 +828,6 @@ export default function GamePage() {
     return rowIndicatesOnlineOnly;
   }, [drmLabels, drmRows]);
 
-  const drmStatus = useMemo<
-    "denuvo" | "online_only" | "online" | "crackable" | "unknown"
-  >(() => {
-    if (hasDenuvo) return "denuvo";
-    if (isOnlineOnly) return "online_only";
-    if (!drmRows.length) return "unknown";
-    return "crackable";
-  }, [hasDenuvo, isOnlineOnly, drmRows.length]);
-
   useEffect(() => {
     console.log("[PCGamingWiki] DRM evaluation", {
       game: game?.name,
@@ -834,18 +836,6 @@ export default function GamePage() {
       isOnlineOnly,
     });
   }, [game?.name, drmLabels, hasDenuvo, isOnlineOnly]);
-
-  const lockCrackedLinks =
-    !isReleased || loadingDrm || hasDenuvo || isOnlineOnly;
-  const crackedOverlayMessage = hasDenuvo
-    ? "Denuvo detected - currently uncrackable"
-    : isOnlineOnly
-      ? "Online-only game - crack status not applicable"
-      : !isReleased
-        ? "Locked until release day"
-        : loadingDrm
-          ? "Checking DRM status..."
-          : "";
 
   const slugFromName = game?.name
     ?.toLowerCase()
@@ -997,17 +987,17 @@ export default function GamePage() {
         {/* MAIN CONTENT */}
 
         <motion.main
-          className="relative flex flex-col lg:flex-row gap-8 lg:gap-12 z-10 px-4 py-6 sm:px-6 md:p-10 lg:p-12 max-w-[1800px] mx-auto"
+          className="relative z-10 mx-auto flex max-w-[1700px] flex-col gap-4 px-3 py-4 sm:px-4 lg:flex-row lg:gap-6 lg:px-6 lg:py-6"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
           {/* Center content */}
-          <div className="flex-1 flex flex-col gap-8 just">
+          <div className="flex min-w-0 flex-1 flex-col gap-4 lg:gap-5">
             {/* Poster + Header */}
-            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-5 items-center md:items-start">
               <div className="flex flex-col items-center gap-3 shrink-0">
-                <div className="relative w-44 sm:w-52 md:w-72 h-64 sm:h-72 md:h-96">
+                <div className="relative h-56 w-40 sm:h-64 sm:w-44 md:h-80 md:w-56">
                   {!posterLoaded && (
                     <div className="absolute inset-0 rounded-2xl bg-zinc-800/80 animate-pulse shadow-xl" />
                   )}
@@ -1057,7 +1047,7 @@ export default function GamePage() {
 
               <div className="flex-1 space-y-4">
                 <div className="flex items-center gap-4">
-                  <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold drop-shadow-xl wrap-break-word">
+                  <h1 className="wrap-break-words text-3xl font-extrabold drop-shadow-xl sm:text-4xl md:text-5xl lg:text-[3rem]">
                     {game.name}
                   </h1>
                 </div>
@@ -1066,7 +1056,7 @@ export default function GamePage() {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <button
                     onClick={handleFavoriteToggle}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-base border border-white/10 hover:bg-red-500 hover:scale-105 transition cursor-pointer ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-[13px] border border-white/10 hover:bg-red-500 hover:scale-105 transition cursor-pointer ${
                       isFavorited ? "bg-red-600" : "bg-white/10"
                     }`}
                     disabled={loadingFavorite}
@@ -1084,7 +1074,7 @@ export default function GamePage() {
                       if (!requireLogin()) return;
                       setTrackingModalOpen(true);
                     }}
-                    className="px-4 py-2 rounded-lg text-base border border-white/10 bg-white/10 hover:bg-cyan-500/20 hover:border-cyan-400/40 transition cursor-pointer hover:scale-105"
+                    className="px-4 py-2 rounded-lg text-[13px] border border-white/10 bg-white/10 hover:bg-cyan-500/20 hover:border-cyan-400/40 transition cursor-pointer hover:scale-105"
                   >
                     {hasTrackedEntry ? "Edit Tracking" : "Add Tracking"}
                   </button>
@@ -1103,7 +1093,7 @@ export default function GamePage() {
                           if (!requireLogin()) return;
                           handleChangeStatus(s.label);
                         }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-base border border-white/10 transition cursor-pointer hover:scale-105 ${
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] border border-white/10 transition cursor-pointer hover:scale-105 ${
                           isSelected ? s.color : "bg-white/10 hover:bg-white/20"
                         }`}
                       >
@@ -1124,7 +1114,7 @@ export default function GamePage() {
                   {Array.isArray(game.genres) && game.genres.length > 0 ? (
                     <div
                       ref={genreContainerRef}
-                      className="relative w-full max-w-260 overflow-hidden"
+                      className="relative w-full max-w-full overflow-hidden"
                     >
                       <motion.div
                         className="flex w-max items-center gap-2 whitespace-nowrap"
@@ -1153,7 +1143,7 @@ export default function GamePage() {
                           {game.genres.map((genre: string, index: number) => (
                             <span
                               key={`${genre}-base-${index}`}
-                              className="px-3 py-1 rounded-full text-xs uppercase tracking-wide bg-white/10 border border-white/15 text-white/80"
+                              className="px-3 py-1 rounded-full text-[11px] uppercase tracking-wide bg-white/10 border border-white/15 text-white/80"
                             >
                               {genre}
                             </span>
@@ -1164,7 +1154,7 @@ export default function GamePage() {
                             {game.genres.map((genre: string, index: number) => (
                               <span
                                 key={`${genre}-loop-${index}`}
-                                className="px-3 py-1 rounded-full text-xs uppercase tracking-wide bg-white/10 border border-white/15 text-white/80"
+                                className="px-3 py-1 rounded-full text-[11px] uppercase tracking-wide bg-white/10 border border-white/15 text-white/80"
                               >
                                 {genre}
                               </span>
@@ -1180,10 +1170,10 @@ export default function GamePage() {
                   )}
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-6 rounded-2xl text-white/80 hover:text-white">
+                <div className="bg-white/5 border border-white/10 p-4 rounded-2xl text-white/80 hover:text-white">
                   <h2 className="text-2xl font-bold mb-3">Story</h2>
 
-                  <p className="text-base leading-relaxed transition">
+                  <p className="text-[13px] leading-relaxed transition">
                     {description ? (
                       truncate(description, 330)
                     ) : (
@@ -1218,7 +1208,7 @@ export default function GamePage() {
                       {/* Modal Content */}
                       <motion.div
                         key="modal"
-                        className="fixed inset-x-0 top-1/2 -translate-y-1/2 mx-auto w-[95vw] sm:w-[92vw] bg-white/10 border border-white/20 rounded-2xl p-4 sm:p-6 max-w-3xl z-1000 shadow-2xl"
+                        className="fixed inset-x-0 top-1/2 -translate-y-1/2 mx-auto w-[94vw] sm:w-[90vw] bg-white/10 border border-white/20 rounded-2xl p-4 sm:p-5 max-w-2xl z-1000 shadow-2xl"
                         initial={{ y: 100, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 100, opacity: 0 }}
@@ -1228,7 +1218,7 @@ export default function GamePage() {
                           damping: 16,
                         }}
                       >
-                        <p className="text-white/80 text-base leading-relaxed max-h-[70vh] overflow-y-auto pr-2">
+                        <p className="text-white/80 text-[1.08rem] leading-relaxed max-h-[70vh] overflow-y-auto pr-2">
                           {description}
                         </p>
 
@@ -1247,11 +1237,11 @@ export default function GamePage() {
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
                   {/* Rating */}
                   <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center h-full flex flex-col justify-center">
-                    <h3 className="text-sm opacity-70 mb-1">
+                    <h3 className="text-[13px] opacity-70 mb-1">
                       IGDB Rating Score
                     </h3>
 
-                    <div className="flex justify-center items-center gap-1 text-xl font-semibold">
+                    <div className="flex justify-center items-center gap-1 text-ld font-semibold">
                       <FaStar
                         size={22}
                         className={`drop-shadow-sm pr-1 ${
@@ -1264,15 +1254,24 @@ export default function GamePage() {
                           game.rating ? "text-white" : "text-white/50 italic"
                         }
                       >
-                        {game.rating
-                          ? `${Math.round(game.rating)} / 100`
-                          : isReleased
-                            ? "Not rated"
-                            : "Not released yet"}
+                        <div
+                          className={`flex items-center gap-1 ${
+                            game.rating ? "text-white" : "text-white/50 italic"
+                          }`}
+                        >
+                          <span>
+                            {game.rating
+                              ? `${Math.round(game.rating)}`
+                              : isReleased
+                                ? "Not rated"
+                                : "Not released yet"}
+                          </span>
+                          {game.rating && <span>%</span>}
+                        </div>
                       </span>
                     </div>
 
-                    <div className="text-xs pt-2 text-zinc-400">
+                    <div className="text-[10px] pt-2 text-zinc-400">
                       {game.rating && game.total_rating_count
                         ? `Based on ${game.total_rating_count} reviews`
                         : "No ratings available"}
@@ -1281,9 +1280,9 @@ export default function GamePage() {
 
                   {/* Release */}
                   <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center h-full flex flex-col justify-center">
-                    <h3 className="text-sm opacity-70 mb-1">Release</h3>
+                    <h3 className="text-[13px] opacity-70 mb-1">Release</h3>
 
-                    <div className="text-base font-semibold">
+                    <div className="text-[14px] font-semibold">
                       {game.released
                         ? new Date(game.released * 1000).toLocaleDateString(
                             "en-US",
@@ -1296,124 +1295,31 @@ export default function GamePage() {
                         : "TBA"}
 
                       {game.released && (
-                        <div className="text-xs text-white/60 mt-1">
+                        <div className="text-[11px] text-white/60 mt-1">
                           ({getReleaseLabel(game.released)})
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                    <div className="w-full h-full flex flex-col items-center justify-center">
-                      <h3 className="text-lg font-bold mb-2">Crack Status</h3>
-
-                      {loadingDrm ? (
-                        <div className="flex justify-center items-center">
-                          <span className="loading loading-spinner loading-sm" />
-                        </div>
-                      ) : drmError ? (
-                        <p className="text-sm text-red-300 text-center">
-                          {drmError}
-                        </p>
-                      ) : (
-                        <div className="flex justify-center">
-                          <span
-                            className={`text-xs uppercase tracking-widest leading-relaxed px-3 py-1 rounded-full border ${
-                              drmStatus === "denuvo"
-                                ? "bg-red-500/20 border-red-400/60 text-red-200"
-                                : drmStatus === "online_only"
-                                  ? "bg-amber-500/20 border-amber-400/60 text-amber-200"
-                                  : drmStatus === "crackable"
-                                    ? "bg-emerald-500/20 border-emerald-400/60 text-emerald-200"
-                                    : "bg-zinc-500/20 border-zinc-400/60 text-zinc-200"
-                            }`}
-                          >
-                            {drmStatus === "denuvo"
-                              ? "Denuvo Anti-Tamper"
-                              : drmStatus === "online_only"
-                                ? "Online Only"
-                                : drmStatus === "crackable"
-                                  ? "No DRM Protection"
-                                  : "Unknown"}
-                          </span>
-                        </div>
-                      )}
+                  <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center h-full flex flex-col justify-center">
+                    <h3 className="text-[11px] opacity-70 mb-1">DLC Content</h3>
+                    <div className="text-[14px] font-semibold">
+                      {dlcCount > 0 ? `${dlcCount} Available` : "No DLCs"}
+                    </div>
+                    <div className="text-[11px] text-white/60 mt-1">
+                      {Array.isArray(game?.expansions) &&
+                      game.expansions.length > 0
+                        ? `${game.expansions.length} expansion${game.expansions.length > 1 ? "s" : ""}`
+                        : "Base game only"}
                     </div>
                   </div>
-
-                  {/* {game.dlcs ? (
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                      <h3 className="text-sm opacity-70 mb-2 text-center">
-                        DLCs
-                      </h3>
-
-                      {loadingDlcs ? (
-                        <div className="flex justify-center py-2">
-                          <span className="loading loading-dots loading-sm" />
-                        </div>
-                      ) : dlcs.length === 0 ? (
-                        <p className="text-xs text-white/50 text-center">
-                          No DLCs
-                        </p>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {dlcs.map((dlc) => (
-                            <Link
-                              key={dlc.id}
-                              href={`/game/${dlc.id}`}
-                              className="text-xs text-white/60 text-center hover:underline"
-                            >
-                              {dlc.name}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-4 bg-white/5 rounded-lg border border-white/10 text-center">
-                      <div className="w-full h-full flex flex-col items-center justify-center">
-                        <h3 className="text-lg font-bold mb-2">Crack Status</h3>
-
-                        {loadingDrm ? (
-                          <div className="flex justify-center items-center">
-                            <span className="loading loading-spinner loading-sm" />
-                          </div>
-                        ) : drmError ? (
-                          <p className="text-sm text-red-300 text-center">
-                            {drmError}
-                          </p>
-                        ) : (
-                          <div className="flex justify-center">
-                            <span
-                              className={`text-xs uppercase tracking-widest leading-relaxed px-3 py-1 rounded-full border ${
-                                drmStatus === "denuvo"
-                                  ? "bg-red-500/20 border-red-400/60 text-red-200"
-                                  : drmStatus === "online_only"
-                                    ? "bg-amber-500/20 border-amber-400/60 text-amber-200"
-                                    : drmStatus === "crackable"
-                                      ? "bg-emerald-500/20 border-emerald-400/60 text-emerald-200"
-                                      : "bg-zinc-500/20 border-zinc-400/60 text-zinc-200"
-                              }`}
-                            >
-                              {drmStatus === "denuvo"
-                                ? "Denuvo Anti-Tamper"
-                                : drmStatus === "online_only"
-                                  ? "Online Only"
-                                  : drmStatus === "crackable"
-                                    ? "Crackable"
-                                    : "Check main game"}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )} */}
                 </div>
               </div>
             </div>
 
             {/* Tabs: Screenshots / Trailers / Similar */}
             <div>
-              <div className="flex gap-2 justify-center mb-4">
+              <div className="flex gap-2 justify-center mb-4 text-[12px]">
                 <button
                   onClick={() => setTab("screenshots")}
                   className={`px-4 py-2 cursor-pointer hover:scale-105 hover:opacity-100 ease-in-out transition-all duration-300 rounded-full border 
@@ -1446,7 +1352,7 @@ export default function GamePage() {
                   >
                     <div className="relative">
                       {!screenshotsReady && (
-                        <div className="w-[1400px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="mx-auto grid w-full max-w-[1200px] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                           {Array.from({ length: 4 }).map((_, idx) => (
                             <div
                               key={`skeleton-shot-${idx}`}
@@ -1490,8 +1396,8 @@ export default function GamePage() {
           </div>
 
           {/* Right column: Stores & repacks */}
-          <div className="w-full lg:w-[380px] shrink-0 space-y-6 lg:sticky lg:top-28">
-            <div className="relative bg-white/5 border border-white/10 p-6 rounded-2xl">
+          <div className="w-full shrink-0 space-y-4 lg:w-[270px] xl:w-[300px] xl:sticky xl:top-24">
+            <div className="relative bg-white/5 border border-white/10 p-4 rounded-2xl">
               <h2 className="text-center text-lg font-bold mb-2">Download</h2>
               <hr className="w-full border-zinc-700 mb-4" />
 
@@ -1503,7 +1409,9 @@ export default function GamePage() {
                 <div className="relative mt-3">
                   <div
                     className={`space-y-3 transition ${
-                      showStoreOverlay ? "blur-sm pointer-events-none select-none" : ""
+                      showStoreOverlay
+                        ? "blur-sm pointer-events-none select-none"
+                        : ""
                     }`}
                   >
                     {hasOfficialStores ? (
@@ -1539,7 +1447,7 @@ export default function GamePage() {
                               href={getPlatformLink(item.platform, game.name)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                              className="flex items-center gap-2 text-[12px] px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
                             >
                               {getPlatformIcon(item.platform)}
                               <span>
@@ -1600,13 +1508,7 @@ export default function GamePage() {
                 <h2 className="text-lg font-bold mb-2">Cracked</h2>
 
                 <div className="relative mt-3">
-                  <div
-                    className={`space-y-3 transition ${
-                      lockCrackedLinks
-                        ? "blur-sm pointer-events-none select-none"
-                        : ""
-                    }`}
-                  >
+                  <div className="space-y-3 transition">
                     <a
                       href={`https://fitgirl-repacks.site/${encodeURIComponent(
                         game.name
@@ -1616,7 +1518,7 @@ export default function GamePage() {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                      className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=fitgirl-repacks.site&sz=64"
@@ -1634,7 +1536,7 @@ export default function GamePage() {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                      className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=dodi-repacks.site&sz=64"
@@ -1649,7 +1551,7 @@ export default function GamePage() {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                      className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=skidrowreloaded.com&sz=64"
@@ -1663,7 +1565,7 @@ export default function GamePage() {
                       )}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
+                      className="flex items-center gap-2 text-[11px] px-3 py-1.5 rounded-lg bg-white/10 transition-transform duration-300 ease-in-out hover:bg-white/20 hover:scale-105 will-change-transform"
                     >
                       <img
                         src="https://www.google.com/s2/favicons?domain=gamedrive.org&sz=64"
@@ -1673,45 +1575,6 @@ export default function GamePage() {
                     </a>
                   </div>
                 </div>
-
-                {lockCrackedLinks && (
-                  <div
-                    className="mt-10 
-                        absolute inset-0
-                        flex items-center justify-center
-                        rounded-xl
-                        bg-black/55
-                        backdrop-blur-sm
-                        z-10
-                      "
-                  >
-                    <div className="flex flex-col items-center gap-3 px-6 text-center">
-                      {/* Lock */}
-                      <div
-                        className="
-                          w-12 h-12
-                          flex items-center justify-center
-                          rounded-full
-                          bg-white/5
-                          border border-white/10
-                        "
-                      >
-                        {hasDenuvo ? (
-                          <GoBlocked size={30} className="text-white/70" />
-                        ) : (
-                          <FaLock size={18} className="text-white/70" />
-                        )}
-                      </div>
-
-                      {/* Text */}
-                      <p
-                        className={`text-xs uppercase ${hasDenuvo ? "tracking-widest" : "tracking-wide"} text-white/60 leading-relaxed`}
-                      >
-                        {crackedOverlayMessage}
-                      </p>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* =========================MODS========================== */}
@@ -1725,13 +1588,7 @@ export default function GamePage() {
                 {/* CONTENT WRAPPER (overlay lives here) */}
                 <div className="relative rounded-xl overflow-hidden">
                   {/* ACTUAL CONTENT */}
-                  <div
-                    className={`transition ${
-                      !isReleased
-                        ? "blur-sm pointer-events-none select-none"
-                        : ""
-                    }`}
-                  >
+                  <div className="transition">
                     <a
                       href={`https://www.nexusmods.com/games?keyword=${encodeURIComponent(
                         game.name,
@@ -1740,7 +1597,7 @@ export default function GamePage() {
                       rel="noopener noreferrer"
                       className="
                         flex items-center gap-2
-                        text-sm px-3 py-1.5
+                        text-[11px] px-3 py-1.5
                         rounded-lg bg-white/10
                         transition-transform duration-300
                         hover:bg-white/20 hover:scale-105
@@ -1753,36 +1610,6 @@ export default function GamePage() {
                       <span>Nexus Mods</span>
                     </a>
                   </div>
-
-                  {/* OVERLAY (CONTENT ONLY) */}
-                  {!isReleased && (
-                    <div
-                      className="absolute inset-0
-                          flex items-center justify-center
-                           bg-black/55
-                          backdrop-blur-sm
-                          z-10"
-                    >
-                      <div className="flex items-center gap-3 px-6 text-center">
-                        {/* Lock */}
-                        <div
-                          className="
-                              w-5 h-10
-                              flex items-center justify-center
-                              rounded-full
-                              shrink-0
-                            "
-                        >
-                          <FaLock size={14} className="text-white/70" />
-                        </div>
-
-                        {/* Text */}
-                        <p className="text-[11px] uppercase tracking-widest text-white/60 whitespace-nowrap">
-                          Locked until release day
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

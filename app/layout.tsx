@@ -65,7 +65,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
                 <MusicProvider>
                   <UIProvider>
                     <RouteTransitionLoader />
-                    <div className="flex min-h-screen w-screen overflow-hidden">
+                    <div className="flex min-h-screen overflow-hidden">
                       <Navbar />
 
                       <motion.main

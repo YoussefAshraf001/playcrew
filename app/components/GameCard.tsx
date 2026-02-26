@@ -42,15 +42,13 @@ export default function GameCard({
     releaseDate instanceof Date &&
     !isNaN(releaseDate.getTime()) &&
     releaseDate.getTime() <= Date.now();
-  const daysUntilRelease =
-    releaseDate && !isReleased
-      ? Math.max(
-          0,
-          Math.ceil(
-            (releaseDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-          ),
-        )
-      : null;
+  const formattedReleaseDate = releaseDate
+    ? releaseDate.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "TBA";
 
   const isNotInterested = game?.notInterested === true;
   const hasRating =
@@ -61,16 +59,19 @@ export default function GameCard({
   return (
     <div
       className="
-    group
-    relative
-    bg-zinc-900/80
-    rounded-xl
-    overflow-hidden
-    shadow-md
-    hover:shadow-xl
-    transition-all
-    duration-300
-  "
+          group
+          relative
+          w-full
+          max-w-[210px]
+          mx-auto
+          bg-zinc-900/80
+          rounded-xl
+          overflow-hidden
+        shadow-md
+        hover:shadow-xl
+        transition-all
+        duration-300
+        "
     >
       <div className="absolute right-0 z-20">
         <GameActionsDropdown
@@ -81,7 +82,7 @@ export default function GameCard({
       </div>
 
       <Link href={`/game/${game.igdb.id}`} prefetch={false}>
-        <div className="relative w-full aspect-3/4 overflow-hidden">
+        <div className="relative h-[200px] sm:h-[225px] md:h-[245px] lg:h-[270px] w-full overflow-hidden">
           {!loaded && (
             <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
           )}
@@ -101,12 +102,10 @@ export default function GameCard({
         </div>
       </Link>
 
-      <div
-        className={`h-[50px] px-3 ${isReleased && "pt-2"} flex flex-col justify-center`}
-      >
+      <div className="h-[50px] px-3 py-2 flex flex-col justify-center">
         {isReleased ? (
           <>
-            <div className="flex items-center justify-between text-[12px] mb-1">
+            <div className="flex items-center justify-between text-[10px] mb-1">
               <span className="text-zinc-300">
                 {Math.floor(game.playtime ?? 0)}h{" "}
                 {Math.round(((game.playtime ?? 0) % 1) * 60)}m
@@ -137,7 +136,7 @@ export default function GameCard({
               </span>
             </div>
 
-            <div className="w-full h-[5px] bg-white/10 rounded-full overflow-hidden mb-3">
+            <div className="w-full h-[5px] bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full bg-cyan-500 transition-all duration-500"
                 style={{ width: `${game.progress ?? 0}%` }}
@@ -147,12 +146,10 @@ export default function GameCard({
         ) : (
           <div className="flex flex-col items-center justify-center text-center">
             <span className="text-[10px] uppercase tracking-[0.16em] text-cyan-200/75">
-              Releases in
+              Release Date
             </span>
-            <span className="text-sm font-semibold text-white">
-              {daysUntilRelease !== null
-                ? `${daysUntilRelease} ${daysUntilRelease === 1 ? "day" : "days"}`
-                : "TBA"}
+            <span className="text-[12px] font-semibold text-white">
+              {formattedReleaseDate}
             </span>
           </div>
         )}

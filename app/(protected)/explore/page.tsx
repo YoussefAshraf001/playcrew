@@ -134,7 +134,7 @@ export default function ExplorePage() {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="px-12 ">
+        <div className="px-12">
           {loading
             ? [...Array(3)].map((_, i) => <SkeletonRow key={i} />)
             : Object.entries(sections).map(([title, games], i) => (

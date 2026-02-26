@@ -18,6 +18,7 @@ import {
 import { db } from "@/app/lib/firebase";
 import { useUser } from "../context/UserContext";
 import { useMusic } from "../context/MusicContext";
+import { IoMailOpen } from "react-icons/io5";
 
 type Game = {
   id: string;
@@ -359,17 +360,20 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                     Notifications
                   </p>
                   <p className="text-xs text-white/60 mt-0.5">
-                    {currentItems.length} total
+                    {unreadCount} Unread Messages
                   </p>
+                  {/* <p className="text-xs text-white/60 mt-0.5">
+                    {currentItems.length} total
+                  </p> */}
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     markAllRead();
                   }}
-                  className="text-xs px-2.5 py-1 rounded-full border border-cyan-300/35 text-cyan-200 hover:bg-cyan-400/10 transition whitespace-nowrap"
+                  className="text-xs px-2.5 py-[5px] rounded-full border border-cyan-300/35 text-cyan-200 hover:bg-cyan-400/10 transition whitespace-nowrap"
                 >
-                  Mark all read
+                  <IoMailOpen />
                 </button>
               </div>
 
@@ -407,7 +411,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
                               <p
-                                className={`text-sm leading-none ${
+                                className={`text-[13px] leading-none ${
                                   item.read
                                     ? "text-white/70"
                                     : "text-white font-semibold max-w-[190px] truncate"
@@ -437,7 +441,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                               </div>
                             </div>
                             <p
-                              className={`text-xs leading-snug mt-1 ${
+                              className={`text-[11px] leading-snug mt-1 ${
                                 item.read ? "text-white/55" : "text-white"
                               }`}
                             >
