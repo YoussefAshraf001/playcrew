@@ -291,10 +291,11 @@ import {
   FaUser,
   FaCalendarAlt,
   FaUserPlus,
+  FaImages,
 } from "react-icons/fa";
 import { GiGamepad } from "react-icons/gi";
 import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ConfirmModal from "./ConfirmModal";
 import { GiTrophiesShelf } from "react-icons/gi";
 import SearchModal from "./SearchModal";
@@ -323,9 +324,11 @@ export default function Navbar() {
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [enableDesktopHoverNav, setEnableDesktopHoverNav] = useState(false);
 
   const [accountOpen, setAccountOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const navItems = [
     { href: "/dashboard", icon: FaHome, label: "Dashboard" },
@@ -333,6 +336,7 @@ export default function Navbar() {
     { href: "/games", icon: GiGamepad, label: "My Games" },
     { href: "/calendar", icon: FaCalendarAlt, label: "Calendar" },
     { href: "/shelf", icon: GiTrophiesShelf, label: "Shelf" },
+    { href: "/screenshots", icon: FaImages, label: "Screenshots" },
     {
       href: null,
       icon: FaSearch,
@@ -355,6 +359,31 @@ export default function Navbar() {
   useEffect(() => {
     setHoveredIndex(null);
   }, [pathname]);
+
+  useEffect(() => {
+    const update = () => {
+      setEnableDesktopHoverNav(window.innerWidth >= 1024);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    const onOutside = (e: MouseEvent) => {
+      if (!accountMenuRef.current?.contains(e.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
+
+  useEffect(() => {
+    if (searchModalOpen || showLogoutModal) {
+      setAccountOpen(false);
+    }
+  }, [searchModalOpen, showLogoutModal]);
 
   return (
     <>
@@ -387,17 +416,23 @@ export default function Navbar() {
             </Link>
           </div>
           {/* CENTER: Nav links */}
-          <div className="flex-1 flex items-center justify-center gap-2 sm:gap-2.5 md:gap-3 lg:gap-4 overflow-x-auto max-w-full px-1">
+          <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-x-auto px-1 sm:justify-center sm:gap-2 md:gap-2.5 lg:gap-4">
             {navItems.map(({ href, icon: Icon, label, onClick }, index) => {
               const shiftRight =
-                hoveredIndex !== null && index > hoveredIndex ? 100 : 0;
+                enableDesktopHoverNav && hoveredIndex !== null && index > hoveredIndex
+                  ? 100
+                  : 0;
 
               return (
                 <motion.div
                   key={label}
                   className="relative flex items-center"
-                  onMouseEnter={() => setHoveredIndex(index)}
-                  onMouseLeave={() => setHoveredIndex(null)}
+                  onMouseEnter={() => {
+                    if (enableDesktopHoverNav) setHoveredIndex(index);
+                  }}
+                  onMouseLeave={() => {
+                    if (enableDesktopHoverNav) setHoveredIndex(null);
+                  }}
                   animate={{ x: shiftRight }}
                   transition={{ type: "spring", stiffness: 200, damping: 25 }}
                 >
@@ -418,7 +453,7 @@ export default function Navbar() {
                   )}
 
                   <AnimatePresence>
-                    {hoveredIndex === index && (
+                    {enableDesktopHoverNav && hoveredIndex === index && (
                       <motion.span
                         initial={{ opacity: 0, x: -12 }}
                         animate={{ opacity: 1, x: 12 }}
@@ -428,7 +463,7 @@ export default function Navbar() {
                           stiffness: 200,
                           damping: 25,
                         }}
-                        className="absolute left-full top-1/2 -translate-y-1/2 bg-zinc-800 text-white text-xs sm:text-sm px-2 sm:px-3 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none z-50"
+                        className="absolute left-full top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded bg-zinc-800 px-2 py-1 text-xs text-white shadow-lg pointer-events-none lg:block"
                       >
                         {label}
                       </motion.span>
@@ -439,7 +474,7 @@ export default function Navbar() {
             })}
           </div>
           {/* RIGHT: Player + Account */}
-          <div className="ml-2 sm:ml-3 lg:ml-4 flex items-center gap-2 sm:gap-2.5 lg:gap-4 relative shrink-0">
+          <div className="relative ml-1 flex shrink-0 items-center gap-1.5 sm:ml-2 sm:gap-2 lg:ml-4 lg:gap-4">
             <div className="hidden lg:block">
               <NotificationBell games={games} />
             </div>
@@ -449,7 +484,7 @@ export default function Navbar() {
               onClick={togglePlayerVisible}
               whileTap={{ scale: 0.95 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className={`h-8 w-10.5 flex items-center justify-center rounded-full border cursor-pointer select-none transition-all duration-300 ${
+              className={`hidden h-8 w-10.5 cursor-pointer select-none items-center justify-center rounded-full border transition-all duration-300 md:flex ${
                 playerVisible
                   ? "border-cyan-300/60 bg-white/10 text-white shadow-[0_0_18px_rgba(125,211,252,0.35)]"
                   : "border-white/15 bg-zinc-900/70 text-zinc-200 hover:bg-zinc-800/85"
@@ -463,17 +498,20 @@ export default function Navbar() {
             </motion.button>
 
             {profile ? (
-              <div
-                className="relative cursor-pointer"
-                onClick={() =>
-                  setAccountOpen((prev) => {
-                    const next = !prev;
-                    if (next) closePlayer();
-                    return next;
-                  })
-                }
-              >
-                <div className="relative w-7 h-7 sm:w-8 sm:h-8">
+              <div className="relative" ref={accountMenuRef}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAccountOpen((prev) => {
+                      const next = !prev;
+                      if (next) closePlayer();
+                      return next;
+                    });
+                  }}
+                  className="relative h-7 w-7 cursor-pointer sm:h-8 sm:w-8"
+                  aria-label="Account menu"
+                >
                   {/* Skeleton */}
                   <div
                     className={`
@@ -495,7 +533,7 @@ export default function Navbar() {
       ${avatarLoaded ? "opacity-100" : "opacity-0"}
     `}
                   />
-                </div>
+                </button>
 
                 <AnimatePresence>
                   {accountOpen && (
@@ -508,12 +546,16 @@ export default function Navbar() {
                     >
                       <Link
                         href={`/profile/${profile.username}`}
+                        onClick={() => setAccountOpen(false)}
                         className="px-4 py-2 hover:bg-zinc-800 transition flex items-center gap-2"
                       >
                         <FaCog /> Settings
                       </Link>
                       <button
-                        onClick={() => setShowLogoutModal(true)}
+                        onClick={() => {
+                          setAccountOpen(false);
+                          setShowLogoutModal(true);
+                        }}
                         className="px-4 py-2 text-left hover:bg-red-600 transition flex items-center gap-2"
                       >
                         <FaSignOutAlt /> Logout
@@ -526,7 +568,7 @@ export default function Navbar() {
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-cyan-500 bg-zinc-700 animate-pulse" />
             ) : (
               // --- USER NOT LOGGED IN ---
-              <div className="flex items-center">
+              <div className="flex items-center" ref={accountMenuRef}>
                 <motion.button
                   onClick={() =>
                     setAccountOpen((prev) => {
@@ -554,7 +596,10 @@ export default function Navbar() {
                       className="absolute right-0 top-full mt-2 w-32 sm:w-36 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50 text-sm"
                     >
                       <button
-                        onClick={() => open("login")}
+                        onClick={() => {
+                          setAccountOpen(false);
+                          open("login");
+                        }}
                         className="flex items-center gap-2 w-full px-4 py-2 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer"
                       >
                         <CiLogin className="text-base" />
@@ -562,7 +607,10 @@ export default function Navbar() {
                       </button>
 
                       <button
-                        onClick={() => open("signup")}
+                        onClick={() => {
+                          setAccountOpen(false);
+                          open("signup");
+                        }}
                         className="flex items-center gap-2 w-full px-4 py-2 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer"
                       >
                         <FaUserPlus className="text-base" />

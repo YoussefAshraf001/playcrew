@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import GameActionsDropdown from "./GameActionsDropdown";
 import { MdBlock } from "react-icons/md";
-import { FaExclamation, FaStar } from "react-icons/fa";
+import { FaClock, FaExclamation, FaStar } from "react-icons/fa";
 
 export default function GameCard({
   game,
@@ -102,11 +102,12 @@ export default function GameCard({
         </div>
       </Link>
 
-      <div className="h-[50px] px-3 py-2 flex flex-col justify-center">
+      <div className="h-[41px] px-3 py-2 flex flex-col justify-center">
         {isReleased ? (
           <>
             <div className="flex items-center justify-between text-[10px] mb-1">
-              <span className="text-zinc-300">
+              <span className="flex items-center gap-0.5 text-zinc-300">
+                <FaClock size={7} />
                 {Math.floor(game.playtime ?? 0)}h{" "}
                 {Math.round(((game.playtime ?? 0) % 1) * 60)}m
               </span>
@@ -123,7 +124,7 @@ export default function GameCard({
                   </div>
                 ) : hasRating ? (
                   <div className="flex items-center gap-1">
-                    <FaStar />
+                    <FaStar size={7} />
 
                     {game.my_rating.toFixed(1)}
                   </div>

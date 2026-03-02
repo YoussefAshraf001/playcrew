@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 
 import { useUI } from "@/app/context/UIContext";
@@ -66,16 +65,8 @@ export default function RouteTransitionLoader() {
   if (!routeLoading) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] pointer-events-none flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
-      <motion.div
-        className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full"
-        animate={{ rotate: 360 }}
-        transition={{
-          repeat: Infinity,
-          ease: "linear",
-          duration: 1,
-        }}
-      />
+    <div className="fixed inset-0 z-120 pointer-events-none flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
+      <span className="loading loading-dots loading-xl text-cyan-300" />
     </div>
   );
 }

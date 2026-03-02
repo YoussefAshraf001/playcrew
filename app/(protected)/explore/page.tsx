@@ -101,6 +101,10 @@ export default function ExplorePage() {
     <>
       <Helmet>
         <title>PlayCrew - Explore</title>
+        <meta
+          name="description"
+          content="Discover new games, browse recommendations, and explore what to play next."
+        />
       </Helmet>
 
       <main className="min-h-screen bg-black text-white mt-12">

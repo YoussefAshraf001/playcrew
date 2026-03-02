@@ -49,7 +49,6 @@ export default function Dashboard() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [games, setGames] = useState<ModalGame[]>([]);
   const [bgVideo, setBgVideo] = useState<string | null>(null);
-  const [videoReady, setVideoReady] = useState(false);
   const [isLg, setIsLg] = useState(false);
   const [canContinue, setCanContinue] = useState(false);
 
@@ -103,10 +102,6 @@ export default function Dashboard() {
     const vids = Array.from({ length: 20 }, (_, i) => `/videos/${i + 1}.mp4`);
     const chosen = vids[Math.floor(Math.random() * vids.length)];
     setBgVideo(chosen);
-
-    const v = document.createElement("video");
-    v.src = chosen;
-    v.onloadeddata = () => setVideoReady(true);
   }, []);
 
   //   fetch games
@@ -273,12 +268,16 @@ export default function Dashboard() {
     },
   };
 
-  if (loading || !videoReady) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <>
       <Helmet>
-        <title>PlayCrew</title>
+        <title>PlayCrew - Dashboard</title>
+        <meta
+          name="description"
+          content="Your PlayCrew dashboard for tracking progress, activity, and updates."
+        />
       </Helmet>
 
       <motion.div
@@ -290,14 +289,16 @@ export default function Dashboard() {
       >
         {/* Background Video */}
         <div className="absolute inset-0 z-0">
-          <video
-            src={bgVideo!}
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="w-full h-full object-cover opacity-50 scale-105"
-          />
+          {bgVideo && (
+            <video
+              src={bgVideo}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover opacity-50 scale-105"
+            />
+          )}
           <div className="absolute inset-0 bg-black/10" />
         </div>
 

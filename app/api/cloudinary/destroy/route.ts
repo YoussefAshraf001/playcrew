@@ -5,8 +5,6 @@ export const runtime = "nodejs";
 
 const PUBLIC_ID_PATTERN =
   /^playcrew\/users\/[A-Za-z0-9_-]+\/(?:(avatar|wallpaper)|screenshots\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+)$/;
-const ASSET_FOLDER_PATTERN =
-  /^playcrew\/users\/[A-Za-z0-9_-]+\/(?:(avatar|wallpaper|profile)|screenshots\/[A-Za-z0-9_-]+)$/;
 
 export async function POST(req: Request) {
   try {
@@ -21,12 +19,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = (await req.json()) as {
-      publicId?: string;
-      assetFolder?: string;
-    };
+    const body = (await req.json()) as { publicId?: string };
     const publicId = body.publicId?.trim();
-    const assetFolder = body.assetFolder?.trim();
 
     if (!publicId || !PUBLIC_ID_PATTERN.test(publicId)) {
       return NextResponse.json(
@@ -34,18 +28,10 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (assetFolder && !ASSET_FOLDER_PATTERN.test(assetFolder)) {
-      return NextResponse.json(
-        { error: "Invalid asset_folder." },
-        { status: 400 },
-      );
-    }
 
     const timestamp = Math.floor(Date.now() / 1000);
     const paramsToSign = [
-      ...(assetFolder ? [`asset_folder=${assetFolder}`] : []),
       "invalidate=true",
-      "overwrite=true",
       `public_id=${publicId}`,
       `timestamp=${timestamp}`,
     ].join("&");
@@ -55,18 +41,35 @@ export async function POST(req: Request) {
       .update(paramsToSign + apiSecret)
       .digest("hex");
 
-    return NextResponse.json({
-      cloudName,
-      apiKey,
-      timestamp,
-      signature,
-      publicId,
-      assetFolder: assetFolder ?? null,
-    });
+    const form = new URLSearchParams();
+    form.set("public_id", publicId);
+    form.set("api_key", apiKey);
+    form.set("timestamp", String(timestamp));
+    form.set("signature", signature);
+    form.set("invalidate", "true");
+
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form.toString(),
+      },
+    );
+
+    const json = (await res.json()) as { result?: string; error?: unknown };
+    if (!res.ok || json.error) {
+      return NextResponse.json(
+        { error: "Cloudinary destroy failed.", details: json },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({ ok: true, result: json.result ?? "unknown" });
   } catch (error) {
-    console.error("Cloudinary sign route failed", error);
+    console.error("Cloudinary destroy route failed", error);
     return NextResponse.json(
-      { error: "Could not sign upload request." },
+      { error: "Could not destroy image." },
       { status: 500 },
     );
   }

@@ -3,10 +3,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
-function trimQuote(text: string, maxLength = 120) {
-  return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
-}
-
 const QUOTES = [
   { quote: "We're more ghosts than people.", author: "Arthur Morgan" },
   { quote: "Revenge is a fool's game.", author: "Arthur Morgan" },
@@ -79,20 +75,21 @@ export default function GameQuote() {
     Math.floor(Math.random() * QUOTES.length),
   );
   const quote = QUOTES[quoteIndex] ?? QUOTES[0];
-  const trimmed = trimQuote(quote.quote, 120);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="relative w-full overflow-hidden rounded-2xl border border-cyan-500/25 bg-zinc-950/80 p-5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.45)] flex flex-col justify-center min-h-[150px]"
+      className="relative grid h-full min-h-[150px] w-full place-items-center overflow-hidden rounded-2xl border border-cyan-500/25 bg-zinc-950/80 p-5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.14),transparent_60%)]" />
-      <p className="relative italic text-zinc-200 text-center leading-relaxed text-[15px]">
-        &quot;{trimmed}&quot;
-      </p>
-      <span className="relative mt-3 text-sm font-medium text-cyan-300">- {quote.author}</span>
+      <div className="relative flex w-full max-w-[52ch] flex-col items-center justify-center">
+        <p className="text-center text-[15px] italic leading-relaxed text-zinc-200">
+          &quot;{quote.quote}&quot;
+        </p>
+        <span className="mt-3 text-sm font-medium text-cyan-300">- {quote.author}</span>
+      </div>
     </motion.div>
   );
 }

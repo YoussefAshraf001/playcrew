@@ -763,7 +763,7 @@ export default function GamesPage() {
               <hr className="my-3 sm:my-4 w-full border-zinc-700" />
 
               {/* Quote Section */}
-              <div className="mt-1 sm:mt-2 lg:pt-[clamp(0.5rem,2vh,1.5rem)] w-full">
+              <div className="mt-1 sm:mt-2 lg:pt-[clamp(0.5rem,2vh,1.5rem)] flex w-full flex-1 items-center">
                 <GameQuote />
               </div>
             </div>
@@ -775,12 +775,8 @@ export default function GamesPage() {
             <div className="relative w-full pt-5">
               <motion.div
                 layout
-                className="relative flex w-fit max-w-full flex-nowrap items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm"
+                className="relative mx-auto flex w-fit max-w-full flex-nowrap items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm"
                 initial={false}
-                animate={{
-                  left: selectedStatus === "Want To Play" ? "44%" : "50%",
-                  x: "-50%",
-                }}
                 transition={{
                   type: "spring",
                   stiffness: 210,
@@ -791,7 +787,7 @@ export default function GamesPage() {
                 {showFavoritesOnly ? (
                   <div className="flex mx-auto items-center pr-30">
                     <button
-                      className="flex items-center gap-2 px-4 py-2 rounded-full font-semibold bg-cyan-500 text-black"
+                      className="flex  items-center gap-2 px-4 py-2 rounded-full font-semibold bg-cyan-500 text-black"
                       disabled
                     >
                       <FaHeart className="w-4 h-4 text-red-700" /> Favorite

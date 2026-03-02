@@ -384,7 +384,7 @@ export default function GameModal({
               >
                 {loadingAdd ? (
                   <>
-                    <span className="loading loading-spinner loading-xs" />
+                    <span className="loading loading-dots loading-xs" />
                   </>
                 ) : (
                   <div className="flex justify-center items-center gap-2">
@@ -419,7 +419,7 @@ export default function GameModal({
                   <div className="flex items-center justify-center gap-2">
                     {loadingFav ? (
                       <div className="py-0.4">
-                        <span className="loading loading-spinner loading-xs" />
+                        <span className="loading loading-dots loading-xs" />
                       </div>
                     ) : saved?.favorite ? (
                       <>
@@ -484,3 +484,4 @@ export default function GameModal({
     </>
   );
 }
+

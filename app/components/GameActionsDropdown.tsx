@@ -6,12 +6,12 @@ import { FaCode } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { deleteDoc, doc } from "firebase/firestore";
 import toast from "react-hot-toast";
+import { createPortal } from "react-dom";
 
 import { db } from "@/app/lib/firebase";
 import { refreshGameData } from "../utils/refreshGame";
 import { useUser } from "../context/UserContext";
 import DevGameEditor from "./DevButton";
-import { createPortal } from "react-dom";
 
 export type RefreshField =
   | "name"
@@ -52,21 +52,51 @@ export default function GameActionsDropdown({
   });
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const refreshKeys: RefreshField[] = [
+    "name",
+    "cover",
+    "genres",
+    "rating",
+    "platforms",
+    "released",
+  ];
+  const allFieldsSelected = refreshKeys.every((key) => fields[key]);
+  const selectedCount = refreshKeys.filter((key) => fields[key]).length;
 
-  /* ---------------- close on outside click ---------------- */
+  const resetFields = () =>
+    setFields({
+      name: false,
+      cover: false,
+      genres: false,
+      rating: false,
+      platforms: false,
+      released: false,
+    });
+
   useEffect(() => {
-    const close = (e: MouseEvent) => {
+    const closeOutside = (e: MouseEvent) => {
       if (!dropdownRef.current?.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    const closeEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setRefreshOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("keydown", closeEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("keydown", closeEscape);
+    };
   }, []);
 
-  /* ---------------- refresh ---------------- */
   const handleRefresh = async () => {
-    if (!user) return;
+    if (!user || selectedCount === 0) return;
 
     try {
       setRefreshing(true);
@@ -78,16 +108,9 @@ export default function GameActionsDropdown({
         game._docId ?? game.igdb.id.toString(),
       );
 
-      toast.success(`${game.name} Was Successfully Refreshed`);
+      toast.success(`${game.name} was refreshed`);
       setRefreshOpen(false);
-      setFields({
-        name: true,
-        cover: true,
-        genres: true,
-        rating: true,
-        platforms: true,
-        released: true,
-      });
+      resetFields();
     } catch (err) {
       toast.error("Refresh failed");
     } finally {
@@ -95,18 +118,11 @@ export default function GameActionsDropdown({
     }
   };
 
-  const refreshKeys: RefreshField[] = [
-    "name",
-    "cover",
-    "genres",
-    "rating",
-    "platforms",
-    "released",
-  ];
+  const actionBtnClass =
+    "group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition duration-150";
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* 3 DOT BUTTON */}
+    <div className="relative text-sm" ref={dropdownRef}>
       <button
         type="button"
         onMouseDown={(e) => {
@@ -118,48 +134,70 @@ export default function GameActionsDropdown({
           e.stopPropagation();
           setOpen((p) => !p);
         }}
-        className="absolute top-2 right-2 z-50 bg-black/70 text-white p-2 rounded-full hover:bg-black transition"
+        aria-label="Game actions"
+        className={`absolute right-2 top-2 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/70 text-zinc-100 shadow-[0_8px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm transition hover:scale-105 hover:border-cyan-300/50 hover:bg-zinc-900/90 hover:text-cyan-100 ${
+          open ? "border-cyan-300/60 text-cyan-100" : ""
+        }`}
       >
         <MdMoreVert size={18} />
       </button>
 
-      {/* DROPDOWN */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute right-2 top-12 z-50 w-44 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl overflow-hidden"
+            initial={{ opacity: 0, scale: 0.97, y: -6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: -6 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="absolute right-2 top-12 z-50 w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950/95 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* REFRESH */}
+            <div className="mb-2 rounded-lg border border-white/10 bg-white/3 px-3 py-2">
+              <p className="truncate text-[11px] uppercase tracking-[0.16em] text-zinc-400">
+                Actions
+              </p>
+              <p className="truncate text-sm font-semibold text-zinc-100">
+                {game?.name ?? "Game"}
+              </p>
+            </div>
+
             <button
-              onClick={() => setRefreshOpen(true)}
-              className="w-full px-4 py-2 flex items-center gap-2 hover:bg-zinc-800"
+              onClick={() => {
+                setRefreshOpen(true);
+                setOpen(false);
+              }}
+              className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
             >
-              <MdRefresh /> Refresh
+              <MdRefresh className="text-base text-cyan-300" />
+              <span>Refresh Data</span>
             </button>
 
-            {/* EDIT */}
             <button
-              onClick={() => openEditModal(game)}
-              className="w-full px-4 py-2 flex items-center gap-2 hover:bg-zinc-800"
+              onClick={() => {
+                openEditModal(game);
+                setOpen(false);
+              }}
+              className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
             >
-              <MdEdit /> Edit
+              <MdEdit className="text-base text-zinc-200" />
+              <span>Edit Entry</span>
             </button>
 
-            {/* DEV MODE */}
             <button
-              onClick={() => setDevModalOpen(true)}
-              className="w-full px-4 py-2 flex items-center gap-2 text-indigo-400 hover:bg-indigo-500/10"
+              onClick={() => {
+                setDevModalOpen(true);
+                setOpen(false);
+              }}
+              className={`${actionBtnClass} text-indigo-200 hover:bg-indigo-500/15`}
             >
-              <FaCode /> Dev Mode
+              <FaCode className="text-sm text-indigo-300" />
+              <span>Dev Mode</span>
             </button>
 
-            {/* DELETE */}
+            <div className="my-2 h-px bg-white/10" />
+
             <button
-              onClick={() =>
+              onClick={() => {
                 openConfirmModal(`Delete "${game.name}"?`, async () => {
                   await deleteDoc(
                     doc(
@@ -170,34 +208,49 @@ export default function GameActionsDropdown({
                       game._docId ?? game.igdb.id.toString(),
                     ),
                   );
-                })
-              }
-              className="w-full px-4 py-2 flex items-center gap-2 text-red-400 hover:bg-red-500/10"
+                });
+                setOpen(false);
+              }}
+              className={`${actionBtnClass} text-red-200 hover:bg-red-500/20`}
             >
-              <MdDelete /> Delete
+              <MdDelete className="text-base text-red-300" />
+              <span>Delete Game</span>
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* REFRESH MODAL */}
       {refreshOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
-            <div className="bg-zinc-900 p-6 rounded-xl w-[400px]">
-              <h2 className="text-lg font-bold mb-4">Refetch Data From IGDB</h2>
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3"
+            onClick={() => setRefreshOpen(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-white/15 bg-zinc-950/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.62)] backdrop-blur-md sm:p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-400">
+                IGDB Sync
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-white">
+                Refresh Game Data
+              </h2>
+              <p className="mt-1 text-xs text-zinc-300">
+                Choose fields to update for{" "}
+                <span className="font-semibold">{game?.name}</span>.
+              </p>
 
-              <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
                 {refreshKeys.map((key) => (
                   <button
                     key={key}
                     onClick={() => setFields((p) => ({ ...p, [key]: !p[key] }))}
-                    className={`cursor-pointer hover:scale-103 ease-in-out duration-300 transition-all px-4 py-2 rounded-lg font-medium text-sm
-                ${
-                  fields[key]
-                    ? "bg-emerald-500 text-black"
-                    : "bg-zinc-700 text-white/70 hover:bg-zinc-600"
-                }`}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200 ${
+                      fields[key]
+                        ? "border-cyan-300/60 bg-cyan-400/20 text-cyan-100"
+                        : "border-white/10 bg-zinc-900 text-zinc-300 hover:border-white/30 hover:bg-zinc-800"
+                    }`}
                   >
                     {key === "released"
                       ? "Release Date"
@@ -206,33 +259,50 @@ export default function GameActionsDropdown({
                 ))}
               </div>
 
-              <div className="flex justify-end gap-3">
+              <div className="mt-3 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (allFieldsSelected) {
+                      resetFields();
+                      return;
+                    }
+                    setFields({
+                      name: true,
+                      cover: true,
+                      genres: true,
+                      rating: true,
+                      platforms: true,
+                      released: true,
+                    });
+                  }}
+                  className="rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-white/10"
+                >
+                  {allFieldsSelected ? "Clear All" : "Select All"}
+                </button>
+                <p className="text-[11px] text-zinc-400">
+                  {selectedCount} selected
+                </p>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
                 <button
                   onClick={() => {
                     setRefreshOpen(false);
-                    setFields({
-                      name: false,
-                      cover: false,
-                      genres: false,
-                      rating: false,
-                      platforms: false,
-                      released: false,
-                    });
+                    resetFields();
                   }}
-                  className="px-4 py-2 bg-zinc-700 rounded-lg"
+                  className="rounded-lg border border-white/15 bg-black/40 px-4 py-2 text-sm text-zinc-100 transition hover:bg-white/10"
                 >
                   Cancel
                 </button>
 
                 <button
                   onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="w-25 h-10 px-4 py-2 bg-emerald-500 text-black rounded-lg"
+                  disabled={refreshing || selectedCount === 0}
+                  className="inline-flex h-10 min-w-28 items-center justify-center rounded-lg bg-linear-to-r from-cyan-200 to-cyan-400 px-4 py-2 text-sm font-semibold text-black shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   {refreshing ? (
-                    <>
-                      <span className="loading loading-dots loading-md" />
-                    </>
+                    <span className="loading loading-dots loading-md" />
                   ) : (
                     "Refresh"
                   )}
@@ -240,10 +310,9 @@ export default function GameActionsDropdown({
               </div>
             </div>
           </div>,
-          document.body, // ✅ REQUIRED
+          document.body,
         )}
 
-      {/* DEV MODAL */}
       {devModalOpen && user && (
         <DevGameEditor
           userId={user.uid}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, ChangeEvent, useRef } from "react";
+import { useEffect, useState, ChangeEvent, useRef, MouseEvent } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -90,6 +90,7 @@ export default function EditProfilePage() {
   const [passwordResetRequested, setPasswordResetRequested] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
+  const accountPanelRef = useRef<HTMLDivElement>(null);
 
   /* ---------------- INIT ---------------- */
 
@@ -267,11 +268,12 @@ export default function EditProfilePage() {
       if (!media.data.startsWith("data:")) return media;
 
       const publicId = `playcrew/users/${user!.uid}/${kind}`;
+      const assetFolder = `playcrew/users/${user!.uid}/profile`;
 
       const signRes = await fetch("/api/cloudinary/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicId }),
+        body: JSON.stringify({ publicId, assetFolder }),
       });
 
       if (!signRes.ok) {
@@ -284,12 +286,14 @@ export default function EditProfilePage() {
         timestamp,
         signature,
         publicId: signedPublicId,
+        assetFolder: signedAssetFolder,
       } = (await signRes.json()) as {
         cloudName: string;
         apiKey: string;
         timestamp: number;
         signature: string;
         publicId: string;
+        assetFolder?: string | null;
       };
 
       const blob = await fetch(media.data).then((r) => r.blob());
@@ -301,6 +305,7 @@ export default function EditProfilePage() {
       body.append("timestamp", String(timestamp));
       body.append("signature", signature);
       body.append("public_id", signedPublicId);
+      if (signedAssetFolder) body.append("asset_folder", signedAssetFolder);
       body.append("overwrite", "true");
       body.append("invalidate", "true");
 
@@ -562,19 +567,33 @@ export default function EditProfilePage() {
   const wantsPasswordChange = Boolean(newPassword);
 
   const passwordInvalid = Boolean(wantsPasswordChange && !currentPassword);
+  const otherModalOpen = Boolean(cropType && selectedFile) || changingUsername || isSaving;
+
+  const handleOutsideClick = (e: MouseEvent<HTMLElement>) => {
+    if (otherModalOpen) return;
+    const target = e.target as Node;
+    if (accountPanelRef.current?.contains(target)) return;
+    startRouteLoading();
+    router.push("/dashboard");
+  };
 
   /* ---------------- UI ---------------- */
 
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Account Settings</title>
+        <title>PlayCrew - Profile & Account Settings</title>
+        <meta
+          name="description"
+          content="Manage your PlayCrew profile, preferences, and account settings."
+        />
       </Helmet>
 
       <motion.main
         className="relative min-h-screen overflow-hidden bg-[#04070b] px-4 py-24 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        onMouseDown={handleOutsideClick}
       >
         {active?.wallpaper?.data && (
           <div
@@ -590,9 +609,16 @@ export default function EditProfilePage() {
         )}
 
         <motion.div
-          className="relative z-10 mx-auto w-full max-w-6xl rounded-[2rem] border border-cyan-300/15 bg-slate-900/20 p-4 shadow-[0_30px_110px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-6 lg:p-8"
+          ref={accountPanelRef}
+          className="relative z-10 mx-auto w-full max-w-6xl rounded-4xl border border-cyan-300/15 bg-slate-900/20 p-4 shadow-[0_30px_110px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-6 lg:p-8"
           initial={{ y: 40, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+          animate={{
+            y: otherModalOpen ? 8 : 0,
+            opacity: otherModalOpen ? 0 : 1,
+            scale: otherModalOpen ? 0.98 : 1,
+            pointerEvents: otherModalOpen ? "none" : "auto",
+          }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
         >
           <div className="mb-5 flex flex-col gap-4 border-b border-cyan-300/15 pb-5 md:flex-row md:items-start md:justify-between">
             <div>
@@ -883,7 +909,7 @@ function ImageOverlay({
         media.type === "gif" ? (
           <img
             src={media.data}
-            alt={`${label} gif`}
+            alt=""
             style={{
               transform: `
           translate(${media.crop.x}px, ${media.crop.y}px)
@@ -893,11 +919,7 @@ function ImageOverlay({
             className="w-full h-full object-cover"
           />
         ) : (
-          <img
-            src={media.data}
-            alt={label}
-            className="w-full h-full object-cover"
-          />
+          <img src={media.data} alt="" className="w-full h-full object-cover" />
         )
       ) : (
         <div className="w-full h-full flex items-center justify-center text-slate-500">
@@ -995,7 +1017,7 @@ function AnimatedField(props: any) {
       initial={false}
       animate={disabled ? "locked" : "editable"}
     >
-      <label className="mb-1 block text-xs font-medium uppercase tracking-[0.1em] text-zinc-400">
+      <label className="mb-1 block text-xs font-medium uppercase tracking-widest text-zinc-400">
         {props.label}
       </label>
 
@@ -1015,7 +1037,7 @@ function AnimatedField(props: any) {
 function Textarea({ label, disabled, ...props }: any) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium uppercase tracking-[0.1em] text-zinc-400">
+      <label className="mb-1 block text-xs font-medium uppercase tracking-widest text-zinc-400">
         {label}
       </label>
       <textarea
@@ -1053,7 +1075,7 @@ function AnimatedPasswordField({
       initial={false}
       animate={disabled ? "locked" : "editable"}
     >
-      <label className="mb-1 block text-xs font-medium uppercase tracking-[0.1em] text-zinc-400">
+      <label className="mb-1 block text-xs font-medium uppercase tracking-widest text-zinc-400">
         {label}
       </label>
 

@@ -959,6 +959,10 @@ export default function GamePage() {
     <>
       <Helmet>
         <title>PlayCrew - {game.name}</title>
+        <meta
+          name="description"
+          content={`View ${game.name} details, ratings, and tracking progress on PlayCrew.`}
+        />
       </Helmet>
 
       <div className="relative min-h-screen text-white bg-transparent pt-12 sm:pt-14 lg:pt-12">
@@ -1062,7 +1066,7 @@ export default function GamePage() {
                     disabled={loadingFavorite}
                   >
                     {loadingFavorite ? (
-                      <span className="loading loading-spinner loading-sm" />
+                      <span className="loading loading-dots loading-sm" />
                     ) : (
                       <>
                         <FaHeart /> {isFavorited ? "Favorited" : "Favorite"}
@@ -1098,7 +1102,7 @@ export default function GamePage() {
                         }`}
                       >
                         {loadingStatus === s.label ? (
-                          <span className="loading loading-spinner loading-sm" />
+                          <span className="loading loading-dots loading-sm" />
                         ) : (
                           <>
                             {s.icon && s.icon}

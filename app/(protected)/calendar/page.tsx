@@ -143,6 +143,10 @@ export default function CalendarPage() {
     <>
       <Helmet>
         <title>PlayCrew - Release Calendar</title>
+        <meta
+          name="description"
+          content="Track upcoming and recent game releases in your PlayCrew release calendar."
+        />
       </Helmet>
 
       <main className="h-svh overflow-hidden bg-black text-white pt-22 px-3 sm:px-4 lg:px-7">
@@ -302,7 +306,7 @@ export default function CalendarPage() {
                     >
                       {gamesLoading && (
                         <div className="h-full min-h-[638px] flex items-center justify-center">
-                          <span className="loading loading-infinity loading-xl" />
+                          <span className="loading loading-dots loading-xl" />
                         </div>
                       )}
 
@@ -437,3 +441,4 @@ export default function CalendarPage() {
     </>
   );
 }
+

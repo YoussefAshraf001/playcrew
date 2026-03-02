@@ -324,7 +324,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
             {unlocked && loading && (
               <div className="h-full flex items-center justify-center">
-                <span className="loading loading-spinner loading-md" />
+                <span className="loading loading-dots loading-md" />
               </div>
             )}
 
@@ -630,7 +630,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                     className="bg-cyan-500 hover:bg-cyan-400 text-black font-semibold px-5 py-2 rounded-lg min-w-[110px] flex items-center justify-center"
                   >
                     {saving ? (
-                      <span className="loading loading-spinner loading-sm" />
+                      <span className="loading loading-dots loading-sm" />
                     ) : (
                       "Save Changes"
                     )}
@@ -645,3 +645,4 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     document.body,
   );
 }
+
