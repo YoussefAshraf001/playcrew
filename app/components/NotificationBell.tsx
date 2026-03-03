@@ -114,7 +114,13 @@ const formatTimeAgo = (value: Date | null, nowMs: number) => {
   });
 };
 
-export default function NotificationBell({ games }: { games: Game[] }) {
+export default function NotificationBell({
+  games,
+  fullWidthTrigger = false,
+}: {
+  games: Game[];
+  fullWidthTrigger?: boolean;
+}) {
   const { user } = useUser();
   const { closePlayer } = useMusic();
   const uid = user?.uid as string | undefined;
@@ -304,7 +310,9 @@ export default function NotificationBell({ games }: { games: Game[] }) {
       if (!release || Number.isNaN(release.getTime())) continue;
       release.setHours(0, 0, 0, 0);
 
-      const diffDays = Math.floor((release.getTime() - today.getTime()) / DAY_MS);
+      const diffDays = Math.floor(
+        (release.getTime() - today.getTime()) / DAY_MS,
+      );
 
       // "release-soon" is valid only for tomorrow.
       if (item.id.startsWith("release-soon-") && diffDays !== 1) {
@@ -340,7 +348,13 @@ export default function NotificationBell({ games }: { games: Game[] }) {
 
     const batch = writeBatch(db);
     for (const notificationId of toDelete) {
-      const notificationRef = doc(db, "users", uid, "notifications", notificationId);
+      const notificationRef = doc(
+        db,
+        "users",
+        uid,
+        "notifications",
+        notificationId,
+      );
       batch.delete(notificationRef);
     }
     batch.commit().catch((err) => {
@@ -387,7 +401,13 @@ export default function NotificationBell({ games }: { games: Game[] }) {
 
   const deleteNotification = async (notificationId: string) => {
     if (!uid) return;
-    const notificationRef = doc(db, "users", uid, "notifications", notificationId);
+    const notificationRef = doc(
+      db,
+      "users",
+      uid,
+      "notifications",
+      notificationId,
+    );
     await deleteDoc(notificationRef);
   };
 
@@ -396,15 +416,28 @@ export default function NotificationBell({ games }: { games: Game[] }) {
       {/* BELL */}
       <div
         ref={ref}
-        className={`relative z-50 rounded-full px-1.5 cursor-pointer transition-all duration-300 border
+        className={
+          fullWidthTrigger
+            ? "relative z-50 w-full"
+            : `relative z-50 rounded-full px-1.5 cursor-pointer transition-all duration-300 border
         bg-zinc-900/70 text-zinc-200 border-white/15 backdrop-blur-xl hover:bg-zinc-800/85
         ${
           open &&
           "bg-white/10 text-white border-cyan-300/60 shadow-[0_0_18px_rgba(125,211,252,0.35)]"
-        }`}
+        }`
+        }
       >
         <button
-          className="relative rounded-full p-2"
+          type="button"
+          className={
+            fullWidthTrigger
+              ? `relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-all duration-300 ${
+                  open
+                    ? "border-cyan-300/60 bg-white/10 text-white shadow-[0_0_18px_rgba(125,211,252,0.35)]"
+                    : "border-white/15 bg-zinc-900/70 text-zinc-200 backdrop-blur-xl hover:bg-zinc-800/85"
+                }`
+              : "relative rounded-full p-2"
+          }
           onClick={(e) => {
             e.stopPropagation();
             setOpen((p) => {
@@ -415,12 +448,13 @@ export default function NotificationBell({ games }: { games: Game[] }) {
           }}
         >
           <BsBellFill size={14} />
+          {fullWidthTrigger && <span>Notifications</span>}
 
           {unreadCount > 0 && (
             <span
               className="
                 absolute -top-2 -right-2
-                min-w-[20px] h-5 px-1.5
+                min-w-5 h-5 px-1.5
                 rounded-full
                 bg-cyan-500
                 border border-cyan-200/70
@@ -447,7 +481,7 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                 damping: 22,
               }}
               className="
-        absolute right-0 mt-3 w-[22rem] sm:w-[25rem] max-w-[94vw]
+        absolute right-0 mt-3 w-100 max-w-[calc(100vw-1rem)] max-[639px]:left-0 max-[639px]:right-auto
         rounded-2xl overflow-hidden
         bg-zinc-950
         border border-cyan-300/25
@@ -538,7 +572,8 @@ export default function NotificationBell({ games }: { games: Game[] }) {
                             damping: 36,
                           }}
                           onDragStart={() => {
-                            if (swipedId && swipedId !== item.id) setSwipedId(null);
+                            if (swipedId && swipedId !== item.id)
+                              setSwipedId(null);
                           }}
                           onDragEnd={(_, info) => {
                             if (info.offset.x <= -50) {

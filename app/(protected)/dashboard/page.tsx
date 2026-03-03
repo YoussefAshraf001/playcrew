@@ -155,14 +155,10 @@ export default function Dashboard() {
     { label: "Continue", action: "continue" },
     { label: "New Game", action: "explore" },
     { label: "My Games", action: "games" },
+    { label: "Explore", action: "explore" },
+    { label: "Gallery", action: "gallery" },
     user && { label: "Overview", action: "overview" },
     { label: "About", action: "about" },
-    playerVisible
-      ? { label: "Soundtrack", action: "soundtrack" }
-      : { label: "Soundtrack", action: "soundtrack" },
-    user
-      ? { label: "Settings", action: "settings" }
-      : { label: "Login / Signup", action: "account" },
     { label: "Exit", action: "exit" },
   ].filter(Boolean) as { label: string; action: string }[];
 
@@ -192,6 +188,14 @@ export default function Dashboard() {
       case "games":
         startRouteLoading();
         router.push("/games");
+        break;
+      case "explore":
+        startRouteLoading();
+        router.push("/explore");
+        break;
+      case "gallery":
+        startRouteLoading();
+        router.push("/screenshots");
         break;
       case "settings":
         startRouteLoading();
@@ -382,7 +386,7 @@ export default function Dashboard() {
           className={`
             relative z-10
             flex flex-col
-            mt-20 sm:mt-24 md:mt-28
+            mt-34 sm:mt-28 md:mt-42
             px-4 sm:px-6 md:px-10 lg:px-16
             md:max-w-[640px]
             lg:translate-x-20
@@ -451,7 +455,7 @@ export default function Dashboard() {
                     <span
                       className={`
                           relative z-10
-                          text-base sm:text-xl md:text-2xl tracking-wide transition-all duration-300
+                          text-xl md:text-2xl tracking-wide transition-all duration-300
                           ${
                             isDisabled
                               ? "text-zinc-700"
@@ -916,5 +920,3 @@ export default function Dashboard() {
 //     </>
 //   );
 // }
-
-

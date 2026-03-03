@@ -131,7 +131,7 @@ export default function HeroSection({
       } else if (activeGame.cover.url) {
         coverUrl = `https:${activeGame.cover.url.replace(
           "t_thumb",
-          "t_cover_big",
+          "t_cover_big_2x",
         )}`;
       }
     } else if (activeGame.background_image) {

@@ -7,7 +7,7 @@ const mapSimilarEntry = (entry: any) => ({
   id: entry.id,
   name: entry.name,
   cover: entry.cover?.url
-    ? `https:${entry.cover.url.replace("t_thumb", "t_cover_big")}`
+    ? `https:${entry.cover.url.replace("t_thumb", "t_cover_big_2x")}`
     : "/placeholder-game.jpg",
   rating: entry.aggregated_rating ? Math.round(entry.aggregated_rating) : 0,
   released: entry.first_release_date ?? null,
@@ -184,7 +184,7 @@ export async function POST(req: Request) {
       description_raw: game.storyline || "No description available",
       summary: game.summary || "No description available",
       background_image: game.cover
-        ? `https:${game.cover.url.replace("t_thumb", "t_cover_big")}`
+        ? `https:${game.cover.url.replace("t_thumb", "t_cover_big_2x")}`
         : "/placeholder-game.jpg",
       short_screenshots:
         game.screenshots?.map(
@@ -204,9 +204,13 @@ export async function POST(req: Request) {
       game_status: game.game_status,
       websites: game.websites,
       genres:
-        game.genres?.map((genreId: number) => genreMap[genreId] ?? `Unknown (${genreId})`) ||
-        [],
-      tags: game.tags?.map((tagId: number) => tagMap[tagId] ?? `Unknown (${tagId})`) || [],
+        game.genres?.map(
+          (genreId: number) => genreMap[genreId] ?? `Unknown (${genreId})`,
+        ) || [],
+      tags:
+        game.tags?.map(
+          (tagId: number) => tagMap[tagId] ?? `Unknown (${tagId})`,
+        ) || [],
       time_to_beat: timeToBeat || null,
     };
 

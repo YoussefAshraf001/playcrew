@@ -95,7 +95,7 @@ export default function GenreRow({
                     game.cover?.url
                       ? `https:${game.cover.url.replace(
                           "t_thumb",
-                          "t_cover_big",
+                          "t_cover_big_2x",
                         )}`
                       : "/images/placeholder-cover.jpg"
                   }

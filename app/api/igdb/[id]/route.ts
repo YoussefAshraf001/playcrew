@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       id: game.id,
       name: game.name,
       cover: game.cover?.image_id
-        ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
+        ? `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${game.cover.image_id}.jpg`
         : null,
       genres: game.genres?.map((g: any) => g.name) ?? [],
       rating: game.rating ?? null,

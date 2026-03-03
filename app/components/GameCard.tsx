@@ -62,11 +62,10 @@ export default function GameCard({
           group
           relative
           w-full
-          max-w-[210px]
-          mx-auto
+          max-w-none
           bg-zinc-900/80
           rounded-xl
-          overflow-hidden
+          overflow-visible
         shadow-md
         hover:shadow-xl
         transition-all
@@ -82,7 +81,7 @@ export default function GameCard({
       </div>
 
       <Link href={`/game/${game.igdb.id}`} prefetch={false}>
-        <div className="relative h-[200px] sm:h-[225px] md:h-[245px] lg:h-[270px] w-full overflow-hidden">
+        <div className="relative h-[210px] sm:h-[230px] md:h-60 lg:h-[220px] xl:h-[330px] w-full overflow-hidden rounded-t-xl">
           {!loaded && (
             <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
           )}

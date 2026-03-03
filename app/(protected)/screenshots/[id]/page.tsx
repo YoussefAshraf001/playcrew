@@ -16,6 +16,9 @@ import {
   FaArrowLeft,
   FaArrowRight,
   FaCheckCircle,
+  FaImage,
+  FaRegStar,
+  FaStar,
   FaTrashAlt,
 } from "react-icons/fa";
 import {
@@ -40,14 +43,18 @@ type Folder = {
   igdbCoverUrl?: string | null;
   coverUrl?: string | null;
   coverPublicId?: string | null;
+  coverSourceShotId?: string | null;
   customCoverUrl?: string | null;
   customCoverPublicId?: string | null;
+  customCoverSourceShotId?: string | null;
 };
 
 type Shot = {
   id: string;
   url: string;
   publicId: string;
+  favorite?: boolean;
+  bytes?: number;
   createdAt?: unknown;
 };
 
@@ -61,6 +68,12 @@ type UploadItem = {
   status: "uploading" | "done" | "error";
   error?: string;
 };
+
+type DeleteConfirmState =
+  | { mode: "single"; shot: Shot }
+  | { mode: "multiple"; shotIds: string[] }
+  | null;
+
 const CAROUSEL_ACTIVE_FOLDER_KEY = "screenshots_carousel_active_folder_v1";
 
 const formatBytes = (bytes: number) => {
@@ -119,6 +132,61 @@ const compressForUpload = async (file: File): Promise<File> => {
   }
 };
 
+type FadeInImageProps = {
+  src: string;
+  alt: string;
+  wrapperClassName?: string;
+  imgClassName?: string;
+  loading?: "eager" | "lazy";
+};
+
+function FadeInImage({
+  src,
+  alt,
+  wrapperClassName = "",
+  imgClassName = "",
+  loading = "lazy",
+}: FadeInImageProps) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [src]);
+
+  return (
+    <div className={`relative ${wrapperClassName}`}>
+      {!failed && (
+        <div
+          className={`pointer-events-none absolute inset-0 bg-zinc-800/60 transition-opacity duration-300 ${
+            loaded ? "opacity-0" : "animate-pulse opacity-100"
+          }`}
+        />
+      )}
+      {failed ? (
+        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-zinc-900/85 text-zinc-300">
+          <FaImage size={14} />
+          <span className="text-xs font-semibold">Failed</span>
+        </div>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          loading={loading}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={`${imgClassName} transition-opacity duration-300 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ visibility: loaded ? "visible" : "hidden" }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function ScreenshotFolderPage() {
   const { user } = useUser();
   const params = useParams<{ id: string }>();
@@ -126,8 +194,6 @@ export default function ScreenshotFolderPage() {
 
   const [folder, setFolder] = useState<Folder | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
-  const [sortMode, setSortMode] = useState<"recent" | "uploadDate">("recent");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [dragOverlayVisible, setDragOverlayVisible] = useState(false);
@@ -138,38 +204,113 @@ export default function ScreenshotFolderPage() {
     null,
   );
   const [savingCroppedCover, setSavingCroppedCover] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedShotIds, setSelectedShotIds] = useState<string[]>([]);
+  const [deletingSelected, setDeletingSelected] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sizeLoading, setSizeLoading] = useState(false);
   const dragDepthRef = useRef(0);
+  const bytesBackfilledRef = useRef<Set<string>>(new Set());
+  const galleryScrollRef = useRef<HTMLDivElement | null>(null);
   const isUploading = useMemo(
     () => uploadItems.some((item) => item.status === "uploading"),
     [uploadItems],
   );
-  const toMillis = (value: unknown) => {
-    if (value && typeof value === "object" && "toMillis" in value) {
-      const ts = value as { toMillis?: () => number };
-      return ts.toMillis?.() ?? 0;
-    }
-    return 0;
-  };
   const sortedShots = useMemo(() => {
-    const list = [...shots];
-    list.sort((a, b) => {
-      const aTime = toMillis(a.createdAt);
-      const bTime = toMillis(b.createdAt);
+    const favorites = shots.filter((shot) => shot.favorite === true);
+    const regular = shots.filter((shot) => shot.favorite !== true);
+    return [...favorites, ...regular];
+  }, [shots]);
+  const favoriteShots = useMemo(
+    () => sortedShots.filter((shot) => shot.favorite === true),
+    [sortedShots],
+  );
+  const PAGE_SIZE = 6;
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(sortedShots.length / PAGE_SIZE)),
+    [sortedShots.length],
+  );
+  const pagedShots = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sortedShots.slice(start, start + PAGE_SIZE);
+  }, [sortedShots, currentPage]);
+  const pageFavoriteShots = useMemo(
+    () => pagedShots.filter((shot) => shot.favorite === true),
+    [pagedShots],
+  );
+  const pageRegularShots = useMemo(
+    () => pagedShots.filter((shot) => shot.favorite !== true),
+    [pagedShots],
+  );
+  const paginationItems = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
 
-      if (sortMode === "recent") {
-        const base = bTime - aTime; // newest first
-        return sortOrder === "asc" ? -base : base;
-      }
+    const items: Array<number | "dots-left" | "dots-right"> = [1];
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
 
-      const base = aTime - bTime; // oldest first
-      return sortOrder === "asc" ? base : -base;
-    });
-    return list;
-  }, [shots, sortMode, sortOrder]);
+    if (start > 2) items.push("dots-left");
+    for (let page = start; page <= end; page += 1) items.push(page);
+    if (end < totalPages - 1) items.push("dots-right");
+
+    items.push(totalPages);
+    return items;
+  }, [currentPage, totalPages]);
+  const shotIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    sortedShots.forEach((shot, idx) => map.set(shot.id, idx));
+    return map;
+  }, [sortedShots]);
   const viewerShot =
     viewerIndex !== null && sortedShots[viewerIndex]
       ? sortedShots[viewerIndex]
       : null;
+  const selectedShotCount = selectedShotIds.length;
+  const knownFolderBytes = useMemo(
+    () =>
+      shots.reduce((sum, shot) => {
+        if (typeof shot.bytes === "number" && Number.isFinite(shot.bytes)) {
+          return sum + Math.max(0, shot.bytes);
+        }
+        return sum;
+      }, 0),
+    [shots],
+  );
+  const knownSizeCount = useMemo(
+    () =>
+      shots.filter(
+        (shot) =>
+          typeof shot.bytes === "number" &&
+          Number.isFinite(shot.bytes) &&
+          shot.bytes > 0,
+      ).length,
+    [shots],
+  );
+  const unknownSizeCount = shots.length - knownSizeCount;
+  const sizeDisplayText = useMemo(() => {
+    if (sizeLoading)
+      return (
+        <div className="pl-1">
+          <span className="loading loading-bars loading-xs" />
+        </div>
+      );
+    if (knownFolderBytes > 0) return formatBytes(knownFolderBytes);
+    if (unknownSizeCount > 0) return "Calculating...";
+    return "0 B";
+  }, [sizeLoading, knownFolderBytes, unknownSizeCount]);
+  const folderSizeTooltip = useMemo(() => {
+    if (sizeLoading) return "Loading size from Cloudinary...";
+    if (!shots.length) return "Folder size: 0 screenshots";
+    const base = `${shots.length} screenshots, ${formatBytes(knownFolderBytes)}`;
+    if (unknownSizeCount > 0) {
+      return `${base} known size (${unknownSizeCount} older item${unknownSizeCount > 1 ? "s" : ""} without stored size)`;
+    }
+    return `${base} total`;
+  }, [shots.length, knownFolderBytes, unknownSizeCount, sizeLoading]);
 
   useEffect(() => {
     if (!user || !folderId) return;
@@ -241,6 +382,92 @@ export default function ScreenshotFolderPage() {
       setViewerIndex(sortedShots.length - 1);
     }
   }, [sortedShots, viewerIndex]);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
+
+  useEffect(() => {
+    if (!galleryScrollRef.current) return;
+    galleryScrollRef.current.scrollTop = 0;
+  }, [currentPage]);
+
+  useEffect(() => {
+    setSelectedShotIds((prev) =>
+      prev.filter((id) => shots.some((shot) => shot.id === id)),
+    );
+  }, [shots]);
+
+  useEffect(() => {
+    if (!user || !folderId || !shots.length) return;
+
+    const missing = shots.filter(
+      (shot) =>
+        (typeof shot.bytes !== "number" || !Number.isFinite(shot.bytes)) &&
+        !bytesBackfilledRef.current.has(shot.id),
+    );
+    if (!missing.length) {
+      setSizeLoading(false);
+      return;
+    }
+
+    const publicIds = missing.map((shot) => shot.publicId).filter(Boolean);
+    if (!publicIds.length) {
+      setSizeLoading(false);
+      return;
+    }
+
+    const run = async () => {
+      setSizeLoading(true);
+      try {
+        const res = await fetch("/api/cloudinary/resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicIds: publicIds.slice(0, 50) }),
+        });
+        if (!res.ok) return;
+
+        const data = (await res.json()) as {
+          bytesByPublicId?: Record<string, number>;
+        };
+        const bytesByPublicId = data.bytesByPublicId ?? {};
+
+        const updates = missing
+          .map((shot) => ({
+            shot,
+            bytes: bytesByPublicId[shot.publicId],
+          }))
+          .filter(
+            ({ bytes }) => typeof bytes === "number" && Number.isFinite(bytes),
+          );
+
+        await Promise.all(
+          updates.map(async ({ shot, bytes }) => {
+            const shotRef = doc(
+              db,
+              "users",
+              user.uid,
+              "screenshotFolders",
+              folderId,
+              "shots",
+              shot.id,
+            );
+            await updateDoc(shotRef, { bytes });
+          }),
+        );
+
+        for (const shot of missing) {
+          bytesBackfilledRef.current.add(shot.id);
+        }
+      } catch (error) {
+        console.error("Could not backfill screenshot bytes", error);
+      } finally {
+        setSizeLoading(false);
+      }
+    };
+
+    void run();
+  }, [shots, user, folderId]);
 
   const destroyInCloudinary = async (publicId: string) => {
     const res = await fetch("/api/cloudinary/destroy", {
@@ -387,9 +614,11 @@ export default function ScreenshotFolderPage() {
         folderId,
         "shots",
       );
-      await addDoc(shotsRef, {
+      const addedShotRef = await addDoc(shotsRef, {
         url: uploadJson.secure_url,
         publicId: uploadJson.public_id,
+        favorite: false,
+        bytes: uploadJson.bytes ?? uploadFile.size,
         createdAt: serverTimestamp(),
       });
 
@@ -405,6 +634,8 @@ export default function ScreenshotFolderPage() {
         await updateDoc(folderRef, {
           coverUrl: uploadJson.secure_url,
           coverPublicId: uploadJson.public_id,
+          coverSourceShotId: addedShotRef.id,
+          customCoverSourceShotId: null,
         });
       }
 
@@ -606,6 +837,7 @@ export default function ScreenshotFolderPage() {
       await updateDoc(folderRef, {
         customCoverUrl: uploadJson.secure_url,
         customCoverPublicId: uploadJson.public_id,
+        customCoverSourceShotId: coverCropShot.id,
       });
 
       if (
@@ -626,8 +858,9 @@ export default function ScreenshotFolderPage() {
     }
   };
 
-  const deleteShot = async (shot: Shot) => {
+  const deleteShot = async (shot: Shot, options?: { notify?: boolean }) => {
     if (!user || !folderId || !folder) return;
+    const notify = options?.notify ?? true;
     try {
       await destroyInCloudinary(shot.publicId);
 
@@ -642,7 +875,14 @@ export default function ScreenshotFolderPage() {
       );
       await deleteDoc(shotRef);
 
-      if (folder.customCoverPublicId === shot.publicId) {
+      const shouldClearCustomCover =
+        folder.customCoverPublicId === shot.publicId ||
+        folder.customCoverSourceShotId === shot.id;
+      const shouldClearBaseCover =
+        !folder.customCoverPublicId &&
+        (folder.coverPublicId === shot.publicId ||
+          folder.coverSourceShotId === shot.id);
+      if (shouldClearCustomCover || shouldClearBaseCover) {
         const folderRef = doc(
           db,
           "users",
@@ -651,16 +891,224 @@ export default function ScreenshotFolderPage() {
           folderId,
         );
         await updateDoc(folderRef, {
-          customCoverUrl: null,
-          customCoverPublicId: null,
+          ...(shouldClearCustomCover
+            ? {
+                customCoverUrl: null,
+                customCoverPublicId: null,
+                customCoverSourceShotId: null,
+              }
+            : {}),
+          ...(shouldClearBaseCover
+            ? {
+                coverUrl: null,
+                coverPublicId: null,
+                coverSourceShotId: null,
+              }
+            : {}),
         });
       }
 
-      toast.success("Screenshot deleted");
+      if (notify) toast.success("Screenshot deleted");
+      return true;
     } catch (err) {
       console.error(err);
-      toast.error("Could not delete screenshot");
+      if (notify) toast.error("Could not delete screenshot");
+      return false;
     }
+  };
+
+  const toggleShotFavorite = async (shot: Shot) => {
+    if (!user || !folderId) return;
+
+    try {
+      const shotRef = doc(
+        db,
+        "users",
+        user.uid,
+        "screenshotFolders",
+        folderId,
+        "shots",
+        shot.id,
+      );
+      await updateDoc(shotRef, {
+        favorite: !(shot.favorite === true),
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not update favorite");
+    }
+  };
+
+  const toggleShotSelection = (shotId: string) => {
+    setSelectedShotIds((prev) =>
+      prev.includes(shotId)
+        ? prev.filter((id) => id !== shotId)
+        : [...prev, shotId],
+    );
+  };
+
+  const deleteSelectedShots = async (shotIds = selectedShotIds) => {
+    if (!shotIds.length || deletingSelected) return;
+
+    setDeletingSelected(true);
+    try {
+      const byId = new Map(shots.map((shot) => [shot.id, shot] as const));
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (const shotId of shotIds) {
+        const shot = byId.get(shotId);
+        if (!shot) continue;
+        const ok = await deleteShot(shot, { notify: false });
+        if (ok) successCount += 1;
+        else failedCount += 1;
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1
+            ? "1 screenshot deleted"
+            : `${successCount} screenshots deleted`,
+        );
+      }
+      if (failedCount > 0) {
+        toast.error(
+          failedCount === 1
+            ? "1 delete failed"
+            : `${failedCount} deletes failed`,
+        );
+      }
+      setSelectedShotIds((prev) => prev.filter((id) => !shotIds.includes(id)));
+      setSelectionMode(false);
+    } finally {
+      setDeletingSelected(false);
+    }
+  };
+
+  const confirmDeleteAction = async () => {
+    if (!deleteConfirm || confirmingDelete) return;
+
+    setConfirmingDelete(true);
+    try {
+      if (deleteConfirm.mode === "single") {
+        await deleteShot(deleteConfirm.shot);
+      } else {
+        await deleteSelectedShots(deleteConfirm.shotIds);
+      }
+      setDeleteConfirm(null);
+    } finally {
+      setConfirmingDelete(false);
+    }
+  };
+
+  const renderShotCard = (shot: Shot, tone: "favorite" | "regular") => {
+    const idx = shotIndexById.get(shot.id) ?? -1;
+    const activeCoverPublicId =
+      folder?.customCoverPublicId ?? folder?.coverPublicId ?? null;
+    const activeCoverSourceShotId = folder?.customCoverPublicId
+      ? (folder?.customCoverSourceShotId ?? null)
+      : (folder?.coverSourceShotId ?? null);
+    const isCover =
+      activeCoverPublicId === shot.publicId ||
+      activeCoverSourceShotId === shot.id;
+
+    return (
+      <motion.article
+        key={shot.id}
+        initial={{ opacity: 0, y: 14, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -10, scale: 0.985 }}
+        whileHover={{ y: -3 }}
+        className={`group overflow-hidden rounded-[20px] border shadow-[0_18px_45px_rgba(0,0,0,0.4)] ${
+          tone === "favorite"
+            ? "border-amber-300/35 bg-[#1a130f]"
+            : "border-white/12 bg-[#101012]"
+        }`}
+      >
+        <div className="relative">
+          <button
+            type="button"
+            className="relative block w-full text-left"
+            onClick={() => {
+              if (selectionMode) {
+                toggleShotSelection(shot.id);
+                return;
+              }
+              if (idx >= 0) setViewerIndex(idx);
+            }}
+          >
+            <FadeInImage
+              src={shot.url}
+              alt="Screenshot"
+              wrapperClassName="h-72 w-full overflow-hidden"
+              imgClassName="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+            />
+            {selectionMode && (
+              <span
+                className={`absolute right-3 top-3 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] ${
+                  selectedShotIds.includes(shot.id)
+                    ? "border-cyan-300/60 bg-cyan-500/35 text-cyan-100"
+                    : "border-white/30 bg-black/45 text-zinc-200"
+                }`}
+              >
+                {selectedShotIds.includes(shot.id) ? "Selected" : "Select"}
+              </span>
+            )}
+            {isCover && (
+              <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-emerald-300/45 bg-emerald-500/25 px-2 py-0.5 text-[11px] text-emerald-100">
+                <FaCheckCircle size={10} /> Cover
+              </span>
+            )}
+          </button>
+          <motion.div
+            initial={false}
+            animate={{
+              y: selectionMode ? 72 : 0,
+              opacity: selectionMode ? 0 : 1,
+            }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className={`absolute inset-x-2 bottom-2 z-20 ${selectionMode ? "pointer-events-none" : ""}`}
+          >
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/60 p-1 backdrop-blur-sm">
+              {isCover ? (
+                <span className="rounded-lg border border-emerald-300/35 bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-100">
+                  Current Cover
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAsCover(shot)}
+                  disabled={savingCroppedCover}
+                  className="rounded-lg border border-white/15 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-200 transition hover:bg-zinc-800"
+                >
+                  Set Cover
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleShotFavorite(shot)}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition ${
+                  shot.favorite
+                    ? "border-amber-300/35 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
+                    : "border-white/15 bg-zinc-900/60 text-zinc-200 hover:bg-zinc-800"
+                }`}
+              >
+                {shot.favorite ? <FaStar size={10} /> : <FaRegStar size={10} />}
+                {shot.favorite ? "Favorited" : "Favorite"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm({ mode: "single", shot })}
+                className="inline-flex items-center gap-1 rounded-lg border border-red-300/35 bg-red-500/10 px-2.5 py-1 text-xs text-red-200 transition hover:bg-red-500/20"
+              >
+                <FaTrashAlt size={10} />
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </motion.article>
+    );
   };
 
   if (!user) {
@@ -675,7 +1123,7 @@ export default function ScreenshotFolderPage() {
 
   return (
     <main
-      className="min-h-screen bg-[#070504] px-4 pb-10 pt-24 text-white sm:px-6 lg:px-8"
+      className="h-svh overflow-hidden bg-[#070504] px-4 pt-20 text-white sm:px-6 lg:px-8"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -694,133 +1142,282 @@ export default function ScreenshotFolderPage() {
           </div>
         </div>
       )}
-      <section className="mx-auto max-w-7xl rounded-3xl border border-cyan-500/20 bg-black/65 p-4 backdrop-blur-md sm:p-6">
-        <header className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.14em] text-cyan-500/80">
+      <section className="mx-auto h-[calc(100svh-5.5rem)] max-w-[1700px] rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_82%_0%,rgba(251,191,36,0.12),transparent_36%),radial-gradient(circle_at_0%_100%,rgba(6,182,212,0.14),transparent_30%),#08090d] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.6)] sm:p-6">
+        <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="min-h-0 overflow-y-auto rounded-2xl border border-white/12 bg-black/35 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/90">
               Collection
             </p>
-            <h1 className="text-2xl font-bold text-zinc-100">
-              {folder?.name ?? "Loading..."}
+            <h1 className="mt-1 text-2xl font-black text-zinc-100">
+              {folder?.name ?? (
+                <span className="loading loading-bars loading-xs" />
+              )}
             </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/screenshots"
-              className="inline-flex h-9 items-center rounded-xl border border-white/20 bg-zinc-900/80 px-4 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
-            >
-              Back
-            </Link>
-            <label className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-4 text-xs font-semibold text-cyan-500 transition hover:bg-cyan-500/20">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = e.target.files;
-                  if (files?.length) uploadScreenshots(files);
-                  e.currentTarget.value = "";
-                }}
-              />
-              {isUploading ? "Uploading..." : "Add Screenshots"}
-            </label>
-          </div>
-        </header>
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-          <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/15 bg-zinc-900/70 px-2">
-            <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-300">
-              Sort
-            </label>
-            <select
-              value={sortMode}
-              onChange={(e) =>
-                setSortMode(e.target.value as "recent" | "uploadDate")
-              }
-              className="h-8 rounded-lg border border-white/10 bg-black/45 px-2 text-xs text-white outline-none"
-            >
-              <option value="recent">Recent</option>
-              <option value="uploadDate">Upload Date</option>
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))
-            }
-            className="h-9 rounded-xl border border-white/15 bg-zinc-900/70 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
-          >
-            {sortOrder === "asc" ? "Asc" : "Desc"}
-          </button>
-        </div>
+            <p className="mt-1 text-xs text-zinc-400">
+              Build a visual story from your best captures.
+            </p>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <AnimatePresence>
-            {sortedShots.map((shot, idx) => {
-              const activeCoverPublicId =
-                folder?.customCoverPublicId ?? folder?.coverPublicId ?? null;
-              const isCover = activeCoverPublicId === shot.publicId;
-              return (
-                <motion.article
-                  key={shot.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  whileHover={{ y: -4 }}
-                  className="group overflow-hidden rounded-xl border border-cyan-500/20 bg-[#14100d] shadow-[0_12px_30px_rgba(0,0,0,0.38)]"
+            <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950/45 p-2.5">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                Data
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-white/12 bg-zinc-900/45 p-2">
+                  <p className="text-[10px] uppercase tracking-[0.13em] text-zinc-400">
+                    Screenshots
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-zinc-100">
+                    {shots.length}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-2">
+                  <p className="text-[10px] uppercase tracking-[0.13em] text-amber-100/80">
+                    Favorites
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-amber-100">
+                    {favoriteShots.length}
+                  </p>
+                </div>
+                <div
+                  className="col-span-2 rounded-xl border border-white/12 bg-zinc-900/45 p-2"
+                  title={folderSizeTooltip}
                 >
-                  <button
-                    type="button"
-                    className="relative block w-full text-left"
-                    onClick={() => setViewerIndex(idx)}
-                  >
-                    <img
-                      src={shot.url}
-                      alt="Screenshot"
-                      className="h-52 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                    />
-                    {isCover && (
-                      <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-500/20 px-2 py-0.5 text-[11px] text-emerald-100">
-                        <FaCheckCircle size={10} /> Cover
-                      </span>
-                    )}
-                  </button>
-                  <div className="flex items-center justify-between gap-2 p-2.5">
-                    {isCover ? (
-                      <span className="rounded-lg border border-emerald-300/35 bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-100">
-                        Current Cover
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setAsCover(shot)}
-                        disabled={savingCroppedCover}
-                        className="rounded-lg border border-white/15 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-200 transition hover:bg-zinc-800"
-                      >
-                        Set Cover
-                      </button>
-                    )}
+                  <p className="text-[10px] uppercase tracking-[0.13em] text-zinc-400">
+                    Known Size
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-zinc-100">
+                    {sizeDisplayText}
+                  </p>
+                </div>
+                {selectionMode && (
+                  <div className="col-span-2 rounded-xl border border-cyan-300/25 bg-cyan-500/10 p-2">
+                    <p className="text-[10px] uppercase tracking-[0.13em] text-cyan-100/80">
+                      Selected
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-cyan-100">
+                      {selectedShotCount}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950/45 p-2.5">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                Actions
+              </p>
+              <div className="space-y-2">
+                <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/12 px-4 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/22">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files?.length) uploadScreenshots(files);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  {isUploading ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      Uploading
+                      <span className="loading loading-dots loading-xs" />
+                    </span>
+                  ) : (
+                    "Add Screenshots"
+                  )}
+                </label>
+
+                {selectionMode && (
+                  <div className="rounded-xl border border-red-300/20 bg-red-500/6 p-2">
                     <button
                       type="button"
-                      onClick={() => deleteShot(shot)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-red-300/35 bg-red-500/10 px-2.5 py-1 text-xs text-red-200 transition hover:bg-red-500/20"
+                      onClick={() =>
+                        setDeleteConfirm({
+                          mode: "multiple",
+                          shotIds: [...selectedShotIds],
+                        })
+                      }
+                      disabled={!selectedShotCount || deletingSelected}
+                      className="h-9 w-full rounded-xl border border-red-300/35 bg-red-500/10 px-3 text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-45"
                     >
-                      <FaTrashAlt size={10} />
-                      Delete
+                      {deletingSelected
+                        ? "Deleting..."
+                        : `Delete Selected (${selectedShotCount})`}
                     </button>
                   </div>
-                </motion.article>
-              );
-            })}
-          </AnimatePresence>
-        </div>
+                )}
 
-        {!shots.length && (
-          <p className="mt-3 text-sm text-zinc-400">
-            This collection is empty. Add screenshots to begin.
-          </p>
-        )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectionMode((prev) => !prev);
+                    setSelectedShotIds([]);
+                  }}
+                  className={`h-9 w-full rounded-xl border px-3 text-xs font-semibold transition ${
+                    selectionMode
+                      ? "border-amber-300/40 bg-amber-500/15 text-amber-100 hover:bg-amber-500/20"
+                      : "border-amber-200/25 bg-zinc-900/70 text-zinc-100 hover:border-amber-200/40 hover:bg-zinc-800"
+                  }`}
+                >
+                  {selectionMode ? "Cancel Select" : "Select Multiple"}
+                </button>
+
+                <div className="pt-2">
+                  <Link
+                    href={`/screenshots?folder=${encodeURIComponent(folderId)}`}
+                    className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-white/20 bg-zinc-900/80 px-4 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                  >
+                    Back To Collections
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900/35 px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                Gallery
+              </p>
+              <p className="text-xs text-zinc-400">
+                Page {currentPage} of {totalPages}
+              </p>
+            </div>
+
+            <div
+              ref={galleryScrollRef}
+              className="min-h-0 flex-1 overflow-y-auto pr-1"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={`grid-page-${currentPage}`}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                  className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+                >
+                  {pageFavoriteShots.map((shot) =>
+                    renderShotCard(shot, "favorite"),
+                  )}
+                  {pageFavoriteShots.length > 0 &&
+                    pageRegularShots.length > 0 && (
+                      <motion.div
+                        key="favorites-divider"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="col-span-full mt-1 flex items-center gap-3"
+                      >
+                        <div className="h-px flex-1 bg-white/12" />
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                          Others
+                        </span>
+                        <div className="h-px flex-1 bg-white/12" />
+                      </motion.div>
+                    )}
+                  {pageRegularShots.map((shot) =>
+                    renderShotCard(shot, "regular"),
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              {!shots.length && (
+                <p className="mt-3 text-sm text-zinc-400">
+                  This collection is empty. Add screenshots to begin.
+                </p>
+              )}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="mt-5 flex flex-wrap justify-center gap-2">
+                {paginationItems.map((item) => {
+                  if (item === "dots-left" || item === "dots-right") {
+                    return (
+                      <span
+                        key={item}
+                        className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-white/10 bg-black/30 px-2 text-xs text-zinc-400"
+                      >
+                        ...
+                      </span>
+                    );
+                  }
+
+                  const isActive = item === currentPage;
+                  return (
+                    <button
+                      key={`page-${item}`}
+                      type="button"
+                      onClick={() => setCurrentPage(item)}
+                      className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition ${
+                        isActive
+                          ? "border-cyan-300/45 bg-cyan-500/20 text-cyan-100"
+                          : "border-white/15 bg-black/35 text-zinc-200 hover:bg-zinc-800"
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </section>
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => {
+              if (confirmingDelete) return;
+              setDeleteConfirm(null);
+            }}
+          >
+            <motion.div
+              className="w-full max-w-md rounded-2xl border border-red-300/30 bg-[#0d0b0a]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.62)]"
+              initial={{ scale: 0.94 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.94 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-red-200/85">
+                Confirm Delete
+              </p>
+              <h3 className="mt-1 text-lg font-bold text-zinc-100">
+                {deleteConfirm.mode === "single"
+                  ? "Delete this screenshot?"
+                  : `Delete ${deleteConfirm.shotIds.length} selected screenshots?`}
+              </h3>
+              <p className="mt-2 text-sm text-zinc-300">
+                This action cannot be undone.
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={confirmingDelete}
+                  onClick={() => setDeleteConfirm(null)}
+                  className="rounded-lg border border-white/20 bg-zinc-900/80 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={confirmingDelete}
+                  onClick={confirmDeleteAction}
+                  className="inline-flex min-w-28 items-center justify-center rounded-lg border border-red-300/45 bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/25 disabled:opacity-50"
+                >
+                  {confirmingDelete ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {coverCropShot && (
           <motion.div
@@ -922,16 +1519,22 @@ export default function ScreenshotFolderPage() {
                     <FaArrowLeft />
                   </button>
                 )}
-                <motion.img
+                <motion.div
                   key={viewerShot.id}
-                  src={viewerShot.url}
-                  alt="Screenshot preview"
                   className="max-h-[82vh] max-w-[96vw] rounded-lg object-contain shadow-[0_18px_45px_rgba(0,0,0,0.65)]"
                   initial={{ scale: 0.96, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.98, opacity: 0 }}
                   transition={{ duration: 0.18, ease: "easeOut" }}
-                />
+                >
+                  <FadeInImage
+                    src={viewerShot.url}
+                    alt="Screenshot preview"
+                    loading="eager"
+                    wrapperClassName="max-h-[82vh] max-w-[96vw] overflow-hidden rounded-lg"
+                    imgClassName="max-h-[82vh] max-w-[96vw] object-contain"
+                  />
+                </motion.div>
                 {sortedShots.length > 1 && (
                   <button
                     type="button"
@@ -961,10 +1564,11 @@ export default function ScreenshotFolderPage() {
                             : "border-white/15 hover:border-white/40"
                         }`}
                       >
-                        <img
+                        <FadeInImage
                           src={shot.url}
                           alt="Screenshot thumbnail"
-                          className="h-full w-full object-cover"
+                          wrapperClassName="h-full w-full overflow-hidden"
+                          imgClassName="h-full w-full object-cover"
                         />
                       </button>
                     ))}

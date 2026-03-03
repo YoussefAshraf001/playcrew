@@ -111,7 +111,7 @@ export default function GamesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 8;
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -685,7 +685,7 @@ export default function GamesPage() {
       {loading || userLoading || gamesLoading ? (
         <LoadingSpinner />
       ) : (
-        <div className="max-w-[1850px] mx-auto flex flex-col gap-4 pt-14 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8">
+        <div className="max-w-[1850px] mx-auto flex flex-col gap-4 px-3 pt-14 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6">
           {/* Blurred Background */}
           {userProfile?.wallpaper && (
             <div className="fixed inset-0 z-10 overflow-hidden blur-sm brightness-25">
@@ -996,7 +996,7 @@ export default function GamesPage() {
               </div>
             </div>
             {/* Game Grid */}
-            <div className="lg:h-[calc(100svh-260px)] overflow-hidden">
+            <div className="overflow-visible lg:h-[calc(100svh-235px)] lg:overflow-hidden">
               <AnimatePresence
                 mode="wait"
                 custom={{ type: animationType, direction: pageDirection }}
@@ -1009,7 +1009,7 @@ export default function GamesPage() {
                   animate="center"
                   exit="exit"
                   transition={{ duration: 0.35, ease: "easeOut" }}
-                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-4"
                 >
                   {visibleGames.map((game) => (
                     <GameCard
@@ -1025,7 +1025,7 @@ export default function GamesPage() {
           </div>
 
           {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="relative pt-3 z-10 w-full lg:h-[calc(100svh-5.5rem)] shrink-0 flex flex-col gap-3 lg:w-64 xl:w-72">
+          <div className="relative z-10 w-full shrink-0 px-1 pt-3 flex flex-col gap-3 sm:px-2 md:px-3 lg:h-[calc(100svh-5.5rem)] lg:w-64 lg:px-0 xl:w-72">
             {/* Favorites */}
             <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-2.5 overflow-y-auto custom-scrollbar max-h-[45vh] min-h-[45vh]">
               <div className="flex items-center justify-between py-2">
@@ -1074,11 +1074,11 @@ export default function GamesPage() {
                           alt={g.name}
                         />
                         <div className="flex-1 flex flex-col justify-center">
-                          <span className="text-white/90 font-medium text-[11px] group-hover:text-white transition-colors duration-300">
+                          <span className="text-white/90 font-medium text-[13px] group-hover:text-white transition-colors duration-300 truncate max-w-43">
                             {g.name}
                           </span>
                           <div className="flex gap-1.5 mt-1">
-                            <span className="text-[9px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
+                            <span className="text-[11px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
                               {g.playtime
                                 ? `${Math.floor(g.playtime)}h ${Math.round(
                                     (g.playtime % 1) * 60,
@@ -1087,7 +1087,7 @@ export default function GamesPage() {
                             </span>
 
                             <span
-                              className={`flex items-center gap-1 text-[9px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
+                              className={`flex items-center gap-1 text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
                                 g.notInterested
                                   ? "text-red-300 group-hover:text-red-200"
                                   : "text-white/70 group-hover:text-white"
@@ -1134,18 +1134,34 @@ export default function GamesPage() {
                             alt={g.name}
                           />
                           <div className="flex-1 flex flex-col justify-center">
-                            <span className="text-white/90 font-bold text-[11px] group-hover:text-white transition max-w-[200px] line-clamp-2">
+                            <span className="text-white/90 font-bold text-[12px] group-hover:text-white transition max-w-[200px] line-clamp-2">
                               {g.name}
                             </span>
 
                             <div className="flex gap-1.5 mt-1.5">
-                              <span className="text-[9px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
+                              <span className="text-[11px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
                                 {g.playtime
                                   ? `${Math.floor(g.playtime)}h ${Math.round(
                                       (g.playtime % 1) * 60,
                                     )}m`
                                   : "0h 0m"}
                               </span>
+                              {/* <span
+                                className={`flex items-center gap-1 text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
+                                  g.notInterested
+                                    ? "text-red-300 group-hover:text-red-200"
+                                    : "text-white/70 group-hover:text-white"
+                                }`}
+                              >
+                                {g.notInterested ? (
+                                  "Not Interested"
+                                ) : (
+                                  <>
+                                    <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
+                                    {(g.my_rating ?? 0).toFixed(1)}
+                                  </>
+                                )}
+                              </span> */}
                             </div>
                           </div>
                         </div>

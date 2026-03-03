@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Helmet } from "react-helmet-async";
 import { AnimatePresence, motion } from "framer-motion";
-import { FaArrowLeft, FaArrowRight } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaArrowRight,
+  FaCrown,
+  FaPause,
+  FaPlay,
+} from "react-icons/fa";
+import { MdBlock, MdOutlineOnlinePrediction } from "react-icons/md";
+import { GiMouthWatering } from "react-icons/gi";
 
 import Countdown from "@/app/components/Countdowncomponent";
 import { useGames } from "@/app/context/GameContext";
@@ -12,6 +20,7 @@ import { useGames } from "@/app/context/GameContext";
 type CalendarGame = {
   id: string;
   name: string;
+  status?: string;
   igdb?: {
     cover?: string;
     releaseDate?: unknown;
@@ -106,38 +115,48 @@ export default function CalendarPage() {
   const isCurrentMonth =
     month === today.getMonth() && year === today.getFullYear();
 
-  useEffect(() => {
-    const syncToCurrentMonth = () => {
-      const now = new Date();
-      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-      setCursor((prev) => {
-        if (
-          prev.getFullYear() === currentMonthStart.getFullYear() &&
-          prev.getMonth() === currentMonthStart.getMonth()
-        ) {
-          return prev;
-        }
-
-        return currentMonthStart;
-      });
-    };
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) syncToCurrentMonth();
-    };
-
-    syncToCurrentMonth();
-    window.addEventListener("focus", syncToCurrentMonth);
-    window.addEventListener("pageshow", syncToCurrentMonth);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("focus", syncToCurrentMonth);
-      window.removeEventListener("pageshow", syncToCurrentMonth);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case "Playing":
+        return {
+          label: "Playing",
+          icon: <FaPlay size={10} />,
+          className: "border-blue-300/35 bg-blue-500/15 text-blue-100",
+        };
+      case "On Hold":
+        return {
+          label: "On Hold",
+          icon: <FaPause size={10} />,
+          className: "border-emerald-300/35 bg-emerald-500/15 text-emerald-100",
+        };
+      case "Dropped":
+        return {
+          label: "Dropped",
+          icon: <MdBlock size={11} />,
+          className: "border-red-300/35 bg-red-500/15 text-red-100",
+        };
+      case "Completed":
+        return {
+          label: "Completed",
+          icon: <FaCrown size={10} />,
+          className: "border-yellow-300/35 bg-yellow-500/15 text-yellow-100",
+        };
+      case "Online":
+        return {
+          label: "Online",
+          icon: <MdOutlineOnlinePrediction size={12} />,
+          className: "border-purple-300/35 bg-purple-500/15 text-purple-100",
+        };
+      case "Want To Play":
+        return {
+          label: "Want To Play",
+          icon: <GiMouthWatering size={11} />,
+          className: "border-cyan-300/35 bg-cyan-500/15 text-cyan-100",
+        };
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
@@ -311,43 +330,67 @@ export default function CalendarPage() {
                       )}
 
                       {!gamesLoading &&
-                        sidebarMonthGames.map((g, index) => (
-                          <motion.div
-                            key={g.id}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2, delay: index * 0.03 }}
-                          >
-                            <Link
-                              href={`/game/${g.id}`}
-                              className="group block rounded-xl border border-white/10 bg-black/35 overflow-hidden hover:border-cyan-400/35 transition"
+                        sidebarMonthGames.map((g, index) => {
+                          const statusBadge = getStatusBadge(g.status);
+                          const isReleased = g.date.getTime() <= Date.now();
+                          return (
+                            <motion.div
+                              key={g.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{
+                                duration: 0.2,
+                                delay: index * 0.03,
+                              }}
+                              className="pr-4"
                             >
-                              <div className="flex gap-3 px-2.5 py-2">
-                                <img
-                                  src={g.igdb?.cover || "/placeholder-game.jpg"}
-                                  alt={g.name}
-                                  className="w-14 h-20 sm:w-16 sm:h-22 rounded-lg object-cover shrink-0"
-                                />
+                              <Link
+                                href={`/game/${g.id}`}
+                                className="group block rounded-xl border border-white/10 bg-black/35 overflow-hidden hover:border-cyan-400/35 transition pt-2"
+                              >
+                                <div className="flex gap-3 px-2.5 py-2">
+                                  <img
+                                    src={
+                                      g.igdb?.cover || "/placeholder-game.jpg"
+                                    }
+                                    alt={g.name}
+                                    className="w-20 h-28 rounded-lg object-cover shrink-0"
+                                  />
 
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm sm:text-base font-medium truncate">
-                                    {g.name}
-                                  </p>
-                                  <p className="text-xs text-white/60 mt-1">
-                                    {g.date.toLocaleDateString(undefined, {
-                                      weekday: "short",
-                                      month: "short",
-                                      day: "numeric",
-                                    })}
-                                  </p>
-                                  <div className="mt-2 text-xs text-cyan-300">
-                                    <Countdown date={g.date} />
+                                  <div className="min-w-0 flex-1 flex flex-col">
+                                    <p className="text-sm sm:text-base font-medium truncate">
+                                      {g.name}
+                                    </p>
+                                    <p className="text-xs text-white/60 mt-1">
+                                      {g.date.toLocaleDateString(undefined, {
+                                        weekday: "short",
+                                        month: "short",
+                                        day: "numeric",
+                                      })}
+                                    </p>
+                                    {isReleased ? (
+                                      <div className="mt-auto pb-2 flex flex-wrap items-center gap-2">
+                                        <Countdown date={g.date} />
+                                        {statusBadge && (
+                                          <span
+                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${statusBadge.className}`}
+                                          >
+                                            {statusBadge.icon}
+                                            {statusBadge.label}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="mt-2 text-xs text-cyan-300">
+                                        <Countdown date={g.date} />
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
-                            </Link>
-                          </motion.div>
-                        ))}
+                              </Link>
+                            </motion.div>
+                          );
+                        })}
 
                       {gamesLoading && monthGames.length === 0 && (
                         <div className="rounded-xl border border-white/10 bg-black/35 p-5 text-sm text-white/60">
@@ -441,4 +484,3 @@ export default function CalendarPage() {
     </>
   );
 }
-

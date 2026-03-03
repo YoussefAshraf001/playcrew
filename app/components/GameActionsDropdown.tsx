@@ -152,70 +152,70 @@ export default function GameActionsDropdown({
             className="absolute right-2 top-12 z-50 w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950/95 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-2 rounded-lg border border-white/10 bg-white/3 px-3 py-2">
-              <p className="truncate text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-                Actions
-              </p>
-              <p className="truncate text-sm font-semibold text-zinc-100">
-                {game?.name ?? "Game"}
-              </p>
-            </div>
+              <div className="mb-2 rounded-lg border border-white/10 bg-white/3 px-3 py-2">
+                <p className="truncate text-[11px] uppercase tracking-[0.16em] text-zinc-400">
+                  Actions
+                </p>
+                <p className="truncate text-sm font-semibold text-zinc-100">
+                  {game?.name ?? "Game"}
+                </p>
+              </div>
 
-            <button
-              onClick={() => {
-                setRefreshOpen(true);
-                setOpen(false);
-              }}
-              className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
-            >
-              <MdRefresh className="text-base text-cyan-300" />
-              <span>Refresh Data</span>
-            </button>
+              <button
+                onClick={() => {
+                  setRefreshOpen(true);
+                  setOpen(false);
+                }}
+                className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
+              >
+                <MdRefresh className="text-base text-cyan-300" />
+                <span>Refresh Data</span>
+              </button>
 
-            <button
-              onClick={() => {
-                openEditModal(game);
-                setOpen(false);
-              }}
-              className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
-            >
-              <MdEdit className="text-base text-zinc-200" />
-              <span>Edit Entry</span>
-            </button>
+              <button
+                onClick={() => {
+                  openEditModal(game);
+                  setOpen(false);
+                }}
+                className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
+              >
+                <MdEdit className="text-base text-zinc-200" />
+                <span>Edit Entry</span>
+              </button>
 
-            <button
-              onClick={() => {
-                setDevModalOpen(true);
-                setOpen(false);
-              }}
-              className={`${actionBtnClass} text-indigo-200 hover:bg-indigo-500/15`}
-            >
-              <FaCode className="text-sm text-indigo-300" />
-              <span>Dev Mode</span>
-            </button>
+              <button
+                onClick={() => {
+                  setDevModalOpen(true);
+                  setOpen(false);
+                }}
+                className={`${actionBtnClass} text-indigo-200 hover:bg-indigo-500/15`}
+              >
+                <FaCode className="text-sm text-indigo-300" />
+                <span>Dev Mode</span>
+              </button>
 
-            <div className="my-2 h-px bg-white/10" />
+              <div className="my-2 h-px bg-white/10" />
 
-            <button
-              onClick={() => {
-                openConfirmModal(`Delete "${game.name}"?`, async () => {
-                  await deleteDoc(
-                    doc(
-                      db,
-                      "users",
-                      user!.uid,
-                      "games_igdb",
-                      game._docId ?? game.igdb.id.toString(),
-                    ),
-                  );
-                });
-                setOpen(false);
-              }}
-              className={`${actionBtnClass} text-red-200 hover:bg-red-500/20`}
-            >
-              <MdDelete className="text-base text-red-300" />
-              <span>Delete Game</span>
-            </button>
+              <button
+                onClick={() => {
+                  openConfirmModal(`Delete "${game.name}"?`, async () => {
+                    await deleteDoc(
+                      doc(
+                        db,
+                        "users",
+                        user!.uid,
+                        "games_igdb",
+                        game._docId ?? game.igdb.id.toString(),
+                      ),
+                    );
+                  });
+                  setOpen(false);
+                }}
+                className={`${actionBtnClass} text-red-200 hover:bg-red-500/20`}
+              >
+                <MdDelete className="text-base text-red-300" />
+                <span>Delete Game</span>
+              </button>
           </motion.div>
         )}
       </AnimatePresence>

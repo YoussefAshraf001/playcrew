@@ -75,7 +75,7 @@ export default function GameModal({
   const genres = game.genres?.map((g: any) => g.name) || [];
   const cover =
     game.cover?.url &&
-    `https:${game.cover.url.replace("t_thumb", "t_cover_big")}`;
+    `https:${game.cover.url.replace("t_thumb", "t_cover_big_2x")}`;
 
   const gameId = game?.id?.toString();
   const saved = savedGames?.[gameId];
@@ -127,7 +127,7 @@ export default function GameModal({
           ? game.cover
           : `https:${game.cover}`;
       } else if (game.cover.url) {
-        coverUrl = `https:${game.cover.url.replace("t_thumb", "t_cover_big")}`;
+        coverUrl = `https:${game.cover.url.replace("t_thumb", "t_cover_big_2x")}`;
       }
     } else if (game.background_image) {
       coverUrl = game.background_image;
@@ -484,4 +484,3 @@ export default function GameModal({
     </>
   );
 }
-

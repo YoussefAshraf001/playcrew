@@ -1,0 +1,157 @@
+.toggleContainer {
+  --knob-size: 1.75em;
+  display: inline-flex;
+  justify-content: center;
+  position: relative;
+  font-size: 12px;
+}
+
+.toggleInput {
+  position: absolute;
+  z-index: 2;
+  bottom: 132.5%;
+  border-radius: 50%;
+  transform: rotate(-25deg);
+  transform-origin: 50% 4.75em;
+  width: var(--knob-size);
+  height: var(--knob-size);
+  opacity: 0;
+  font: inherit;
+  transition: transform 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+  cursor: pointer;
+}
+
+.toggleInput:checked {
+  transform: rotate(25deg);
+}
+
+.toggleHandleWrapper {
+  position: absolute;
+  z-index: 1;
+  bottom: -135%;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62.125%, transparent 50%);
+  mask-image: linear-gradient(to bottom, #000 62.125%, transparent 50%);
+  width: 200%;
+  overflow: hidden;
+}
+
+.toggleHandle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: rotate(-25deg);
+  transform-origin: bottom center;
+  transition: transform 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+}
+
+.toggleInput:checked + .toggleHandleWrapper > .toggleHandle {
+  transform: rotate(25deg);
+}
+
+.toggleHandleKnob {
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
+  width: var(--knob-size);
+  height: var(--knob-size);
+  background-image: radial-gradient(
+    farthest-corner at 70% 30%,
+    #d9fbff 4%,
+    #06b6d4 12% 24%,
+    #0e7490 50% 65%,
+    #06b6d4 75%
+  );
+  transition: transform 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+}
+
+.toggleInput:checked + .toggleHandleWrapper .toggleHandleKnob {
+  transform: rotate(-90deg);
+}
+
+.toggleHandleKnob::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+  box-shadow: inset 0 0 8px 2px rgb(255 255 255 / 0.4);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+@media (hover: hover) {
+  .toggleInput:hover + .toggleHandleWrapper .toggleHandleKnob::after,
+  .toggleInput:focus-visible + .toggleHandleWrapper .toggleHandleKnob::after {
+    opacity: 1;
+  }
+}
+
+.toggleHandleBarWrapper {
+  position: relative;
+  width: 0.5em;
+  height: 3em;
+}
+
+.toggleHandleBar {
+  position: absolute;
+  top: calc(var(--knob-size) / 2 * -1);
+  left: 0;
+  width: 100%;
+  height: calc(100% + var(--knob-size) / 2);
+  background-image: linear-gradient(
+    to right,
+    #777475,
+    #a4a4a4,
+    #fff 45% 55%,
+    #a4a4a4,
+    #777475
+  );
+  background-position-x: 0.06125em;
+  transition: background-position-x 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+  box-shadow: inset 0 1em 0.25em rgb(0 0 0 / 0.4);
+}
+
+.toggleInput:checked + .toggleHandleWrapper .toggleHandleBar {
+  background-position-x: -0.06125em;
+}
+
+.toggleBase {
+  position: relative;
+  border-radius: 3.125em;
+  padding: 0.25em;
+  width: 3.5em;
+  height: 1.125em;
+  background-color: #fff;
+  background-image: linear-gradient(to bottom, #fff, #d7d7d7);
+  box-shadow: 0 -0.25em 0.5em #fff, 0 0.25em 0.5em #d7d7d7;
+}
+
+.toggleBaseInside {
+  position: relative;
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(to bottom, #a6a6a6, #7d7d7d);
+  box-shadow:
+    inset 0 0.0625em rgb(255 255 255 / 0.2),
+    inset 0 -0.03125em rgb(255 255 255 / 1),
+    inset 0 -0.0625em 0.25em rgb(0 0 0 / 0.1);
+}
+
+.toggleBaseInside::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(to bottom, #5ab054, #438c3c);
+  box-shadow: inherit;
+  opacity: 0;
+  transition: opacity 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+}
+
+.toggleInput:checked ~ .toggleBase .toggleBaseInside::after {
+  opacity: 1;
+}

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { Helmet } from "react-helmet-async";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import Cropper, { type Area } from "react-easy-crop";
 import {
   FaImages,
   FaFolderOpen,
@@ -28,15 +29,18 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import GamePickerModal from "@/app/components/GamePickerModal";
+import WheelLockSwitch from "@/app/components/WheelLockSwitch";
+import getCroppedImg from "@/app/lib/getCroppedImg";
 
 const FEATURE_KEY = "screenshots_feature_enabled_v1";
 const CAROUSEL_ACTIVE_FOLDER_KEY = "screenshots_carousel_active_folder_v1";
+const CAROUSEL_WHEEL_ENABLED_KEY = "screenshots_carousel_wheel_enabled_v1";
 
 type Folder = {
   id: string;
@@ -54,6 +58,7 @@ type Shot = {
   id: string;
   url: string;
   publicId: string;
+  bytes?: number;
   createdAt?: unknown;
 };
 
@@ -108,6 +113,7 @@ const toHighQualityIgdbCover = (url?: string | null) => {
 export default function ScreenshotsPage() {
   const { user } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [enabled, setEnabled] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -120,6 +126,9 @@ export default function ScreenshotsPage() {
   const [folderName, setFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [coverAction, setCoverAction] = useState<"upload" | "remove" | null>(
+    null,
+  );
   const [deletingFolder, setDeletingFolder] = useState(false);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [gamePickerOpen, setGamePickerOpen] = useState(false);
@@ -132,9 +141,20 @@ export default function ScreenshotsPage() {
 
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [wheelScrollEnabled, setWheelScrollEnabled] = useState(false);
+  const [customCoverCropSrc, setCustomCoverCropSrc] = useState<string | null>(
+    null,
+  );
+  const [customCoverCrop, setCustomCoverCrop] = useState({ x: 0, y: 0 });
+  const [customCoverZoom, setCustomCoverZoom] = useState(1);
+  const [customCoverCroppedPixels, setCustomCoverCroppedPixels] =
+    useState<Area | null>(null);
+  const [savingCroppedCustomCover, setSavingCroppedCustomCover] =
+    useState(false);
   const editCoverInputRef = useRef<HTMLInputElement | null>(null);
   const carouselRestoredRef = useRef(false);
   const [rotationStep, setRotationStep] = useState(0);
+  const returnFolderId = searchParams.get("folder");
 
   const carouselFolders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -192,7 +212,11 @@ export default function ScreenshotsPage() {
 
   useEffect(() => {
     const stored = localStorage.getItem(FEATURE_KEY) === "1";
+    const storedWheelEnabled = localStorage.getItem(CAROUSEL_WHEEL_ENABLED_KEY);
     setEnabled(stored);
+    if (storedWheelEnabled !== null) {
+      setWheelScrollEnabled(storedWheelEnabled === "1");
+    }
     setHydrated(true);
   }, []);
 
@@ -231,17 +255,19 @@ export default function ScreenshotsPage() {
     if (!folders.length) return;
 
     carouselRestoredRef.current = true;
-    const storedFolderId = sessionStorage.getItem(CAROUSEL_ACTIVE_FOLDER_KEY);
-    if (!storedFolderId) return;
+    const preferredFolderId =
+      returnFolderId || sessionStorage.getItem(CAROUSEL_ACTIVE_FOLDER_KEY);
+    if (!preferredFolderId) return;
 
     const storedIndex = folders.findIndex(
-      (folder) => folder.id === storedFolderId,
+      (folder) => folder.id === preferredFolderId,
     );
     if (storedIndex < 0) return;
 
     setRotationStep(storedIndex);
-    setSelectedFolderId(storedFolderId);
-  }, [hydrated, enabled, folders]);
+    setSelectedFolderId(preferredFolderId);
+    sessionStorage.setItem(CAROUSEL_ACTIVE_FOLDER_KEY, preferredFolderId);
+  }, [hydrated, enabled, folders, returnFolderId]);
 
   const activeFolderId = selectedFolder?.id ?? selectedFolderId;
 
@@ -279,6 +305,22 @@ export default function ScreenshotsPage() {
       setRenaming(false);
     }
   }, [selectedFolder?.id]);
+
+  useEffect(() => {
+    if (!renaming) return;
+    if (gamePickerOpen || confirmOpen || customCoverCropSrc) {
+      setRenaming(false);
+    }
+  }, [renaming, gamePickerOpen, confirmOpen, customCoverCropSrc]);
+
+  useEffect(
+    () => () => {
+      if (customCoverCropSrc?.startsWith("blob:")) {
+        URL.revokeObjectURL(customCoverCropSrc);
+      }
+    },
+    [customCoverCropSrc],
+  );
 
   const enableFeature = () => {
     if (enabling) return;
@@ -423,6 +465,7 @@ export default function ScreenshotsPage() {
     }
 
     setCoverUploading(true);
+    setCoverAction("remove");
     try {
       const shouldRestoreLegacyBase =
         !!customId && selectedFolder.coverPublicId === customId;
@@ -450,23 +493,25 @@ export default function ScreenshotsPage() {
         await destroyInCloudinary(customId).catch(() => undefined);
       }
 
-      toast.success("Custom cover removed");
+      toast.success(`${selectedFolder.name} custom image removed`);
     } catch (err) {
       console.error(err);
       toast.error("Could not remove custom cover");
     } finally {
       setCoverUploading(false);
+      setCoverAction(null);
     }
   };
 
   const uploadFolderCover = async (file: File) => {
-    if (!user || !selectedFolder) return;
+    if (!user || !selectedFolder) return false;
     if (!file.type.startsWith("image/")) {
       toast.error("Only image files are allowed");
-      return;
+      return false;
     }
 
     setCoverUploading(true);
+    setCoverAction("upload");
     try {
       const assetId = crypto.randomUUID();
       const publicId = `playcrew/users/${user.uid}/screenshots/${selectedFolder.id}/cover-${assetId}`;
@@ -551,11 +596,68 @@ export default function ScreenshotsPage() {
       }
 
       toast.success("Collection cover changed");
+      return true;
     } catch (err) {
       console.error(err);
       toast.error("Could not change cover");
+      return false;
     } finally {
       setCoverUploading(false);
+      setCoverAction(null);
+    }
+  };
+
+  const closeCustomCoverCrop = () => {
+    setCustomCoverCropSrc((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setCustomCoverCrop({ x: 0, y: 0 });
+    setCustomCoverZoom(1);
+    setCustomCoverCroppedPixels(null);
+  };
+
+  const openCustomCoverCrop = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed");
+      return;
+    }
+
+    setCustomCoverCropSrc((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setCustomCoverCrop({ x: 0, y: 0 });
+    setCustomCoverZoom(1);
+    setCustomCoverCroppedPixels(null);
+  };
+
+  const saveCroppedCustomCover = async () => {
+    if (!customCoverCropSrc || !customCoverCroppedPixels) return;
+
+    setSavingCroppedCustomCover(true);
+    try {
+      const croppedBase64 = await getCroppedImg(
+        customCoverCropSrc,
+        customCoverCroppedPixels,
+        1280,
+        0.82,
+      );
+      const croppedBlob = await fetch(croppedBase64).then((res) => res.blob());
+      const croppedFile = new File([croppedBlob], `cover-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      });
+
+      const ok = await uploadFolderCover(croppedFile);
+      if (ok) {
+        closeCustomCoverCrop();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not prepare cover crop");
+    } finally {
+      setSavingCroppedCustomCover(false);
     }
   };
 
@@ -669,11 +771,17 @@ export default function ScreenshotsPage() {
   };
 
   const handleCarouselWheel = (e: WheelEvent<HTMLDivElement>) => {
+    if (!wheelScrollEnabled) return;
     e.preventDefault();
     if (!carouselFolders.length) return;
 
     const direction = e.deltaY > 0 ? 1 : -1;
     setRotationStep((prev) => prev + direction);
+  };
+
+  const setWheelScrollPreference = (next: boolean) => {
+    setWheelScrollEnabled(next);
+    localStorage.setItem(CAROUSEL_WHEEL_ENABLED_KEY, next ? "1" : "0");
   };
 
   if (!hydrated) {
@@ -775,16 +883,29 @@ export default function ScreenshotsPage() {
               transition={{ duration: 0.2 }}
               className="relative flex h-[calc(100svh-6.5rem)] flex-col overflow-hidden rounded-3xl border border-cyan-500/20 bg-black/70 p-4 sm:p-6"
             >
-              <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              <header className="mb-4 flex flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+                <div className="lg:justify-self-start">
                   <h1 className="text-lg font-semibold tracking-wide text-zinc-100 sm:text-xl">
                     Screenshot Collections
                   </h1>
-                  <p className="hidden text-xs text-zinc-400 sm:block">
-                    Click arrows or scroll. Click center card to open folder.
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="hidden text-xs text-zinc-400 sm:block">
+                      Click arrows or scroll. Click center card to open folder.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                <div className="hidden lg:flex lg:justify-center">
+                  <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-zinc-900/65 px-3 py-1.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-300">
+                      Use Scroll Wheel to move
+                    </span>
+                    <WheelLockSwitch
+                      checked={wheelScrollEnabled}
+                      onChange={setWheelScrollPreference}
+                    />
+                  </div>
+                </div>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:w-full lg:justify-self-end">
                   <div className="w-full min-w-0 sm:w-auto sm:flex-none">
                     <input
                       type="text"
@@ -864,6 +985,14 @@ export default function ScreenshotsPage() {
                             const isSelected = index === frontFolderIndex;
                             const isDeletingThisFolder =
                               deletingFolder && deletingFolderId === folder.id;
+                            const isRemovingCustomThisFolder =
+                              coverUploading &&
+                              coverAction === "remove" &&
+                              selectedFolder?.id === folder.id;
+                            const coverSrc =
+                              toHighQualityIgdbCover(
+                                folder.customCoverUrl ?? folder.coverUrl,
+                              ) || "/placeholder-game.jpg";
                             const rawOffset = ((index -
                               frontFolderIndex +
                               carouselFolders.length) %
@@ -948,14 +1077,16 @@ export default function ScreenshotsPage() {
                                       : "border-white/15"
                                   }`}
                                 >
-                                  <img
-                                    src={
-                                      toHighQualityIgdbCover(
-                                        folder.customCoverUrl ??
-                                          folder.coverUrl,
-                                      ) || "/placeholder-game.jpg"
-                                    }
+                                  <motion.img
+                                    key={coverSrc}
+                                    src={coverSrc}
                                     alt={folder.name}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{
+                                      duration: 0.28,
+                                      ease: "easeOut",
+                                    }}
                                     className="h-full w-full object-cover"
                                     draggable={false}
                                   />
@@ -969,6 +1100,16 @@ export default function ScreenshotsPage() {
                                       </div>
                                     </div>
                                   )}
+                                  {isRemovingCustomThisFolder && (
+                                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
+                                      <div className="rounded-xl border border-red-300/35 bg-[#120b0b] px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.55)]">
+                                        <span className="loading loading-bars loading-sm text-red-200" />
+                                        <p className="mt-2 text-sm font-semibold text-red-100">
+                                          Removing custom image
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </motion.div>
                             );
@@ -976,94 +1117,116 @@ export default function ScreenshotsPage() {
                         </div>
                       )}
                     </div>
-                    {renaming && selectedFolder && (
-                      <>
-                        <div className="fixed inset-0 z-2100 bg-black/55 md:absolute md:inset-0 md:bg-black/25" />
-                        <div className="fixed inset-x-4 top-28 z-2200 mx-auto w-full max-w-[360px] rounded-xl border border-cyan-500/35 bg-[#0d0b09] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.55)] md:absolute md:right-4 md:top-4 md:inset-x-auto md:mx-0 md:z-2200 md:w-[320px]">
-                          <div
-                            className="space-y-3"
-                            onClick={(e) => e.stopPropagation()}
+                    <AnimatePresence>
+                      {renaming && selectedFolder && (
+                        <>
+                          <motion.button
+                            type="button"
+                            aria-label="Close edit collection modal"
+                            onClick={() => {
+                              setRenaming(false);
+                              setRenameValue(selectedFolder.name);
+                            }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                            className="fixed inset-0 z-2100 bg-black/55"
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, y: -26 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -26 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            className="fixed inset-x-4 top-28 z-2200 mx-auto w-full max-w-[360px] rounded-xl border border-cyan-500/35 bg-[#0d0b09] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.55)] md:absolute md:right-4 md:top-4 md:inset-x-auto md:mx-0 md:z-2200 md:w-[320px]"
                           >
-                            <div className="flex items-center justify-between">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-500/85">
-                                Edit Collection
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setRenaming(false);
-                                  setRenameValue(selectedFolder.name);
-                                }}
-                                className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-zinc-200 transition hover:bg-zinc-800"
-                              >
-                                <FiX size={10} />
-                                Close
-                              </button>
-                            </div>
-
-                            <div className="rounded-lg border border-white/10 bg-black/30 p-2.5">
-                              <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
-                                Cover Actions
-                              </p>
-                              <div className="grid grid-cols-2 gap-2">
+                            <div
+                              className="space-y-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-500/85">
+                                  Edit Collection
+                                </p>
                                 <button
                                   type="button"
-                                  disabled={coverUploading}
-                                  onClick={() =>
-                                    editCoverInputRef.current?.click()
-                                  }
-                                  className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-cyan-500/35 bg-cyan-500/12 px-2.5 text-[11px] font-semibold text-cyan-500 transition hover:bg-cyan-500/22 disabled:opacity-60"
+                                  onClick={() => {
+                                    setRenaming(false);
+                                    setRenameValue(selectedFolder.name);
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-zinc-200 transition hover:bg-zinc-800"
                                 >
-                                  <FiPlus size={13} />
-                                  Add a Custom Image
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={
-                                    coverUploading ||
-                                    !selectedHasRemovableCustomCover
-                                  }
-                                  onClick={removeCustomCover}
-                                  className={`col-span-2 inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-red-300/35 bg-red-500/10 px-2.5 text-[11px] font-semibold text-red-100 transition hover:bg-red-500/20 disabled:opacity-45 ${
-                                    !selectedHasRemovableCustomCover
-                                      ? "opacity-45"
-                                      : ""
-                                  }`}
-                                >
-                                  <FiTrash2 size={13} />
-                                  Remove Custom Image
+                                  <FiX size={10} />
+                                  Close
                                 </button>
                               </div>
-                            </div>
 
-                            <input
-                              ref={editCoverInputRef}
-                              type="file"
-                              accept="image/*"
-                              disabled={coverUploading}
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) uploadFolderCover(file);
-                                e.currentTarget.value = "";
-                              }}
-                            />
+                              <div className="rounded-lg border border-white/10 bg-black/30 p-2.5">
+                                <p className="mb-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                                  Cover Actions
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={coverUploading}
+                                    onClick={() =>
+                                      editCoverInputRef.current?.click()
+                                    }
+                                    className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-cyan-500/35 bg-cyan-500/12 px-2.5 text-[11px] font-semibold text-cyan-500 transition hover:bg-cyan-500/22 disabled:opacity-60"
+                                  >
+                                    <FiPlus size={13} />
+                                    Add a Custom Image
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      coverUploading ||
+                                      !selectedHasRemovableCustomCover
+                                    }
+                                    onClick={removeCustomCover}
+                                    className={`col-span-2 inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-red-300/35 bg-red-500/10 px-2.5 text-[11px] font-semibold text-red-100 transition hover:bg-red-500/20 disabled:opacity-45 ${
+                                      !selectedHasRemovableCustomCover
+                                        ? "opacity-45"
+                                        : ""
+                                    }`}
+                                  >
+                                    <FiTrash2 size={13} />
+                                    Remove Custom Image
+                                  </button>
+                                </div>
+                              </div>
 
-                            <div className="rounded-lg border border-white/10 bg-black/35 p-2">
-                              <label className="mb-1 block text-left text-[9px] uppercase tracking-[0.14em] text-cyan-500/80">
-                                Collection Name
-                              </label>
-                              <textarea
-                                value={renameValue}
-                                onChange={(e) => setRenameValue(e.target.value)}
-                                rows={2}
-                                className="w-full resize-none rounded-lg border border-white/20 bg-zinc-900/90 px-2 py-1.5 text-xs text-white outline-none focus:border-cyan-500/60"
+                              <input
+                                ref={editCoverInputRef}
+                                type="file"
+                                accept="image/*"
+                                disabled={coverUploading}
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) openCustomCoverCrop(file);
+                                  e.currentTarget.value = "";
+                                }}
                               />
+
+                              <div className="rounded-lg border border-white/10 bg-black/35 p-2">
+                                <label className="mb-1 block text-left text-[9px] uppercase tracking-[0.14em] text-cyan-500/80">
+                                  Collection Name
+                                </label>
+                                <textarea
+                                  value={renameValue}
+                                  onChange={(e) =>
+                                    setRenameValue(e.target.value)
+                                  }
+                                  rows={2}
+                                  className="w-full resize-none rounded-lg border border-white/20 bg-zinc-900/90 px-2 py-1.5 text-xs text-white outline-none focus:border-cyan-500/60"
+                                />
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </>
-                    )}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
 
                     {carouselFolders.length > 1 && !renaming && (
                       <>
@@ -1090,6 +1253,76 @@ export default function ScreenshotsPage() {
           )}
         </section>
       </main>
+      {customCoverCropSrc && (
+        <div
+          className="fixed inset-0 z-2400 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => {
+            if (savingCroppedCustomCover || coverUploading) return;
+            closeCustomCoverCrop();
+          }}
+        >
+          <motion.div
+            className="w-full max-w-3xl rounded-2xl border border-cyan-500/25 bg-[#0b0908]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.62)]"
+            initial={{ scale: 0.94, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.94, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-500/80">
+              Custom Cover Crop
+            </p>
+            <h3 className="mt-1 text-lg font-bold text-zinc-100">
+              Choose Cover Area
+            </h3>
+            <div className="relative mt-3 h-80 overflow-hidden rounded-xl border border-white/15 bg-black/50">
+              <Cropper
+                image={customCoverCropSrc}
+                crop={customCoverCrop}
+                zoom={customCoverZoom}
+                aspect={2 / 3}
+                onCropChange={setCustomCoverCrop}
+                onZoomChange={setCustomCoverZoom}
+                onCropComplete={(_, area) => setCustomCoverCroppedPixels(area)}
+              />
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.01}
+              value={customCoverZoom}
+              onChange={(e) => setCustomCoverZoom(Number(e.target.value))}
+              className="mt-3 w-full accent-cyan-500"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={savingCroppedCustomCover || coverUploading}
+                onClick={closeCustomCoverCrop}
+                className="rounded-lg border border-white/20 bg-zinc-900/80 px-4 py-2 text-sm font-semibold text-zinc-100 transition hover:bg-zinc-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={
+                  savingCroppedCustomCover ||
+                  coverUploading ||
+                  !customCoverCroppedPixels
+                }
+                onClick={saveCroppedCustomCover}
+                className="inline-flex min-w-28 items-center justify-center rounded-lg border border-cyan-500/35 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-500 transition hover:bg-cyan-500/25 disabled:opacity-50"
+              >
+                {savingCroppedCustomCover || coverUploading ? (
+                  <span className="loading loading-spinner loading-sm" />
+                ) : (
+                  "Save Cover"
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
       <GamePickerModal
         modalOpen={gamePickerOpen}
         setModalOpen={setGamePickerOpen}
