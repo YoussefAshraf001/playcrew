@@ -38,6 +38,8 @@ import GamePickerModal from "@/app/components/GamePickerModal";
 import WheelLockSwitch from "@/app/components/WheelLockSwitch";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 
+export const dynamic = "force-dynamic";
+
 const FEATURE_KEY = "screenshots_feature_enabled_v1";
 const CAROUSEL_ACTIVE_FOLDER_KEY = "screenshots_carousel_active_folder_v1";
 const CAROUSEL_WHEEL_ENABLED_KEY = "screenshots_carousel_wheel_enabled_v1";

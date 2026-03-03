@@ -111,7 +111,7 @@ export default function GamesPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 8;
+  const PAGE_SIZE = 10;
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -1009,7 +1009,7 @@ export default function GamesPage() {
                   animate="center"
                   exit="exit"
                   transition={{ duration: 0.35, ease: "easeOut" }}
-                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-4"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"
                 >
                   {visibleGames.map((game) => (
                     <GameCard

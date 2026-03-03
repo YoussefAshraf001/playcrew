@@ -61,7 +61,7 @@ export default function GameCard({
       className="
           group
           relative
-          w-full
+          w-54
           max-w-none
           bg-zinc-900/80
           rounded-xl
@@ -81,7 +81,7 @@ export default function GameCard({
       </div>
 
       <Link href={`/game/${game.igdb.id}`} prefetch={false}>
-        <div className="relative h-[210px] sm:h-[230px] md:h-60 lg:h-[220px] xl:h-[330px] w-full overflow-hidden rounded-t-xl">
+        <div className="relative h-[210px] sm:h-[230px] md:h-60 lg:h-[220px] xl:h-[280px] w-full overflow-hidden rounded-t-xl">
           {!loaded && (
             <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
           )}

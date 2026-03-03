@@ -38,7 +38,6 @@ import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
-import Link from "next/link";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing → blue = focus
@@ -62,7 +61,6 @@ const statuses = [
 ];
 
 type StatusType = string | null;
-type PCGWRow = Record<string, string | null>;
 type StoredRating = number | "excluded";
 
 interface CategoryRatings {
@@ -104,21 +102,6 @@ interface SimilarGame {
   released?: number | null;
 }
 
-interface CastVoiceEntry {
-  id: number;
-  character: string;
-  characterSlug?: string | null;
-  actor: string;
-  actorSlug?: string | null;
-  actorImage?: string | null;
-}
-
-type PCGamingWikiApiResponse = {
-  data?: {
-    cargoquery?: Array<{ title?: PCGWRow }>;
-  };
-};
-
 export default function GamePage() {
   const { id } = useParams();
   const { user } = useUser();
@@ -130,9 +113,6 @@ export default function GamePage() {
   const [loadingFavorite, setLoadingFavorite] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string | null>(null);
   const [loadingGame, setLoadingGame] = useState(false);
-  const [drmRows, setDrmRows] = useState<PCGWRow[]>([]);
-  const [loadingDrm, setLoadingDrm] = useState(false);
-  const [drmError, setDrmError] = useState<string | null>(null);
   const [trackedGameData, setTrackedGameData] = useState<any>(null);
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
   const [trackingSaving, setTrackingSaving] = useState(false);
@@ -177,51 +157,6 @@ export default function GamePage() {
     };
     fetchGame();
   }, [id]);
-
-  useEffect(() => {
-    if (!game?.name) return;
-
-    let cancelled = false;
-
-    const fetchDrm = async () => {
-      setLoadingDrm(true);
-      setDrmError(null);
-
-      try {
-        const res = await fetch(
-          `/api/pcgamingwiki?title=${encodeURIComponent(game.name)}`,
-          {
-            cache: "no-store",
-          },
-        );
-
-        const payload: PCGamingWikiApiResponse = await res.json();
-        const rows =
-          payload?.data?.cargoquery
-            ?.map((entry) => entry?.title)
-            .filter(Boolean) ?? [];
-
-        if (!cancelled) {
-          setDrmRows(rows as PCGWRow[]);
-        }
-      } catch {
-        if (!cancelled) {
-          setDrmRows([]);
-          setDrmError("Failed to load DRM data.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingDrm(false);
-        }
-      }
-    };
-
-    fetchDrm();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [game?.name]);
 
   // Screenshots (if IGDB returns an array of objects with .url)
   const screenshots = useMemo(() => {
@@ -388,7 +323,18 @@ export default function GamePage() {
 
   useEffect(() => {
     if (!user || !game) return;
-    requestIdleCallback(() => fetchUserTrackedGame());
+
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(() => {
+        void fetchUserTrackedGame();
+      });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+
+    const fallbackId = globalThis.setTimeout(() => {
+      void fetchUserTrackedGame();
+    }, 1);
+    return () => globalThis.clearTimeout(fallbackId);
   }, [user, game]);
 
   useEffect(() => {
@@ -721,7 +667,8 @@ export default function GamePage() {
 
   // Official only makes sense if released
   const hasReleaseDate = Boolean(game?.released);
-  const hasOfficialStores = Boolean(game?.platforms?.length);
+  const platformCount = Array.isArray(game?.platforms) ? game.platforms.length : 0;
+  const hasOfficialStores = platformCount > 0;
 
   // Overlay only if NO stores or NO release date
   const showStoreOverlay = !hasOfficialStores || !hasReleaseDate;
@@ -1295,7 +1242,7 @@ export default function GamePage() {
               <hr className="w-full border-zinc-700 mb-4" />
 
               <div
-                className={`relative mt-5 ${game.platforms.length > 10 && "pr-4"}  p-2`}
+                className={`relative mt-5 ${platformCount > 10 ? "pr-4" : ""}  p-2`}
               >
                 <h2 className="text-lg font-bold mb-2">Official</h2>
 
@@ -1373,7 +1320,7 @@ export default function GamePage() {
                       "
                   >
                     <div className="flex flex-col items-center gap-3 px-6 text-center">
-                      <div
+                      {/* <div
                         className="
                           w-12 h-12
                           flex items-center justify-center
@@ -1383,7 +1330,7 @@ export default function GamePage() {
                         "
                       >
                         <FaLock size={18} className="text-white/70" />
-                      </div>
+                      </div> */}
                       <p className="text-xs uppercase tracking-wide text-white/60 leading-relaxed">
                         Locked until preorder
                         <br />
@@ -1396,7 +1343,7 @@ export default function GamePage() {
 
               {/* =========================CRACKED========================== */}
               <div
-                className={`relative mt-5 ${game.platforms.length > 10 && "pr-4"}  p-2`}
+                className={`relative mt-5 ${platformCount > 10 ? "pr-4" : ""}  p-2`}
               >
                 <h2 className="text-lg font-bold mb-2">Cracked</h2>
 
@@ -1472,7 +1419,7 @@ export default function GamePage() {
 
               {/* =========================MODS========================== */}
               <div
-                className={`relative mt-6 ${game.platforms.length > 10 && "pr-4"} p-2`}
+                className={`relative mt-6 ${platformCount > 10 ? "pr-4" : ""} p-2`}
               >
                 {/* TITLE (never covered) */}
                 <h2 className="text-center text-lg font-bold mb-2">Mods</h2>
