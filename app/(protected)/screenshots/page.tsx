@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
+import { Suspense } from "react";
 import { Helmet } from "react-helmet-async";
 import { AnimatePresence, motion } from "framer-motion";
 import Cropper, { type Area } from "react-easy-crop";
@@ -112,7 +113,7 @@ const toHighQualityIgdbCover = (url?: string | null) => {
   return url.replace(/\/t_[^/]+\//, "/t_cover_big_2x/");
 };
 
-export default function ScreenshotsPage() {
+function ScreenshotsPageContent() {
   const { user } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -122,6 +123,7 @@ export default function ScreenshotsPage() {
   const [enabling, setEnabling] = useState(false);
 
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [shots, setShots] = useState<Shot[]>([]);
 
@@ -144,6 +146,7 @@ export default function ScreenshotsPage() {
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [wheelScrollEnabled, setWheelScrollEnabled] = useState(false);
+  const [isMdUp, setIsMdUp] = useState(false);
   const [customCoverCropSrc, setCustomCoverCropSrc] = useState<string | null>(
     null,
   );
@@ -168,6 +171,29 @@ export default function ScreenshotsPage() {
     () => Math.max(carouselFolders.length, 1),
     [carouselFolders.length],
   );
+  const cardBaseWidth = isMdUp ? 304 : 240;
+  const cardGap = isMdUp ? 12 : 10;
+
+  const scaleForOffset = (absOffset: number) =>
+    absOffset === 0 ? 1 : Math.max(0.62, 1 - absOffset * 0.12);
+
+  const xDistanceForOffset = (offset: number) => {
+    if (offset === 0) return 0;
+
+    const absOffset = Math.abs(offset);
+    let distance = 0;
+
+    for (let step = 1; step <= absOffset; step += 1) {
+      const prevScale = scaleForOffset(step - 1);
+      const currScale = scaleForOffset(step);
+      distance +=
+        (cardBaseWidth * prevScale) / 2 +
+        (cardBaseWidth * currScale) / 2 +
+        cardGap;
+    }
+
+    return Math.sign(offset) * distance;
+  };
 
   const frontFolderIndex = useMemo(() => {
     if (!carouselFolders.length) return -1;
@@ -223,33 +249,56 @@ export default function ScreenshotsPage() {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !user) return;
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsMdUp(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !user) {
+      setFolders([]);
+      setFoldersLoading(false);
+      return;
+    }
+
+    setFoldersLoading(true);
 
     const foldersRef = collection(db, "users", user.uid, "screenshotFolders");
     const q = query(foldersRef, orderBy("createdAt", "desc"));
 
-    return onSnapshot(q, (snap) => {
-      const next = snap.docs
-        .map(
-          (d) =>
-            ({
-              id: d.id,
-              ...d.data(),
-            }) as Folder,
-        )
-        .sort((a, b) =>
-          (a.name ?? "").localeCompare(b.name ?? "", undefined, {
-            sensitivity: "base",
-          }),
-        );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const next = snap.docs
+          .map(
+            (d) =>
+              ({
+                id: d.id,
+                ...d.data(),
+              }) as Folder,
+          )
+          .sort((a, b) =>
+            (a.name ?? "").localeCompare(b.name ?? "", undefined, {
+              sensitivity: "base",
+            }),
+          );
 
-      setFolders(next);
-      setSelectedFolderId((prev) => {
-        if (!next.length) return null;
-        if (prev && next.some((f) => f.id === prev)) return prev;
-        return next[0].id;
-      });
-    });
+        setFolders(next);
+        setSelectedFolderId((prev) => {
+          if (!next.length) return null;
+          if (prev && next.some((f) => f.id === prev)) return prev;
+          return next[0].id;
+        });
+        setFoldersLoading(false);
+      },
+      (err) => {
+        console.error("Failed to load screenshot folders", err);
+        setFoldersLoading(false);
+      },
+    );
   }, [enabled, user]);
 
   useEffect(() => {
@@ -973,7 +1022,14 @@ export default function ScreenshotsPage() {
                       className="relative min-h-0 flex-1 select-none overflow-hidden rounded-xl border border-white/10 bg-black/45"
                       onWheel={handleCarouselWheel}
                     >
-                      {!carouselFolders.length ? (
+                      {foldersLoading ? (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="inline-flex items-center gap-2 text-sm text-zinc-300">
+                            <span className="loading loading-dots loading-sm" />
+                            Loading collections...
+                          </div>
+                        </div>
+                      ) : !carouselFolders.length ? (
                         <div className="flex h-full items-center justify-center">
                           <p className="text-sm text-zinc-400">
                             {folders.length
@@ -1006,10 +1062,8 @@ export default function ScreenshotsPage() {
                             const absOffset = Math.abs(offset);
                             const isVisible =
                               carouselFolders.length <= 7 || absOffset <= 3;
-                            const xDistance = offset * 270;
-                            const scale = isSelected
-                              ? 1
-                              : Math.max(0.62, 1 - absOffset * 0.12);
+                            const xDistance = xDistanceForOffset(offset);
+                            const scale = scaleForOffset(absOffset);
                             const opacity = Math.max(
                               0,
                               isSelected ? 1 : 1 - absOffset * 0.22,
@@ -1348,5 +1402,22 @@ export default function ScreenshotsPage() {
         cancelText="Cancel"
       />
     </>
+  );
+}
+
+export default function ScreenshotsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#070504] px-4 pt-24 text-white">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-black/50 p-6">
+            <p className="text-zinc-200">Loading screenshots</p>
+            <span className="loading loading-dots loading-xl text-cyan-500" />
+          </div>
+        </main>
+      }
+    >
+      <ScreenshotsPageContent />
+    </Suspense>
   );
 }
