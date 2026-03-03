@@ -138,6 +138,7 @@ type FadeInImageProps = {
   wrapperClassName?: string;
   imgClassName?: string;
   loading?: "eager" | "lazy";
+  keepVisibleOnSrcChange?: boolean;
 };
 
 function FadeInImage({
@@ -146,14 +147,17 @@ function FadeInImage({
   wrapperClassName = "",
   imgClassName = "",
   loading = "lazy",
+  keepVisibleOnSrcChange = false,
 }: FadeInImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    setLoaded(false);
+    if (!keepVisibleOnSrcChange) {
+      setLoaded(false);
+    }
     setFailed(false);
-  }, [src]);
+  }, [src, keepVisibleOnSrcChange]);
 
   return (
     <div className={`relative ${wrapperClassName}`}>
@@ -207,12 +211,17 @@ export default function ScreenshotFolderPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedShotIds, setSelectedShotIds] = useState<string[]>([]);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [favoritingSelected, setFavoritingSelected] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeShotTab, setActiveShotTab] = useState<"favorites" | "others">(
+    "favorites",
+  );
   const [sizeLoading, setSizeLoading] = useState(false);
   const dragDepthRef = useRef(0);
   const bytesBackfilledRef = useRef<Set<string>>(new Set());
+  const pinnedViewerShotIdRef = useRef<string | null>(null);
   const galleryScrollRef = useRef<HTMLDivElement | null>(null);
   const isUploading = useMemo(
     () => uploadItems.some((item) => item.status === "uploading"),
@@ -227,23 +236,31 @@ export default function ScreenshotFolderPage() {
     () => sortedShots.filter((shot) => shot.favorite === true),
     [sortedShots],
   );
+  const regularShots = useMemo(
+    () => sortedShots.filter((shot) => shot.favorite !== true),
+    [sortedShots],
+  );
   const PAGE_SIZE = 6;
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(sortedShots.length / PAGE_SIZE)),
-    [sortedShots.length],
+    () =>
+      Math.max(
+        1,
+        Math.ceil(
+          (activeShotTab === "favorites"
+            ? favoriteShots.length
+            : regularShots.length) / PAGE_SIZE,
+        ),
+      ),
+    [activeShotTab, favoriteShots.length, regularShots.length],
+  );
+  const tabShots = useMemo(
+    () => (activeShotTab === "favorites" ? favoriteShots : regularShots),
+    [activeShotTab, favoriteShots, regularShots],
   );
   const pagedShots = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return sortedShots.slice(start, start + PAGE_SIZE);
-  }, [sortedShots, currentPage]);
-  const pageFavoriteShots = useMemo(
-    () => pagedShots.filter((shot) => shot.favorite === true),
-    [pagedShots],
-  );
-  const pageRegularShots = useMemo(
-    () => pagedShots.filter((shot) => shot.favorite !== true),
-    [pagedShots],
-  );
+    return tabShots.slice(start, start + PAGE_SIZE);
+  }, [tabShots, currentPage]);
   const paginationItems = useMemo(() => {
     if (totalPages <= 7) {
       return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -384,8 +401,35 @@ export default function ScreenshotFolderPage() {
   }, [sortedShots, viewerIndex]);
 
   useEffect(() => {
+    if (viewerIndex === null) return;
+    const pinnedId = pinnedViewerShotIdRef.current;
+    if (!pinnedId) return;
+
+    const nextIdx = sortedShots.findIndex((shot) => shot.id === pinnedId);
+    if (nextIdx === -1) {
+      setViewerIndex(null);
+      pinnedViewerShotIdRef.current = null;
+      return;
+    }
+    if (nextIdx !== viewerIndex) {
+      setViewerIndex(nextIdx);
+    }
+    pinnedViewerShotIdRef.current = null;
+  }, [sortedShots, viewerIndex]);
+
+  useEffect(() => {
     setCurrentPage((prev) => Math.min(prev, totalPages));
   }, [totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeShotTab]);
+
+  useEffect(() => {
+    if (favoriteShots.length === 0 && activeShotTab === "favorites") {
+      setActiveShotTab("others");
+    }
+  }, [favoriteShots.length, activeShotTab]);
 
   useEffect(() => {
     if (!galleryScrollRef.current) return;
@@ -921,6 +965,9 @@ export default function ScreenshotFolderPage() {
     if (!user || !folderId) return;
 
     try {
+      if (viewerIndex !== null) {
+        pinnedViewerShotIdRef.current = shot.id;
+      }
       const shotRef = doc(
         db,
         "users",
@@ -982,6 +1029,55 @@ export default function ScreenshotFolderPage() {
       setSelectionMode(false);
     } finally {
       setDeletingSelected(false);
+    }
+  };
+
+  const favoriteSelectedShots = async () => {
+    if (!user || !folderId || !selectedShotIds.length || favoritingSelected) {
+      return;
+    }
+
+    setFavoritingSelected(true);
+    try {
+      const byId = new Map(shots.map((shot) => [shot.id, shot] as const));
+      const toFavorite = selectedShotIds
+        .map((shotId) => byId.get(shotId))
+        .filter(
+          (shot): shot is Shot => shot !== undefined && shot.favorite !== true,
+        );
+
+      if (!toFavorite.length) {
+        toast("Selected screenshots are already favorited");
+        return;
+      }
+
+      await Promise.all(
+        toFavorite.map((shot) => {
+          const shotRef = doc(
+            db,
+            "users",
+            user.uid,
+            "screenshotFolders",
+            folderId,
+            "shots",
+            shot.id,
+          );
+          return updateDoc(shotRef, { favorite: true });
+        }),
+      );
+
+      toast.success(
+        toFavorite.length === 1
+          ? "1 screenshot favorited"
+          : `${toFavorite.length} screenshots favorited`,
+      );
+      setSelectedShotIds([]);
+      setSelectionMode(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not favorite selected screenshots");
+    } finally {
+      setFavoritingSelected(false);
     }
   };
 
@@ -1159,7 +1255,7 @@ export default function ScreenshotFolderPage() {
 
             <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950/45 p-2.5">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
-                Data
+                Content
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-white/12 bg-zinc-900/45 p-2">
@@ -1230,7 +1326,24 @@ export default function ScreenshotFolderPage() {
                 </label>
 
                 {selectionMode && (
-                  <div className="rounded-xl border border-red-300/20 bg-red-500/6 p-2">
+                  <div className="space-y-2 rounded-xl border border-amber-300/20 bg-amber-500/6 p-2">
+                    <button
+                      type="button"
+                      onClick={favoriteSelectedShots}
+                      disabled={
+                        !selectedShotCount ||
+                        favoritingSelected ||
+                        deletingSelected
+                      }
+                      className="h-9 w-full rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/20 disabled:opacity-45"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <FaStar size={10} />
+                        {favoritingSelected
+                          ? "Favoriting..."
+                          : `Favorite Selected (${selectedShotCount})`}
+                      </span>
+                    </button>
                     <button
                       type="button"
                       onClick={() =>
@@ -1239,12 +1352,19 @@ export default function ScreenshotFolderPage() {
                           shotIds: [...selectedShotIds],
                         })
                       }
-                      disabled={!selectedShotCount || deletingSelected}
+                      disabled={
+                        !selectedShotCount ||
+                        deletingSelected ||
+                        favoritingSelected
+                      }
                       className="h-9 w-full rounded-xl border border-red-300/35 bg-red-500/10 px-3 text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:opacity-45"
                     >
-                      {deletingSelected
-                        ? "Deleting..."
-                        : `Delete Selected (${selectedShotCount})`}
+                      <span className="inline-flex items-center gap-1.5">
+                        <FaTrashAlt size={10} />
+                        {deletingSelected
+                          ? "Deleting..."
+                          : `Delete Selected (${selectedShotCount})`}
+                      </span>
                     </button>
                   </div>
                 )}
@@ -1277,11 +1397,37 @@ export default function ScreenshotFolderPage() {
           </aside>
 
           <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-4">
-            <div className="mb-3 flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900/35 px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-300">
-                Gallery
-              </p>
-              <p className="text-xs text-zinc-400">
+            <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border border-white/10 bg-zinc-900/35 px-3 py-2">
+              <div />
+              <div className="flex items-center gap-2 justify-self-center">
+                {favoriteShots.length > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setActiveShotTab("favorites")}
+                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                        activeShotTab === "favorites"
+                          ? "border-amber-300/45 bg-amber-500/20 text-amber-100"
+                          : "border-white/15 bg-black/30 text-zinc-300 hover:bg-zinc-800"
+                      }`}
+                    >
+                      Favorites ({favoriteShots.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveShotTab("others")}
+                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
+                        activeShotTab === "others"
+                          ? "border-cyan-300/45 bg-cyan-500/20 text-cyan-100"
+                          : "border-white/15 bg-black/30 text-zinc-300 hover:bg-zinc-800"
+                      }`}
+                    >
+                      Others ({regularShots.length})
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="justify-self-end text-xs text-zinc-400">
                 Page {currentPage} of {totalPages}
               </p>
             </div>
@@ -1299,35 +1445,23 @@ export default function ScreenshotFolderPage() {
                   transition={{ duration: 0.16, ease: "easeOut" }}
                   className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
                 >
-                  {pageFavoriteShots.map((shot) =>
-                    renderShotCard(shot, "favorite"),
-                  )}
-                  {pageFavoriteShots.length > 0 &&
-                    pageRegularShots.length > 0 && (
-                      <motion.div
-                        key="favorites-divider"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="col-span-full mt-1 flex items-center gap-3"
-                      >
-                        <div className="h-px flex-1 bg-white/12" />
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                          Others
-                        </span>
-                        <div className="h-px flex-1 bg-white/12" />
-                      </motion.div>
-                    )}
-                  {pageRegularShots.map((shot) =>
-                    renderShotCard(shot, "regular"),
+                  {pagedShots.map((shot) =>
+                    renderShotCard(
+                      shot,
+                      activeShotTab === "favorites" ? "favorite" : "regular",
+                    ),
                   )}
                 </motion.div>
               </AnimatePresence>
 
-              {!shots.length && (
-                <p className="mt-3 text-sm text-zinc-400">
-                  This collection is empty. Add screenshots to begin.
-                </p>
+              {!tabShots.length && (
+                <div className="flex h-full min-h-[220px] items-center justify-center">
+                  <p className="text-sm text-zinc-400">
+                    {activeShotTab === "favorites"
+                      ? "No favorited screenshots yet."
+                      : "No non-favorite screenshots yet."}
+                  </p>
+                </div>
               )}
             </div>
 
@@ -1369,7 +1503,7 @@ export default function ScreenshotFolderPage() {
       <AnimatePresence>
         {deleteConfirm && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1492,16 +1626,42 @@ export default function ScreenshotFolderPage() {
       <AnimatePresence>
         {viewerShot && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 mt-14"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setViewerIndex(null)}
           >
             <div
-              className="relative flex max-h-[96vh] w-full max-w-[1350px] flex-col gap-3"
+              className="relative flex max-h-[96vh] w-full max-w-[1320px] flex-col gap-3"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="absolute right-2 top-2 z-20 flex items-center gap-2 px-4 py-2 bg-zinc-900/85 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => toggleShotFavorite(viewerShot)}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${
+                    viewerShot.favorite
+                      ? "border-amber-300/35 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
+                      : "border-white/50 bg-black text-zinc-100 hover:bg-black/75"
+                  }`}
+                >
+                  {viewerShot.favorite ? (
+                    <FaStar size={11} />
+                  ) : (
+                    <FaRegStar size={11} />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDeleteConfirm({ mode: "single", shot: viewerShot })
+                  }
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-300/35 bg-red-500/15 px-2.5 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25"
+                >
+                  <FaTrashAlt size={11} />
+                </button>
+              </div>
               <div className="relative flex min-h-0 flex-1 items-center justify-center">
                 {sortedShots.length > 1 && (
                   <button
@@ -1520,7 +1680,6 @@ export default function ScreenshotFolderPage() {
                   </button>
                 )}
                 <motion.div
-                  key={viewerShot.id}
                   className="max-h-[82vh] max-w-[96vw] rounded-lg object-contain shadow-[0_18px_45px_rgba(0,0,0,0.65)]"
                   initial={{ scale: 0.96, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
@@ -1531,6 +1690,7 @@ export default function ScreenshotFolderPage() {
                     src={viewerShot.url}
                     alt="Screenshot preview"
                     loading="eager"
+                    keepVisibleOnSrcChange
                     wrapperClassName="max-h-[82vh] max-w-[96vw] overflow-hidden rounded-lg"
                     imgClassName="max-h-[82vh] max-w-[96vw] object-contain"
                   />

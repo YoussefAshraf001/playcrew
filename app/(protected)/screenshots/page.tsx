@@ -157,8 +157,9 @@ function ScreenshotsPageContent() {
   const [savingCroppedCustomCover, setSavingCroppedCustomCover] =
     useState(false);
   const editCoverInputRef = useRef<HTMLInputElement | null>(null);
-  const carouselRestoredRef = useRef(false);
+  const lastRestoredFolderIdRef = useRef<string | null>(null);
   const [rotationStep, setRotationStep] = useState(0);
+  const [carouselRevealed, setCarouselRevealed] = useState(false);
   const returnFolderId = searchParams.get("folder");
 
   const carouselFolders = useMemo(() => {
@@ -302,22 +303,41 @@ function ScreenshotsPageContent() {
   }, [enabled, user]);
 
   useEffect(() => {
-    if (!hydrated || !enabled || carouselRestoredRef.current) return;
-    if (!folders.length) return;
+    if (!hydrated || !enabled) return;
+    if (!folders.length) {
+      setCarouselRevealed(true);
+      return;
+    }
 
-    carouselRestoredRef.current = true;
     const preferredFolderId =
       returnFolderId || sessionStorage.getItem(CAROUSEL_ACTIVE_FOLDER_KEY);
-    if (!preferredFolderId) return;
+    if (!preferredFolderId) {
+      setCarouselRevealed(true);
+      return;
+    }
+    if (preferredFolderId === lastRestoredFolderIdRef.current) {
+      setCarouselRevealed(true);
+      return;
+    }
 
     const storedIndex = folders.findIndex(
       (folder) => folder.id === preferredFolderId,
     );
-    if (storedIndex < 0) return;
+    if (storedIndex < 0) {
+      setCarouselRevealed(true);
+      return;
+    }
 
+    setCarouselRevealed(false);
+    lastRestoredFolderIdRef.current = preferredFolderId;
     setRotationStep(storedIndex);
     setSelectedFolderId(preferredFolderId);
     sessionStorage.setItem(CAROUSEL_ACTIVE_FOLDER_KEY, preferredFolderId);
+
+    const frame = window.requestAnimationFrame(() => {
+      setCarouselRevealed(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [hydrated, enabled, folders, returnFolderId]);
 
   const activeFolderId = selectedFolder?.id ?? selectedFolderId;
@@ -1038,7 +1058,11 @@ function ScreenshotsPageContent() {
                           </p>
                         </div>
                       ) : (
-                        <div className="absolute inset-0 flex select-none items-center justify-center">
+                        <div
+                          className={`absolute inset-0 flex select-none items-center justify-center transition-opacity duration-200 ${
+                            carouselRevealed ? "opacity-100" : "opacity-0"
+                          } ${carouselRevealed ? "" : "pointer-events-none"}`}
+                        >
                           {carouselFolders.map((folder, index) => {
                             const isSelected = index === frontFolderIndex;
                             const isDeletingThisFolder =
