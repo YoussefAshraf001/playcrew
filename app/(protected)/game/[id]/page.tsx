@@ -168,16 +168,6 @@ export default function GamePage() {
           cache: "force-cache",
         });
         const data = await res.json();
-        console.log("[GamePage] /api/igdb/game response", {
-          id,
-          game: data?.name,
-          castVoiceCount: Array.isArray(data?.cast_voice)
-            ? data.cast_voice.length
-            : 0,
-          castVoiceSample: Array.isArray(data?.cast_voice)
-            ? data.cast_voice.slice(0, 3)
-            : [],
-        });
         setGame(data);
       } catch (err) {
         console.error(err);
@@ -206,19 +196,10 @@ export default function GamePage() {
         );
 
         const payload: PCGamingWikiApiResponse = await res.json();
-        console.log("[PCGamingWiki] payload", {
-          game: game.name,
-          status: res.status,
-          payload,
-        });
         const rows =
           payload?.data?.cargoquery
             ?.map((entry) => entry?.title)
             .filter(Boolean) ?? [];
-        console.log("[PCGamingWiki] parsed rows", {
-          game: game.name,
-          rows,
-        });
 
         if (!cancelled) {
           setDrmRows(rows as PCGWRow[]);
@@ -744,98 +725,6 @@ export default function GamePage() {
 
   // Overlay only if NO stores or NO release date
   const showStoreOverlay = !hasOfficialStores || !hasReleaseDate;
-
-  const drmLabels = useMemo(() => {
-    if (!drmRows.length) return [];
-
-    const values = new Set<string>();
-    const keys = [
-      "Uses DRM",
-      "Retail DRM",
-      "Steam DRM",
-      "GOGcom DRM",
-      "Epic Games Store DRM",
-      "EA app DRM",
-      "Ubisoft Store DRM",
-      "Microsoft Store DRM",
-      "Developer website DRM",
-      "Publisher website DRM",
-      "Official website DRM",
-    ];
-
-    const pushValues = (raw: string | null | undefined) => {
-      if (!raw) return;
-      raw
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .forEach((part) => values.add(part));
-    };
-
-    drmRows.forEach((row) => {
-      keys.forEach((key) => pushValues(row[key]));
-    });
-
-    return Array.from(values);
-  }, [drmRows]);
-
-  const hasDenuvo = useMemo(
-    () =>
-      drmLabels.some((label) => {
-        const normalized = label.toLowerCase();
-        return (
-          normalized.includes("denuvo") ||
-          normalized.includes("denovu") ||
-          normalized.includes("denuvo anti-tamper") ||
-          normalized.includes("denovu anti-tamper")
-        );
-      }),
-    [drmLabels],
-  );
-
-  const isOnlineOnly = useMemo(() => {
-    const hasAlwaysOnline = drmLabels.some((label) =>
-      label.toLowerCase().includes("always online"),
-    );
-    const hasSingleplayerMode = drmRows.some((row) => {
-      const modes = (row["Modes"] ?? "").toLowerCase();
-      return modes
-        .split(",")
-        .map((part) => part.trim())
-        .includes("singleplayer");
-    });
-
-    const parseTriState = (
-      value: string | null | undefined,
-    ): boolean | null => {
-      if (!value) return null;
-      const normalized = value.trim().toLowerCase();
-      if (normalized === "true" || normalized === "yes" || normalized === "1")
-        return true;
-      if (normalized === "false" || normalized === "no" || normalized === "0")
-        return false;
-      return null;
-    };
-
-    const rowIndicatesOnlineOnly = drmRows.some((row) => {
-      const online = parseTriState(row["Online"]);
-      const local = parseTriState(row["Local"]);
-      return online === true && local === false;
-    });
-
-    if (hasAlwaysOnline) return true;
-    if (hasSingleplayerMode) return false;
-    return rowIndicatesOnlineOnly;
-  }, [drmLabels, drmRows]);
-
-  useEffect(() => {
-    console.log("[PCGamingWiki] DRM evaluation", {
-      game: game?.name,
-      drmLabels,
-      hasDenuvo,
-      isOnlineOnly,
-    });
-  }, [game?.name, drmLabels, hasDenuvo, isOnlineOnly]);
 
   const slugFromName = game?.name
     ?.toLowerCase()
