@@ -38,6 +38,7 @@ import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import { useRouter } from "next/navigation";
 import { useUI } from "@/app/context/UIContext";
+import { useAuthModal } from "@/app/context/AuthModalContext";
 
 /* ---------------- TYPES ---------------- */
 
@@ -68,6 +69,7 @@ export default function EditProfilePage() {
   const { user, profile, setProfile, loading } = useUser();
   const router = useRouter();
   const { startRouteLoading } = useUI();
+  const { open } = useAuthModal();
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -390,7 +392,8 @@ export default function EditProfilePage() {
           // Optional but recommended
           await auth.signOut();
           startRouteLoading();
-          router.push("/login");
+          router.push("/dashboard");
+          setTimeout(() => open("login"), 80);
           return;
         } catch (err: any) {
           console.error("Verify-before-update error:", err.code, err.message);
@@ -412,7 +415,8 @@ export default function EditProfilePage() {
             );
             await auth.signOut();
             startRouteLoading();
-            router.push("/login");
+            router.push("/dashboard");
+            setTimeout(() => open("login"), 80);
           } else {
             abortSave(
               "Could not send verification email",

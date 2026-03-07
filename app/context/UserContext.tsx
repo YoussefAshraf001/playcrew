@@ -38,18 +38,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authResolved, setAuthResolved] = useState(false);
   const uid = user?.uid as string | undefined;
 
   useEffect(() => {
     // Listen to auth state changes
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthResolved(true);
     });
 
     return () => unsubAuth();
   }, []);
 
   useEffect(() => {
+    if (!authResolved) {
+      setLoading(true);
+      return;
+    }
+
     if (!uid) {
       setProfile(null);
       setLoading(false);
@@ -57,6 +64,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
 
     setLoading(true);
+    setProfile(null);
 
     const docRef = doc(db, "users", uid);
 
@@ -66,6 +74,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       (docSnap) => {
         if (docSnap.exists()) {
           setProfile(docSnap.data() as UserProfile);
+        } else {
+          setProfile(null);
         }
         setLoading(false);
       },
@@ -75,7 +85,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubProfile();
-  }, [uid]);
+  }, [uid, authResolved]);
 
   return (
     <UserContext.Provider value={{ user, profile, loading, setProfile }}>

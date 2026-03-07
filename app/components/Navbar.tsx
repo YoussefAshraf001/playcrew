@@ -429,7 +429,7 @@ export default function Navbar() {
       {!isDashboard && (
         <motion.nav
           className="
-  fixed top-0 left-2 right-2 sm:left-4 sm:right-4 lg:left-6 lg:right-6 z-[90]
+  fixed top-0 left-2 right-2 sm:left-4 sm:right-4 lg:left-6 lg:right-6 z-90
   bg-black/20 backdrop-blur-md
   border-b-3 border-cyan-600
   border-x
@@ -639,21 +639,23 @@ export default function Navbar() {
                 <AnimatePresence>
                   {accountOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -5 }}
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -5 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-full mt-2 w-32 sm:w-36 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl overflow-hidden z-50 text-sm"
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-white/12 bg-[#0a0d12]/96 p-1 text-sm shadow-[0_14px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl"
                     >
                       <button
                         onClick={() => {
                           setAccountOpen(false);
                           open("login");
                         }}
-                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer"
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150 hover:border-cyan-400/25 hover:bg-cyan-500/8"
                       >
-                        <CiLogin className="text-base" />
-                        <span>Log In</span>
+                        <span className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200">
+                          <CiLogin className="text-[15px]" />
+                        </span>
+                        <span className="font-semibold tracking-wide">Log In</span>
                       </button>
 
                       <button
@@ -661,10 +663,12 @@ export default function Navbar() {
                           setAccountOpen(false);
                           open("signup");
                         }}
-                        className="flex items-center gap-2 w-full px-4 py-2 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer"
+                        className="mt-0.5 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150 hover:border-cyan-400/25 hover:bg-cyan-500/8"
                       >
-                        <FaUserPlus className="text-base" />
-                        <span>Sign Up</span>
+                        <span className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200">
+                          <FaUserPlus className="text-[13px]" />
+                        </span>
+                        <span className="font-semibold tracking-wide">Sign Up</span>
                       </button>
                     </motion.div>
                   )}
@@ -680,7 +684,7 @@ export default function Navbar() {
             <motion.button
               type="button"
               onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 z-[1300] bg-black/55 sm:hidden"
+              className="fixed inset-0 z-1300 bg-black/55 sm:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -691,69 +695,71 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -14 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="fixed left-2 right-2 top-14 z-[1310] rounded-2xl border border-cyan-500/25 bg-[#09090b]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.55)] sm:hidden"
+              className="fixed left-2 right-2 top-14 z-1310 rounded-2xl border border-cyan-500/25 bg-[#09090b]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.55)] sm:hidden"
             >
               <div className="space-y-2">
                 <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
                   Main
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {mobileMainItems.map(({ href, icon: Icon, label, onClick }) =>
-                    href ? (
-                      <Link
-                        key={`mobile-main-${label}`}
-                        href={href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
-                      >
-                        <Icon className="text-sm" />
-                        {label}
-                      </Link>
-                    ) : (
-                      <button
-                        key={`mobile-main-${label}`}
-                        type="button"
-                        onClick={() => {
-                          onClick?.();
-                          setMobileMenuOpen(false);
-                        }}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
-                      >
-                        <Icon className="text-sm" />
-                        {label}
-                      </button>
-                    ),
+                  {mobileMainItems.map(
+                    ({ href, icon: Icon, label, onClick }) =>
+                      href ? (
+                        <Link
+                          key={`mobile-main-${label}`}
+                          href={href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                        >
+                          <Icon className="text-sm" />
+                          {label}
+                        </Link>
+                      ) : (
+                        <button
+                          key={`mobile-main-${label}`}
+                          type="button"
+                          onClick={() => {
+                            onClick?.();
+                            setMobileMenuOpen(false);
+                          }}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                        >
+                          <Icon className="text-sm" />
+                          {label}
+                        </button>
+                      ),
                   )}
                 </div>
                 <p className="px-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
                   Explore
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {mobileExtraItems.map(({ href, icon: Icon, label, onClick }) =>
-                    href ? (
-                      <Link
-                        key={`mobile-extra-${label}`}
-                        href={href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
-                      >
-                        <Icon className="text-sm" />
-                        {label}
-                      </Link>
-                    ) : (
-                      <button
-                        key={`mobile-extra-${label}`}
-                        type="button"
-                        onClick={() => {
-                          onClick?.();
-                          setMobileMenuOpen(false);
-                        }}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
-                      >
-                        <Icon className="text-sm" />
-                        {label}
-                      </button>
-                    ),
+                  {mobileExtraItems.map(
+                    ({ href, icon: Icon, label, onClick }) =>
+                      href ? (
+                        <Link
+                          key={`mobile-extra-${label}`}
+                          href={href}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                        >
+                          <Icon className="text-sm" />
+                          {label}
+                        </Link>
+                      ) : (
+                        <button
+                          key={`mobile-extra-${label}`}
+                          type="button"
+                          onClick={() => {
+                            onClick?.();
+                            setMobileMenuOpen(false);
+                          }}
+                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                        >
+                          <Icon className="text-sm" />
+                          {label}
+                        </button>
+                      ),
                   )}
                 </div>
                 {mobileSearchItem && (
@@ -803,7 +809,10 @@ export default function Navbar() {
                         return;
                       }
                       setVolume(
-                        Math.max(0.15, Math.min(1, lastVolumeRef.current || 0.5)),
+                        Math.max(
+                          0.15,
+                          Math.min(1, lastVolumeRef.current || 0.5),
+                        ),
                       );
                     }}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:bg-black/55"

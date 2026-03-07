@@ -10,6 +10,7 @@ import MusicPlayer from "./components/MusicPlayer";
 import { HelmetProvider } from "react-helmet-async";
 import GlobalToaster from "./components/GlobalToaster";
 import { AuthModalProvider } from "./context/AuthModalContext";
+import AuthModal from "./components/auth/AuthModal";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { UIProvider } from "./context/UIContext";
@@ -42,8 +43,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
     const blockedRoutes = [
       "/",
       "/menu",
-      "/login",
-      "/signup",
       "/auth",
       "/dashboard",
     ];
@@ -77,6 +76,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
                         {children}
                       </motion.main>
                     </div>
+                    <AuthModal />
                     <MusicPlayer />
                   </UIProvider>
                 </MusicProvider>

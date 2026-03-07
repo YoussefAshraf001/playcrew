@@ -688,7 +688,7 @@ export default function GamesPage() {
         <div className="max-w-[1850px] mx-auto flex flex-col gap-4 px-3 pt-14 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6">
           {/* Blurred Background */}
           {userProfile?.wallpaper && (
-            <div className="fixed inset-0 z-10 overflow-hidden blur-sm brightness-25">
+            <div className="fixed inset-0 z-10 overflow-hidden blur-xs brightness-65">
               <img
                 src={getMediaSrc(userProfile.wallpaper)}
                 style={getMediaStyle(userProfile.wallpaper)}

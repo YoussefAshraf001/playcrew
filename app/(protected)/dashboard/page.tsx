@@ -12,7 +12,6 @@ import toast from "react-hot-toast";
 import { auth, db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import { useAuthModal } from "@/app/context/AuthModalContext";
-import AuthModal from "@/app/components/auth/AuthModal";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import OverviewPanel from "@/app/components/mainMenu/OverviewPanel";
 import AboutPanel from "@/app/components/mainMenu/AboutPanel";
@@ -176,8 +175,28 @@ export default function Dashboard() {
           });
           return;
         }
+
+        let targetPath = lastPage;
+        if (lastPage.startsWith("http://") || lastPage.startsWith("https://")) {
+          try {
+            targetPath = new URL(lastPage).pathname;
+          } catch {
+            targetPath = lastPage;
+          }
+        }
+
+        const isAccountRelated =
+          targetPath.startsWith("/profile") ||
+          targetPath.startsWith("/account");
+
+        if (!user && isAccountRelated) {
+          toast("Log in to continue from your account page.");
+          open("login");
+          return;
+        }
+
         startRouteLoading();
-        router.push(lastPage);
+        router.push(targetPath);
         break;
       }
 
@@ -201,8 +220,8 @@ export default function Dashboard() {
         startRouteLoading();
         router.push(`/profile/${profile?.username}`);
         break;
-      case "account":
-        open("login");
+      case "signup":
+        open("signup");
         break;
       case "about":
         setOpenPanel((p) => (p === "about" ? "none" : "about"));
@@ -233,8 +252,13 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await auth.signOut();
-    startRouteLoading();
-    router.push("/dashboard");
+    if (pathname !== "/dashboard") {
+      startRouteLoading();
+      router.push("/dashboard");
+      return;
+    }
+
+    router.refresh();
   };
 
   const containerVariants: Variants = {
@@ -306,7 +330,7 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-black/10" />
         </div>
 
-        {user && profile && (
+        {user && profile ? (
           <motion.div
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{
@@ -367,13 +391,81 @@ export default function Dashboard() {
               {/* RIGHT SIDE AVATAR */}
               <div className="relative">
                 <img
-                  src={profile.avatar.data}
+                  src={profile.avatar?.data || user?.photoURL || "/logo.png"}
                   alt={profile.username}
                   className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-white/30"
                 />
 
                 {/* Online Dot */}
                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-green-400 rounded-full border-2 border-black" />
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{
+              opacity: panelOpen ? 0 : 1,
+              scale: panelOpen ? 0.95 : 1,
+              y: accountY,
+              x: accountX,
+            }}
+            transition={{
+              x: { type: "spring", stiffness: 220, damping: 26 },
+              y: { type: "spring", stiffness: 220, damping: 26 },
+              opacity: { duration: 0.25 },
+              scale: { duration: 0.25 },
+            }}
+            className={`
+              absolute top-6 right-3 sm:top-7 sm:right-6 md:top-8 md:right-10 lg:right-14 xl:right-20
+              z-20
+              origin-top-right
+            `}
+          >
+            <div
+              className="
+                relative
+                flex items-center justify-between
+                w-60 sm:w-[260px] md:w-[270px]
+                px-4 sm:px-5 md:px-6 py-3 sm:py-4
+                rounded-2xl
+                bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
+                backdrop-blur-xl
+                border border-cyan-400/20
+                shadow-[0_10px_40px_rgba(0,0,0,0.6)]
+              "
+            >
+              <div className="flex flex-col max-w-[140px]">
+                <span className="text-sm sm:text-base font-semibold text-white truncate">
+                  Guest
+                </span>
+                <span className="text-xs sm:text-sm text-cyan-300 font-medium truncate">
+                  Hello There!
+                </span>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => open("login")}
+                    className="rounded-md border border-white/20 bg-zinc-900/70 px-2 py-1 text-[10px] sm:text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
+                  >
+                    Log In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => open("signup")}
+                    className="rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[10px] sm:text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <img
+                  src="/logo.png"
+                  alt="PlayCrew"
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-contain"
+                />
               </div>
             </div>
           </motion.div>
@@ -418,16 +510,18 @@ export default function Dashboard() {
             {menuItems.map((item, index) => {
               const isActive = active === index;
               const isContinue = item.action === "continue";
-              const isDisabled = isContinue && !canContinue;
+              const isExit = item.action === "exit";
+              const isHardDisabled = isContinue && !canContinue;
+              const isSoftDisabled = isExit && !user;
 
               return (
                 <li key={item.label}>
                   <button
                     onMouseEnter={() => {
-                      if (!isDisabled) setActive(index);
+                      if (!isHardDisabled && !isSoftDisabled) setActive(index);
                     }}
                     onClick={() => {
-                      if (!isDisabled) handleAction(item.action);
+                      if (!isHardDisabled) handleAction(item.action);
                     }}
                     className="group relative flex items-center gap-3 sm:gap-4 md:gap-5 text-left"
                   >
@@ -457,8 +551,8 @@ export default function Dashboard() {
                           relative z-10
                           text-xl md:text-2xl tracking-wide transition-all duration-300
                           ${
-                            isDisabled
-                              ? "text-zinc-700"
+                            isHardDisabled || isSoftDisabled
+                              ? "text-zinc-500/85"
                               : isActive
                                 ? "text-white"
                                 : "text-zinc-400 group-hover:text-white group-hover:translate-x-1"
@@ -548,8 +642,6 @@ export default function Dashboard() {
             />,
             document.body,
           )}
-
-        <AuthModal />
       </motion.div>
     </>
   );

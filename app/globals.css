@@ -165,3 +165,25 @@ input.slider-thumb-sm::-moz-range-thumb {
 .toast:hover .animate-toast-progress {
   animation-play-state: paused;
 }
+
+@keyframes toast-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-slide-out-right {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}

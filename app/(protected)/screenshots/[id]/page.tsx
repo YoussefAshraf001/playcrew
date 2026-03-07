@@ -1503,7 +1503,7 @@ export default function ScreenshotFolderPage() {
       <AnimatePresence>
         {deleteConfirm && (
           <motion.div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4"
+            className="fixed inset-0 z-70 flex items-center justify-center bg-black/80 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
