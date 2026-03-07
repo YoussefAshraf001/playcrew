@@ -571,15 +571,8 @@ export default function EditProfilePage() {
   const wantsPasswordChange = Boolean(newPassword);
 
   const passwordInvalid = Boolean(wantsPasswordChange && !currentPassword);
-  const otherModalOpen = Boolean(cropType && selectedFile) || changingUsername || isSaving;
-
-  const handleOutsideClick = (e: MouseEvent<HTMLElement>) => {
-    if (otherModalOpen) return;
-    const target = e.target as Node;
-    if (accountPanelRef.current?.contains(target)) return;
-    startRouteLoading();
-    router.push("/dashboard");
-  };
+  const otherModalOpen =
+    Boolean(cropType && selectedFile) || changingUsername || isSaving;
 
   /* ---------------- UI ---------------- */
 
@@ -597,7 +590,6 @@ export default function EditProfilePage() {
         className="relative min-h-screen overflow-hidden bg-[#04070b] px-4 py-24 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        onMouseDown={handleOutsideClick}
       >
         {active?.wallpaper?.data && (
           <div

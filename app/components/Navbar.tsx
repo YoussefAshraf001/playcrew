@@ -548,7 +548,7 @@ export default function Navbar() {
             </motion.button>
 
             {profile ? (
-              <div className="relative" ref={accountMenuRef}>
+              <div className="relative top-0.5" ref={accountMenuRef}>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -565,10 +565,10 @@ export default function Navbar() {
                   {/* Skeleton */}
                   <div
                     className={`
-    absolute inset-0 rounded-full bg-zinc-700
-    transition-opacity duration-300
-    ${avatarLoaded ? "opacity-0" : "opacity-100"}
-  `}
+                      absolute inset-0 rounded-full bg-zinc-700
+                      transition-opacity duration-300
+                      ${avatarLoaded ? "opacity-0" : "opacity-100"}
+                    `}
                   />
 
                   {/* Avatar */}
@@ -577,38 +577,57 @@ export default function Navbar() {
                     alt="Profile"
                     onLoad={() => setAvatarLoaded(true)}
                     className={`
-      w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover cursor-pointer
-      border-2 border-zinc-700
-      transition-opacity duration-300
-      ${avatarLoaded ? "opacity-100" : "opacity-0"}
-    `}
+                      w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover cursor-pointer
+                      border-2 border-zinc-700
+                      transition-opacity duration-300
+                      ${avatarLoaded ? "opacity-100" : "opacity-0"}
+                    `}
                   />
                 </button>
 
                 <AnimatePresence>
                   {accountOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute right-0 top-full mt-2 w-36 sm:w-40 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg overflow-hidden z-50 flex flex-col text-sm"
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-cyan-400/25 bg-[#0b0f16]/95 p-2 text-sm shadow-[0_20px_48px_rgba(0,0,0,0.55)] backdrop-blur-xl"
                     >
+                      <div className="mb-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">
+                          Account
+                        </p>
+                        <p className="truncate text-xs font-medium text-zinc-100">
+                          @{profile.username}
+                        </p>
+                      </div>
+
                       <Link
                         href={`/profile/${profile.username}`}
                         onClick={() => setAccountOpen(false)}
-                        className="px-4 py-2 hover:bg-zinc-800 transition flex items-center gap-2"
+                        className="flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150 hover:border-cyan-400/30 hover:bg-cyan-500/10"
                       >
-                        <FaCog /> Settings
+                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan-300/35 bg-cyan-500/12 text-cyan-200">
+                          <FaCog className="text-[13px]" />
+                        </span>
+                        <span className="font-semibold tracking-wide">
+                          Settings
+                        </span>
                       </Link>
                       <button
                         onClick={() => {
                           setAccountOpen(false);
                           setShowLogoutModal(true);
                         }}
-                        className="px-4 py-2 text-left hover:bg-red-600 transition flex items-center gap-2"
+                        className="mt-0.5 flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-left text-red-100 transition-all duration-150 hover:border-red-300/35 hover:bg-red-500/18"
                       >
-                        <FaSignOutAlt /> Logout
+                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-red-300/35 bg-red-500/15 text-red-200">
+                          <FaSignOutAlt className="text-[13px]" />
+                        </span>
+                        <span className="font-semibold tracking-wide">
+                          Logout
+                        </span>
                       </button>
                     </motion.div>
                   )}
@@ -655,7 +674,9 @@ export default function Navbar() {
                         <span className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200">
                           <CiLogin className="text-[15px]" />
                         </span>
-                        <span className="font-semibold tracking-wide">Log In</span>
+                        <span className="font-semibold tracking-wide">
+                          Log In
+                        </span>
                       </button>
 
                       <button
@@ -668,7 +689,9 @@ export default function Navbar() {
                         <span className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200">
                           <FaUserPlus className="text-[13px]" />
                         </span>
-                        <span className="font-semibold tracking-wide">Sign Up</span>
+                        <span className="font-semibold tracking-wide">
+                          Sign Up
+                        </span>
                       </button>
                     </motion.div>
                   )}

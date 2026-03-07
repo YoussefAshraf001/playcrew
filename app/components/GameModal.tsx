@@ -231,20 +231,21 @@ export default function GameModal({
       {/* MODAL */}
       <motion.div
         className="
-          fixed top-20 left-1/2 z-50
-          w-[95vw] sm:w-[90vw] md:w-[720px] lg:w-[860px]
+          fixed left-1/2 top-[7vh] z-50
+          w-[95vw] sm:w-[90vw] md:w-[760px] lg:w-[920px]
           -translate-x-1/2
-          bg-zinc-950 rounded-t-2xl
-          max-h-[92vh] overflow-y-auto
+          flex h-[88vh] flex-col overflow-hidden
+          rounded-2xl border border-white/10
+          bg-zinc-950/98 shadow-[0_32px_80px_rgba(0,0,0,0.55)]
         "
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "120%" }}
-        transition={{ type: "spring", stiffness: 260, damping: 30 }}
+        initial={{ y: 24, opacity: 0, scale: 0.98 }}
+        animate={{ y: 0, opacity: 1, scale: 1 }}
+        exit={{ y: 16, opacity: 0, scale: 0.98 }}
+        transition={{ duration: 0.24, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* HERO */}
-        <div className="relative h-[300px] bg-black">
+        <div className="relative h-[220px] shrink-0 bg-black sm:h-[250px]">
           {videoId ? (
             <iframe
               className="absolute inset-0 w-full h-full"
@@ -252,36 +253,40 @@ export default function GameModal({
               allow="autoplay; fullscreen"
             />
           ) : (
-            <img src={cover} className="w-full h-full object-cover" />
+            <img
+              src={cover || "/placeholder-game.jpg"}
+              alt={game.name}
+              className="w-full h-full object-cover"
+            />
           )}
+
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-zinc-850 via-zinc-950/35 to-transparent" />
 
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full cursor-pointer ease-in-out transition-all duration-300 hover:scale-105"
+            className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/45 text-white transition hover:scale-105 hover:bg-black/70"
           >
             <IoCloseCircle size={30} />
           </button>
         </div>
 
         {/* CONTENT */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden p-5 md:grid-cols-3 md:p-6">
           {/* LEFT */}
-          <div className="md:col-span-2 space-y-5">
+          <div className="min-h-0 space-y-5 md:col-span-2">
             {/* TITLE + ACTION */}
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-3xl font-bold leading-tight tracking-tight">
+              <h2 className="text-3xl font-bold leading-tight tracking-tight text-white">
                 {game.name}
               </h2>
 
               <Link href={`/game/${game.id}`} prefetch={false}>
                 <button
                   className="
-          inline-flex items-center gap-2
-          px-4 py-1 rounded-full
-          bg-white/10 hover:bg-white/20
-          text-sm font-semibold
-          transition-all duration-200
-          hover:scale-105 cursor-pointer
+          inline-flex cursor-pointer items-center gap-2 rounded-full
+          border border-cyan-300/40 bg-cyan-500/10 px-4 py-1.5
+          text-sm font-semibold text-cyan-100
+          transition-all duration-200 hover:scale-105 hover:bg-cyan-500/20
         "
                 >
                   Go to Game Page
@@ -296,10 +301,8 @@ export default function GameModal({
                 <span
                   key={g}
                   className="
-          px-3 py-1 text-xs font-medium
-          rounded-full
-          bg-white/10 text-white/80
-          backdrop-blur
+          rounded-full border border-white/12
+          bg-white/6 px-3 py-1 text-xs font-medium text-white/85
         "
                 >
                   {g}
@@ -308,7 +311,7 @@ export default function GameModal({
             </div>
 
             {/* SUMMARY */}
-            <div className="relative space-y-3">
+            <div className="relative flex min-h-0 flex-col space-y-3 rounded-xl border border-white/10 bg-white/4 p-4">
               {/* Header */}
               <div className="flex items-center gap-3">
                 <div className="h-5 w-1 rounded-full bg-linear-to-b from-cyan-400 to-blue-500" />
@@ -318,10 +321,8 @@ export default function GameModal({
               </div>
 
               {/* Text */}
-              <div className="relative">
-                <p className="text-sm leading-relaxed text-white/80 line-clamp-7">
-                  {text}
-                </p>
+              <div className="relative max-h-56 overflow-y-auto pr-1">
+                <p className="text-sm leading-relaxed text-white/80">{text}</p>
 
                 {/* Fade-out overlay */}
                 {text.length > 460 && (
@@ -333,7 +334,7 @@ export default function GameModal({
               {text.length > 460 && (
                 <button
                   onClick={() => setAboutOpen(true)}
-                  className="group cursor-pointer inline-flex items-center gap-1 text-cyan-300 text-sm font-medium transition-all duration-300 hover:text-cyan-200"
+                  className="group inline-flex cursor-pointer items-center gap-1 text-sm font-medium text-cyan-300 transition-all duration-300 hover:text-cyan-200"
                 >
                   <span className="relative">
                     Read more
@@ -345,10 +346,14 @@ export default function GameModal({
           </div>
 
           {/* RIGHT */}
-          <div className="space-y-4">
-            <img src={cover} className="rounded-xl" />
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+            <img
+              src={cover || "/placeholder-game.jpg"}
+              alt={game.name}
+              className="h-85 w-full rounded-xl border border-white/12 object-cover"
+            />
 
-            <div className="bg-white/5 rounded-xl p-4 space-y-3">
+            <div className="space-y-3 rounded-xl border border-white/10 bg-white/4 p-4">
               <div className="flex justify-between text-sm">
                 <span className="text-white/60">Rating</span>
                 <span className="flex items-center gap-1 text-yellow-400 font-semibold">
@@ -377,9 +382,9 @@ export default function GameModal({
                 onClick={handleAdd}
                 disabled={loadingAdd}
                 className="
-                  w-full py-2 rounded-lg
-                  bg-cyan-500 hover:bg-cyan-400 opacity-80
-                  text-black font-semibold cursor-pointer ease-in-out transition-all duration-300 hover:opacity-100
+                  w-full cursor-pointer rounded-lg py-2.5
+                  bg-cyan-500 text-black font-semibold
+                  transition-all duration-300 hover:bg-cyan-400
                 "
               >
                 {loadingAdd ? (
@@ -389,7 +394,7 @@ export default function GameModal({
                 ) : (
                   <div className="flex justify-center items-center gap-2">
                     <IoMdAdd size={22} />
-                    Added to Want To Play
+                    Add to Want To Play
                   </div>
                 )}
               </motion.button>
@@ -397,7 +402,7 @@ export default function GameModal({
               <>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
-                  className="w-full py-2 bg-green-600 rounded-lg flex items-center justify-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 font-semibold"
                   onClick={() => {
                     toast.success(`${game.name} is already being tracked`);
                   }}
@@ -410,10 +415,10 @@ export default function GameModal({
                   disabled={loadingFav}
                   whileHover={!loadingFav ? { scale: 1.1 } : {}}
                   onClick={toggleFavorite}
-                  className={`w-full py-2 rounded-lg transition cursor-pointer ${
+                  className={`w-full py-2.5 rounded-lg transition cursor-pointer ${
                     saved?.favorite
                       ? "bg-red-600 text-white"
-                      : "bg-white/10 hover:bg-white/20"
+                      : "bg-white/10 text-white hover:bg-white/20"
                   } ${loadingFav ? "opacity-60 cursor-not-allowed" : ""}`}
                 >
                   <div className="flex items-center justify-center gap-2">
@@ -454,7 +459,7 @@ export default function GameModal({
                   {/* Modal Content */}
                   <motion.div
                     key="modal"
-                    className="fixed inset-x-0 top-1/2 -translate-y-1/2 mx-auto bg-white/10 border border-white/20 rounded-2xl p-6 max-w-3xl w-full z-1000 shadow-2xl"
+                    className="fixed inset-x-0 top-1/2 z-1000 mx-auto w-[92vw] max-w-3xl -translate-y-1/2 rounded-2xl border border-white/20 bg-zinc-950/95 p-6 shadow-2xl"
                     initial={{ y: 100, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 100, opacity: 0 }}
@@ -470,7 +475,7 @@ export default function GameModal({
 
                     <button
                       onClick={() => setAboutOpen(false)}
-                      className="absolute top-3 right-3 text-white/70 hover:text-white text-2xl"
+                      className="absolute right-3 top-3 text-2xl text-white/70 hover:text-white"
                     >
                       ✕
                     </button>

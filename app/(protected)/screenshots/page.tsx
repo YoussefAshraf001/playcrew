@@ -22,6 +22,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -120,6 +121,7 @@ function ScreenshotsPageContent() {
 
   const [enabled, setEnabled] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [featureResolved, setFeatureResolved] = useState(false);
   const [enabling, setEnabling] = useState(false);
 
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -160,6 +162,7 @@ function ScreenshotsPageContent() {
   const lastRestoredFolderIdRef = useRef<string | null>(null);
   const [rotationStep, setRotationStep] = useState(0);
   const [carouselRevealed, setCarouselRevealed] = useState(false);
+  const [activeCoverReady, setActiveCoverReady] = useState(false);
   const returnFolderId = searchParams.get("folder");
 
   const carouselFolders = useMemo(() => {
@@ -240,14 +243,79 @@ function ScreenshotsPageContent() {
   }, [hydrated, enabled, carouselFolders, frontFolderIndex]);
 
   useEffect(() => {
-    const stored = localStorage.getItem(FEATURE_KEY) === "1";
     const storedWheelEnabled = localStorage.getItem(CAROUSEL_WHEEL_ENABLED_KEY);
-    setEnabled(stored);
     if (storedWheelEnabled !== null) {
       setWheelScrollEnabled(storedWheelEnabled === "1");
     }
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!user?.uid) {
+      const stored = localStorage.getItem(FEATURE_KEY) === "1";
+      setEnabled(stored);
+      setFeatureResolved(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveFeatureState = async () => {
+      const stored = localStorage.getItem(FEATURE_KEY) === "1";
+      let nextEnabled = stored;
+
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        const data = userSnap.data() as
+          | {
+              features?: { screenshotsFeatureEnabled?: boolean };
+            }
+          | undefined;
+
+        const cloudEnabled = data?.features?.screenshotsFeatureEnabled;
+
+        if (typeof cloudEnabled === "boolean") {
+          nextEnabled = nextEnabled || cloudEnabled;
+        }
+
+        if (!nextEnabled) {
+          const foldersRef = collection(
+            db,
+            "users",
+            user.uid,
+            "screenshotFolders",
+          );
+          const existing = await getDocs(query(foldersRef, limit(1)));
+          if (!existing.empty) nextEnabled = true;
+        }
+
+        if (nextEnabled && cloudEnabled !== true) {
+          await setDoc(
+            userRef,
+            {
+              features: { screenshotsFeatureEnabled: true },
+            },
+            { merge: true },
+          );
+        }
+      } catch (error) {
+        console.error("Failed to resolve screenshots feature state", error);
+      }
+
+      if (cancelled) return;
+      setEnabled(nextEnabled);
+      localStorage.setItem(FEATURE_KEY, nextEnabled ? "1" : "0");
+      setFeatureResolved(true);
+    };
+
+    void resolveFeatureState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, user?.uid]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -340,6 +408,39 @@ function ScreenshotsPageContent() {
     return () => window.cancelAnimationFrame(frame);
   }, [hydrated, enabled, folders, returnFolderId]);
 
+  useEffect(() => {
+    if (!enabled || !selectedFolder) {
+      setActiveCoverReady(false);
+      return;
+    }
+
+    const coverSrc =
+      toHighQualityIgdbCover(
+        selectedFolder.customCoverUrl ?? selectedFolder.coverUrl,
+      ) || "/placeholder-game.jpg";
+
+    let cancelled = false;
+    setActiveCoverReady(false);
+
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled) setActiveCoverReady(true);
+    };
+    img.onerror = () => {
+      if (!cancelled) setActiveCoverReady(true);
+    };
+    img.src = coverSrc;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    enabled,
+    selectedFolder?.id,
+    selectedFolder?.coverUrl,
+    selectedFolder?.customCoverUrl,
+  ]);
+
   const activeFolderId = selectedFolder?.id ?? selectedFolderId;
 
   useEffect(() => {
@@ -394,12 +495,25 @@ function ScreenshotsPageContent() {
   );
 
   const enableFeature = () => {
-    if (enabling) return;
+    if (enabling || !user) return;
     setEnabling(true);
-    window.setTimeout(() => {
-      localStorage.setItem(FEATURE_KEY, "1");
-      setEnabled(true);
-      setEnabling(false);
+    window.setTimeout(async () => {
+      try {
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            features: { screenshotsFeatureEnabled: true },
+          },
+          { merge: true },
+        );
+      } catch (error) {
+        console.error("Failed to persist screenshots feature state", error);
+      } finally {
+        localStorage.setItem(FEATURE_KEY, "1");
+        setEnabled(true);
+        setFeatureResolved(true);
+        setEnabling(false);
+      }
     }, 700);
   };
 
@@ -855,7 +969,7 @@ function ScreenshotsPageContent() {
     localStorage.setItem(CAROUSEL_WHEEL_ENABLED_KEY, next ? "1" : "0");
   };
 
-  if (!hydrated) {
+  if (!hydrated || !featureResolved) {
     return (
       <main className="relative h-svh overflow-hidden bg-[#070504] pt-20 text-white">
         <div className="mx-auto flex h-[calc(100svh-5rem)] max-w-6xl items-center justify-center px-4">
@@ -1045,8 +1159,8 @@ function ScreenshotsPageContent() {
                       {foldersLoading ? (
                         <div className="flex h-full items-center justify-center">
                           <div className="inline-flex items-center gap-2 text-sm text-zinc-300">
+                            Loading collections
                             <span className="loading loading-dots loading-sm" />
-                            Loading collections...
                           </div>
                         </div>
                       ) : !carouselFolders.length ? (
@@ -1060,8 +1174,14 @@ function ScreenshotsPageContent() {
                       ) : (
                         <div
                           className={`absolute inset-0 flex select-none items-center justify-center transition-opacity duration-200 ${
-                            carouselRevealed ? "opacity-100" : "opacity-0"
-                          } ${carouselRevealed ? "" : "pointer-events-none"}`}
+                            carouselRevealed && activeCoverReady
+                              ? "opacity-100"
+                              : "opacity-0"
+                          } ${
+                            carouselRevealed && activeCoverReady
+                              ? ""
+                              : "pointer-events-none"
+                          }`}
                         >
                           {carouselFolders.map((folder, index) => {
                             const isSelected = index === frontFolderIndex;
@@ -1196,6 +1316,14 @@ function ScreenshotsPageContent() {
                           })}
                         </div>
                       )}
+
+                      {!foldersLoading &&
+                        !!carouselFolders.length &&
+                        (!carouselRevealed || !activeCoverReady) && (
+                          <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/35">
+                            <div className="h-88 w-60 animate-pulse rounded-xl border border-white/15 bg-zinc-800/70 md:h-112 md:w-76" />
+                          </div>
+                        )}
                     </div>
                     <AnimatePresence>
                       {renaming && selectedFolder && (

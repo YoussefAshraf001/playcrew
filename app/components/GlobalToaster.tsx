@@ -7,7 +7,7 @@ export default function GlobalToaster() {
     <Toaster
       position="top-right"
       reverseOrder={false}
-      containerStyle={{ top: 18, right: 14 }}
+      containerStyle={{ top: 34, right: 14 }}
       toastOptions={{
         duration: 2600,
       }}

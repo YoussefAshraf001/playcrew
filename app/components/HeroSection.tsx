@@ -9,7 +9,14 @@ import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 
 import { db } from "../lib/firebase";
 
-import { FaPlay, FaPause, FaCrown, FaMusic } from "react-icons/fa";
+import {
+  FaPlay,
+  FaPause,
+  FaCrown,
+  FaMusic,
+  FaVolumeMute,
+  FaVolumeUp,
+} from "react-icons/fa";
 import {
   MdRemoveCircleOutline,
   MdOutlineOnlinePrediction,
@@ -17,8 +24,6 @@ import {
 } from "react-icons/md";
 import { GiMouthWatering } from "react-icons/gi";
 import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
-import { IoVolumeMuteOutline } from "react-icons/io5";
-import { GoUnmute } from "react-icons/go";
 import { useMusic } from "../context/MusicContext";
 import { useUI } from "../context/UIContext";
 
@@ -65,9 +70,16 @@ export default function HeroSection({
 
   const [videoFailed, setVideoFailed] = useState(false);
   const playerRef = useRef<any>(null);
+  const playerHostRef = useRef<HTMLDivElement | null>(null);
+  const heroSectionRef = useRef<HTMLElement | null>(null);
   const [muted, setMuted] = useState(true);
-  // const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const progressTimer = useRef<NodeJS.Timeout | null>(null);
+  const controlsHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const isMounted = useRef(false);
 
@@ -219,6 +231,7 @@ export default function HeroSection({
     video: videoId || null,
     image: imageSrc || null,
   };
+  const showPoster = !media.video || videoFailed || !isPlaying;
 
   const goNext = () => {
     setActiveIndex((prev) => (prev + 1) % trending.length);
@@ -260,11 +273,66 @@ export default function HeroSection({
     setMuted(!muted);
   };
 
+  const togglePlay = () => {
+    if (!playerRef.current?.getPlayerState) return;
+
+    const state = playerRef.current.getPlayerState();
+    if (state === window.YT?.PlayerState?.PLAYING) {
+      playerRef.current.pauseVideo();
+      setIsPlaying(false);
+      return;
+    }
+
+    playerRef.current.playVideo();
+  };
+
   const goFullscreen = () => {
-    const el = document.getElementById("yt-player");
+    const el = heroSectionRef.current;
     if (!el) return;
 
     if (el.requestFullscreen) el.requestFullscreen();
+  };
+
+  const clearControlsHideTimer = () => {
+    if (!controlsHideTimerRef.current) return;
+    clearTimeout(controlsHideTimerRef.current);
+    controlsHideTimerRef.current = null;
+  };
+
+  const resetControlsHideTimer = () => {
+    clearControlsHideTimer();
+    setControlsVisible(true);
+    if (!isFullscreen) return;
+    controlsHideTimerRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 5000);
+  };
+
+  const applyVideoCoverScale = () => {
+    const host = playerHostRef.current;
+    if (!host) return;
+    const parent = host.parentElement;
+    if (!parent) return;
+
+    const w = parent.clientWidth;
+    const h = parent.clientHeight;
+    if (!w || !h) return;
+
+    const targetRatio = 16 / 9;
+    const hostRatio = w / h;
+    const scale =
+      hostRatio > targetRatio
+        ? hostRatio / targetRatio
+        : targetRatio / hostRatio;
+
+    host.style.left = "50%";
+    host.style.top = "50%";
+    host.style.width = "100%";
+    host.style.height = "100%";
+    host.style.position = "absolute";
+    host.style.transform = `translate(-50%, -50%) scale(${Math.max(1, scale)})`;
+    host.style.transformOrigin = "center center";
+    host.style.pointerEvents = "none";
   };
 
   /* ---------------------------
@@ -276,11 +344,14 @@ export default function HeroSection({
     const initPlayer = () => {
       if (playerRef.current?.loadVideoById) {
         playerRef.current.loadVideoById(media.video);
+        setTimeout(applyVideoCoverScale, 0);
         return;
       }
 
       playerRef.current = new window.YT.Player("yt-player", {
         videoId: media.video,
+        width: "100%",
+        height: "100%",
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -299,10 +370,13 @@ export default function HeroSection({
             }
 
             e.target.playVideo();
+            setIsPlaying(true);
+            setTimeout(applyVideoCoverScale, 0);
           },
 
           onStateChange: (e: any) => {
             if (e.data === window.YT.PlayerState.PLAYING) {
+              setIsPlaying(true);
               if (progressTimer.current) clearInterval(progressTimer.current);
 
               progressTimer.current = setInterval(() => {
@@ -318,6 +392,7 @@ export default function HeroSection({
             }
 
             if (e.data === window.YT.PlayerState.PAUSED) {
+              setIsPlaying(false);
               if (progressTimer.current) clearInterval(progressTimer.current);
 
               // 🔒 If hero was audible, keep music paused
@@ -327,6 +402,7 @@ export default function HeroSection({
             }
 
             if (e.data === window.YT.PlayerState.ENDED) {
+              setIsPlaying(false);
               if (progressTimer.current) clearInterval(progressTimer.current);
               goNext();
             }
@@ -389,26 +465,90 @@ export default function HeroSection({
     setProgress(0);
   }, [activeIndex]);
 
+  useEffect(() => {
+    const onResize = () => applyVideoCoverScale();
+    window.addEventListener("resize", onResize);
+
+    const host = playerHostRef.current;
+    const parent = host?.parentElement;
+    const ro =
+      parent && "ResizeObserver" in window
+        ? new ResizeObserver(() => applyVideoCoverScale())
+        : null;
+    if (ro && parent) ro.observe(parent);
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (ro) ro.disconnect();
+    };
+  }, [activeIndex]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const nowFullscreen =
+        document.fullscreenElement === heroSectionRef.current;
+      setIsFullscreen(nowFullscreen);
+      setControlsVisible(true);
+      clearControlsHideTimer();
+      if (nowFullscreen) {
+        controlsHideTimerRef.current = setTimeout(() => {
+          setControlsVisible(false);
+        }, 5000);
+      }
+      setTimeout(() => applyVideoCoverScale(), 0);
+    };
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearControlsHideTimer();
+    };
+  }, []);
+
   /* ---------------------------
      Render
   ---------------------------- */
   return (
-    <section className="relative mx-auto w-[80%] h-[55vh] overflow-hidden mb-20">
+    <section
+      ref={heroSectionRef}
+      className={`relative h-[58vh] w-full overflow-hidden sm:h-[62vh] ${
+        isFullscreen && !controlsVisible ? "cursor-none" : ""
+      }`}
+      onMouseMove={resetControlsHideTimer}
+      onMouseEnter={resetControlsHideTimer}
+      onTouchStart={resetControlsHideTimer}
+    >
       {/* Background */}
       <div className="absolute inset-0">
         {/* VIDEO */}
-        <div className="absolute inset-0 overflow-hidden rounded-b-xl">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div
-              id="yt-player"
-              className="w-[177.77vh] h-[60vh] min-w-screen min-h-[56.25vw]"
-              style={{
-                opacity: videoFailed ? 0 : 1,
-                transition: "opacity 300ms ease",
-              }}
-            />
-          </div>
+        <div className="absolute inset-0 z-0 overflow-hidden rounded-b-xl">
+          <div
+            id="yt-player"
+            ref={playerHostRef}
+            className="absolute h-full w-full"
+            style={{
+              opacity: showPoster ? 0 : 1,
+              transition: showPoster
+                ? "opacity 0ms linear"
+                : "opacity 700ms ease-in-out",
+            }}
+          />
         </div>
+
+        <div
+          className={`absolute inset-0 z-10 bg-black transition-opacity ${
+            showPoster ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            transition: showPoster
+              ? "opacity 350ms ease-out"
+              : "opacity 500ms ease-in-out",
+          }}
+        />
 
         {media.image && (
           <Image
@@ -418,9 +558,17 @@ export default function HeroSection({
                 : `https:${media.image.replace("t_thumb", "t_1080p")}`
             }
             fill
-            className={`object-cover transition-opacity duration-300 ${
-              videoFailed ? "opacity-100" : "opacity-0"
-            }`}
+            onClick={() => {
+              if (!isPlaying && media.video) togglePlay();
+            }}
+            className={`z-20 object-cover ${
+              showPoster ? "opacity-100" : "opacity-0"
+            } ${!isPlaying && media.video ? "cursor-pointer" : ""}`}
+            style={{
+              transition: showPoster
+                ? "opacity 1200ms ease-in-out"
+                : "opacity 700ms ease-in-out",
+            }}
             alt={activeGame.name}
             priority
           />
@@ -430,20 +578,26 @@ export default function HeroSection({
       {/* SIDE CONTROLS */}
       <button
         onClick={goPrev}
-        className="absolute left-6 top-1/2 -translate-y-1/2 z-30 
-             bg-white/50 hover:bg-black/70 text-white 
-             p-4 rounded-full"
+        className={`group absolute left-4 top-1/2 z-30 -translate-y-1/2 rounded-full border border-white/20 bg-black/35 p-3 text-white backdrop-blur-md transition-all duration-250 hover:-translate-x-0.5 hover:border-cyan-300/60 hover:bg-cyan-500/20 hover:shadow-[0_0_22px_rgba(34,211,238,0.28)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 sm:left-6 sm:p-4 ${
+          isFullscreen && !controlsVisible
+            ? "pointer-events-none opacity-0"
+            : "opacity-100"
+        }`}
+        aria-label="Previous featured game"
       >
-        <FiArrowLeft />
+        <FiArrowLeft className="text-lg transition-transform duration-250 group-hover:-translate-x-0.5" />
       </button>
 
       <button
         onClick={goNext}
-        className="absolute right-10 top-1/2 -translate-y-1/2 z-30 
-             bg-white/50 hover:bg-black/70 text-white 
-             p-4 rounded-full"
+        className={`group absolute right-4 top-1/2 z-30 -translate-y-1/2 rounded-full border border-white/20 bg-black/35 p-3 text-white backdrop-blur-md transition-all duration-250 hover:translate-x-0.5 hover:border-cyan-300/60 hover:bg-cyan-500/20 hover:shadow-[0_0_22px_rgba(34,211,238,0.28)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 sm:right-6 sm:p-4 ${
+          isFullscreen && !controlsVisible
+            ? "pointer-events-none opacity-0"
+            : "opacity-100"
+        }`}
+        aria-label="Next featured game"
       >
-        <FiArrowRight />
+        <FiArrowRight className="text-lg transition-transform duration-250 group-hover:translate-x-0.5" />
       </button>
 
       {/* <div className="absolute inset-0 bg-linear-to-t from-black via-black/60 to-transparent" /> */}
@@ -451,13 +605,17 @@ export default function HeroSection({
       <div className="relative z-20 h-full flex items-end px-14 pb-16">
         {!videoFailed && (
           <motion.div
-            className="absolute top-6 right-6 z-30 flex gap-3"
+            className={`absolute top-6 right-6 z-30 flex gap-3 transition-opacity duration-300 ${
+              isFullscreen && !controlsVisible
+                ? "pointer-events-none opacity-0"
+                : "opacity-100"
+            }`}
             style={{ transformStyle: "preserve-3d" }}
             animate={{ rotateY: existsInLibrary ? 180 : 0 }}
             transition={{ duration: 0.6 }}
           >
             <div>
-              {/* <button
+              <button
                 onClick={togglePlay}
                 className="p-3 bg-black/60 hover:bg-black/80 rounded-full rotate-y-180"
               >
@@ -473,7 +631,7 @@ export default function HeroSection({
                     {isPlaying ? <FaPause /> : <FaPlay />}
                   </motion.div>
                 </AnimatePresence>
-              </button> */}
+              </button>
 
               <button
                 onClick={toggleMute}
@@ -488,7 +646,7 @@ export default function HeroSection({
                     transition={{ duration: 0.25 }}
                     className="flex items-center justify-center"
                   >
-                    {muted ? <IoVolumeMuteOutline /> : <GoUnmute />}
+                    {muted ? <FaVolumeMute /> : <FaVolumeUp />}
                   </motion.div>
                 </AnimatePresence>
               </button>
@@ -513,7 +671,13 @@ export default function HeroSection({
           </motion.div>
         )}
 
-        <div className="max-w-xl">
+        <div
+          className={`max-w-xl transition-opacity duration-300 ${
+            isFullscreen && !controlsVisible
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
+          }`}
+        >
           <h1 className="text-5xl font-bold mb-4">{activeGame.name}</h1>
 
           <div className="flex gap-4">
@@ -522,7 +686,7 @@ export default function HeroSection({
                 startRouteLoading();
                 router.push(`/game/${gameId}`);
               }}
-              className="px-6 py-3 bg-white text-black rounded-xl cursor-pointer hover:scale-105 ease-in-out transition-all duration-300"
+              className="px-6 py-3 bg-zinc-500 text-white rounded-xl cursor-pointer hover:scale-105 ease-in-out transition-all duration-300"
             >
               Explore
             </button>
@@ -575,7 +739,13 @@ export default function HeroSection({
         </div>
       </div>
       {/* Progress bar */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[80%] z-30">
+      <div
+        className={`absolute bottom-4 left-1/2 z-30 w-[92%] -translate-x-1/2 transition-opacity duration-300 ${
+          isFullscreen && !controlsVisible
+            ? "pointer-events-none opacity-0"
+            : "opacity-100"
+        }`}
+      >
         <div
           className="h-1 bg-white/30 cursor-pointer"
           onClick={(e) => {

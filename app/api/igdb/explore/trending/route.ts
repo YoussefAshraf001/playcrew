@@ -3,7 +3,13 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const offset = Math.max(0, Number(searchParams.get("offset") || "0"));
+  const limit = Math.min(
+    50,
+    Math.max(1, Number(searchParams.get("limit") || "30")),
+  );
   const now = Math.floor(Date.now() / 1000);
 
   const query = `
@@ -25,7 +31,8 @@ export async function GET() {
     total_rating_count > 20;
 
   sort total_rating_count desc;
-  limit 30;
+  limit ${limit};
+  offset ${offset};
 `;
 
   try {
