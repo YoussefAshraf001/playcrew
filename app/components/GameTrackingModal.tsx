@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  FaBan,
   FaHeart,
   FaRegHeart,
   FaRegStar,
@@ -271,7 +272,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   };
 
   const applyNotInterested = () => {
-    setStatus("Dropped");
     setNotInterested(true);
     setProgress(0);
     setHours(0);
@@ -411,7 +411,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
               <div className="grid gap-3 sm:min-h-0 md:grid-cols-[1.2fr_0.8fr]">
                 <section className="grid gap-3 sm:min-h-0 sm:grid-rows-[auto_1fr]">
-                  <div className="rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md">
+                  <div className="relative rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md">
                     <div className="mb-1 flex items-center justify-between">
                       <p className="text-xs uppercase tracking-[0.12em] text-zinc-200 mb-2">
                         Rating System
@@ -496,6 +496,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         );
                       })}
                     </div>
+                    {isNotInterested && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border border-white/10 bg-black/55 px-4 text-center">
+                        <div className="flex max-w-xs flex-col items-center gap-2 text-zinc-100">
+                          <FaBan className="text-base text-red-600" />
+                          <p className="text-sm font-medium">
+                            Rating disabled: marked as Not Interested because it
+                            did not match what you need.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid min-h-[170px] grid-rows-[auto_1fr] rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md sm:min-h-0">
@@ -513,7 +524,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 </section>
 
                 <aside className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:min-h-0 md:grid-cols-1 md:grid-rows-[auto_auto_auto_auto]">
-                  <div className="rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md sm:col-span-2 md:col-span-1">
+                  <div className="relative rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md sm:col-span-2 md:col-span-1">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs uppercase tracking-[0.14em] text-zinc-200 pb-0.5">
@@ -571,6 +582,16 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         );
                       })}
                     </div>
+                    {isNotInterested && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border border-white/10 bg-black/55 px-4 text-center">
+                        <div className="flex max-w-xs flex-col items-center gap-2 text-zinc-100">
+                          <FaBan className="text-base text-red-600" />
+                          <p className="text-sm font-medium">
+                            Overall rating disabled: marked as Not Interested.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -691,13 +712,19 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     <button
                       type="button"
                       onClick={handleNotInterested}
-                      className={`w-full rounded-xl border border-red-300/40 px-3 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/28 ${
-                        hasAnyRatings
+                      disabled={isNotInterested}
+                      className={`w-full flex gap-2 items-center justify-center rounded-xl border border-red-300/40 px-3 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/28 ${
+                        isNotInterested
+                          ? "bg-red-500/28 opacity-85 cursor-default"
+                          : hasAnyRatings
                           ? "bg-red-500/12 opacity-70"
                           : "bg-red-500/22"
                       }`}
                     >
-                      Mark Not Interested
+                      <FaBan className="text-base text-red-600" />
+                      {isNotInterested
+                        ? "Marked as Not Interested"
+                        : "Mark Not Interested"}
                     </button>
                   </div>
                 </aside>

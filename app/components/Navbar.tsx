@@ -302,7 +302,7 @@ import {
   FaVolumeUp,
 } from "react-icons/fa";
 import { GiGamepad } from "react-icons/gi";
-import { MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
+import { MdAutoAwesome, MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
 import { useState, useEffect, useRef } from "react";
 import ConfirmModal from "./ConfirmModal";
 import { GiTrophiesShelf } from "react-icons/gi";
@@ -354,6 +354,7 @@ export default function Navbar() {
   const navItems = [
     { href: "/dashboard", icon: FaHome, label: "Dashboard" },
     { href: "/explore", icon: MdExplore, label: "Explore" },
+    { href: "/for-you", icon: MdAutoAwesome, label: "For You" },
     { href: "/games", icon: GiGamepad, label: "My Games" },
     { href: "/calendar", icon: FaCalendarAlt, label: "Calendar" },
     { href: "/shelf", icon: GiTrophiesShelf, label: "Shelf" },
@@ -366,7 +367,7 @@ export default function Navbar() {
     },
   ];
   const mobileMainLabels = ["Dashboard", "My Games", "Calendar", "Screenshots"];
-  const mobileExtraLabels = ["Explore", "Shelf"];
+  const mobileExtraLabels = ["Explore", "For You", "Shelf"];
   const mobileMainItems = navItems.filter((item) =>
     mobileMainLabels.includes(item.label),
   );

@@ -1139,12 +1139,20 @@ export default function GamesPage() {
                             </span>
 
                             <div className="flex gap-1.5 mt-1.5">
-                              <span className="text-[11px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
-                                {g.playtime
-                                  ? `${Math.floor(g.playtime)}h ${Math.round(
-                                      (g.playtime % 1) * 60,
-                                    )}m`
-                                  : "0h 0m"}
+                              <span
+                                className={`text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition ${
+                                  g.notInterested
+                                    ? "text-red-300 group-hover:text-red-200"
+                                    : "text-white/70 group-hover:text-white"
+                                }`}
+                              >
+                                {g.notInterested
+                                  ? "Not Interested"
+                                  : g.playtime
+                                    ? `${Math.floor(g.playtime)}h ${Math.round(
+                                        (g.playtime % 1) * 60,
+                                      )}m`
+                                    : "0h 0m"}
                               </span>
                               {/* <span
                                 className={`flex items-center gap-1 text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${

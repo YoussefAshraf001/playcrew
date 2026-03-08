@@ -21,6 +21,7 @@ import {
   MdRemoveCircleOutline,
   MdOutlineOnlinePrediction,
   MdFullscreen,
+  MdFullscreenExit,
 } from "react-icons/md";
 import { GiMouthWatering } from "react-icons/gi";
 import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
@@ -46,6 +47,15 @@ const STATUS_CONFIG = [
   },
   { label: "Want To Play", icon: <GiMouthWatering />, color: "bg-teal-500" },
 ];
+const HERO_TRAILER_VOLUME_KEY = "hero-trailer-volume";
+
+const pickHeroVideoId = (videos?: any[]) => {
+  if (!Array.isArray(videos) || videos.length === 0) return null;
+
+  const withId = videos.filter((v) => typeof v?.video_id === "string");
+  if (withId.length === 0) return null;
+  return withId[0]?.video_id ?? null;
+};
 
 export default function HeroSection({
   trending,
@@ -72,7 +82,11 @@ export default function HeroSection({
   const playerRef = useRef<any>(null);
   const playerHostRef = useRef<HTMLDivElement | null>(null);
   const heroSectionRef = useRef<HTMLElement | null>(null);
+  const volumeControlRef = useRef<HTMLDivElement | null>(null);
   const [muted, setMuted] = useState(true);
+  const [heroVolume, setHeroVolume] = useState(0.7);
+  const [heroVolumeHydrated, setHeroVolumeHydrated] = useState(false);
+  const [volumePanelOpen, setVolumePanelOpen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -89,6 +103,31 @@ export default function HeroSection({
       isMounted.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HERO_TRAILER_VOLUME_KEY);
+      if (raw) {
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) {
+          setHeroVolume(Math.max(0, Math.min(1, parsed)));
+        }
+      }
+    } catch {
+      // ignore localStorage issues
+    } finally {
+      setHeroVolumeHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!heroVolumeHydrated) return;
+    try {
+      localStorage.setItem(HERO_TRAILER_VOLUME_KEY, String(heroVolume));
+    } catch {
+      // ignore localStorage issues
+    }
+  }, [heroVolume, heroVolumeHydrated]);
 
   /* ---------------------------
   Derived state (IMPORTANT)
@@ -222,7 +261,7 @@ export default function HeroSection({
   /* ---------------------------
      Media
   ---------------------------- */
-  const videoId = activeGame.videos?.[0]?.video_id;
+  const videoId = pickHeroVideoId(activeGame.videos);
 
   const imageSrc =
     activeGame.artworks?.[0]?.url || activeGame.cover?.url || null;
@@ -231,7 +270,10 @@ export default function HeroSection({
     video: videoId || null,
     image: imageSrc || null,
   };
-  const showPoster = !media.video || videoFailed || !isPlaying;
+  const shouldUsePoster = !media.video || videoFailed || !isPlaying;
+  // Never hide video behind a black layer when there is no image fallback.
+  const showPoster = shouldUsePoster && !!media.image;
+  const showReadabilityBg = !media.video || !isPlaying;
 
   const goNext = () => {
     setActiveIndex((prev) => (prev + 1) % trending.length);
@@ -247,6 +289,7 @@ export default function HeroSection({
 
     if (muted) {
       // 🔊 becoming audible
+      playerRef.current.setVolume(Math.round(heroVolume * 100));
       playerRef.current.unMute();
 
       if (!heroIsAudibleRef.current) {
@@ -273,6 +316,38 @@ export default function HeroSection({
     setMuted(!muted);
   };
 
+  const updateHeroVolume = (nextVolume: number) => {
+    const clamped = Math.max(0, Math.min(1, nextVolume));
+    setHeroVolume(clamped);
+
+    if (!playerRef.current) return;
+
+    playerRef.current.setVolume(Math.round(clamped * 100));
+
+    if (clamped <= 0.001) {
+      playerRef.current.mute();
+      heroIsAudibleRef.current = false;
+      setMuted(true);
+      return;
+    }
+
+    playerRef.current.unMute();
+    setMuted(false);
+
+    if (!heroIsAudibleRef.current) {
+      if (isActuallyPlaying) {
+        pause();
+        toast("Music paused to focus on the trailer", {
+          id: "hero-audio-focus",
+          icon: <FaMusic />,
+        });
+      } else {
+        pause();
+      }
+      heroIsAudibleRef.current = true;
+    }
+  };
+
   const togglePlay = () => {
     if (!playerRef.current?.getPlayerState) return;
 
@@ -286,11 +361,20 @@ export default function HeroSection({
     playerRef.current.playVideo();
   };
 
-  const goFullscreen = () => {
+  const toggleFullscreen = async () => {
     const el = heroSectionRef.current;
     if (!el) return;
 
-    if (el.requestFullscreen) el.requestFullscreen();
+    if (document.fullscreenElement === el) {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+      return;
+    }
+
+    if (el.requestFullscreen) {
+      await el.requestFullscreen();
+    }
   };
 
   const clearControlsHideTimer = () => {
@@ -308,47 +392,37 @@ export default function HeroSection({
     }, 5000);
   };
 
-  const applyVideoCoverScale = () => {
-    const host = playerHostRef.current;
-    if (!host) return;
-    const parent = host.parentElement;
-    if (!parent) return;
-
-    const w = parent.clientWidth;
-    const h = parent.clientHeight;
-    if (!w || !h) return;
-
-    const targetRatio = 16 / 9;
-    const hostRatio = w / h;
-    const scale =
-      hostRatio > targetRatio
-        ? hostRatio / targetRatio
-        : targetRatio / hostRatio;
-
-    host.style.left = "50%";
-    host.style.top = "50%";
-    host.style.width = "100%";
-    host.style.height = "100%";
-    host.style.position = "absolute";
-    host.style.transform = `translate(-50%, -50%) scale(${Math.max(1, scale)})`;
-    host.style.transformOrigin = "center center";
-    host.style.pointerEvents = "none";
-  };
-
   /* ---------------------------
      Auto rotate
   ---------------------------- */
   useEffect(() => {
-    if (!media.video) return;
+    if (!media.video) {
+      if (playerRef.current?.destroy) {
+        playerRef.current.destroy();
+      }
+      playerRef.current = null;
+      setIsPlaying(false);
+      setProgress(0);
+      return;
+    }
 
     const initPlayer = () => {
       if (playerRef.current?.loadVideoById) {
         playerRef.current.loadVideoById(media.video);
-        setTimeout(applyVideoCoverScale, 0);
+        playerRef.current.setVolume(Math.round(heroVolume * 100));
+        if (muted) {
+          playerRef.current.mute();
+        } else {
+          playerRef.current.unMute();
+        }
+        playerRef.current.playVideo();
+        setIsPlaying(true);
         return;
       }
 
-      playerRef.current = new window.YT.Player("yt-player", {
+      if (!playerHostRef.current) return;
+
+      playerRef.current = new window.YT.Player(playerHostRef.current, {
         videoId: media.video,
         width: "100%",
         height: "100%",
@@ -369,9 +443,10 @@ export default function HeroSection({
               e.target.unMute();
             }
 
+            e.target.setVolume(Math.round(heroVolume * 100));
+
             e.target.playVideo();
             setIsPlaying(true);
-            setTimeout(applyVideoCoverScale, 0);
           },
 
           onStateChange: (e: any) => {
@@ -434,11 +509,12 @@ export default function HeroSection({
         clearInterval(progressTimer.current);
       }
     };
-  }, [activeIndex]);
+  }, [activeIndex, media.video]);
 
   useEffect(() => {
     // ✅ Only run when we're showing the IMAGE fallback
-    if (!videoFailed) return;
+    const imageFallbackActive = !media.video || videoFailed;
+    if (!imageFallbackActive) return;
 
     let start = Date.now();
     const duration = 6000;
@@ -458,30 +534,12 @@ export default function HeroSection({
       clearTimeout(timeout);
       setProgress(0);
     };
-  }, [videoFailed, activeIndex]);
+  }, [media.video, videoFailed, activeIndex]);
 
   useEffect(() => {
     setVideoFailed(false);
     setProgress(0);
-  }, [activeIndex]);
-
-  useEffect(() => {
-    const onResize = () => applyVideoCoverScale();
-    window.addEventListener("resize", onResize);
-
-    const host = playerHostRef.current;
-    const parent = host?.parentElement;
-    const ro =
-      parent && "ResizeObserver" in window
-        ? new ResizeObserver(() => applyVideoCoverScale())
-        : null;
-    if (ro && parent) ro.observe(parent);
-
-    return () => {
-      window.removeEventListener("resize", onResize);
-      if (ro) ro.disconnect();
-    };
-  }, [activeIndex]);
+  }, [activeIndex, media.video]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -495,7 +553,6 @@ export default function HeroSection({
           setControlsVisible(false);
         }, 5000);
       }
-      setTimeout(() => applyVideoCoverScale(), 0);
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
@@ -508,6 +565,27 @@ export default function HeroSection({
       clearControlsHideTimer();
     };
   }, []);
+
+  useEffect(() => {
+    if (!volumePanelOpen) return;
+
+    const onOutside = (e: MouseEvent) => {
+      if (!volumeControlRef.current?.contains(e.target as Node)) {
+        setVolumePanelOpen(false);
+      }
+    };
+
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setVolumePanelOpen(false);
+    };
+
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [volumePanelOpen]);
 
   /* ---------------------------
      Render
@@ -527,9 +605,8 @@ export default function HeroSection({
         {/* VIDEO */}
         <div className="absolute inset-0 z-0 overflow-hidden rounded-b-xl">
           <div
-            id="yt-player"
             ref={playerHostRef}
-            className="absolute h-full w-full"
+            className="absolute inset-0"
             style={{
               opacity: showPoster ? 0 : 1,
               transition: showPoster
@@ -600,7 +677,11 @@ export default function HeroSection({
         <FiArrowRight className="text-lg transition-transform duration-250 group-hover:translate-x-0.5" />
       </button>
 
-      {/* <div className="absolute inset-0 bg-linear-to-t from-black via-black/60 to-transparent" /> */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-black/75 via-black/35 to-transparent transition-opacity duration-500 ${
+          showReadabilityBg ? "opacity-100" : "opacity-0"
+        }`}
+      />
 
       <div className="relative z-20 h-full flex items-end px-14 pb-16">
         {!videoFailed && (
@@ -610,14 +691,13 @@ export default function HeroSection({
                 ? "pointer-events-none opacity-0"
                 : "opacity-100"
             }`}
-            style={{ transformStyle: "preserve-3d" }}
-            animate={{ rotateY: existsInLibrary ? 180 : 0 }}
-            transition={{ duration: 0.6 }}
           >
-            <div>
+            <div className="flex items-center gap-2.5">
               <button
+                type="button"
                 onClick={togglePlay}
-                className="p-3 bg-black/60 hover:bg-black/80 rounded-full rotate-y-180"
+                className="rounded-full bg-black/60 p-3 text-white hover:bg-black/80"
+                aria-label={isPlaying ? "Pause trailer" : "Play trailer"}
               >
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -633,37 +713,91 @@ export default function HeroSection({
                 </AnimatePresence>
               </button>
 
-              <button
-                onClick={toggleMute}
-                className="p-3 rounded-full rotate-y-180"
-              >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={muted ? "muted" : "unmuted"}
-                    initial={{ rotateY: 90, opacity: 0 }}
-                    animate={{ rotateY: 0, opacity: 1 }}
-                    exit={{ rotateY: -90, opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="flex items-center justify-center"
-                  >
-                    {muted ? <FaVolumeMute /> : <FaVolumeUp />}
-                  </motion.div>
+              <div className="relative" ref={volumeControlRef}>
+                <button
+                  type="button"
+                  onClick={() => setVolumePanelOpen((prev) => !prev)}
+                  className="rounded-full bg-black/60 p-3 text-white hover:bg-black/80"
+                  aria-label="Open trailer volume controls"
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={muted ? "muted" : "unmuted"}
+                      initial={{ rotateY: 90, opacity: 0 }}
+                      animate={{ rotateY: 0, opacity: 1 }}
+                      exit={{ rotateY: -90, opacity: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="flex items-center justify-center"
+                    >
+                      {muted ? <FaVolumeMute /> : <FaVolumeUp />}
+                    </motion.div>
+                  </AnimatePresence>
+                </button>
+
+                <AnimatePresence>
+                  {volumePanelOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.16, ease: "easeOut" }}
+                      className="absolute right-0 top-full z-40 mt-2 w-52 rounded-xl border border-white/20 bg-black/82 p-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.45)] backdrop-blur-sm"
+                    >
+                      <div className="mb-2 flex items-center justify-between text-[11px] text-zinc-200">
+                        <span>Trailer Volume</span>
+                        <span className="font-semibold text-white">
+                          {Math.round(heroVolume * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={toggleMute}
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/20 bg-white/5 text-zinc-100 transition hover:bg-white/12"
+                          aria-label={muted ? "Unmute trailer" : "Mute trailer"}
+                        >
+                          {muted ? (
+                            <FaVolumeMute size={12} />
+                          ) : (
+                            <FaVolumeUp size={12} />
+                          )}
+                        </button>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={Math.round(heroVolume * 100)}
+                          onChange={(e) =>
+                            updateHeroVolume(Number(e.target.value) / 100)
+                          }
+                          className="h-1.5 w-full cursor-pointer accent-cyan-300"
+                          aria-label="Trailer volume"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
                 </AnimatePresence>
-              </button>
+              </div>
 
               <button
-                onClick={goFullscreen}
-                className="p-3 bg-black/60 hover:bg-black/80 rounded-full rotate-y-180"
+                type="button"
+                onClick={toggleFullscreen}
+                className="rounded-full bg-black/60 p-3 text-white hover:bg-black/80"
+                aria-label={
+                  isFullscreen ? "Exit fullscreen" : "Enter fullscreen"
+                }
               >
                 <AnimatePresence mode="wait">
                   <motion.div
+                    key={isFullscreen ? "fullscreen-exit" : "fullscreen-enter"}
                     initial={{ rotateY: 90, opacity: 0 }}
                     animate={{ rotateY: 0, opacity: 1 }}
                     exit={{ rotateY: -90, opacity: 0 }}
                     transition={{ duration: 0.25 }}
                     className="flex items-center justify-center"
                   >
-                    <MdFullscreen />
+                    {isFullscreen ? <MdFullscreenExit /> : <MdFullscreen />}
                   </motion.div>
                 </AnimatePresence>
               </button>
@@ -676,9 +810,15 @@ export default function HeroSection({
             isFullscreen && !controlsVisible
               ? "pointer-events-none opacity-0"
               : "opacity-100"
+          } rounded-2xl p-4 transition-[background-color,border-color,backdrop-filter] duration-500 sm:p-5 ${
+            showReadabilityBg
+              ? "border border-white/10 bg-black/35 backdrop-blur-sm"
+              : "border border-transparent bg-transparent backdrop-blur-0"
           }`}
         >
-          <h1 className="text-5xl font-bold mb-4">{activeGame.name}</h1>
+          <h1 className="mb-4 text-5xl font-bold text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
+            {activeGame.name}
+          </h1>
 
           <div className="flex gap-4">
             <button
@@ -686,7 +826,7 @@ export default function HeroSection({
                 startRouteLoading();
                 router.push(`/game/${gameId}`);
               }}
-              className="px-6 py-3 bg-zinc-500 text-white rounded-xl cursor-pointer hover:scale-105 ease-in-out transition-all duration-300"
+              className="px-6 py-3 bg-white/10 text-white rounded-xl cursor-pointer hover:scale-105 ease-in-out transition-all duration-300"
             >
               Explore
             </button>

@@ -41,6 +41,7 @@ export default function GameActionsDropdown({
   const [refreshOpen, setRefreshOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [devModalOpen, setDevModalOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
   const [fields, setFields] = useState<Record<RefreshField, boolean>>({
     name: false,
@@ -52,6 +53,8 @@ export default function GameActionsDropdown({
   });
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const refreshKeys: RefreshField[] = [
     "name",
     "cover",
@@ -75,7 +78,10 @@ export default function GameActionsDropdown({
 
   useEffect(() => {
     const closeOutside = (e: MouseEvent) => {
-      if (!dropdownRef.current?.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedInsideTrigger = dropdownRef.current?.contains(target);
+      const clickedInsideMenu = menuRef.current?.contains(target);
+      if (!clickedInsideTrigger && !clickedInsideMenu) {
         setOpen(false);
       }
     };
@@ -94,6 +100,37 @@ export default function GameActionsDropdown({
       document.removeEventListener("keydown", closeEscape);
     };
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updateMenuPosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 224; // w-56
+      const viewportPadding = 8;
+      const nextLeft = Math.min(
+        Math.max(viewportPadding, rect.right - menuWidth),
+        window.innerWidth - menuWidth - viewportPadding,
+      );
+
+      setMenuPosition({
+        top: rect.bottom + 8,
+        left: nextLeft,
+      });
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open]);
 
   const handleRefresh = async () => {
     if (!user || selectedCount === 0) return;
@@ -124,6 +161,7 @@ export default function GameActionsDropdown({
   return (
     <div className="relative text-sm" ref={dropdownRef}>
       <button
+        ref={triggerRef}
         type="button"
         onMouseDown={(e) => {
           e.preventDefault();
@@ -142,14 +180,15 @@ export default function GameActionsDropdown({
         <MdMoreVert size={18} />
       </button>
 
-      <AnimatePresence>
-        {open && (
+      {open &&
+        createPortal(
           <motion.div
+            ref={menuRef}
             initial={{ opacity: 0, scale: 0.97, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: -6 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="absolute right-2 top-12 z-50 w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950/95 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md"
+            className="fixed z-[70] w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950/95 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
             onClick={(e) => e.stopPropagation()}
           >
               <div className="mb-2 rounded-lg border border-white/10 bg-white/3 px-3 py-2">
@@ -216,9 +255,9 @@ export default function GameActionsDropdown({
                 <MdDelete className="text-base text-red-300" />
                 <span>Delete Game</span>
               </button>
-          </motion.div>
+          </motion.div>,
+          document.body,
         )}
-      </AnimatePresence>
 
       {refreshOpen &&
         createPortal(

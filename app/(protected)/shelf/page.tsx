@@ -27,7 +27,7 @@ const CATEGORIES = [
   "Best Soundtrack",
   "Best Voice Acting",
   "Best Graphics",
-  "Best Art Direction",
+  "Best Immersion",
   "Best World Design",
   "Most Anticipated",
   "Most Underrated",
@@ -354,7 +354,7 @@ export default function ShelfPage() {
                   opacity: flickerOn ? 0.75 : 0.08,
                 }}
                 transition={{ duration: 0.08 }}
-                className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.95),rgba(125,211,252,0.35)_22%,rgba(6,182,212,0.16)_40%,transparent_62%)]"
+                className="absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(255,251,235,0.98),rgba(251,191,36,0.38)_24%,rgba(245,158,11,0.2)_42%,transparent_64%)]"
               />
               <motion.div
                 initial={{ opacity: 0, scaleY: 0.2 }}
@@ -363,7 +363,7 @@ export default function ShelfPage() {
                   scaleY: flickerOn ? 1 : 0.2,
                 }}
                 transition={{ duration: 0.08 }}
-                className="absolute left-1/2 top-[12%] h-[56%] w-0.5 -translate-x-1/2 bg-linear-to-b from-transparent via-cyan-100 to-transparent blur-[0.5px]"
+                className="absolute left-1/2 top-[12%] h-[56%] w-0.5 -translate-x-1/2 bg-linear-to-b from-transparent via-amber-100 to-transparent blur-[0.5px]"
               />
               <motion.div
                 initial={{ opacity: 0, scaleY: 0.2 }}
@@ -372,7 +372,7 @@ export default function ShelfPage() {
                   scaleY: flickerOn ? 1 : 0.2,
                 }}
                 transition={{ duration: 0.08, delay: 0.015 }}
-                className="absolute left-[47%] top-[16%] h-[42%] w-0.5 bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
+                className="absolute left-[47%] top-[16%] h-[42%] w-0.5 bg-linear-to-b from-transparent via-amber-50 to-transparent blur-[0.5px]"
               />
               <motion.div
                 initial={{ opacity: 0, scaleY: 0.2 }}
@@ -381,7 +381,7 @@ export default function ShelfPage() {
                   scaleY: flickerOn ? 1 : 0.2,
                 }}
                 transition={{ duration: 0.08, delay: 0.02 }}
-                className="absolute left-[53%] top-[18%] h-[40%] w-0.5 bg-linear-to-b from-transparent via-white to-transparent blur-[0.5px]"
+                className="absolute left-[53%] top-[18%] h-[40%] w-0.5 bg-linear-to-b from-transparent via-amber-50 to-transparent blur-[0.5px]"
               />
               <motion.div
                 initial={{
@@ -393,8 +393,8 @@ export default function ShelfPage() {
                   scale: 1,
                   opacity: 1,
                   filter: flickerOn
-                    ? "brightness(1.95) drop-shadow(0 0 42px rgba(125,211,252,0.95))"
-                    : "brightness(1.05) drop-shadow(0 0 28px rgba(45,212,191,0.55))",
+                    ? "brightness(1.95) drop-shadow(0 0 42px rgba(251,191,36,0.92))"
+                    : "brightness(1.05) drop-shadow(0 0 28px rgba(245,158,11,0.55))",
                 }}
                 transition={{
                   scale: { duration: 1.05, ease: [0.16, 1, 0.3, 1] },
@@ -404,7 +404,7 @@ export default function ShelfPage() {
                 className="relative w-[260px] sm:w-[340px] md:w-[430px] select-none"
               >
                 {!introAwardLoaded && (
-                  <div className="absolute inset-0 animate-pulse rounded-full bg-cyan-100/10" />
+                  <div className="absolute inset-0 animate-pulse rounded-full bg-amber-100/10" />
                 )}
                 <img
                   src="/Award.png"
@@ -477,9 +477,9 @@ export default function ShelfPage() {
                 <p className="text-xs uppercase tracking-[0.2em] text-amber-100/85">
                   Best of All Time
                 </p>
-                <span className="rounded-full border border-amber-200/35 bg-amber-300/10 px-2.5 py-1 text-[11px] text-amber-100">
-                  #1
-                </span>
+                <p className="rounded-full border border-amber-200/35 bg-amber-300/10 px-2.5 py-1 text-[11px] text-amber-100">
+                  #<span className="pl-0.5">1</span>
+                </p>
               </div>
 
               <div
