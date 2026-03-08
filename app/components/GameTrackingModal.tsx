@@ -11,7 +11,6 @@ import {
   FaStarHalfAlt,
 } from "react-icons/fa";
 import { MdClose } from "react-icons/md";
-import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
 
 type StoredRating = number | "excluded";
@@ -62,6 +61,7 @@ interface GameTrackingModalProps {
   showFavorite: boolean;
   saving: boolean;
   onClose: () => void;
+  onHeaderClose?: () => void;
   onSave: (
     notes: string,
     rating: number,
@@ -155,6 +155,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     showStatus,
     showFavorite,
     saving,
+    onHeaderClose,
   } = props;
 
   const [notes, setNotes] = useState<string>(initialNotes ?? "");
@@ -274,13 +275,31 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const applyNotInterested = () => {
     setNotInterested(true);
     setProgress(0);
-    setHours(0);
-    setMinutes(0);
     setCategoryRatings({ ...DEFAULT_CATEGORIES });
-    toast.success("Marked as not interested");
+    // toast.success(
+    //   <span>
+    //     <span className="font-bold">{game?.name ?? "Game"}</span>
+    //     <span className="text-black"> is now marked as not interested</span>
+    //   </span>,
+    // );
+  };
+
+  const clearNotInterested = () => {
+    setNotInterested(false);
+    // toast.success(
+    //   <span>
+    //     <span className="font-bold">{game?.name ?? "Game"}</span>
+    //     <span className="text-black"> removed from Not Interested</span>
+    //   </span>,
+    // );
   };
 
   const handleNotInterested = () => {
+    if (isNotInterested) {
+      clearNotInterested();
+      return;
+    }
+
     if (hasAnyRatings) {
       setConfirmNotInterestedOpen(true);
       return;
@@ -368,10 +387,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   {showStatus && (
                     <select
                       value={status}
-                      onChange={(e) => {
-                        setStatus(e.target.value);
-                        if (notInterested) setNotInterested(false);
-                      }}
+                      onChange={(e) => setStatus(e.target.value)}
                       className="rounded-lg border border-white/20 bg-black/45 px-2 py-1.5 text-xs text-white sm:text-sm"
                     >
                       <option value="Playing">Playing</option>
@@ -398,14 +414,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       <span>{favorite ? "Favorite" : "Add Favorite"}</span>
                     </motion.button>
                   )}
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-black/40 text-white transition hover:bg-white/10"
-                    aria-label="Close modal"
-                  >
-                    <MdClose size={18} />
-                  </button>
+                  {onHeaderClose && (
+                    <button
+                      type="button"
+                      onClick={onHeaderClose}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-300/35 bg-red-500/15 px-3 text-xs font-semibold text-red-100 transition hover:bg-red-500/25"
+                      aria-label="Remove from library"
+                    >
+                      <MdClose size={18} />
+                      <span>Remove From Library</span>
+                    </button>
+                  )}
                 </div>
               </header>
 
@@ -707,23 +726,26 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                   <div className="rounded-2xl border border-white/15 bg-black/35 p-2.5 backdrop-blur-md sm:col-span-2 md:col-span-1">
                     <p className="mb-2 text-center text-[11px] text-zinc-300">
-                      Clears ratings, progress, and playtime.
+                      {isNotInterested
+                        ? "Marked as Not Interested. Click below to unmark."
+                        : "Clears ratings and progress."}
                     </p>
                     <button
                       type="button"
                       onClick={handleNotInterested}
-                      disabled={isNotInterested}
-                      className={`w-full flex gap-2 items-center justify-center rounded-xl border border-red-300/40 px-3 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/28 ${
+                      className={`w-full flex gap-2 items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition ${
                         isNotInterested
-                          ? "bg-red-500/28 opacity-85 cursor-default"
-                          : hasAnyRatings
-                          ? "bg-red-500/12 opacity-70"
-                          : "bg-red-500/22"
-                      }`}
+                          ? "border-cyan-300/45 bg-cyan-500/18 text-cyan-100 hover:bg-cyan-500/26"
+                          : "border-red-300/40 bg-red-500/22 text-red-100 hover:bg-red-500/28"
+                      } ${!isNotInterested && hasAnyRatings ? "opacity-80" : ""}`}
                     >
-                      <FaBan className="text-base text-red-600" />
+                      <FaBan
+                        className={`text-base ${
+                          isNotInterested ? "text-cyan-300" : "text-red-600"
+                        }`}
+                      />
                       {isNotInterested
-                        ? "Marked as Not Interested"
+                        ? "Unmark Not Interested"
                         : "Mark Not Interested"}
                     </button>
                   </div>
@@ -735,7 +757,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   {!gameIsReleased
                     ? "Unreleased game: progress and ratings are disabled."
                     : isNotInterested
-                      ? "Change status to continue rating this game."
+                      ? "Marked as Not Interested: ratings are disabled until you unmark."
                       : "All changes save instantly when you press Save."}
                 </p>
                 <div className="flex items-center gap-2">
@@ -770,7 +792,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
           <ConfirmModal
             open={confirmNotInterestedOpen}
             title="Are you sure?"
-            message="Marking this game as “Not Interested” means you didn’t like it or it didn’t click with you. Doing so will clear your ratings, progress, and playtime for this game."
+            message="Marking this game as not interested means this game did not click with you. Doing so will clear your ratings and progress for this game."
             confirmText="Yes, Clear"
             cancelText="Cancel"
             onCancel={() => setConfirmNotInterestedOpen(false)}

@@ -90,6 +90,8 @@ const formatBytes = (bytes: number) => {
 
 const MAX_UPLOAD_DIMENSION = 2560;
 const WEBP_QUALITY = 0.82;
+const STATIC_IMAGE_MIME_PREFIX = "image/";
+const GIF_MIME = "image/gif";
 
 const replaceExt = (name: string, nextExt: string) => {
   const index = name.lastIndexOf(".");
@@ -97,8 +99,11 @@ const replaceExt = (name: string, nextExt: string) => {
   return `${name.slice(0, index)}.${nextExt}`;
 };
 
+const isStaticImageFile = (file: File) =>
+  file.type.startsWith(STATIC_IMAGE_MIME_PREFIX) && file.type !== GIF_MIME;
+
 const compressForUpload = async (file: File): Promise<File> => {
-  if (!file.type.startsWith("image/")) return file;
+  if (!isStaticImageFile(file)) return file;
 
   const bitmap = await createImageBitmap(file);
   try {
@@ -576,8 +581,8 @@ export default function ScreenshotFolderPage() {
     markCoverSet: () => void,
   ): Promise<boolean> => {
     if (!user || !folderId || !folder) return false;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Only image files are allowed");
+    if (!isStaticImageFile(file)) {
+      toast.error("Only non-GIF image files are allowed");
       return false;
     }
 
@@ -714,11 +719,9 @@ export default function ScreenshotFolderPage() {
   };
 
   const uploadScreenshots = async (files: FileList | File[]) => {
-    const items = Array.from(files).filter((file) =>
-      file.type.startsWith("image/"),
-    );
+    const items = Array.from(files).filter((file) => isStaticImageFile(file));
     if (!items.length) {
-      toast.error("Only image files are allowed");
+      toast.error("Only non-GIF image files are allowed");
       return;
     }
 
@@ -893,7 +896,13 @@ export default function ScreenshotFolderPage() {
       }
 
       setCoverCropShot(null);
-      toast.success("Cover updated");
+      toast.success(
+        <span>
+          <span className="text-black">Cover for</span>
+          <span className="font-bold px-1">{folder.name ?? "Folder"}</span>
+          <span className="text-black">was updated successfully</span>
+        </span>,
+      );
     } catch (err) {
       console.error(err);
       toast.error("Could not set cover");
@@ -1306,7 +1315,7 @@ export default function ScreenshotFolderPage() {
                 <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center rounded-xl border border-cyan-500/35 bg-cyan-500/12 px-4 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/22">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp,image/avif"
                     multiple
                     className="hidden"
                     onChange={(e) => {

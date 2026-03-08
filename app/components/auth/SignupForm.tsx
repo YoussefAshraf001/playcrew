@@ -36,7 +36,7 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
       await updateProfile(user, { displayName: username });
 
       toast.dismiss();
-      toast.success("Welcome to PlayCrew!");
+      toast.success("Welcome to PlayCrew!", { icon: "👋" });
       onSuccess?.();
     } catch (err: unknown) {
       toast.dismiss();
@@ -113,9 +113,13 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
 
       <button
         disabled={loading}
-        className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-3 font-semibold text-black shadow-[0_10px_25px_rgba(34,211,238,0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+        className="w-full rounded-xl bg-linear-to-r from-cyan-400 to-blue-500 px-4 py-3 font-semibold text-black shadow-[0_10px_25px_rgba(34,211,238,0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        {loading ? <span className="loading loading-dots loading-sm" /> : "Sign Up"}
+        {loading ? (
+          <span className="loading loading-dots loading-sm" />
+        ) : (
+          "Sign Up"
+        )}
       </button>
 
       <p className="text-center text-sm text-zinc-400">

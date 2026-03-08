@@ -1,8 +1,10 @@
 export default function HeroSkeleton() {
   return (
-    <section className="relative mx-auto w-[65%] h-[55vh] overflow-hidden mb-20">
+    <section className="relative h-[58vh] w-full overflow-hidden sm:h-[62vh]">
       {/* Background */}
-      <div className="absolute inset-0 bg-neutral-900 animate-pulse" />
+      <div className="absolute inset-0 overflow-hidden rounded-b-xl">
+        <div className="absolute inset-0 origin-center transform-gpu scale-[1.28] sm:scale-[1.46] lg:scale-[1.74] bg-neutral-900 animate-pulse" />
+      </div>
 
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-linear-to-r from-black via-black/60 to-transparent" />

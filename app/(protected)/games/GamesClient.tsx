@@ -608,8 +608,12 @@ export default function GamesPage() {
           },
         };
       });
-
-      toast.success("Game saved!");
+      toast.success(
+        <span>
+          <span className="font-bold pr-1">{editingGame.name ?? "Game"}</span>
+          <span className="text-black">saved</span>
+        </span>,
+      );
       setModalOpen(false);
     } catch (err) {
       console.error(err);

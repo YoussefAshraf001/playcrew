@@ -33,6 +33,9 @@ declare global {
     YT: any;
     onYouTubeIframeAPIReady: () => void;
   }
+  interface Document {
+    webkitFullscreenElement?: Element | null;
+  }
 }
 
 const STATUS_CONFIG = [
@@ -48,6 +51,9 @@ const STATUS_CONFIG = [
   { label: "Want To Play", icon: <GiMouthWatering />, color: "bg-teal-500" },
 ];
 const HERO_TRAILER_VOLUME_KEY = "hero-trailer-volume";
+const HERO_VIDEO_OVERSCAN = 1.18;
+const HERO_VIDEO_SCALE_CLASS =
+  "origin-center transform-gpu scale-[1.28] sm:scale-[1.46] lg:scale-[1.74]";
 
 const pickHeroVideoId = (videos?: any[]) => {
   if (!Array.isArray(videos) || videos.length === 0) return null;
@@ -96,6 +102,48 @@ export default function HeroSection({
   );
 
   const isMounted = useRef(false);
+
+  const syncHeroVideoLayout = () => {
+    const host = playerHostRef.current;
+    if (!host) return;
+
+    const iframe = host.querySelector("iframe") as HTMLIFrameElement | null;
+    if (!iframe) return;
+
+    const rect = host.getBoundingClientRect();
+    const containerW = Math.max(1, rect.width);
+    const containerH = Math.max(1, rect.height);
+    const videoRatio = 16 / 9;
+    const section = heroSectionRef.current;
+    const inFullscreen =
+      !!section &&
+      (document.fullscreenElement === section ||
+        document.webkitFullscreenElement === section);
+
+    const width = inFullscreen
+      ? Math.min(containerW, containerH * videoRatio)
+      : Math.max(containerW, containerH * videoRatio) * HERO_VIDEO_OVERSCAN;
+    const height = inFullscreen
+      ? Math.min(containerH, containerW / videoRatio)
+      : Math.max(containerH, containerW / videoRatio) * HERO_VIDEO_OVERSCAN;
+
+    try {
+      if (playerRef.current?.setSize) {
+        playerRef.current.setSize(Math.ceil(width), Math.ceil(height));
+      }
+    } catch {
+      // ignore transient YT setSize errors while player is initializing
+    }
+
+    iframe.style.position = "absolute";
+    iframe.style.left = "50%";
+    iframe.style.top = "50%";
+    iframe.style.width = `${Math.ceil(width)}px`;
+    iframe.style.height = `${Math.ceil(height)}px`;
+    iframe.style.transform = "translate(-50%, -50%)";
+    iframe.style.pointerEvents = "none";
+    iframe.style.border = "0";
+  };
 
   useEffect(() => {
     isMounted.current = true;
@@ -226,7 +274,12 @@ export default function HeroSection({
       [gameId]: payload,
     }));
 
-    toast.success("Added to library");
+    toast.success(
+      <span>
+        <span className="font-bold pr-1">{game.name}</span>
+        <span className="text-black">added to library</span>
+      </span>,
+    );
   };
 
   const toggleFavorite = async () => {
@@ -256,6 +309,18 @@ export default function HeroSection({
         favorite: updated,
       },
     }));
+
+    toast.success(
+      <span>
+        <span className="font-bold pr-1">{game.name}</span>
+        <span className="text-black">
+          {updated ? "added to your favorites" : "removed from your favorites"}
+        </span>
+      </span>,
+      {
+        icon: updated ? "❤️" : "💔",
+      },
+    );
   };
 
   /* ---------------------------
@@ -362,18 +427,20 @@ export default function HeroSection({
   };
 
   const toggleFullscreen = async () => {
-    const el = heroSectionRef.current;
-    if (!el) return;
+    const section = heroSectionRef.current;
+    if (!section) return;
 
-    if (document.fullscreenElement === el) {
-      if (document.exitFullscreen) {
+    try {
+      if (!document.fullscreenElement) {
+        setIsFullscreen(true);
+        await section.requestFullscreen();
+      } else {
+        setIsFullscreen(false);
         await document.exitFullscreen();
       }
-      return;
-    }
-
-    if (el.requestFullscreen) {
-      await el.requestFullscreen();
+    } catch {
+      setIsFullscreen(false);
+      // ignore fullscreen API errors
     }
   };
 
@@ -417,6 +484,7 @@ export default function HeroSection({
         }
         playerRef.current.playVideo();
         setIsPlaying(true);
+        requestAnimationFrame(syncHeroVideoLayout);
         return;
       }
 
@@ -447,6 +515,7 @@ export default function HeroSection({
 
             e.target.playVideo();
             setIsPlaying(true);
+            requestAnimationFrame(syncHeroVideoLayout);
           },
 
           onStateChange: (e: any) => {
@@ -512,6 +581,23 @@ export default function HeroSection({
   }, [activeIndex, media.video]);
 
   useEffect(() => {
+    const onResize = () => syncHeroVideoLayout();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    const host = playerHostRef.current;
+    if (!host || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      syncHeroVideoLayout();
+    });
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     // ✅ Only run when we're showing the IMAGE fallback
     const imageFallbackActive = !media.video || videoFailed;
     if (!imageFallbackActive) return;
@@ -542,22 +628,46 @@ export default function HeroSection({
   }, [activeIndex, media.video]);
 
   useEffect(() => {
+    if (!isFullscreen) return;
+    setVolumePanelOpen(false);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    requestAnimationFrame(syncHeroVideoLayout);
+  }, [activeIndex, media.video, isFullscreen]);
+
+  useEffect(() => {
     const onFullscreenChange = () => {
-      const nowFullscreen =
-        document.fullscreenElement === heroSectionRef.current;
-      setIsFullscreen(nowFullscreen);
-      setControlsVisible(true);
-      clearControlsHideTimer();
-      if (nowFullscreen) {
-        controlsHideTimerRef.current = setTimeout(() => {
-          setControlsVisible(false);
-        }, 5000);
-      }
+      const section = heroSectionRef.current;
+      const next =
+        !!section &&
+        (document.fullscreenElement === section ||
+          document.webkitFullscreenElement === section);
+      setIsFullscreen(next);
+      requestAnimationFrame(syncHeroVideoLayout);
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () =>
+    document.addEventListener(
+      "webkitfullscreenchange",
+      onFullscreenChange as EventListener,
+    );
+    return () => {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        onFullscreenChange as EventListener,
+      );
+    };
   }, []);
 
   useEffect(() => {
@@ -606,7 +716,11 @@ export default function HeroSection({
         <div className="absolute inset-0 z-0 overflow-hidden rounded-b-xl">
           <div
             ref={playerHostRef}
-            className="absolute inset-0"
+            className={`absolute inset-0 ${
+              isFullscreen
+                ? "origin-center transform-gpu scale-100"
+                : HERO_VIDEO_SCALE_CLASS
+            }`}
             style={{
               opacity: showPoster ? 0 : 1,
               transition: showPoster
@@ -640,6 +754,12 @@ export default function HeroSection({
             }}
             className={`z-20 object-cover ${
               showPoster ? "opacity-100" : "opacity-0"
+            } ${
+              media.video
+                ? isFullscreen
+                  ? "origin-center transform-gpu scale-100"
+                  : HERO_VIDEO_SCALE_CLASS
+                : ""
             } ${!isPlaying && media.video ? "cursor-pointer" : ""}`}
             style={{
               transition: showPoster

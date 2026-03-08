@@ -221,7 +221,12 @@ export default function ShelfPage() {
         },
       }));
 
-      toast.success(`${game.name} added`);
+      toast.success(
+        <span>
+          <span className="font-bold pr-1">{game.name}</span>
+          <span className="text-black">added</span>
+        </span>,
+      );
     } catch {
       toast.error("Failed to save game");
     } finally {
@@ -243,7 +248,7 @@ export default function ShelfPage() {
         { merge: true },
       );
       setGamesByCategory((prev) => ({ ...prev, [category]: null }));
-      toast.success("Removed");
+      toast.success("Game Removed");
     } catch {
       toast.error("Failed to remove game");
     }

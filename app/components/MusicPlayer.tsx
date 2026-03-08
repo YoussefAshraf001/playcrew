@@ -156,7 +156,7 @@ export default function MusicPlayer() {
         pointerEvents: shouldShowPlayer ? "auto" : "none",
       }}
       transition={{ duration: 0.35, ease: "easeInOut" }}
-      className={`fixed left-1/2 z-[1000] w-[min(95vw,38rem)] -translate-x-1/2 rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:left-auto md:right-4 md:w-[580px] md:translate-x-0 lg:right-6 ${
+      className={`fixed left-1/2 z-1000 w-[min(95vw,38rem)] -translate-x-1/2 rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:left-auto md:right-4 md:w-[580px] md:translate-x-0 lg:right-6 ${
         isDashboard ? "top-6 md:top-6" : "top-18 md:top-16"
       }`}
     >

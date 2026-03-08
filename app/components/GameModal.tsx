@@ -166,7 +166,12 @@ export default function GameModal({
     );
 
     setLoadingAdd(false);
-    toast.success("Added to library");
+    toast.success(
+      <span>
+        <span className="font-bold pr-1">{game.name}</span>
+        <span className="text-black">was added to your library</span>
+      </span>,
+    );
   };
 
   const toggleFavorite = async () => {
@@ -192,13 +197,25 @@ export default function GameModal({
 
       // ✅ TOAST FEEDBACK
       if (updated) {
-        toast(`${game.name} Added to favorites`, {
-          icon: "❤️",
-        });
+        toast(
+          <span>
+            <span className="font-bold">{game.name}</span>
+            <span className="text-black"> added to favorites</span>
+          </span>,
+          {
+            icon: "❤️",
+          },
+        );
       } else {
-        toast(`${game.name} Removed from favorites`, {
-          icon: "💔",
-        });
+        toast(
+          <span>
+            <span className="font-bold">{game.name}</span>
+            <span className="text-black"> removed from favorites</span>
+          </span>,
+          {
+            icon: "💔",
+          },
+        );
       }
     } catch (err) {
       toast.error("Failed to update favorite");
@@ -404,7 +421,14 @@ export default function GameModal({
                   whileHover={{ scale: 1.05 }}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-2.5 font-semibold"
                   onClick={() => {
-                    toast.success(`${game.name} is already being tracked`);
+                    toast.success(
+                      <span>
+                        <span className="font-bold pr-1">{game.name}</span>
+                        <span className="text-black">
+                          is already being tracked
+                        </span>
+                      </span>,
+                    );
                   }}
                 >
                   <IoMdCheckmarkCircle />

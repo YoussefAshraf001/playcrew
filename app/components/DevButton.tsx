@@ -237,7 +237,14 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
         },
         lastUpdated: new Date(),
       });
-      toast.success(`Updated ${gameData.igdb?.name ?? "game"} successfully`);
+      toast.success(
+        <span>
+          <span className="font-bold pr-1">
+            {gameData.igdb?.name ?? "Game"}
+          </span>
+          <span className="text-black">updated successfully</span>
+        </span>,
+      );
       requestClose();
     } finally {
       setSaving(false);
@@ -645,4 +652,3 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     document.body,
   );
 }
-

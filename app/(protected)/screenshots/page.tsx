@@ -419,8 +419,14 @@ function ScreenshotsPageContent() {
         selectedFolder.customCoverUrl ?? selectedFolder.coverUrl,
       ) || "/placeholder-game.jpg";
 
+    if (activeCoverReady) {
+      // Keep carousel visible during rotation; just warm-load the next cover.
+      const img = new Image();
+      img.src = coverSrc;
+      return;
+    }
+
     let cancelled = false;
-    setActiveCoverReady(false);
 
     const img = new Image();
     img.onload = () => {
@@ -436,6 +442,7 @@ function ScreenshotsPageContent() {
     };
   }, [
     enabled,
+    activeCoverReady,
     selectedFolder?.id,
     selectedFolder?.coverUrl,
     selectedFolder?.customCoverUrl,
@@ -631,6 +638,7 @@ function ScreenshotsPageContent() {
         name: newName,
         slug: sanitizeFolderSlug(newName),
       });
+      setRenameValue(newName);
       setRenaming(false);
       toast.success("Collection renamed");
     } catch (err) {
@@ -678,7 +686,8 @@ function ScreenshotsPageContent() {
         await destroyInCloudinary(customId).catch(() => undefined);
       }
 
-      toast.success(`${selectedFolder.name} custom image removed`);
+      setRenaming(false);
+      toast.success(`${selectedFolder.name}'s custom image removed`);
     } catch (err) {
       console.error(err);
       toast.error("Could not remove custom cover");
@@ -802,9 +811,18 @@ function ScreenshotsPageContent() {
     setCustomCoverCroppedPixels(null);
   };
 
-  const openCustomCoverCrop = (file: File) => {
+  const isGifFile = (file: File) =>
+    file.type === "image/gif" || /\.gif$/i.test(file.name);
+
+  const openCustomCoverCrop = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       toast.error("Only image files are allowed");
+      return;
+    }
+
+    if (isGifFile(file)) {
+      toast("GIF covers may affect performance.", { icon: "⚠️" });
+      await uploadFolderCover(file);
       return;
     }
 
@@ -928,7 +946,6 @@ function ScreenshotsPageContent() {
 
   const hasRenameChanges =
     !!selectedFolder && renameValue.trim() !== selectedFolder.name.trim();
-  const editButtonLabel = renaming ? "Save" : "Edit";
   const selectedHasRemovableCustomCover = useMemo(() => {
     if (!selectedFolder) return false;
     return (
@@ -941,18 +958,10 @@ function ScreenshotsPageContent() {
       toast.error("Select a folder first");
       return;
     }
-    if (!renaming) {
-      setGamePickerOpen(false);
-      setConfirmOpen(false);
-      setRenaming(true);
-      return;
-    }
-
-    if (!hasRenameChanges) {
-      toast("No changes to save.");
-      return;
-    }
-    await renameFolder();
+    if (renaming) return;
+    setGamePickerOpen(false);
+    setConfirmOpen(false);
+    setRenaming(true);
   };
 
   const handleCarouselWheel = (e: WheelEvent<HTMLDivElement>) => {
@@ -1113,18 +1122,12 @@ function ScreenshotsPageContent() {
                     <button
                       type="button"
                       onClick={handleEditFolder}
-                      disabled={!selectedFolder}
-                      className={`inline-flex h-9 min-w-[84px] shrink-0 items-center justify-center rounded-xl border border-white/15 bg-zinc-900/70 px-3 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-45 sm:min-w-[92px] sm:px-4 ${
-                        renaming && !hasRenameChanges ? "opacity-45" : ""
-                      }`}
+                      disabled={!selectedFolder || renaming}
+                      className="inline-flex h-9 min-w-[84px] shrink-0 items-center justify-center rounded-xl border border-white/15 bg-zinc-900/70 px-3 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-45 sm:min-w-[92px] sm:px-4"
                     >
                       <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                        {renaming ? (
-                          <FiCheck size={11} />
-                        ) : (
-                          <FiEdit2 size={11} />
-                        )}
-                        <span>{editButtonLabel}</span>
+                        <FiEdit2 size={11} />
+                        <span>Edit</span>
                       </span>
                     </button>
                     <button
@@ -1190,6 +1193,10 @@ function ScreenshotsPageContent() {
                             const isRemovingCustomThisFolder =
                               coverUploading &&
                               coverAction === "remove" &&
+                              selectedFolder?.id === folder.id;
+                            const isUploadingCustomThisFolder =
+                              coverUploading &&
+                              coverAction === "upload" &&
                               selectedFolder?.id === folder.id;
                             const coverSrc =
                               toHighQualityIgdbCover(
@@ -1310,6 +1317,16 @@ function ScreenshotsPageContent() {
                                       </div>
                                     </div>
                                   )}
+                                  {isUploadingCustomThisFolder && (
+                                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
+                                      <div className="rounded-xl border border-cyan-300/35 bg-[#0a1216] px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.55)]">
+                                        <span className="loading loading-spinner loading-md text-cyan-200" />
+                                        <p className="mt-2 text-sm font-semibold text-cyan-100">
+                                          Uploading custom image
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </motion.div>
                             );
@@ -1383,7 +1400,9 @@ function ScreenshotsPageContent() {
                                     className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-cyan-500/35 bg-cyan-500/12 px-2.5 text-[11px] font-semibold text-cyan-500 transition hover:bg-cyan-500/22 disabled:opacity-60"
                                   >
                                     <FiPlus size={13} />
-                                    Add a Custom Image
+                                    {coverUploading && coverAction === "upload"
+                                      ? "Uploading..."
+                                      : "Add a Custom Image"}
                                   </button>
                                   <button
                                     type="button"
@@ -1412,7 +1431,7 @@ function ScreenshotsPageContent() {
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) openCustomCoverCrop(file);
+                                  if (file) void openCustomCoverCrop(file);
                                   e.currentTarget.value = "";
                                 }}
                               />
@@ -1430,6 +1449,27 @@ function ScreenshotsPageContent() {
                                   className="w-full resize-none rounded-lg border border-white/20 bg-zinc-900/90 px-2 py-1.5 text-xs text-white outline-none focus:border-cyan-500/60"
                                 />
                               </div>
+
+                              <AnimatePresence>
+                                {hasRenameChanges && (
+                                  <motion.button
+                                    type="button"
+                                    onClick={renameFolder}
+                                    disabled={coverUploading}
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{
+                                      duration: 0.18,
+                                      ease: "easeOut",
+                                    }}
+                                    className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-emerald-300/40 bg-emerald-500/18 px-2.5 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/28 disabled:opacity-50"
+                                  >
+                                    <FiCheck size={13} />
+                                    Save Name
+                                  </motion.button>
+                                )}
+                              </AnimatePresence>
                             </div>
                           </motion.div>
                         </>
