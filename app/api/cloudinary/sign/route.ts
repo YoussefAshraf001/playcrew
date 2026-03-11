@@ -4,9 +4,9 @@ import crypto from "crypto";
 export const runtime = "nodejs";
 
 const PUBLIC_ID_PATTERN =
-  /^playcrew\/users\/[A-Za-z0-9_-]+\/(?:(avatar|wallpaper)|screenshots\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+)$/;
+  /^playcrew\/users\/[A-Za-z0-9_-]+\/(?:(avatar|wallpaper)|awards\/performance-[A-Za-z0-9_-]+|screenshots\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+)$/;
 const ASSET_FOLDER_PATTERN =
-  /^playcrew\/users\/[A-Za-z0-9_-]+\/(?:(avatar|wallpaper|profile)|screenshots\/[A-Za-z0-9_-]+)$/;
+  /^playcrew\/users\/[A-Za-z0-9_-]+\/(?:(avatar|wallpaper|profile|awards)|screenshots\/[A-Za-z0-9_-]+)$/;
 
 export async function POST(req: Request) {
   try {

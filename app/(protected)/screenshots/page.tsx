@@ -1156,7 +1156,7 @@ function ScreenshotsPageContent() {
                 <>
                   <div className="relative flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-zinc-900/45 p-3 sm:p-5">
                     <div
-                      className="relative min-h-0 flex-1 select-none overflow-hidden rounded-xl border border-white/10 bg-black/45"
+                      className="relative z-10 min-h-0 flex-1 select-none overflow-hidden rounded-xl border border-white/10 bg-black/45"
                       onWheel={handleCarouselWheel}
                     >
                       {foldersLoading ? (

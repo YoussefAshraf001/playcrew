@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FaBan,
@@ -10,7 +11,7 @@ import {
   FaStar,
   FaStarHalfAlt,
 } from "react-icons/fa";
-import { MdClose } from "react-icons/md";
+import { MdBookmarkRemove, MdClose } from "react-icons/md";
 import ConfirmModal from "./ConfirmModal";
 
 type StoredRating = number | "excluded";
@@ -60,8 +61,10 @@ interface GameTrackingModalProps {
   showStatus: boolean;
   showFavorite: boolean;
   saving: boolean;
+  removing?: boolean;
   onClose: () => void;
   onHeaderClose?: () => void;
+  onRemove?: () => Promise<void> | void;
   onSave: (
     notes: string,
     rating: number,
@@ -155,7 +158,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     showStatus,
     showFavorite,
     saving,
+    removing = false,
     onHeaderClose,
+    onRemove,
   } = props;
 
   const [notes, setNotes] = useState<string>(initialNotes ?? "");
@@ -175,6 +180,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   );
   const [confirmNotInterestedOpen, setConfirmNotInterestedOpen] =
     useState(false);
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
   useEffect(() => {
     setNotes(initialNotes ?? "");
@@ -327,6 +333,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const releaseDate = normalizeDate(game?.igdb.releaseDate);
   const gameIsReleased = !!releaseDate && releaseDate <= new Date();
   const isNotInterested = notInterested;
+  const handleUnreleasedLockedClick = () => {
+    if (!gameIsReleased) {
+      toast.error("Game isn't released yet.");
+    }
+  };
   const progressRadius = 40;
   const progressStroke = 8;
   const progressCircumference = 2 * Math.PI * progressRadius;
@@ -414,15 +425,26 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       <span>{favorite ? "Favorite" : "Add Favorite"}</span>
                     </motion.button>
                   )}
-                  {onHeaderClose && (
+                  {onRemove && (
                     <button
                       type="button"
-                      onClick={onHeaderClose}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-300/35 bg-red-500/15 px-3 text-xs font-semibold text-red-100 transition hover:bg-red-500/25"
-                      aria-label="Remove from library"
+                      onClick={() => setConfirmRemoveOpen(true)}
+                      className="relative rounded-lg border border-red-300/35 bg-red-500/12 px-3 py-1.5 text-sm font-semibold text-red-100 transition hover:bg-red-500/22 disabled:opacity-60"
+                      disabled={saving || removing}
                     >
-                      <MdClose size={18} />
-                      <span>Remove From Library</span>
+                      <span
+                        className={`flex items-center justify-center gap-2 
+                          ${removing ? "opacity-0" : ""}`}
+                      >
+                        <MdBookmarkRemove />
+                        Remove Entry
+                      </span>
+
+                      {removing && (
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <span className="loading loading-dots loading-sm" />
+                        </span>
+                      )}
                     </button>
                   )}
                 </div>
@@ -430,7 +452,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
               <div className="grid gap-3 sm:min-h-0 md:grid-cols-[1.2fr_0.8fr]">
                 <section className="grid gap-3 sm:min-h-0 sm:grid-rows-[auto_1fr]">
-                  <div className="relative rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md">
+                  <div
+                    className={`relative rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md ${
+                      !gameIsReleased ? "opacity-45" : ""
+                    }`}
+                  >
                     <div className="mb-1 flex items-center justify-between">
                       <p className="text-xs uppercase tracking-[0.12em] text-zinc-200 mb-2">
                         Rating System
@@ -515,6 +541,14 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         );
                       })}
                     </div>
+                    {!gameIsReleased && !isNotInterested && (
+                      <button
+                        type="button"
+                        onClick={handleUnreleasedLockedClick}
+                        className="absolute inset-0 z-10 rounded-2xl"
+                        aria-label="Game is not released yet"
+                      />
+                    )}
                     {isNotInterested && (
                       <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border border-white/10 bg-black/55 px-4 text-center">
                         <div className="flex max-w-xs flex-col items-center gap-2 text-zinc-100">
@@ -543,7 +577,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 </section>
 
                 <aside className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:min-h-0 md:grid-cols-1 md:grid-rows-[auto_auto_auto_auto]">
-                  <div className="relative rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md sm:col-span-2 md:col-span-1">
+                  <div
+                    className={`relative rounded-2xl border border-white/15 bg-black/35 p-3 backdrop-blur-md sm:col-span-2 md:col-span-1 ${
+                      !gameIsReleased ? "opacity-45" : ""
+                    }`}
+                  >
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs uppercase tracking-[0.14em] text-zinc-200 pb-0.5">
@@ -601,6 +639,14 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         );
                       })}
                     </div>
+                    {!gameIsReleased && !isNotInterested && (
+                      <button
+                        type="button"
+                        onClick={handleUnreleasedLockedClick}
+                        className="absolute inset-0 z-10 rounded-2xl"
+                        aria-label="Game is not released yet"
+                      />
+                    )}
                     {isNotInterested && (
                       <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border border-white/10 bg-black/55 px-4 text-center">
                         <div className="flex max-w-xs flex-col items-center gap-2 text-zinc-100">
@@ -764,7 +810,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   <button
                     onClick={onClose}
                     className="rounded-lg border border-white/20 bg-black/45 px-3 py-1.5 text-sm text-white transition hover:bg-white/14"
-                    disabled={saving}
+                    disabled={saving || removing}
                   >
                     Cancel
                   </button>
@@ -773,7 +819,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       await handleSave();
                       onClose();
                     }}
-                    disabled={saving}
+                    disabled={saving || removing}
                     className={`rounded-lg bg-linear-to-r px-4 py-1.5 text-sm font-bold shadow-sm transition hover:brightness-105 disabled:opacity-60 ${MODAL_THEME.button}`}
                   >
                     {saving ? (
@@ -799,6 +845,22 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             onConfirm={() => {
               applyNotInterested();
               setConfirmNotInterestedOpen(false);
+            }}
+          />
+
+          <ConfirmModal
+            open={confirmRemoveOpen}
+            title="Remove entry?"
+            message="This will remove the game from your library entry, including tracking data saved for it."
+            confirmText={removing ? "Removing..." : "Yes, Remove"}
+            cancelText="Cancel"
+            onCancel={() => {
+              if (!removing) setConfirmRemoveOpen(false);
+            }}
+            onConfirm={async () => {
+              if (!onRemove) return;
+              await onRemove();
+              setConfirmRemoveOpen(false);
             }}
           />
         </motion.div>

@@ -67,14 +67,14 @@ export default function SimilarGamesGrid({
 
   if (visibleGames.length === 0) {
     return (
-      <div className="w-full lg:w-[1250px] h-50 mx-auto flex items-center justify-center">
+      <div className="w-full lg:w-[1360px] h-48 mx-auto flex items-center justify-center">
         <p className="text-sm text-white/60">No similar games found.</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full lg:w-[1250px] h-45 mx-auto">
+    <div className="w-full lg:w-[1360px] h-48 mx-auto">
       <div className="relative w-full h-full">
         <button
           type="button"

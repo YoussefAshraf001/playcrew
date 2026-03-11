@@ -155,3 +155,24 @@
 .toggleInput:checked ~ .toggleBase .toggleBaseInside::after {
   opacity: 1;
 }
+
+
+.goldTheme .toggleHandleKnob {
+  background-image: radial-gradient(
+    farthest-corner at 70% 30%,
+    #fff4c2 4%,
+    #f59e0b 12% 24%,
+    #b45309 50% 65%,
+    #fbbf24 75%
+  );
+}
+
+.goldTheme .toggleBase {
+  background-color: #fff7d6;
+  background-image: linear-gradient(to bottom, #fff7d6, #e7c66a);
+  box-shadow: 0 -0.25em 0.5em rgb(255 247 214 / 0.72), 0 0.25em 0.5em rgb(231 198 106 / 0.45);
+}
+
+.goldTheme .toggleBaseInside::after {
+  background-image: linear-gradient(to bottom, #f5c84c, #b7791f);
+}

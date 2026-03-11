@@ -1,4 +1,4 @@
-//////////////////////////////////////SIDEBAR v2.0//////////////////////////////////////
+﻿//////////////////////////////////////SIDEBAR v2.0//////////////////////////////////////
 // "use client";
 
 // import { auth } from "@/app/lib/firebase";
@@ -24,7 +24,7 @@
 // import ConfirmModal from "./ConfirmModal";
 // import SearchModal from "./SearchModal";
 
-// /* ───────────────── Constants ───────────────── */
+// /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 // const SIDEBAR_CLASSES = `
 //   h-[820px] w-16
@@ -39,7 +39,7 @@
 //   rounded-[999px]
 // `;
 
-// /* ───────────────── Component ───────────────── */
+// /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 // export default function Navbar() {
 //   const { profile, user, loading } = useUser();
@@ -57,7 +57,7 @@
 //     { href: "/explore", icon: MdExplore, label: "Explore" },
 //     { href: "/games", icon: FaGamepad, label: "My Games" },
 //     { href: "/calendar", icon: FaCalendarAlt, label: "Calendar" },
-//     { href: "/shelf", icon: GiTrophiesShelf, label: "Shelf" },
+//     { href: "/playcrewawards", icon: GiTrophiesShelf, label: "PlayCrew Awards" },
 //     {
 //       href: null,
 //       icon: FaSearch,
@@ -72,7 +72,7 @@
 //     window.location.href = "/login";
 //   };
 
-//   /* ───────────────── Sidebar Content (shared) ───────────────── */
+//   /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Sidebar Content (shared) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 //   const SidebarContent = () => (
 //     <>
@@ -197,7 +197,7 @@
 //     </>
 //   );
 
-//   /* ───────────────── Render ───────────────── */
+//   /* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 //   return (
 //     <>
@@ -219,7 +219,7 @@
 //         <SidebarContent />
 //       </motion.nav>
 
-//       {/* MOBILE OVERLAY — SAME SIDEBAR */}
+//       {/* MOBILE OVERLAY â€” SAME SIDEBAR */}
 //       <AnimatePresence>
 //         {mobileOpen && (
 //           <>
@@ -302,7 +302,12 @@ import {
   FaVolumeUp,
 } from "react-icons/fa";
 import { GiGamepad } from "react-icons/gi";
-import { MdAutoAwesome, MdExplore, MdMusicNote, MdMusicOff } from "react-icons/md";
+import {
+  MdAutoAwesome,
+  MdExplore,
+  MdMusicNote,
+  MdMusicOff,
+} from "react-icons/md";
 import { useState, useEffect, useRef } from "react";
 import ConfirmModal from "./ConfirmModal";
 import { GiTrophiesShelf } from "react-icons/gi";
@@ -356,8 +361,12 @@ export default function Navbar() {
     { href: "/explore", icon: MdExplore, label: "Explore" },
     { href: "/for-you", icon: MdAutoAwesome, label: "For You" },
     { href: "/games", icon: GiGamepad, label: "My Games" },
-    { href: "/calendar", icon: FaCalendarAlt, label: "Calendar" },
-    { href: "/shelf", icon: GiTrophiesShelf, label: "Shelf" },
+    { href: "/calendar", icon: FaCalendarAlt, label: "Releases Calendar" },
+    {
+      href: "/playcrewawards",
+      icon: GiTrophiesShelf,
+      label: "PlayCrew Awards",
+    },
     { href: "/screenshots", icon: FaImages, label: "Screenshots" },
     {
       href: null,

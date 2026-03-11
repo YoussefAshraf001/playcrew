@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 
 type Game = {
   id: number;
@@ -183,3 +184,6 @@ export default function SearchModal({
     </motion.div>
   );
 }
+
+
+

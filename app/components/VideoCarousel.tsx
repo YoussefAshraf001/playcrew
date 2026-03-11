@@ -59,7 +59,7 @@ export default function VideoCarousel({ videos }: VideoCarouselProps) {
 
   if (!Array.isArray(videos) || videos.length === 0) {
     return (
-      <div className="flex gap-4 overflow-x-auto hide-scrollbar w-[1250px] cursor-pointer">
+      <div className="flex gap-4 overflow-x-auto hide-scrollbar lg:w-[1360px] cursor-pointer">
         <div className="w-full h-48 flex items-center justify-center text-zinc-400">
           No Videos Available
         </div>
@@ -77,7 +77,7 @@ export default function VideoCarousel({ videos }: VideoCarouselProps) {
         ref={containerRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="flex gap-4 overflow-x-auto hide-scrollbar w-[1250px] cursor-pointer"
+        className="flex gap-4 overflow-x-auto hide-scrollbar lg:w-[1360px] cursor-pointer"
       >
         {allVideos.map((v, i) => (
           <div

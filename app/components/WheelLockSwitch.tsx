@@ -6,18 +6,30 @@ type WheelLockSwitchProps = {
   checked: boolean;
   onChange: (next: boolean) => void;
   className?: string;
+  title?: string;
+  ariaLabel?: string;
+  theme?: "default" | "gold";
 };
 
 export default function WheelLockSwitch({
   checked,
   onChange,
   className,
+  title,
+  ariaLabel,
+  theme = "default",
 }: WheelLockSwitchProps) {
   return (
     <label
-      className={`${styles.toggleContainer}${className ? ` ${className}` : ""}`}
-      title={checked ? "Wheel scrolling is enabled" : "Wheel scrolling is locked"}
-      aria-label={checked ? "Disable wheel scrolling" : "Enable wheel scrolling"}
+      className={`${styles.toggleContainer} ${theme === "gold" ? styles.goldTheme : ""}${className ? ` ${className}` : ""}`}
+      title={
+        title ??
+        (checked ? "Wheel scrolling is enabled" : "Wheel scrolling is locked")
+      }
+      aria-label={
+        ariaLabel ??
+        (checked ? "Disable wheel scrolling" : "Enable wheel scrolling")
+      }
     >
       <input
         className={styles.toggleInput}

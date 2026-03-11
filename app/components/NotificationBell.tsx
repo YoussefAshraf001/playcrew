@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -225,9 +225,11 @@ export default function NotificationBell({
         (release.getTime() - today.getTime()) / DAY_MS,
       );
 
-      // Release day notification.
-      if (releaseKey === todayKey || diffDays === 0) {
+      if (diffDays < 0) continue;
+
+      if (releaseKey === todayKey && diffDays === 0) {
         const notificationId = `release-${game.id}-${todayKey}`;
+
         if (!knownByUser.ids.has(notificationId)) {
           writes.push({
             id: notificationId,
@@ -238,7 +240,6 @@ export default function NotificationBell({
             message: `Releases today.`,
           });
         }
-        continue;
       }
 
       // Upcoming notification window: tomorrow only.
@@ -362,21 +363,52 @@ export default function NotificationBell({
     });
   }, [currentItems, games, uid]);
 
+  const markNotificationRead = async (notificationId: string) => {
+    if (!uid) return;
+
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === notificationId ? { ...item, read: true } : item,
+      ),
+    );
+
+    try {
+      const notificationRef = doc(
+        db,
+        "users",
+        uid,
+        "notifications",
+        notificationId,
+      );
+      const batch = writeBatch(db);
+      batch.update(notificationRef, { read: true });
+      await batch.commit();
+    } catch (err) {
+      console.error("Failed to mark notification as read", err);
+    }
+  };
+
   const markAllRead = async () => {
     if (!uid) return;
 
     const unread = currentItems.filter((item) => !item.read);
     if (!unread.length) return;
 
-    const batch = writeBatch(db);
-    unread.forEach((item) => {
-      const ref = doc(db, "users", uid, "notifications", item.id);
-      batch.update(ref, {
-        read: true,
-      });
-    });
+    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
 
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      unread.forEach((item) => {
+        const ref = doc(db, "users", uid, "notifications", item.id);
+        batch.update(ref, {
+          read: true,
+        });
+      });
+
+      await batch.commit();
+    } catch (err) {
+      console.error("Failed to mark all notifications as read", err);
+    }
   };
 
   const clearAllNotifications = async () => {
@@ -594,6 +626,11 @@ export default function NotificationBell({
                               if (swipedId === item.id) {
                                 e.preventDefault();
                                 setSwipedId(null);
+                                return;
+                              }
+
+                              if (!item.read) {
+                                void markNotificationRead(item.id);
                               }
                             }}
                             className="block p-3.5 md:pr-12"
@@ -630,7 +667,9 @@ export default function NotificationBell({
                                             },
                                           )}
                                         </span>
-                                        <span className="text-white/25">•</span>
+                                        <span className="text-white/25">
+                                          â€¢
+                                        </span>
                                       </>
                                     )}
 

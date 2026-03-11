@@ -611,7 +611,7 @@ export default function GamesPage() {
       toast.success(
         <span>
           <span className="font-bold pr-1">{editingGame.name ?? "Game"}</span>
-          <span className="text-black">saved</span>
+          <span className="text-black">updated Successfully.</span>
         </span>,
       );
       setModalOpen(false);
@@ -696,7 +696,7 @@ export default function GamesPage() {
               <img
                 src={getMediaSrc(userProfile.wallpaper)}
                 style={getMediaStyle(userProfile.wallpaper)}
-                alt="Wallpaper"
+                alt=""
                 className="w-full h-full object-cover"
               />
             </div>
