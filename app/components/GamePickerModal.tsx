@@ -284,13 +284,11 @@ export default function GamePickerModal({
     isMostAnticipated && awardYear === currentCalendarYear;
   const targetAwardYear =
     awardYear && isMostAnticipated ? awardYear + 1 : awardYear;
-  const adjacentAwardYears = targetAwardYear
-    ? isMostAnticipated
-      ? [targetAwardYear + 1, targetAwardYear + 2]
-      : includeAdjacentYear
-        ? [targetAwardYear - 1]
-        : []
-    : [];
+const adjacentAwardYears = targetAwardYear
+  ? isMostAnticipated
+    ? [targetAwardYear + 1, targetAwardYear + 2]
+    : [targetAwardYear - 1, targetAwardYear - 2]
+  : [];
   const maxNominees = DEFAULT_MAX_NOMINEES;
   const seededCurrentNominees = currentNominees ?? EMPTY_GAMES;
 
