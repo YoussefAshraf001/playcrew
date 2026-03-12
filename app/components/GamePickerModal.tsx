@@ -57,6 +57,7 @@ interface ModalProps {
   disabledGameIds?: number[];
   disabledOverlayText?: string;
   theme?: "shelf" | "default";
+  knownPerformanceImages?: Record<string, string>;
 }
 
 type SortOption = "rating" | "name";
@@ -86,6 +87,13 @@ const normalizeForSearch = (value: string) =>
       /\b(i|ii|iii|iv|v|vi|vii|viii|ix|x)\b/g,
       (token) => ROMAN_NUMERAL_TO_ARABIC[token] ?? token,
     )
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizePerformerName = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -215,6 +223,7 @@ export default function GamePickerModal({
   disabledGameIds = [],
   disabledOverlayText = "Already Added",
   theme = "default",
+  knownPerformanceImages = {},
 }: ModalProps) {
   const { user } = useUser();
   const categoryName = currentCategory ?? "";
@@ -229,6 +238,7 @@ export default function GamePickerModal({
   const [nominees, setNominees] = useState<ShelfGame[]>([]);
   const [selectedWinnerId, setSelectedWinnerId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [loadingIgdb, setLoadingIgdb] = useState(false);
   const [showEmptyState, setShowEmptyState] = useState(false);
@@ -242,6 +252,8 @@ export default function GamePickerModal({
   const [editingPerformanceGameId, setEditingPerformanceGameId] = useState<
     string | null
   >(null);
+  const [pendingPerformanceNominee, setPendingPerformanceNominee] =
+    useState<ShelfGame | null>(null);
   const [performanceActorDraft, setPerformanceActorDraft] = useState("");
   const [performanceCharacterDraft, setPerformanceCharacterDraft] =
     useState("");
@@ -252,6 +264,14 @@ export default function GamePickerModal({
   const [performanceImageMode, setPerformanceImageMode] = useState<
     "url" | "upload"
   >("url");
+  const [performanceImageAutofilled, setPerformanceImageAutofilled] =
+    useState(false);
+  const [performanceSuggestion, setPerformanceSuggestion] = useState<{
+    actorName: string;
+    imageUrl: string;
+  } | null>(null);
+  const [performanceSuggestionSeenFor, setPerformanceSuggestionSeenFor] =
+    useState<string | null>(null);
   const [savingPerformanceDetails, setSavingPerformanceDetails] =
     useState(false);
 
@@ -272,9 +292,6 @@ export default function GamePickerModal({
         : []
     : [];
   const maxNominees = DEFAULT_MAX_NOMINEES;
-  const adjacentYearLabel = isMostAnticipated
-    ? "Includes Next 2 Years"
-    : "Include Previous Year";
   const seededCurrentNominees = currentNominees ?? EMPTY_GAMES;
 
   useEffect(() => {
@@ -287,10 +304,14 @@ export default function GamePickerModal({
     setPage(1);
     setLoadedImages({});
     setEditingPerformanceGameId(null);
+    setPendingPerformanceNominee(null);
     setPerformanceActorDraft("");
     setPerformanceCharacterDraft("");
     setPerformanceImageUrlDraft("");
     setPerformanceImageDataDraft(null);
+    setPerformanceImageAutofilled(false);
+    setPerformanceSuggestion(null);
+    setPerformanceSuggestionSeenFor(null);
     const seededNominees =
       seededCurrentNominees.length > 0
         ? seededCurrentNominees
@@ -350,6 +371,7 @@ export default function GamePickerModal({
     if (!modalOpen) return;
 
     let cancelled = false;
+    setSearching(true);
     setLoadingIgdb(true);
 
     const timer = window.setTimeout(async () => {
@@ -400,9 +422,10 @@ export default function GamePickerModal({
       } finally {
         if (!cancelled) {
           setLoadingIgdb(false);
+          setSearching(false);
         }
       }
-    }, 100);
+    }, 0);
 
     return () => {
       cancelled = true;
@@ -459,9 +482,11 @@ export default function GamePickerModal({
     nominees.find((game) => getNomineeEntryId(game) === selectedWinnerId) ??
     null;
   const editingPerformanceNominee =
+    pendingPerformanceNominee ??
     nominees.find(
       (game) => getNomineeEntryId(game) === editingPerformanceGameId,
-    ) ?? null;
+    ) ??
+    null;
   const performancePreviewSrc =
     performanceImageDataDraft ||
     performanceImageUrlDraft.trim() ||
@@ -480,8 +505,12 @@ export default function GamePickerModal({
     }
   };
 
-  const openPerformanceEditor = (game: ShelfGame) => {
+  const openPerformanceEditor = (
+    game: ShelfGame,
+    options?: { pending?: boolean },
+  ) => {
     setEditingPerformanceGameId(getNomineeEntryId(game));
+    setPendingPerformanceNominee(options?.pending ? game : null);
     setPerformanceActorDraft(
       game.performanceActorName ?? game.performanceName ?? "",
     );
@@ -489,15 +518,81 @@ export default function GamePickerModal({
     setPerformanceImageUrlDraft(game.performanceImageUrl ?? "");
     setPerformanceImageDataDraft(null);
     setPerformanceImageMode("url");
+    setPerformanceImageAutofilled(false);
+    setPerformanceSuggestion(null);
+    setPerformanceSuggestionSeenFor(null);
   };
 
   const closePerformanceEditor = () => {
     setEditingPerformanceGameId(null);
+    setPendingPerformanceNominee(null);
     setPerformanceActorDraft("");
     setPerformanceCharacterDraft("");
     setPerformanceImageUrlDraft("");
     setPerformanceImageDataDraft(null);
     setPerformanceImageMode("url");
+    setPerformanceImageAutofilled(false);
+    setPerformanceSuggestion(null);
+    setPerformanceSuggestionSeenFor(null);
+  };
+
+  const applySuggestedPerformanceData = (
+    actorName: string,
+    imageUrl: string,
+  ) => {
+    setPerformanceActorDraft(actorName);
+    setPerformanceImageUrlDraft(imageUrl);
+    setPerformanceImageDataDraft(null);
+    setPerformanceImageMode("url");
+    setPerformanceImageAutofilled(true);
+    setPerformanceSuggestion(null);
+    setPerformanceSuggestionSeenFor(normalizePerformerName(actorName));
+  };
+
+  const dismissPerformanceSuggestion = (normalizedActor?: string) => {
+    setPerformanceSuggestion(null);
+    if (normalizedActor) {
+      setPerformanceSuggestionSeenFor(normalizedActor);
+    }
+  };
+
+  const updatePerformanceActorDraft = (nextValue: string) => {
+    setPerformanceActorDraft(nextValue);
+
+    if (performanceImageDataDraft) return;
+
+    const normalizedActor = normalizePerformerName(nextValue);
+    const matchedImageUrl = normalizedActor
+      ? knownPerformanceImages[normalizedActor]
+      : "";
+
+    if (!matchedImageUrl) {
+      setPerformanceSuggestion(null);
+      setPerformanceSuggestionSeenFor(null);
+
+      if (performanceImageAutofilled) {
+        setPerformanceImageUrlDraft("");
+        setPerformanceImageMode("url");
+        setPerformanceImageAutofilled(false);
+      }
+      return;
+    }
+
+    if (performanceSuggestionSeenFor !== normalizedActor) {
+      setPerformanceSuggestion({
+        actorName:
+          nextValue.trim() || performanceActorDraft.trim() || nextValue,
+        imageUrl: matchedImageUrl,
+      });
+      setPerformanceSuggestionSeenFor(normalizedActor);
+    }
+  };
+
+  const commitPendingPerformanceNominee = async (nominee: ShelfGame) => {
+    const nextNominees = [...nominees, nominee];
+    setNominees(nextNominees);
+    setDrawerOpen(true);
+    await syncNominees(nextNominees);
   };
 
   const savePerformanceDetails = async () => {
@@ -515,26 +610,50 @@ export default function GamePickerModal({
         nextImageUrl = await uploadImageToCloudinary(user.uid, nextImageUrl);
       }
 
-      const nextNominees = nominees.map((game) =>
-        getNomineeEntryId(game) === editingPerformanceGameId
-          ? {
-              ...game,
-              performanceName: performanceActorDraft.trim() || undefined,
-              performanceActorName: performanceActorDraft.trim() || undefined,
-              performanceCharacterName:
-                performanceCharacterDraft.trim() || undefined,
-              performanceImageUrl: nextImageUrl || undefined,
-            }
-          : game,
-      );
+      const finalizedNominee = {
+        ...(pendingPerformanceNominee ??
+          nominees.find(
+            (game) => getNomineeEntryId(game) === editingPerformanceGameId,
+          )!),
+        performanceName: performanceActorDraft.trim() || undefined,
+        performanceActorName: performanceActorDraft.trim() || undefined,
+        performanceCharacterName: performanceCharacterDraft.trim() || undefined,
+        performanceImageUrl: nextImageUrl || undefined,
+      };
 
-      setNominees(nextNominees);
-      await syncNominees(nextNominees);
+      if (pendingPerformanceNominee) {
+        await commitPendingPerformanceNominee(finalizedNominee);
+      } else {
+        const nextNominees = nominees.map((game) =>
+          getNomineeEntryId(game) === editingPerformanceGameId
+            ? finalizedNominee
+            : game,
+        );
+
+        setNominees(nextNominees);
+        await syncNominees(nextNominees);
+      }
       closePerformanceEditor();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown save failure";
       toast.error(`Failed to save performance details: ${message}`);
+    } finally {
+      setSavingPerformanceDetails(false);
+    }
+  };
+
+  const addGameOnlyWithoutPerformanceDetails = async () => {
+    if (!pendingPerformanceNominee) return;
+
+    setSavingPerformanceDetails(true);
+    try {
+      await commitPendingPerformanceNominee(pendingPerformanceNominee);
+      closePerformanceEditor();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown save failure";
+      toast.error(`Failed to add game: ${message}`);
     } finally {
       setSavingPerformanceDetails(false);
     }
@@ -551,13 +670,16 @@ export default function GamePickerModal({
     const nominee = isBestPerformance
       ? { ...game, nomineeEntryId: crypto.randomUUID() }
       : { ...game };
+
+    if (isBestPerformance) {
+      openPerformanceEditor(nominee, { pending: true });
+      return;
+    }
+
     const nextNominees = [...nominees, nominee];
 
     setNominees(nextNominees);
     setDrawerOpen(true);
-    if (isBestPerformance) {
-      openPerformanceEditor(nominee);
-    }
     await syncNominees(nextNominees);
   };
 
@@ -635,10 +757,10 @@ export default function GamePickerModal({
     libraryGameIds,
   ]);
 
-  const loading = loadingLibrary || (loadingIgdb && igdbGames.length === 0);
+  const loading = loadingLibrary || searching || loadingIgdb;
 
   useEffect(() => {
-    if (!modalOpen || loading || filteredGames.length > 0) {
+    if (!modalOpen || loading || searching || filteredGames.length > 0) {
       setShowEmptyState(false);
       return;
     }
@@ -667,6 +789,10 @@ export default function GamePickerModal({
     if (!modalOpen) return;
     resultsScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [modalOpen, page]);
+
+  useEffect(() => {
+    setShowEmptyState(false);
+  }, [search]);
 
   const paginatedGames = filteredGames.slice(
     (page - 1) * PAGE_SIZE,
@@ -765,7 +891,6 @@ export default function GamePickerModal({
                         }
                       />
                     </div>
-
                   </div>
                 </div>
                 <button
@@ -1275,6 +1400,9 @@ export default function GamePickerModal({
                                   Add details for{" "}
                                   {editingPerformanceNominee.name}. Everything
                                   here is optional.
+                                  {pendingPerformanceNominee
+                                    ? " Close to cancel adding this game, or save/ignore to add it."
+                                    : ""}
                                 </p>
                               </div>
                               <button
@@ -1295,7 +1423,7 @@ export default function GamePickerModal({
                                   type="text"
                                   value={performanceActorDraft}
                                   onChange={(e) =>
-                                    setPerformanceActorDraft(e.target.value)
+                                    updatePerformanceActorDraft(e.target.value)
                                   }
                                   placeholder="Ben Starr"
                                   className={`w-full rounded-2xl border bg-black/45 px-4 py-3 text-sm text-white placeholder:text-zinc-500 ${accentInputBorder}`}
@@ -1359,6 +1487,10 @@ export default function GamePickerModal({
                                               e.target.value,
                                             );
                                             setPerformanceImageDataDraft(null);
+                                            setPerformanceImageAutofilled(
+                                              false,
+                                            );
+                                            setPerformanceSuggestion(null);
                                           }}
                                           placeholder="https://..."
                                           className={`w-full rounded-2xl border bg-black/45 px-4 py-3 text-sm text-white placeholder:text-zinc-500 ${accentInputBorder}`}
@@ -1382,6 +1514,10 @@ export default function GamePickerModal({
                                                 dataUrl,
                                               );
                                               setPerformanceImageUrlDraft("");
+                                              setPerformanceImageAutofilled(
+                                                false,
+                                              );
+                                              setPerformanceSuggestion(null);
                                             } catch (error) {
                                               const message =
                                                 error instanceof Error
@@ -1443,6 +1579,70 @@ export default function GamePickerModal({
                               </button>
                             </div>
                           </motion.div>
+
+                          <AnimatePresence>
+                            {performanceSuggestion && (
+                              <motion.aside
+                                initial={{ opacity: 0, y: 28 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 28 }}
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                className="fixed inset-x-4 bottom-4 z-95 md:inset-x-auto md:bottom-6 md:right-6 md:w-[380px]"
+                              >
+                                <div className="overflow-hidden rounded-[28px] border border-amber-200/18 bg-[linear-gradient(180deg,rgba(18,12,3,0.98),rgba(4,3,1,0.98))] p-4 shadow-[0_28px_80px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                                  <div className="grid gap-4 sm:grid-cols-[92px_minmax(0,1fr)] sm:items-start">
+                                    <div className="mx-auto h-36 w-24 overflow-hidden rounded-3xl border border-amber-200/20 bg-black/30 sm:h-32 sm:w-22">
+                                      <img
+                                        src={performanceSuggestion.imageUrl}
+                                        alt={performanceSuggestion.actorName}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="text-[11px] uppercase tracking-[0.24em] text-amber-100/72">
+                                        Recognized Actor
+                                      </p>
+                                      <h5 className="mt-1 text-lg font-semibold leading-tight text-white">
+                                        This actor was nominated before
+                                      </h5>
+                                      <p className="mt-2 text-sm leading-6 text-zinc-300">
+                                        We found saved actor data for{" "}
+                                        {performanceSuggestion.actorName}. Do
+                                        you want to use the same image here?
+                                      </p>
+                                      <div className="mt-4 flex flex-wrap gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            applySuggestedPerformanceData(
+                                              performanceSuggestion.actorName,
+                                              performanceSuggestion.imageUrl,
+                                            )
+                                          }
+                                          className="rounded-2xl border border-amber-200/30 bg-amber-300/14 px-4 py-2 text-sm font-medium text-amber-50 transition hover:bg-amber-300/20"
+                                        >
+                                          Use Same Data
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            dismissPerformanceSuggestion(
+                                              normalizePerformerName(
+                                                performanceSuggestion.actorName,
+                                              ),
+                                            )
+                                          }
+                                          className="rounded-2xl border border-white/12 bg-black/20 px-4 py-2 text-sm text-zinc-300 transition hover:bg-white/10"
+                                        >
+                                          Not Now
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.aside>
+                            )}
+                          </AnimatePresence>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -1456,6 +1656,3 @@ export default function GamePickerModal({
     </AnimatePresence>
   );
 }
-
-
-

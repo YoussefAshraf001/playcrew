@@ -8,6 +8,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -42,6 +43,7 @@ type Notification = {
   releaseDate: Date | null;
   read: boolean;
   createdAt: Date | null;
+  archived?: boolean;
 };
 
 type FireNotificationDoc = {
@@ -52,6 +54,7 @@ type FireNotificationDoc = {
   read?: boolean;
   createdAt?: unknown;
   releaseDate?: unknown;
+  archived?: boolean;
 };
 
 const toDate = (value: unknown): Date | null => {
@@ -166,23 +169,25 @@ export default function NotificationBell({
     const q = query(ref, orderBy("createdAt", "desc"), limit(25));
 
     const unsub = onSnapshot(q, (snap) => {
-      const next: Notification[] = snap.docs.map((docSnap) => {
-        const data = docSnap.data() as FireNotificationDoc;
-        const createdAt = toDate(data.createdAt);
-        const releaseDate = toDate(data.releaseDate);
+      const next: Notification[] = snap.docs
+        .filter((d) => !d.data().archived)
+        .map((docSnap) => {
+          const data = docSnap.data() as FireNotificationDoc;
+          const createdAt = toDate(data.createdAt);
+          const releaseDate = toDate(data.releaseDate);
 
-        return {
-          id: docSnap.id,
-          type: "game_release",
-          gameId: String(data.gameId ?? ""),
-          gameName: data.gameName ?? "Unknown game",
-          gameCover: data.gameCover,
-          message: data.message ?? "A game in your list just released.",
-          releaseDate,
-          createdAt,
-          read: !!data.read,
-        };
-      });
+          return {
+            id: docSnap.id,
+            type: "game_release",
+            gameId: String(data.gameId ?? ""),
+            gameName: data.gameName ?? "Unknown game",
+            gameCover: data.gameCover,
+            message: data.message ?? "A game in your list just released.",
+            releaseDate,
+            createdAt,
+            read: !!data.read,
+          };
+        });
 
       setItems(next);
       setKnownByUser({
@@ -199,87 +204,121 @@ export default function NotificationBell({
     if (knownByUser.uid !== uid) return;
     if (!games.length) return;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const todayKey = dateKey(today);
-    const tomorrowKey = dateKey(tomorrow);
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const writes: Array<{
-      id: string;
-      gameId: string;
-      gameName: string;
-      gameCover?: string;
-      releaseDate: Date;
-      message: string;
-    }> = [];
+    let cancelled = false;
 
-    for (const game of games) {
-      const release = toDate(game.igdb?.releaseDate);
-      if (!release) continue;
+    const createReleaseNotifications = async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-      release.setHours(0, 0, 0, 0);
-      const releaseKey = dateKey(release);
-      const diffDays = Math.floor(
-        (release.getTime() - today.getTime()) / DAY_MS,
-      );
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
 
-      if (diffDays < 0) continue;
+      const todayKey = dateKey(today);
+      const tomorrowKey = dateKey(tomorrow);
+      const DAY_MS = 24 * 60 * 60 * 1000;
 
-      if (releaseKey === todayKey && diffDays === 0) {
-        const notificationId = `release-${game.id}-${todayKey}`;
+      const candidates: Array<{
+        id: string;
+        gameId: string;
+        gameName: string;
+        gameCover?: string;
+        releaseDate: Date;
+        message: string;
+      }> = [];
 
-        if (!knownByUser.ids.has(notificationId)) {
-          writes.push({
+      // --- candidate creation loop ---
+      for (const game of games) {
+        const release = toDate(game.igdb?.releaseDate);
+        if (!release) continue;
+
+        release.setHours(0, 0, 0, 0);
+        const releaseKey = dateKey(release);
+        const diffDays = Math.floor(
+          (release.getTime() - today.getTime()) / DAY_MS,
+        );
+
+        if (diffDays < 0) continue;
+
+        if (releaseKey === todayKey && diffDays === 0) {
+          const notificationId = `release-${game.id}-${todayKey}`;
+          candidates.push({
             id: notificationId,
             gameId: String(game.id),
             gameName: game.name,
             gameCover: game.igdb?.cover,
-            releaseDate: release,
-            message: `Releases today.`,
+            releaseDate: new Date(release),
+            message: "Releases today.",
+          });
+        }
+
+        if (releaseKey === tomorrowKey || diffDays === 1) {
+          const soonId = `release-soon-${game.id}-${releaseKey}`;
+          candidates.push({
+            id: soonId,
+            gameId: String(game.id),
+            gameName: game.name,
+            gameCover: game.igdb?.cover,
+            releaseDate: new Date(release),
+            message: "Releases tomorrow.",
           });
         }
       }
 
-      // Upcoming notification window: tomorrow only.
-      if (releaseKey === tomorrowKey || diffDays === 1) {
-        const soonId = `release-soon-${game.id}-${releaseKey}`;
-        if (knownByUser.ids.has(soonId)) continue;
+      const writes: typeof candidates = [];
 
-        writes.push({
-          id: soonId,
-          gameId: String(game.id),
-          gameName: game.name,
-          gameCover: game.igdb?.cover,
-          releaseDate: release,
-          message: "Releases tomorrow.",
+      for (const candidate of candidates) {
+        const notificationRef = doc(
+          db,
+          "users",
+          uid,
+          "notifications",
+          candidate.id,
+        );
+
+        const existing = await getDoc(notificationRef);
+
+        if (!existing.exists()) {
+          writes.push(candidate);
+        }
+      }
+
+      if (cancelled || !writes.length) return;
+
+      const batch = writeBatch(db);
+
+      for (const entry of writes) {
+        const notificationRef = doc(
+          db,
+          "users",
+          uid,
+          "notifications",
+          entry.id,
+        );
+
+        batch.set(notificationRef, {
+          type: "game_release",
+          gameId: entry.gameId,
+          gameName: entry.gameName,
+          gameCover: entry.gameCover ?? null,
+          message: entry.message,
+          releaseDate: Timestamp.fromDate(entry.releaseDate),
+          read: false,
+          createdAt: serverTimestamp(),
         });
       }
-    }
 
-    if (!writes.length) return;
+      await batch.commit();
+    }; // ✅ function closed here
 
-    const batch = writeBatch(db);
-
-    for (const entry of writes) {
-      const notificationRef = doc(db, "users", uid, "notifications", entry.id);
-
-      batch.set(notificationRef, {
-        type: "game_release",
-        gameId: entry.gameId,
-        gameName: entry.gameName,
-        gameCover: entry.gameCover ?? null,
-        message: entry.message,
-        releaseDate: Timestamp.fromDate(entry.releaseDate),
-        read: false,
-        createdAt: serverTimestamp(),
-      });
-    }
-
-    batch.commit().catch((err) => {
-      console.error("Failed to create release notifications", err);
+    createReleaseNotifications().catch((err) => {
+      if (!cancelled) {
+        console.error("Failed to create release notifications", err);
+      }
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [games, knownByUser, uid]);
 
   useEffect(() => {
@@ -356,7 +395,9 @@ export default function NotificationBell({
         "notifications",
         notificationId,
       );
-      batch.delete(notificationRef);
+      batch.update(notificationRef, {
+        archived: true,
+      });
     }
     batch.commit().catch((err) => {
       console.error("Failed to cleanup stale notifications", err);

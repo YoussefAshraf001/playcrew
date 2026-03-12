@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -42,6 +42,7 @@ import { Helmet } from "react-helmet-async";
 
 import { getAwardCategoryFromDocId, getAwardYears } from "@/app/lib/awards";
 import { db } from "@/app/lib/firebase";
+import { getRecentGameActionSummary } from "@/app/lib/recentGameActions";
 import { useUser } from "@/app/context/UserContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
@@ -72,7 +73,7 @@ const statuses = [
 ];
 
 type StatusType = string | null;
-type StoredRating = number | "excluded";
+type StoredRating = number | "excluded" | null;
 type WinnerAward = {
   year: number;
   category: string;
@@ -155,7 +156,6 @@ export default function GamePage() {
   const [genreScrollDistance, setGenreScrollDistance] = useState(0);
   const [posterLoaded, setPosterLoaded] = useState(false);
   const [screenshotsReady, setScreenshotsReady] = useState(false);
-  const [gotyExists, setGotyExists] = useState(false);
 
   useEffect(() => {
     if (!aboutOpen) return;
@@ -371,8 +371,6 @@ export default function GamePage() {
           ),
         );
 
-        setGotyExists(gotyFound);
-
         const winners: WinnerAward[] = yearSnapshots
           .flatMap(({ year, snap }) =>
             snap.docs.flatMap((entry) => {
@@ -475,6 +473,15 @@ export default function GamePage() {
       coverUrl = game.background_image;
     }
 
+    const previousTrackedGame = trackedGameData ?? {
+      favorite: isFavorited,
+      status: currentStatus,
+      progress: trackedGameData?.progress ?? 0,
+      my_rating: trackedGameData?.my_rating ?? null,
+      notes: trackedGameData?.notes ?? "",
+      playtime: trackedGameData?.playtime ?? 0,
+    };
+
     await setDoc(
       doc(db, "users", user.uid, "games_igdb", game.id.toString()),
       {
@@ -498,6 +505,16 @@ export default function GamePage() {
         favorite: data.favorite ?? false,
 
         categoryRatings: data.categoryRatings ?? null,
+        recentActionSummary:
+          data.recentActionSummary ??
+          getRecentGameActionSummary(previousTrackedGame, {
+            favorite: data.favorite ?? false,
+            status: data.status,
+            progress: data.progress ?? 0,
+            my_rating: data.my_rating ?? null,
+            notes: data.notes ?? "",
+            playtime: data.playtime ?? 0,
+          }),
 
         lastUpdated: serverTimestamp(),
       },
@@ -922,6 +939,10 @@ export default function GamePage() {
       setTrackingRemoving(false);
     }
   };
+
+  const hasAwards = !loadingWinnerAwards && gotyAwards.length > 0;
+  const storyLimit = hasAwards ? 580 : 680;
+
   ///////////////////////////////////////// UI /////////////////////////////////////////////
 
   if (!game || loadingGame) return <LoadingSpinner />;
@@ -985,10 +1006,12 @@ export default function GamePage() {
             <section className="overflow-hidden rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.38)] sm:p-5 xl:p-6">
               <div className="grid gap-5 xl:grid-cols-[248px_minmax(0,1fr)] 2xl:grid-cols-[272px_minmax(0,1fr)]">
                 <aside className="flex flex-col items-center gap-4 xl:sticky xl:top-24 xl:self-start">
+                  {/* Poster */}
                   <div className="relative h-60 w-44 sm:h-72 sm:w-48 lg:h-104 lg:w-70">
                     {!posterLoaded && (
                       <div className="absolute inset-0 rounded-[26px] bg-zinc-800/80 shadow-xl animate-pulse" />
                     )}
+
                     <motion.img
                       src={posterImage}
                       onLoad={() => setPosterLoaded(true)}
@@ -1001,67 +1024,80 @@ export default function GamePage() {
                     />
                   </div>
 
-                  <a
-                    href={`https://www.igdb.com/games/${slugFromName}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/65 transition-all duration-300 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200"
-                  >
-                    <span>IGDB</span>
-                    <span className="font-mono text-white/75">#{game.id}</span>
-                  </a>
+                  {/* IGDB link */}
+                  <div>
+                    <a
+                      href={`https://www.igdb.com/games/${slugFromName}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-white/65 transition-all duration-300 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200"
+                    >
+                      <span>IGDB</span>
+                      <span className="font-mono text-white/75">
+                        #{game.id}
+                      </span>
+                    </a>
+                  </div>
 
-                  <div className="relative w-full overflow-hidden rounded-[28px] border border-amber-200/35 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.42),rgba(245,158,11,0.14)_38%,rgba(0,0,0,0.62)_82%)] px-4 pb-5 pt-5 text-center shadow-[0_24px_48px_rgba(0,0,0,0.34),0_0_0_1px_rgba(251,191,36,0.08)]">
-                    <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-linear-to-r from-transparent via-amber-100/80 to-transparent" />
-                    <div className="mx-auto flex h-18 w-18 items-center justify-center rounded-full border border-amber-100/45 bg-[radial-gradient(circle_at_top,rgba(255,247,204,0.4),rgba(251,191,36,0.16)_55%,rgba(0,0,0,0.28)_100%)] shadow-[0_0_30px_rgba(251,191,36,0.22)]">
-                      <img
-                        src="/Title-Award.png"
-                        alt="Game of the Year award"
-                        className="h-13 w-13 object-contain drop-shadow-[0_0_22px_rgba(251,191,36,0.42)]"
-                      />
+                  {/* Compact stat grid */}
+                  <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
+                    {/* Rating */}
+                    <div className="flex flex-col justify-evenly rounded-2xl border border-white/12 bg-white/2 p-3 text-center">
+                      <h3 className="text-[10px] uppercase tracking-[0.22em] text-white/55">
+                        Rating
+                      </h3>
+
+                      <div className="flex items-center justify-center gap-1 text-[12px] font-semibold text-white">
+                        <FaStar
+                          size={12}
+                          className={
+                            game.total_rating
+                              ? "text-amber-300"
+                              : "text-white/35"
+                          }
+                        />
+                        <span>
+                          {game.total_rating
+                            ? `${Math.round(game.total_rating)} / 100`
+                            : isReleased
+                              ? "Not rated"
+                              : "TBA"}
+                        </span>
+                      </div>
+
+                      <p className="text-[10px] text-white/55">
+                        {game.total_rating_count
+                          ? `${game.total_rating_count} reviews`
+                          : "No reviews"}
+                      </p>
                     </div>
-                    <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.34em] text-amber-100/78">
-                      PlayCrew Awards
-                    </p>
-                    <h3 className="mt-2 text-[16px] font-black uppercase tracking-[0.18em] text-amber-50">
-                      Game of the Year
-                    </h3>
-                    <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-                      {loadingWinnerAwards ? (
-                        <div className="mt-3 flex justify-center gap-2">
-                          {Array.from({ length: 2 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className="h-6 w-20 rounded-xl bg-amber-200/20 animate-pulse"
-                            />
-                          ))}
-                        </div>
-                      ) : gotyAwards.length > 0 ? (
-                        <motion.div
-                          className="mt-3 flex flex-wrap items-center justify-center gap-1.5"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.35 }}
-                        >
-                          {gotyAwards.map((award) => (
-                            <span
-                              key={`${award.year}-${award.category}`}
-                              className="rounded-xl border border-amber-100/30 bg-amber-300/14 px-2.5 py-1 text-[12px] uppercase tracking-[0.08em] text-amber-50"
-                            >
-                              {award.year} Winner
-                            </span>
-                          ))}
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          className="mt-3 text-xs text-amber-100/50"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ duration: 0.35 }}
-                        >
-                          No Game of the Year awards
-                        </motion.div>
-                      )}
+
+                    {/* Release */}
+                    <div className="flex flex-col justify-evenly rounded-2xl border border-white/12 bg-white/2 p-3 text-center">
+                      <h3 className="text-[10px] uppercase tracking-[0.22em] text-white/55">
+                        Release Date
+                      </h3>
+
+                      <div className="text-[12px] font-semibold text-white">
+                        {game.released
+                          ? new Date(game.released * 1000).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              },
+                            )
+                          : "TBA"}
+                      </div>
+
+                      {/* <p className="mt-1 text-[10px] text-white/55">
+                        (
+                        {game.released
+                          ? getReleaseLabel(game.released)
+                          : "Pending"}
+                        )
+                      </p> */}
                     </div>
                   </div>
                 </aside>
@@ -1071,11 +1107,6 @@ export default function GamePage() {
                     <div className="flex flex-col gap-4">
                       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0 space-y-3">
-                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/55">
-                            <span className="rounded-full border border-white/10 bg-transparent px-3 py-1">
-                              PlayCrew Library
-                            </span>
-                          </div>
                           <h1 className="wrap-break-words text-3xl font-extrabold leading-none drop-shadow-xl sm:text-4xl lg:text-5xl xl:text-[3.4rem]">
                             {game.name}
                           </h1>
@@ -1236,165 +1267,220 @@ export default function GamePage() {
                         })}
                       </div>
 
-                      <div className="rounded-[22px] border border-amber-200/16 bg-[linear-gradient(180deg,rgba(251,191,36,0.11),rgba(0,0,0,0.14))] p-3">
-                        <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.35 }}
+                        className="rounded-[22px] bg-[linear-gradient(180deg,rgba(251,191,36,0.21),rgba(0,0,0,0.20))] p-3"
+                      >
+                        {/* HEADER */}
+                        <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">
                           <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.8)]" />
-                          PlayCrew Awards Won
-                          <span className="ml-1 inline-flex items-center justify-center rounded-full bg-amber-300/20 px-4 py-[0.5px] text-[10px] font-bold text-amber-100">
-                            {winnerAwards.length}
-                          </span>
+                          The PlayCrew Awards
+                          <div className="flex items-center text-[10px] font-semibold tracking-[0.24em] text-amber-100/78">
+                            {isReleased && (
+                              <span className="ml-1 gap-1 inline-flex items-center justify-center rounded-full bg-amber-300/20 px-3 py-[0.5px] text-[10px] font-bold text-amber-100">
+                                {winnerAwards.length}
+                                <span>Won</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div
-                          ref={genreContainerRef}
-                          className="relative w-full max-w-full overflow-hidden"
-                        >
+
+                        {/* LOADING */}
+                        {loadingWinnerAwards && (
                           <motion.div
-                            className="flex w-max items-center gap-2 whitespace-nowrap"
-                            animate={
-                              genreShouldScroll && genreScrollDistance > 0
-                                ? { x: [0, -genreScrollDistance] }
-                                : { x: 0 }
-                            }
-                            transition={
-                              genreShouldScroll && genreScrollDistance > 0
-                                ? {
-                                    duration: Math.max(
-                                      14,
-                                      genreScrollDistance / 34,
-                                    ),
-                                    repeat: Infinity,
-                                    ease: "linear",
-                                  }
-                                : { duration: 0 }
-                            }
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex justify-center gap-2"
                           >
-                            {/* ORIGINAL */}
-                            <div
-                              ref={genreTrackRef}
-                              className="flex shrink-0 items-center gap-2 whitespace-nowrap"
+                            <span className="loading loading-infinity loading-sm" />
+                          </motion.div>
+                        )}
+
+                        {/* NOT RELEASED YET */}
+                        {!loadingWinnerAwards && !isReleased && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="text-[12px] text-white/70 text-center"
+                          >
+                            2026 PlayCrew Game Awards will be announced on{" "}
+                            <span className="font-semibold text-amber-200">
+                              December 10th
+                            </span>
+                            .
+                          </motion.div>
+                        )}
+
+                        {/* RELEASED BUT NO AWARDS */}
+                        {!loadingWinnerAwards &&
+                          isReleased &&
+                          winnerAwards.length === 0 && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="text-[12px] text-white/60 text-center"
                             >
-                              {otherWinnerAwards.map((award) => (
-                                <span
-                                  key={`${award.year}-${award.category}`}
-                                  className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
+                              No PlayCrew awards won
+                            </motion.div>
+                          )}
+
+                        {/* AWARDS */}
+                        {!loadingWinnerAwards && winnerAwards.length > 0 && (
+                          <>
+                            <div
+                              ref={genreContainerRef}
+                              className="relative w-full max-w-full overflow-hidden"
+                            >
+                              <motion.div
+                                className="flex w-max items-center gap-2 whitespace-nowrap"
+                                animate={
+                                  genreShouldScroll && genreScrollDistance > 0
+                                    ? { x: [0, -genreScrollDistance] }
+                                    : { x: 0 }
+                                }
+                                transition={
+                                  genreShouldScroll && genreScrollDistance > 0
+                                    ? {
+                                        duration: Math.max(
+                                          14,
+                                          genreScrollDistance / 34,
+                                        ),
+                                        repeat: Infinity,
+                                        ease: "linear",
+                                      }
+                                    : { duration: 0 }
+                                }
+                              >
+                                {/* ORIGINAL */}
+                                <div
+                                  ref={genreTrackRef}
+                                  className="flex shrink-0 items-center gap-2 whitespace-nowrap"
                                 >
-                                  {award.year} {award.category}
-                                </span>
-                              ))}
+                                  {winnerAwards.map((award) => (
+                                    <span
+                                      key={`${award.year}-${award.category}`}
+                                      className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
+                                    >
+                                      {award.year} {award.category}
+                                    </span>
+                                  ))}
+                                </div>
+
+                                {/* DUPLICATE FOR LOOP */}
+                                {genreShouldScroll && (
+                                  <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                                    {otherWinnerAwards.map((award) => (
+                                      <span
+                                        key={`${award.year}-${award.category}-loop`}
+                                        className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
+                                      >
+                                        {award.year} {award.category}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </motion.div>
+                            </div>
+                          </>
+                        )}
+                      </motion.div>
+                    </div>
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      layout
+                      transition={{ duration: 0.35, ease: "easeOut" }}
+                      className={`grid gap-4 ${
+                        hasAwards
+                          ? "xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]"
+                          : "grid-cols-1 lg:h-60"
+                      }`}
+                    >
+                      {/* STORY */}
+                      <motion.div
+                        layout
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="rounded-[28px] border border-white/12 bg-black/12 p-5"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <h2 className="text-2xl font-bold text-white">
+                            Story
+                          </h2>
+
+                          {description?.length > storyLimit && (
+                            <button
+                              className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline"
+                              onClick={() => setAboutOpen(true)}
+                            >
+                              Read more
+                            </button>
+                          )}
+                        </div>
+
+                        <p className="text-[13px] leading-7 text-white/78">
+                          {description
+                            ? truncate(description, storyLimit)
+                            : "No description found."}
+                        </p>
+                      </motion.div>
+
+                      {/* AWARDS */}
+                      <AnimatePresence>
+                        {hasAwards && (
+                          <motion.div
+                            key="awards"
+                            initial={{ opacity: 0, x: 70 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 70 }}
+                            transition={{
+                              duration: 0.4,
+                              ease: "easeOut",
+                              delay: 0.08,
+                            }}
+                            className="relative z-0 w-full overflow-hidden rounded-[28px] border border-amber-200/35 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.42),rgba(245,158,11,0.14)_38%,rgba(0,0,0,0.62)_82%)] px-4 pb-5 pt-4 text-center shadow-[0_24px_48px_rgba(0,0,0,0.34),0_0_0_1px_rgba(251,191,36,0.08)]"
+                          >
+                            <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-linear-to-r from-transparent via-amber-100/80 to-transparent" />
+
+                            {/* Trophy */}
+                            <div className="mx-auto mt-2 flex h-35 w-35 items-center justify-center">
+                              <img
+                                src="GOTY-New.png"
+                                alt="Game of the Year award"
+                                className="h-45 w-45 object-contain drop-shadow-[0_0_22px_rgba(251,191,36,0.42)]"
+                              />
                             </div>
 
-                            {/* DUPLICATE FOR LOOP */}
-                            {genreShouldScroll && (
-                              <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-                                {otherWinnerAwards.map((award) => (
-                                  <span
-                                    key={`${award.year}-${award.category}-loop`}
-                                    className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
-                                  >
-                                    {award.year} {award.category}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                            <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.34em] text-amber-100/78">
+                              PlayCrew Awards
+                            </p>
+
+                            <h3 className="mt-2 text-[16px] font-black uppercase tracking-[0.18em] text-amber-50">
+                              Game of the Year
+                            </h3>
+
+                            <motion.div
+                              className="mt-3 flex flex-wrap items-center justify-center gap-1.5"
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3, delay: 0.18 }}
+                            >
+                              {gotyAwards.map((award) => (
+                                <span
+                                  key={`${award.year}-${award.category}`}
+                                  className="rounded-xl border border-amber-100/30 bg-amber-300/14 px-2.5 py-1 text-[12px] uppercase tracking-[0.08em] text-amber-50"
+                                >
+                                  {award.year} Winner
+                                </span>
+                              ))}
+                            </motion.div>
                           </motion.div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]">
-                    <div className="rounded-[28px] border border-white/12 bg-black/12 p-5">
-                      <div className="mb-4 flex items-center justify-between gap-3">
-                        <h2 className="text-2xl font-bold text-white">Story</h2>
-                        {description?.length > 330 && (
-                          <button
-                            className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline"
-                            onClick={() => setAboutOpen(true)}
-                          >
-                            Read more
-                          </button>
                         )}
-                      </div>
-                      <p className="text-[13px] leading-7 text-white/78">
-                        {description
-                          ? truncate(description, 330)
-                          : "No description found."}
-                      </p>
-                    </div>
-
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                      <div className="rounded-3xl border border-white/12 bg-transparent p-4 text-center">
-                        <h3 className="mb-2 text-[11px] uppercase tracking-[0.24em] text-white/55">
-                          Game Rating
-                        </h3>
-                        <div className="flex items-center justify-center gap-1 text-xl font-semibold text-white">
-                          <FaStar
-                            size={18}
-                            className={
-                              game.total_rating
-                                ? "text-amber-300"
-                                : "text-white/35"
-                            }
-                          />
-                          <span>
-                            {game.total_rating
-                              ? `${Math.round(game.total_rating)} / 100`
-                              : isReleased
-                                ? "Not rated"
-                                : "Not released"}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-[11px] text-white/55">
-                          {game.total_rating && game.total_rating_count
-                            ? `Based on ${game.total_rating_count} IGDB reviews`
-                            : "No ratings available"}
-                        </p>
-                      </div>
-
-                      <div className="rounded-3xl border border-white/12 bg-transparent p-4 text-center">
-                        <h3 className="mb-2 text-[11px] uppercase tracking-[0.24em] text-white/55">
-                          Release
-                        </h3>
-                        <div className="text-[16px] font-semibold text-white">
-                          {game.released
-                            ? new Date(game.released * 1000).toLocaleDateString(
-                                "en-US",
-                                {
-                                  year: "numeric",
-                                  month: "long",
-                                  day: "numeric",
-                                },
-                              )
-                            : "TBA"}
-                        </div>
-                        <p className="mt-2 text-[11px] text-white/55">
-                          (
-                          {game.released
-                            ? getReleaseLabel(game.released)
-                            : "Release date pending"}
-                          )
-                        </p>
-                      </div>
-
-                      <div className="rounded-3xl border border-white/12 bg-transparent p-4 text-center sm:col-span-2 xl:col-span-1">
-                        <h3 className="mb-2 text-[11px] uppercase tracking-[0.24em] text-white/55">
-                          Genres
-                        </h3>
-
-                        <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
-                          {normalizeGenres(game.genres)
-                            .slice(0, 4)
-                            .map((genre) => (
-                              <span
-                                key={genre}
-                                className="rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/74"
-                              >
-                                {genre}
-                              </span>
-                            ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                      </AnimatePresence>
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
               </div>
             </section>
@@ -1486,7 +1572,8 @@ export default function GamePage() {
             </section>
           </div>
 
-          <aside className="w-full self-start 2xl:sticky 2xl:top-24">
+          <aside className="w-full">
+            {/* <div className="relative h-full overflow-hidden rounded-[30px] border border-white/12 bg-black/12 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:p-5"> */}
             <div className="relative overflow-hidden rounded-[30px] border border-white/12 bg-black/12 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:p-5">
               <div className="mb-4 flex items-center justify-center gap-3">
                 <div>
@@ -1502,7 +1589,7 @@ export default function GamePage() {
                   <h2 className="mb-3 text-lg font-bold">Official</h2>
                   <div className="relative mt-3">
                     <div
-                      className={`space-y-3 transition ${platformCount > 6 ? "2xl:max-h-72 2xl:overflow-y-auto 2xl:pr-3 2xl:overscroll-contain" : ""}`}
+                      className={`space-y-3 transition ${platformCount > 6 ? "2xl:max-h-43 2xl:overflow-y-auto 2xl:pr-3 2xl:overscroll-contain" : ""}`}
                     >
                       {platformCount > 0 ? (
                         <>

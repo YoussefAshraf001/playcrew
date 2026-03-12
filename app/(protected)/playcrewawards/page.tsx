@@ -201,6 +201,13 @@ const isSameBestPerformanceEntry = (a: ShelfGame, b: ShelfGame) =>
     (b.performanceActorName ?? b.performanceName ?? "") &&
   (a.performanceCharacterName ?? "") === (b.performanceCharacterName ?? "");
 
+const normalizeBestPerformanceActorName = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
 const normalizeBestPerformanceEntry = (
   winner: ShelfGame | null,
   nominees: ShelfGame[],
@@ -231,7 +238,6 @@ const normalizeBestPerformanceEntry = (
     nominees: normalizedNominees,
   };
 };
-
 
 function Poster({
   src,
@@ -443,6 +449,32 @@ export default function ShelfPage() {
     [],
   );
   const gamesByCategory = gamesByYear[selectedYear] ?? initialShelfForYear;
+  const knownPerformanceImages = useMemo(() => {
+    const imageMap: Record<string, string> = {};
+
+    Object.values(gamesByYear).forEach((yearEntries) => {
+      Object.values(yearEntries).forEach((entry) => {
+        const candidates = [entry.winner, ...entry.nominees].filter(
+          Boolean,
+        ) as ShelfGame[];
+
+        candidates.forEach((candidate) => {
+          const actorName =
+            candidate.performanceActorName ?? candidate.performanceName ?? "";
+          const imageUrl = candidate.performanceImageUrl ?? "";
+          const normalizedActor = normalizeBestPerformanceActorName(actorName);
+
+          if (!normalizedActor || !imageUrl || imageMap[normalizedActor]) {
+            return;
+          }
+
+          imageMap[normalizedActor] = imageUrl;
+        });
+      });
+    });
+
+    return imageMap;
+  }, [gamesByYear]);
   const isCurrentYearSelected = selectedYear === currentCalendarYear;
   const isSelectedYearNominationLocked =
     isCurrentYearSelected && today < nominationsOpenDate;
@@ -454,6 +486,8 @@ export default function ShelfPage() {
   const [winnerCelebration, setWinnerCelebration] =
     useState<WinnerCelebrationState | null>(null);
   const [showConfettiBurst, setShowConfettiBurst] = useState(false);
+  const spotlightCelebrationActive =
+    !!winnerCelebration && winnerCelebration.category !== "Game of the Year";
 
   const openModal = (category: AwardCategory) => {
     if (isSelectedYearNominationLocked) return;
@@ -467,9 +501,9 @@ export default function ShelfPage() {
       setWinnerCelebration((prev) =>
         prev?.category === category ? null : prev,
       );
-    }, 1200);
+    }, 2000);
 
-    if (selectedYear === currentCalendarYear) {
+    if (category === "Game of the Year") {
       setShowConfettiBurst(true);
       window.setTimeout(() => {
         setShowConfettiBurst(false);
@@ -652,6 +686,10 @@ export default function ShelfPage() {
     const game = entry?.winner;
     const nomineeCount = entry?.nominees.length ?? 0;
     const isCelebrating = winnerCelebration?.category === category;
+    const isSpotlightCelebrating =
+      spotlightCelebrationActive && winnerCelebration?.category === category;
+    const shouldDimCard =
+      spotlightCelebrationActive && winnerCelebration?.category !== category;
     return (
       <motion.div
         key={category}
@@ -666,27 +704,46 @@ export default function ShelfPage() {
         tabIndex={0}
         whileHover={{ scale: 1.01 }}
         transition={{ duration: 0.22, ease: "easeOut" }}
-        className={`group relative z-0 w-full overflow-visible rounded-2xl text-left transition-all duration-300 hover:z-40 focus-within:z-40 ${isCelebrating ? "z-50" : ""}`}
+        className={`group relative z-0 w-full overflow-visible rounded-2xl text-left transition-all duration-300 hover:z-40 focus-within:z-40 ${isCelebrating ? "z-60" : ""} ${shouldDimCard ? "opacity-20 saturate-50" : ""}`}
       >
         <motion.div
           animate={
             isCelebrating
               ? {
-                  scale: [1, 1.018, 1],
-                  boxShadow: [
-                    "0 0 0 1px rgba(251,191,36,0.12), 0 10px 24px rgba(0,0,0,0.24)",
-                    "0 0 0 1px rgba(251,191,36,0.3), 0 0 30px rgba(251,191,36,0.16), 0 18px 36px rgba(0,0,0,0.34)",
-                    "0 0 0 1px rgba(251,191,36,0.12), 0 10px 24px rgba(0,0,0,0.24)",
-                  ],
+                  scale: isSpotlightCelebrating
+                    ? [1, 1.03, 1.018]
+                    : [1, 1.018, 1],
+                  boxShadow: isSpotlightCelebrating
+                    ? [
+                        "0 0 0 1px rgba(251,191,36,0.18), 0 12px 28px rgba(0,0,0,0.28)",
+                        "0 0 0 1px rgba(251,191,36,0.5), 0 0 38px rgba(251,191,36,0.28), 0 22px 44px rgba(0,0,0,0.42)",
+                        "0 0 0 1px rgba(251,191,36,0.26), 0 14px 30px rgba(0,0,0,0.32)",
+                      ]
+                    : [
+                        "0 0 0 1px rgba(251,191,36,0.12), 0 10px 24px rgba(0,0,0,0.24)",
+                        "0 0 0 1px rgba(251,191,36,0.3), 0 0 30px rgba(251,191,36,0.16), 0 18px 36px rgba(0,0,0,0.34)",
+                        "0 0 0 1px rgba(251,191,36,0.12), 0 10px 24px rgba(0,0,0,0.24)",
+                      ],
                 }
               : undefined
           }
-          transition={{ duration: 0.72, ease: "easeOut" }}
-          className="relative h-full overflow-visible rounded-2xl border border-amber-200/25 bg-[#08090d] hover:border-amber-200/60 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_16px_36px_rgba(0,0,0,0.38)]"
+          transition={{
+            duration: isSpotlightCelebrating ? 2 : 0.72,
+            ease: "easeOut",
+          }}
+          className={`relative h-full overflow-visible rounded-2xl border border-amber-200/25 bg-[#08090d] hover:border-amber-200/60 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_16px_36px_rgba(0,0,0,0.38)] ${isSpotlightCelebrating ? "ring-1 ring-amber-200/35" : ""}`}
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.18),transparent_58%)]" />
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_26%,rgba(0,0,0,0.2)_100%)]" />
           <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-amber-100/10 to-transparent -translate-x-[125%] transition-transform duration-700 group-hover:translate-x-[125%]" />
+          {isSpotlightCelebrating && (
+            <motion.div
+              initial={{ x: "-120%", opacity: 0 }}
+              animate={{ x: ["-120%", "130%"], opacity: [0, 0.85, 0] }}
+              transition={{ duration: 1.15, ease: "easeInOut", repeat: 1 }}
+              className="pointer-events-none absolute inset-y-0 left-[-20%] w-[55%] skew-x-[-18deg] bg-[linear-gradient(90deg,transparent,rgba(255,251,235,0.75),transparent)] blur-md"
+            />
+          )}
           <div className="pointer-events-none absolute inset-x-3 bottom-2 h-2 rounded-full bg-black/40 blur-sm" />
 
           <div className="relative z-10 flex h-full min-h-[120px] items-center gap-3 p-3">
@@ -789,6 +846,15 @@ export default function ShelfPage() {
 
       <main className="relative min-h-screen overflow-y-auto bg-[#090704] px-4 pb-6 pt-20 sm:px-6 lg:px-8 xl:h-svh xl:overflow-hidden xl:pb-3">
         <AnimatePresence>
+          {spotlightCelebrationActive && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="pointer-events-none fixed inset-0 z-30 bg-black/68 backdrop-blur-[2px]"
+            />
+          )}
           {showConfettiBurst && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -1252,6 +1318,7 @@ export default function ShelfPage() {
             winnerSelectionLocked={isSelectedYearWinnerLocked}
             winnerSelectionLockedMessage={winnerLockMessage}
             theme="shelf"
+            knownPerformanceImages={knownPerformanceImages}
           />
         )}
       </main>

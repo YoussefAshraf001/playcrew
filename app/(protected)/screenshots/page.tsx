@@ -1162,8 +1162,7 @@ function ScreenshotsPageContent() {
                       {foldersLoading ? (
                         <div className="flex h-full items-center justify-center">
                           <div className="inline-flex items-center gap-2 text-sm text-zinc-300">
-                            Loading collections
-                            <span className="loading loading-dots loading-sm" />
+                            <span className="loading loading-dots loading-lg" />
                           </div>
                         </div>
                       ) : !carouselFolders.length ? (
@@ -1287,7 +1286,7 @@ function ScreenshotsPageContent() {
                                   <motion.img
                                     key={coverSrc}
                                     src={coverSrc}
-                                    alt={folder.name}
+                                    alt=""
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{

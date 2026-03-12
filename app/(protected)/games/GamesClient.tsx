@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -17,14 +17,14 @@ import {
   FiArrowRight,
   FiChevronLeft,
   FiChevronRight,
+  FiList,
   FiSearch,
   FiSliders,
-  FiX,
 } from "react-icons/fi";
-import { FaHeart } from "react-icons/fa";
 import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
+import styles from "./OnlineToggle.module.css";
 
 const STATUSES = [
   "All",
@@ -36,7 +36,7 @@ const STATUSES = [
   "Want To Play",
 ];
 
-type StoredRating = number | "excluded";
+type StoredRating = number | "excluded" | null;
 
 interface CategoryRatings {
   graphics: StoredRating;
@@ -63,6 +63,7 @@ interface TrackedGame {
   favoriteAllTime?: boolean;
   notInterested?: boolean;
   lastUpdated?: any;
+  recentActionSummary?: string;
 
   // IGDB data
   igdb: {
@@ -115,9 +116,17 @@ export default function GamesPage() {
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [excludeOnlineGames, setExcludeOnlineGames] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem("games.excludeOnlineGames");
+    return stored === null ? true : stored === "true";
+  });
+  const effectiveExcludeOnlineGames =
+    selectedStatus === "Online" ? false : excludeOnlineGames;
+
   const [sortBy, setSortBy] = useState<
     "name" | "date" | "tier" | "release" | "playtime"
-  >("date");
+  >("playtime");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const [loading, setLoading] = useState(true);
@@ -194,6 +203,14 @@ export default function GamesPage() {
     setLoading(false);
   }, [uid, sharedGames, userProfile, user]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      "games.excludeOnlineGames",
+      String(excludeOnlineGames),
+    );
+  }, [excludeOnlineGames]);
+
   const getMediaSrc = (media?: any, legacy?: string) => {
     if (!media && legacy) return legacy;
     if (!media) return undefined;
@@ -215,10 +232,7 @@ export default function GamesPage() {
       (game): game is TrackedGame => {
         if (!game) return false;
         if (!game.igdb || !game.igdb.id) {
-          console.error(
-            `❌ Invalid game without igdb.id - Name: "${game.name}", Full data:`,
-            game,
-          );
+          console.error(game);
           return false;
         }
         return true;
@@ -278,13 +292,15 @@ export default function GamesPage() {
     // Clone before mutation
     list = [...list];
 
-    // 🔍 Search
+    if (effectiveExcludeOnlineGames) {
+      list = list.filter((g) => g.status !== "Online");
+    }
+
     if (debouncedSearch) {
       const lower = debouncedSearch.toLowerCase();
       list = list.filter((g) => g.name && g.name.toLowerCase().includes(lower));
     }
 
-    // 📅 Release filter
     if (releaseFilter !== "All") {
       const now = new Date();
 
@@ -300,12 +316,10 @@ export default function GamesPage() {
       });
     }
 
-    // ⭐ Favorites only
     if (showFavoritesOnly) {
       list = list.filter((g) => g.favorite);
     }
 
-    // 🚫 Exclude unrated games when sorting by rating
     if (sortBy === "tier") {
       list = list.filter(
         (g) => g.status !== "Want To Play" && typeof g.my_rating === "number",
@@ -313,15 +327,9 @@ export default function GamesPage() {
     }
 
     if (sortBy === "playtime") {
-      list = list.filter(
-        (g) =>
-          g.status !== "Want To Play" &&
-          typeof g.playtime === "number" &&
-          g.playtime > 0,
-      );
+      list = list.filter((g) => g.status !== "Want To Play");
     }
 
-    // 🔃 Sorting
     list.sort((a, b) => {
       // Special case: unreleased sorting
       if (releaseFilter === "Unreleased") {
@@ -374,6 +382,7 @@ export default function GamesPage() {
     showFavoritesOnly,
     sortBy,
     sortOrder,
+    excludeOnlineGames,
   ]);
 
   //Games Pages
@@ -431,8 +440,13 @@ export default function GamesPage() {
     [allGames],
   );
 
-  const notInterstedCount = useMemo(
+  const onlineCount = useMemo(
     () => allGames.filter((g) => g.status === "Online").length,
+    [allGames],
+  );
+
+  const notInterestedCount = useMemo(
+    () => allGames.filter((g) => g.notInterested).length,
     [allGames],
   );
 
@@ -565,8 +579,11 @@ export default function GamesPage() {
     if (!editingGame || saving) return;
 
     setSaving(true);
+
     try {
       const targetDocId = editingGame._docId ?? String(editingGame.igdb.id);
+
+      const prev = editingGame;
 
       const safeCategoryRatings = {
         graphics: categoryRatings.graphics ?? 0,
@@ -576,6 +593,44 @@ export default function GamesPage() {
         cinematics: categoryRatings.cinematics ?? 0,
         voiceActing: categoryRatings.voiceActing ?? 0,
       };
+
+      /* ---------------- Determine recent action ---------------- */
+
+      let recentActionSummary = "Game Updated";
+
+      if (!prev.notInterested && notInterested) {
+        recentActionSummary = "Marked as Not Interested";
+      } else if (prev.notInterested && !notInterested) {
+        recentActionSummary = "Removed from Not Interested";
+      } else if (prev.status !== status) {
+        recentActionSummary = `Status changed to ${status}`;
+      }
+      if (prev.my_rating !== rating) {
+        recentActionSummary = `Rating changed ${prev.my_rating ?? 0} → ${rating}`;
+      } else if (prev.progress !== progress) {
+        recentActionSummary = `Progress updated ${prev.progress ?? 0}% → ${progress}%`;
+      } else if (prev.playtime !== playtime) {
+        const diff = playtime - (prev.playtime ?? 0);
+
+        const hours = Math.floor(Math.abs(diff));
+        const minutes = Math.round((Math.abs(diff) % 1) * 60);
+
+        const formatted = `${hours}h ${minutes}m`;
+
+        if (diff > 0) {
+          recentActionSummary = `Playtime increased by ${formatted}`;
+        } else {
+          recentActionSummary = `Playtime decreased by ${formatted}`;
+        }
+      } else if (prev.favorite !== favorite) {
+        recentActionSummary = favorite
+          ? "Added to Favorites"
+          : "Removed from Favorites";
+      } else if (prev.notes !== notes) {
+        recentActionSummary = "Notes Updated";
+      }
+
+      /* ---------------- Save to Firestore ---------------- */
 
       const updatedGame = await updateTrackedGame(targetDocId, {
         my_rating: rating,
@@ -587,33 +642,40 @@ export default function GamesPage() {
         notes,
         categoryRatings: safeCategoryRatings,
         lastUpdated: new Date(),
+        recentActionSummary,
       });
 
-      // Make lastUpdated Firestore-timestamp-like for local sorting
+      /* ---------------- Fix timestamp locally ---------------- */
+
       const updatedGameForLocal = {
         ...updatedGame,
         lastUpdated: Timestamp.fromDate(new Date()),
       };
 
-      setLocalProfile((prev) => {
-        if (!prev) return prev;
+      /* ---------------- Update local profile ---------------- */
+
+      setLocalProfile((prevProfile) => {
+        if (!prevProfile) return prevProfile;
+
         return {
-          ...prev,
+          ...prevProfile,
           trackedGames: {
-            ...prev.trackedGames,
+            ...prevProfile.trackedGames,
             [targetDocId]: {
-              ...prev.trackedGames[targetDocId],
+              ...prevProfile.trackedGames[targetDocId],
               ...updatedGameForLocal,
             },
           },
         };
       });
+
       toast.success(
         <span>
           <span className="font-bold pr-1">{editingGame.name ?? "Game"}</span>
-          <span className="text-black">updated Successfully.</span>
+          <span className="text-black">updated successfully.</span>
         </span>,
       );
+
       setModalOpen(false);
     } catch (err) {
       console.error(err);
@@ -692,18 +754,24 @@ export default function GamesPage() {
         <div className="max-w-[1850px] mx-auto flex flex-col gap-4 px-3 pt-14 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6">
           {/* Blurred Background */}
           {userProfile?.wallpaper && (
-            <div className="fixed inset-0 z-10 overflow-hidden blur-xs brightness-65">
+            <div className="fixed inset-0 z-10 overflow-hidden">
               <img
                 src={getMediaSrc(userProfile.wallpaper)}
                 style={getMediaStyle(userProfile.wallpaper)}
                 alt=""
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover blur-md brightness-75"
               />
+
+              {/* dark overlay */}
+              <div className="absolute inset-0 bg-black/50" />
+
+              {/* vignette */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.85))]" />
             </div>
           )}
 
           {/* Left Panel (Stats) */}
-          <div className="w-full lg:w-72 lg:h-[calc(100svh-5.5rem)] shrink-0 px-4 relative z-10 pt-3">
+          <div className="w-full lg:w-72 lg:h-[calc(100svh-4.5rem)] shrink-0 px-4 relative z-10 pt-3">
             <div className="bg-zinc-900/55 border border-white/10 rounded-2xl p-3 sm:p-4 flex flex-col items-center shadow-xl max-w-[330px] mx-auto lg:mx-0 lg:h-full">
               {/* Avatar */}
               <Link href={`/profile/${profileUsername}`} className="group">
@@ -730,38 +798,44 @@ export default function GamesPage() {
                 <h3 className="font-extrabold text-2xl sm:text-3xl text-white capitalize truncate px-2">
                   {localProfile?.username || userProfile?.username || "Player"}
                 </h3>
-                <p className="text-sm capitalize text-zinc-300 mt-1 max-w-[230px] mx-auto line-clamp-2">
+                <p className="hidden sm:block text-sm text-zinc-300 py-1 cursor-default blur-xs hover:blur-none transition">
+                  {localProfile?.email}
+                </p>
+                <p className="text-[12px] text-zinc-300 mt-1 max-w-[230px] mx-auto">
+                  Joined On: {formattedDate}
+                </p>
+                {/* <p className="text-sm capitalize text-zinc-300 mt-1 max-w-[230px] mx-auto line-clamp-2">
                   {localProfile?.bio ||
                     userProfile?.bio ||
                     "No bio yet. Click to edit in profile settings!"}
-                </p>
-                <p className="hidden sm:block text-sm capitalize text-zinc-300 py-1 cursor-default blur-xs hover:blur-none transition">
-                  {localProfile?.email}
-                </p>
+                </p> */}
               </div>
 
               <hr className="my-4 sm:my-6 w-full border-zinc-700" />
 
               {/* Stats */}
-              <div className="w-full flex flex-col gap-0.5 text-sm text-zinc-300 overflow-y-auto px-1">
-                {[
-                  ["Member Since", formattedDate],
-                  ["Total Games", allGames.length],
-                  ["Completed", completedCount],
-                  ["On Hold", onHoldCount],
-                  ["Playing", playingCount],
-                  ["Dropped", droppedCount],
-                  ["Online", notInterstedCount],
-                  ["Want To Play", wantCount],
-                ].map(([label, value]) => (
-                  <div
-                    key={label?.toString()}
-                    className="flex justify-between w-full px-3 py-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
-                  >
-                    <span className="font-medium">{label}</span>
-                    <span className="font-semibold text-white">{value}</span>
-                  </div>
-                ))}
+              <div className="w-full overflow-y-auto px-1">
+                <div className="w-full flex flex-col gap-0.5 text-sm text-zinc-300 overflow-y-auto p-1">
+                  {[
+                    // ["Member Since", formattedDate],
+                    ["Total Games", allGames.length],
+                    ["Completed", completedCount],
+                    ["On Hold", onHoldCount],
+                    ["Playing", playingCount],
+                    ["Dropped", droppedCount],
+                    ["Online", onlineCount],
+                    ["Not Interested", notInterestedCount],
+                    ["Want To Play", wantCount],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label?.toString()}
+                      className="flex justify-between w-full px-3 py-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
+                    >
+                      <span className="font-medium">{label}</span>
+                      <span className="font-semibold text-white">{value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <hr className="my-3 sm:my-4 w-full border-zinc-700" />
@@ -789,15 +863,29 @@ export default function GamesPage() {
                 }}
               >
                 {showFavoritesOnly ? (
-                  <div className="flex mx-auto items-center pr-30">
-                    <button
-                      className="flex  items-center gap-2 px-4 py-2 rounded-full font-semibold bg-cyan-500 text-black"
-                      disabled
-                    >
-                      <FaHeart className="w-4 h-4 text-red-700" /> Favorite
-                      Games
-                      <FaHeart className="w-4 h-4 text-red-700" />
-                    </button>
+                  <div className="max-w-full">
+                    <div className="flex items-center py-0.5 gap-3 rounded-2xl border border-cyan-300/20 bg-linear-to-r from-cyan-500/18 via-sky-400/10 to-transparent shadow-[0_0_24px_rgba(34,211,238,0.08)]">
+                      <div className="min-w-0 text-left pr-3 pl-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200/70">
+                          Favorites Collection
+                        </p>
+                        {/* <p className="text-xs text-white/60">
+                          Showing only your saved favorites.
+                        </p> */}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFavoritesOnly(false);
+                          setSelectedStatus("All");
+                          setCurrentPage(1);
+                        }}
+                        className="inline-flex h-7 shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-300/25 bg-black/25 px-3 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-400/10"
+                      >
+                        <FiList size={14} />
+                        Back to Library
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -807,10 +895,10 @@ export default function GamesPage() {
                         className="relative flex shrink-0 items-center gap-2"
                       >
                         <button
-                          className={`rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide whitespace-nowrap transition ${
+                          className={`rounded-full border px-4 py-1.5 text-sm font-semibold tracking-wide whitespace-nowrap transition-all duration-200 ${
                             selectedStatus === status
-                              ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black shadow-[0_0_16px_rgba(34,211,238,0.35)]"
-                              : "border-white/10 bg-zinc-800/80 text-white hover:border-white/20 hover:bg-zinc-700/80"
+                              ? "border-cyan-300/40 bg-cyan-500 text-black shadow-[0_0_20px_rgba(34,211,238,0.22)]"
+                              : "border-cyan-300/12 bg-[linear-gradient(90deg,rgba(34,211,238,0.12),rgba(14,18,28,0.92)_38%,rgba(14,18,28,0.98))] text-cyan-50/92 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-cyan-300/24 hover:bg-[linear-gradient(90deg,rgba(34,211,238,0.16),rgba(18,24,36,0.95)_42%,rgba(18,24,36,1))] hover:shadow-[0_0_18px_rgba(34,211,238,0.08)]"
                           }`}
                           onClick={() => {
                             handleTabChange(status);
@@ -843,11 +931,10 @@ export default function GamesPage() {
                         >
                           {["All", "Released", "Unreleased"].map((filter) => (
                             <button
-                              key={filter}
-                              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition ${
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition-all duration-200 ${
                                 releaseFilter === filter
-                                  ? "border-cyan-300/70 bg-linear-to-r from-cyan-300 to-sky-400 text-black"
-                                  : "border-white/10 bg-zinc-800/70 text-white hover:border-white/20 hover:bg-zinc-700/70"
+                                  ? "border-cyan-300/40 bg-cyan-500 text-black shadow-[0_0_16px_rgba(34,211,238,0.18)]"
+                                  : "border-cyan-300/12 bg-[linear-gradient(90deg,rgba(34,211,238,0.10),rgba(14,18,28,0.92)_38%,rgba(14,18,28,0.98))] text-cyan-50/90 hover:border-cyan-300/24 hover:bg-[linear-gradient(90deg,rgba(34,211,238,0.14),rgba(18,24,36,0.95)_42%,rgba(18,24,36,1))]"
                               }`}
                               onClick={() =>
                                 setReleaseFilter(
@@ -919,45 +1006,94 @@ export default function GamesPage() {
               </div>
 
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2">
-                  <FiSliders className="h-4 w-4 text-cyan-300/90" />
-                  <label className="text-xs font-semibold uppercase tracking-wide text-white/70">
-                    Sort
-                  </label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => {
-                      setSortBy(e.target.value as any);
-                      setCurrentPage(1);
-                    }}
-                    className="h-8 rounded-lg border border-white/10 bg-zinc-900/70 px-3 text-sm text-white focus:border-cyan-300/70 focus:outline-none"
-                  >
-                    <option className="bg-zinc-800 text-white" value="name">
-                      Name
-                    </option>
-                    {selectedStatus !== "Want To Play" && (
+                <div className="group relative inline-flex h-10 items-center overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(20,20,26,0.96),rgba(10,10,14,0.92))] pl-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:border-cyan-300/25 hover:shadow-[0_0_18px_rgba(34,211,238,0.12)]">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/8 text-cyan-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <FiSliders className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="ml-2 mr-3 flex flex-col leading-none">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/42">
+                      Sort
+                    </span>
+                    <span className="mt-1 text-[11px] text-white/72">
+                      Order
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => {
+                        setSortBy(e.target.value as any);
+                        setCurrentPage(1);
+                      }}
+                      className="h-8 min-w-[158px] appearance-none rounded-xl border border-white/10 bg-white/4 pl-3 pr-9 text-sm font-medium text-white outline-none transition focus:border-cyan-300/65 focus:bg-white/[0.07]"
+                    >
+                      <option className="bg-zinc-800 text-white" value="name">
+                        Name
+                      </option>
+                      {selectedStatus !== "Want To Play" && (
+                        <option
+                          className="bg-zinc-800 text-white"
+                          value="playtime"
+                        >
+                          Playtime
+                        </option>
+                      )}
+                      {selectedStatus !== "Want To Play" && (
+                        <option className="bg-zinc-800 text-white" value="tier">
+                          Rating
+                        </option>
+                      )}
                       <option
                         className="bg-zinc-800 text-white"
-                        value="playtime"
+                        value="release"
                       >
-                        Playtime
+                        Release Date
                       </option>
-                    )}
-                    {selectedStatus !== "Want To Play" && (
-                      <option className="bg-zinc-800 text-white" value="tier">
-                        Rating
+                      <option className="bg-zinc-800 text-white" value="date">
+                        Latest Changes
                       </option>
-                    )}
-                    <option className="bg-zinc-800 text-white" value="release">
-                      Release Date
-                    </option>
-                    <option className="bg-zinc-800 text-white" value="date">
-                      Latest Changes
-                    </option>
-                  </select>
+                    </select>
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/45 transition group-hover:text-cyan-200/80">
+                      <FiChevronRight className="h-3.5 w-3.5 rotate-90" />
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <div
+                    className={`group relative flex h-9 items-center gap-3 rounded-xl border border-white/15 px-3 transition ${selectedStatus === "Online" && "opacity-0"}`}
+                  >
+                    <span className={styles.toggleLabel}>Exclude Online</span>
+                    <label
+                      className={`${styles.switch}`}
+                      aria-label="Exclude online games"
+                      title={
+                        excludeOnlineGames
+                          ? "Online games hidden"
+                          : "Online games visible"
+                      }
+                    >
+                      <input
+                        className={styles.checkbox}
+                        type="checkbox"
+                        checked={effectiveExcludeOnlineGames}
+                        disabled={selectedStatus === "Online"}
+                        onChange={(e) => {
+                          setExcludeOnlineGames(e.target.checked);
+                          setCurrentPage(1);
+                        }}
+                      />
+                      <div className={styles.container}>
+                        <div className={styles.button}>
+                          <div className={styles.circles}>
+                            {Array.from({ length: 12 }).map((_, index) => (
+                              <div key={index} className={styles.circle} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
                   <button
                     onClick={() =>
                       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -1006,7 +1142,7 @@ export default function GamesPage() {
                 custom={{ type: animationType, direction: pageDirection }}
               >
                 <motion.div
-                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}`}
+                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}-${excludeOnlineGames}`}
                   custom={{ type: animationType, direction: pageDirection }}
                   variants={pageVariants}
                   initial="enter"
@@ -1036,24 +1172,33 @@ export default function GamesPage() {
                 <h3 className="font-bold text-lg text-white/90">
                   Favorite Games
                 </h3>
-                <button
-                  onClick={() => {
-                    setShowFavoritesOnly((prev) => !prev);
-                    setSelectedStatus("All");
-                    setCurrentPage(1);
-                  }}
-                  className={`px-3 py-1 rounded-md border-2 border-cyan-400 text-white font-bold flex items-center justify-center gap-2 hover:bg-cyan-500 hover:border-cyan-500 transition-all duration-300 ease-in-out cursor-pointer ${
-                    showFavoritesOnly
-                      ? "bg-cyan-500 animate-pulse"
-                      : "bg-transparent"
-                  }`}
-                >
-                  {showFavoritesOnly ? (
-                    <FiX size={18} />
-                  ) : (
-                    <FiArrowRight size={18} />
-                  )}
-                </button>
+                {!showFavoritesOnly && (
+                  <motion.button
+                    initial={{ scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.6, opacity: 0 }}
+                    transition={{ duration: 0, ease: "easeOut" }}
+                    onClick={() => {
+                      setShowFavoritesOnly((prev) => !prev);
+                      setSelectedStatus("All");
+                      setCurrentPage(1);
+                    }}
+                    className={`group px-3 rounded-md text-white font-bold flex items-center justify-center hover:bg-cyan-500 hover:border-cyan-500 hover:text-black transition-all duration-300 ease-in-out cursor-pointer ${
+                      showFavoritesOnly
+                        ? "bg-cyan-500 border-2 border-cyan-500"
+                        : "bg-transparent border-2 border-cyan-400"
+                    }`}
+                  >
+                    <FiArrowRight
+                      size={14}
+                      className="transition-transform duration-300 group-hover:mr-[5px]"
+                    />
+
+                    <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-w-[60px] group-hover:opacity-100 whitespace-nowrap">
+                      View
+                    </span>
+                  </motion.button>
+                )}
               </div>
               <div
                 className={`${
@@ -1118,7 +1263,7 @@ export default function GamesPage() {
             {/* Recently Edited */}
             <div className="bg-zinc-800/40 p-4 rounded-2xl flex flex-col gap-3 max-h-[45vh] min-h-[45vh] mb-8 lg:mb-0">
               <h3 className="font-bold text-lg pt-2 pl-1 text-white/90">
-                Recent Games
+                Recently Edited
               </h3>
               <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
                 {loading ? (
@@ -1141,47 +1286,10 @@ export default function GamesPage() {
                             <span className="text-white/90 font-bold text-[12px] group-hover:text-white transition max-w-[200px] line-clamp-2">
                               {g.name}
                             </span>
-
-                            <div className="flex gap-1.5 mt-1.5">
-                              <span
-                                className={`text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition ${
-                                  g.notInterested
-                                    ? "text-red-300 group-hover:text-red-200"
-                                    : "text-white/70 group-hover:text-white"
-                                }`}
-                              >
-                                {g.notInterested
-                                  ? "Not Interested"
-                                  : g.playtime
-                                    ? `${Math.floor(g.playtime)}h ${Math.round(
-                                        (g.playtime % 1) * 60,
-                                      )}m`
-                                    : "0h 0m"}
-                              </span>
-                              {/* <span
-                                className={`flex items-center gap-1 text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
-                                  g.notInterested
-                                    ? "text-red-300 group-hover:text-red-200"
-                                    : "text-white/70 group-hover:text-white"
-                                }`}
-                              >
-                                {g.notInterested ? (
-                                  "Not Interested"
-                                ) : (
-                                  <>
-                                    <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
-                                    {(g.my_rating ?? 0).toFixed(1)}
-                                  </>
-                                )}
-                              </span> */}
-                            </div>
+                            <p className="mt-1.5 line-clamp-2 text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
+                              {g.recentActionSummary ?? "Game Updated"}
+                            </p>
                           </div>
-                        </div>
-                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-2 bg-cyan-500 rounded-full transition-all"
-                            style={{ width: `${g.progress ?? 0}%` }}
-                          ></div>
                         </div>
                       </div>
                     </Link>

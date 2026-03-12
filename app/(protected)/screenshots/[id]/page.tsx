@@ -186,10 +186,10 @@ function FadeInImage({
           decoding="async"
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={`${imgClassName} transition-opacity duration-300 ${
-            loaded ? "opacity-100" : "opacity-0"
+          style={{ contentVisibility: "auto" }}
+          className={`${imgClassName} opacity-0 transition-opacity duration-500 ${
+            loaded ? "opacity-100" : ""
           }`}
-          style={{ visibility: loaded ? "visible" : "hidden" }}
         />
       )}
     </div>
@@ -1145,8 +1145,8 @@ export default function ScreenshotFolderPage() {
             <FadeInImage
               src={shot.url}
               alt="Screenshot"
-              wrapperClassName="h-72 w-full overflow-hidden"
-              imgClassName="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+              wrapperClassName="h-48 sm:h-64 lg:h-72 w-full overflow-hidden"
+              imgClassName="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.03]"
             />
             {selectionMode && (
               <span
@@ -1228,7 +1228,7 @@ export default function ScreenshotFolderPage() {
 
   return (
     <main
-      className="h-svh overflow-hidden bg-[#070504] px-4 pt-20 text-white sm:px-6 lg:px-8"
+      className="min-h-svh xl:h-svh xl:overflow-hidden bg-[#070504] px-4 pt-20 text-white sm:px-6 lg:px-8"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1247,7 +1247,7 @@ export default function ScreenshotFolderPage() {
           </div>
         </div>
       )}
-      <section className="mx-auto h-[calc(100svh-5.5rem)] max-w-[1700px] rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_82%_0%,rgba(251,191,36,0.12),transparent_36%),radial-gradient(circle_at_0%_100%,rgba(6,182,212,0.14),transparent_30%),#08090d] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.6)] sm:p-6">
+      <section className="mx-auto xl:h-[calc(100svh-5.5rem)] max-w-[1800px] rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_82%_0%,rgba(251,191,36,0.12),transparent_36%),radial-gradient(circle_at_0%_100%,rgba(6,182,212,0.14),transparent_30%),#08090d] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.6)] sm:p-6">
         <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="min-h-0 overflow-y-auto rounded-2xl border border-white/12 bg-black/35 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/90">

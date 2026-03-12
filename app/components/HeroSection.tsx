@@ -318,7 +318,7 @@ export default function HeroSection({
         </span>
       </span>,
       {
-        icon: updated ? "❤️" : "💔",
+        icon: updated ? "â¤ï¸" : "ðŸ’”",
       },
     );
   };
@@ -353,7 +353,7 @@ export default function HeroSection({
     if (!playerRef.current) return;
 
     if (muted) {
-      // 🔊 becoming audible
+      // ðŸ”Š becoming audible
       playerRef.current.setVolume(Math.round(heroVolume * 100));
       playerRef.current.unMute();
 
@@ -373,7 +373,7 @@ export default function HeroSection({
         heroIsAudibleRef.current = true;
       }
     } else {
-      // 🔇 becoming silent
+      // ðŸ”‡ becoming silent
       playerRef.current.mute();
       heroIsAudibleRef.current = false;
     }
@@ -539,7 +539,7 @@ export default function HeroSection({
               setIsPlaying(false);
               if (progressTimer.current) clearInterval(progressTimer.current);
 
-              // 🔒 If hero was audible, keep music paused
+              // ðŸ”’ If hero was audible, keep music paused
               if (heroIsAudibleRef.current) {
                 pause();
               }
@@ -567,7 +567,7 @@ export default function HeroSection({
     }
 
     return () => {
-      // ✅ CLEANUP — THIS FIXES YOUR BUG
+      // âœ… CLEANUP â€” THIS FIXES YOUR BUG
       if (playerRef.current?.destroy) {
         playerRef.current.destroy();
       }
@@ -598,7 +598,7 @@ export default function HeroSection({
   }, []);
 
   useEffect(() => {
-    // ✅ Only run when we're showing the IMAGE fallback
+    // âœ… Only run when we're showing the IMAGE fallback
     const imageFallbackActive = !media.video || videoFailed;
     if (!imageFallbackActive) return;
 
@@ -993,7 +993,7 @@ export default function HeroSection({
                   : "bg-white/10 hover:bg-white/20"
               } cursor-pointer hover:scale-105 ease-in-out transition-all duration-300`}
             >
-              ★ Favorite
+              â˜… Favorite
             </button>
           </div>
         </div>

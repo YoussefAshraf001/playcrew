@@ -1,4 +1,4 @@
-export type StoredRating = number | "excluded";
+export type StoredRating = number | "excluded" | null;
 
 export interface CategoryRatings {
   graphics: StoredRating;

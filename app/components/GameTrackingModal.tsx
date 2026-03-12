@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
@@ -11,10 +11,10 @@ import {
   FaStar,
   FaStarHalfAlt,
 } from "react-icons/fa";
-import { MdBookmarkRemove, MdClose } from "react-icons/md";
+import { MdBookmarkRemove } from "react-icons/md";
 import ConfirmModal from "./ConfirmModal";
 
-type StoredRating = number | "excluded";
+type StoredRating = number | "excluded" | null;
 
 interface CategoryRatings {
   graphics: StoredRating;
@@ -61,6 +61,7 @@ interface GameTrackingModalProps {
   showStatus: boolean;
   showFavorite: boolean;
   saving: boolean;
+  loading?: boolean;
   removing?: boolean;
   onClose: () => void;
   onHeaderClose?: () => void;
@@ -78,12 +79,12 @@ interface GameTrackingModalProps {
 }
 
 const DEFAULT_CATEGORIES: CategoryRatings = {
-  graphics: 0,
-  gameplay: 0,
-  story: 0,
-  ost: 0,
-  cinematics: 0,
-  voiceActing: 0,
+  graphics: null,
+  gameplay: null,
+  story: null,
+  ost: null,
+  cinematics: null,
+  voiceActing: null,
 };
 
 const PRESETS: { label: string; value: number }[] = [
@@ -159,7 +160,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     showFavorite,
     saving,
     removing = false,
-    onHeaderClose,
+    loading,
     onRemove,
   } = props;
 
@@ -193,10 +194,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
     const hasMeaningfulCategoryRatings =
       !!initialCategoryRatings &&
-      Object.values(initialCategoryRatings).some(
-        (value) =>
-          value === "excluded" || (typeof value === "number" && value > 0),
-      );
+      Object.values(initialCategoryRatings).some((v) => v !== null);
 
     if (hasMeaningfulCategoryRatings && initialCategoryRatings) {
       setCategoryRatings(initialCategoryRatings);
@@ -258,9 +256,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const hasAnyRatings = useMemo(
     () =>
-      Object.values(categoryRatings).some(
-        (value) => typeof value === "number" && value > 0,
-      ),
+      Object.values(categoryRatings).some((value) => typeof value === "number"),
     [categoryRatings],
   );
 
@@ -348,6 +344,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     <AnimatePresence>
       {open && (
         <motion.div
+          onClick={(e) => e.stopPropagation()}
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 sm:items-center sm:p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -457,10 +454,26 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       !gameIsReleased ? "opacity-45" : ""
                     }`}
                   >
-                    <div className="mb-1 flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-[0.12em] text-zinc-200 mb-2">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-[0.12em] text-zinc-200">
                         Rating System
                       </p>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={!hasAnyRatings}
+                          onClick={() => setCategoryRatings(DEFAULT_CATEGORIES)}
+                          className={`rounded-md border px-2.5 py-0.5 text-[11px] font-medium transition
+                            ${
+                              hasAnyRatings
+                                ? "border-white/15 bg-white/5 text-zinc-300 hover:bg-white/12 hover:text-white"
+                                : "border-white/10 bg-white/3 text-zinc-600 cursor-default"
+                            }`}
+                        >
+                          Clear Rating
+                        </button>
+                      </div>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {categoryOrder.map((cat) => {
@@ -468,7 +481,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         const isExcluded = value === "excluded";
                         const numericValue = isExcluded
                           ? 0
-                          : Number(value || 0);
+                          : typeof value === "number"
+                            ? value
+                            : 0;
                         const canExclude =
                           cat === "voiceActing" || cat === "cinematics";
 
@@ -500,16 +515,16 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                     {getCategoryShort(cat)}
                                   </button>
                                 )}
-                                <span className="w-7 text-right text-xs font-semibold text-zinc-100">
-                                  {isExcluded ? "-" : numericValue}
-                                </span>
                               </div>
                             </div>
 
                             <div className="flex flex-wrap gap-1">
                               {Array.from({ length: 11 }, (_, n) => {
                                 const isActive =
-                                  !isExcluded && numericValue >= n;
+                                  !isExcluded &&
+                                  typeof value === "number" &&
+                                  numericValue >= n;
+
                                 return (
                                   <button
                                     key={n}
@@ -520,17 +535,19 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                       isExcluded
                                     }
                                     onClick={() => setCategory(cat, n)}
-                                    className={`h-5 min-w-5 rounded-md border px-1 text-[10px] font-semibold transition ${
-                                      isActive
-                                        ? "scale-105 bg-white/80 text-black"
-                                        : "scale-95 border-white/15 bg-black/45 text-zinc-400"
-                                    } ${
-                                      !gameIsReleased ||
-                                      isNotInterested ||
-                                      isExcluded
-                                        ? "cursor-not-allowed opacity-45"
-                                        : "hover:border-white/3 cursor-pointer"
-                                    }`}
+                                    className={`h-5 min-w-5 rounded-md border px-1 text-[10px] font-semibold transition
+                                      ${
+                                        isActive
+                                          ? "scale-105 bg-white/80 text-black"
+                                          : "border-white/15 bg-black/45 text-zinc-300"
+                                      }
+                                      ${
+                                        !gameIsReleased ||
+                                        isNotInterested ||
+                                        isExcluded
+                                          ? "cursor-not-allowed opacity-45"
+                                          : "hover:border-white/30 cursor-pointer"
+                                      }`}
                                   >
                                     {n}
                                   </button>
@@ -833,6 +850,20 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 </div>
               </footer>
             </div>
+
+            {/* LOADING OVERLAY */}
+            <AnimatePresence>
+              {(loading || saving) && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                >
+                  <span className="loading loading-dots loading-lg text-white" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           <ConfirmModal

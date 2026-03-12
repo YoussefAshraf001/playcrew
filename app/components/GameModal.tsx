@@ -85,7 +85,7 @@ export default function GameModal({
   const MAX_LENGTH = 220;
 
   const isLong = text.length > MAX_LENGTH;
-  const preview = isLong ? text.slice(0, MAX_LENGTH) + "…" : text;
+  const preview = isLong ? text.slice(0, MAX_LENGTH) + "â€¦" : text;
 
   /* ---------------------------
      Actions
@@ -195,7 +195,7 @@ export default function GameModal({
         { merge: true },
       );
 
-      // ✅ TOAST FEEDBACK
+      // âœ… TOAST FEEDBACK
       if (updated) {
         toast(
           <span>
@@ -203,7 +203,7 @@ export default function GameModal({
             <span className="text-black"> added to favorites</span>
           </span>,
           {
-            icon: "❤️",
+            icon: "â¤ï¸",
           },
         );
       } else {
@@ -213,7 +213,7 @@ export default function GameModal({
             <span className="text-black"> removed from favorites</span>
           </span>,
           {
-            icon: "💔",
+            icon: "ðŸ’”",
           },
         );
       }
@@ -501,7 +501,7 @@ export default function GameModal({
                       onClick={() => setAboutOpen(false)}
                       className="absolute right-3 top-3 text-2xl text-white/70 hover:text-white"
                     >
-                      ✕
+                      âœ•
                     </button>
                   </motion.div>
                 </>
