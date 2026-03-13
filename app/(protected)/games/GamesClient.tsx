@@ -77,17 +77,15 @@ export default function GamesPage() {
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [excludeOnlineGames, setExcludeOnlineGames] = useState(() => {
+  const [includeOnlineGames, setIncludeOnlineGames] = useState(() => {
     if (typeof window === "undefined") return true;
-    const stored = window.localStorage.getItem("games.excludeOnlineGames");
+    const stored = window.localStorage.getItem("games.includeOnlineGames");
     return stored === null ? true : stored === "true";
   });
-  const effectiveExcludeOnlineGames =
-    selectedStatus === "Online" ? false : excludeOnlineGames;
 
   const [sortBy, setSortBy] = useState<
     "name" | "date" | "tier" | "release" | "playtime"
-  >("playtime");
+  >("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const [loading, setLoading] = useState(true);
@@ -167,10 +165,10 @@ export default function GamesPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(
-      "games.excludeOnlineGames",
-      String(excludeOnlineGames),
+      "games.includeOnlineGames",
+      String(includeOnlineGames),
     );
-  }, [excludeOnlineGames]);
+  }, [includeOnlineGames]);
 
   const getMediaSrc = (media?: any, legacy?: string) => {
     if (!media && legacy) return legacy;
@@ -253,7 +251,7 @@ export default function GamesPage() {
     // Clone before mutation
     list = [...list];
 
-    if (effectiveExcludeOnlineGames) {
+    if (!includeOnlineGames && selectedStatus !== "Online") {
       list = list.filter((g) => g.status !== "Online");
     }
 
@@ -281,16 +279,6 @@ export default function GamesPage() {
       list = list.filter((g) => g.favorite);
     }
 
-    if (sortBy === "tier") {
-      list = list.filter(
-        (g) => g.status !== "Want To Play" && typeof g.my_rating === "number",
-      );
-    }
-
-    if (sortBy === "playtime") {
-      list = list.filter((g) => g.status !== "Want To Play");
-    }
-
     list.sort((a, b) => {
       // Special case: unreleased sorting
       if (releaseFilter === "Unreleased") {
@@ -306,8 +294,15 @@ export default function GamesPage() {
             : b.name.localeCompare(a.name);
 
         case "tier": {
-          const aRating = a.my_rating!;
-          const bRating = b.my_rating!;
+          const aRating =
+            typeof a.my_rating === "number" && a.my_rating > 0
+              ? a.my_rating
+              : Number.NEGATIVE_INFINITY;
+
+          const bRating =
+            typeof b.my_rating === "number" && b.my_rating > 0
+              ? b.my_rating
+              : Number.NEGATIVE_INFINITY;
 
           return sortOrder === "asc" ? aRating - bRating : bRating - aRating;
         }
@@ -343,7 +338,7 @@ export default function GamesPage() {
     showFavoritesOnly,
     sortBy,
     sortOrder,
-    excludeOnlineGames,
+    includeOnlineGames,
   ]);
 
   //Games Pages
@@ -996,19 +991,15 @@ export default function GamesPage() {
                       <option className="bg-zinc-800 text-white" value="name">
                         Name
                       </option>
-                      {selectedStatus !== "Want To Play" && (
-                        <option
-                          className="bg-zinc-800 text-white"
-                          value="playtime"
-                        >
-                          Playtime
-                        </option>
-                      )}
-                      {selectedStatus !== "Want To Play" && (
-                        <option className="bg-zinc-800 text-white" value="tier">
-                          Rating
-                        </option>
-                      )}
+                      <option
+                        className="bg-zinc-800 text-white"
+                        value="playtime"
+                      >
+                        Playtime
+                      </option>
+                      <option className="bg-zinc-800 text-white" value="tier">
+                        Rating
+                      </option>
                       <option
                         className="bg-zinc-800 text-white"
                         value="release"
@@ -1027,25 +1018,25 @@ export default function GamesPage() {
 
                 <div className="flex items-center gap-2">
                   <div
-                    className={`group relative flex h-9 items-center gap-3 rounded-xl border border-white/15 px-3 transition ${selectedStatus === "Online" && "opacity-0"}`}
+                    className={`group relative flex h-9 items-center gap-3 rounded-xl border border-white/15 px-3 transition ${selectedStatus === "Online" && "pointer-events-none opacity-50"}`}
                   >
-                    <span className={styles.toggleLabel}>Exclude Online</span>
+                    <span className={styles.toggleLabel}>Include Online</span>
                     <label
                       className={`${styles.switch}`}
                       aria-label="Exclude online games"
                       title={
-                        excludeOnlineGames
-                          ? "Online games hidden"
-                          : "Online games visible"
+                        includeOnlineGames
+                          ? "Online games visible"
+                          : "Online games hidden"
                       }
                     >
                       <input
                         className={styles.checkbox}
                         type="checkbox"
-                        checked={effectiveExcludeOnlineGames}
+                        checked={includeOnlineGames}
                         disabled={selectedStatus === "Online"}
                         onChange={(e) => {
-                          setExcludeOnlineGames(e.target.checked);
+                          setIncludeOnlineGames(e.target.checked);
                           setCurrentPage(1);
                         }}
                       />
@@ -1108,7 +1099,7 @@ export default function GamesPage() {
                 custom={{ type: animationType, direction: pageDirection }}
               >
                 <motion.div
-                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}-${excludeOnlineGames}`}
+                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}-${includeOnlineGames}`}
                   custom={{ type: animationType, direction: pageDirection }}
                   variants={pageVariants}
                   initial="enter"
@@ -1213,7 +1204,8 @@ export default function GamesPage() {
                               ) : (
                                 <>
                                   <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
-                                  {typeof g.my_rating === "number"
+                                  {typeof g.my_rating === "number" &&
+                                  g.my_rating > 0
                                     ? g.my_rating.toFixed(1)
                                     : "---"}
                                 </>
@@ -1302,4 +1294,3 @@ export default function GamesPage() {
     </motion.main>
   );
 }
-

@@ -159,8 +159,7 @@ export default function SearchModal({
   };
 
   useEffect(() => {
-    if (!isOpen) return;
-
+    if (!isOpen || trackingOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (trackingOpen) {
@@ -171,7 +170,7 @@ export default function SearchModal({
         return;
       }
 
-      if (!results.length || trackingOpen) return;
+      if (!results.length) return;
 
       if (event.key === "ArrowDown") {
         event.preventDefault();

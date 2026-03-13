@@ -193,8 +193,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     initialCategoryRatings,
   ]);
 
-  const setCategory = (k: keyof CategoryRatings, v: number | "excluded" | null) =>
-    setCategoryRatings((s) => ({ ...s, [k]: v }));
+  const setCategory = (
+    k: keyof CategoryRatings,
+    v: number | "excluded" | null,
+  ) => setCategoryRatings((s) => ({ ...s, [k]: v }));
 
   const categoryOrder: (keyof CategoryRatings)[] = [
     "story",
@@ -858,4 +860,3 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     </AnimatePresence>
   );
 }
-
