@@ -193,7 +193,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     initialCategoryRatings,
   ]);
 
-  const setCategory = (k: keyof CategoryRatings, v: number | "excluded") =>
+  const setCategory = (k: keyof CategoryRatings, v: number | "excluded" | null) =>
     setCategoryRatings((s) => ({ ...s, [k]: v }));
 
   const categoryOrder: (keyof CategoryRatings)[] = [
@@ -211,9 +211,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
     for (const [cat, weight] of Object.entries(WEIGHTS)) {
       const score = categoryRatings[cat as keyof CategoryRatings];
+      if (score === "excluded") continue;
+
+      totalWeight += weight;
       if (typeof score === "number") {
         weightedSum += score * weight;
-        totalWeight += weight;
       }
     }
 
@@ -453,7 +455,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                     onClick={() =>
                                       setCategory(
                                         cat,
-                                        isExcluded ? 0 : "excluded",
+                                        isExcluded ? null : "excluded",
                                       )
                                     }
                                     className={`rounded-md border px-1.5 py-0.5 text-[10px] ${
@@ -469,8 +471,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             </div>
 
                             <div className="flex flex-wrap gap-1">
-                              {Array.from({ length: 10 }, (_, i) => {
-                                const n = i + 1;
+                              {Array.from({ length: 11 }, (_, i) => {
+                                const n = i;
                                 const isActive =
                                   !isExcluded &&
                                   typeof value === "number" &&
