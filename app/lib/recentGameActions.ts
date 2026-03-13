@@ -51,8 +51,14 @@ export function getRecentGameActionSummary(
 
   const previousRating = normalizeNumber(previous.my_rating);
   const nextRating = normalizeNumber(next.my_rating);
-  if (previousRating !== nextRating && nextRating !== null) {
-    return `Rated the Game ${nextRating}`;
+  if (previousRating !== nextRating) {
+    if (nextRating === null) {
+      return "Rating Cleared";
+    }
+
+    return previousRating === null
+      ? `Rated the Game ${nextRating}`
+      : `Rating Changed to ${nextRating}`;
   }
 
   const previousNotes = normalizeText(previous.notes);

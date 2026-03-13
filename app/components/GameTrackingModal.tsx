@@ -217,7 +217,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       }
     }
 
-    if (totalWeight === 0) return 0;
+    if (totalWeight === 0) return null;
     return Math.round((weightedSum / totalWeight) * 10) / 10;
   }, [categoryRatings]);
 
@@ -469,7 +469,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             </div>
 
                             <div className="flex flex-wrap gap-1">
-                              {Array.from({ length: 11 }, (_, n) => {
+                              {Array.from({ length: 10 }, (_, i) => {
+                                const n = i + 1;
                                 const isActive =
                                   !isExcluded &&
                                   typeof value === "number" &&
@@ -555,14 +556,20 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                           Overall
                         </p>
                         <p className="mt-1 inline-flex rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-zinc-200">
-                          {getClosestPreset(weightedRating)}
+                          {weightedRating !== null
+                            ? getClosestPreset(weightedRating)
+                            : "Not rated"}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="flex items-center gap-1 leading-none text-3xl font-bold text-white">
-                          {weightedRating.toFixed(1)}
+                        <div className="flex items-center gap-1 leading-none text-3xl font-bold text-white">
+                          {weightedRating !== null ? (
+                            weightedRating.toFixed(1)
+                          ) : (
+                            <span className="ml-1 text-zinc-400">---</span>
+                          )}
                           {/* <FaStar className="text-amber-300" size={20} /> */}
-                        </p>
+                        </div>
                         <p className="mt-1 text-[11px] text-zinc-400">
                           out of 10
                         </p>
@@ -573,7 +580,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       <div
                         className="h-full rounded-full bg-linear-to-r from-zinc-100 to-zinc-400 transition-all duration-300"
                         style={{
-                          width: `${Math.max(0, Math.min(100, weightedRating * 10))}%`,
+                          width: `${Math.max(0, Math.min(100, (weightedRating ?? 0) * 10))}%`,
                         }}
                       />
                     </div>
@@ -582,9 +589,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       {Array.from({ length: 5 }, (_, i) => {
                         const starValue = (i + 1) * 2;
                         const icon =
-                          weightedRating >= starValue ? (
+                          (weightedRating ?? 0) >= starValue ? (
                             <FaStar />
-                          ) : weightedRating >= starValue - 1 ? (
+                          ) : (weightedRating ?? 0) >= starValue - 1 ? (
                             <FaStarHalfAlt />
                           ) : (
                             <FaRegStar />
@@ -849,3 +856,4 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     </AnimatePresence>
   );
 }
+

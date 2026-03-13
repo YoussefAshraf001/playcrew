@@ -811,7 +811,7 @@ export default function GamePage() {
       _docId: String(game.id),
       name: game.name,
       playtime: trackedGameData?.playtime ?? 0,
-      my_rating: trackedGameData?.my_rating ?? 0,
+      my_rating: trackedGameData?.my_rating ?? null,
       status: trackedGameData?.status ?? currentStatus ?? "Playing",
       progress: trackedGameData?.progress ?? 0,
       notes: trackedGameData?.notes ?? "",
@@ -1822,7 +1822,7 @@ export default function GamePage() {
             saving={trackingSaving}
             game={trackingModalGame}
             initialNotes={trackingModalGame.notes ?? ""}
-            initialRating={trackingModalGame.my_rating ?? 0}
+            initialRating={trackingModalGame.my_rating ?? null}
             initialCategoryRatings={trackingModalGame.categoryRatings}
             initialProgress={trackingModalGame.progress ?? 0}
             initialPlaytime={trackingModalGame.playtime ?? 0}
@@ -1836,3 +1836,4 @@ export default function GamePage() {
     </>
   );
 }
+

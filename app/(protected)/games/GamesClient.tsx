@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -500,7 +500,7 @@ export default function GamesPage() {
   const openEditModal = (game: TrackedGame) => {
     setEditingGame({
       ...game,
-      my_rating: game.my_rating ?? 0,
+      my_rating: game.my_rating,
       progress: game.progress ?? 0,
       playtime: game.playtime ?? 0,
       notes: game.notes ?? "",
@@ -547,12 +547,12 @@ export default function GamesPage() {
       const prev = editingGame;
 
       const safeCategoryRatings = {
-        graphics: categoryRatings.graphics ?? 0,
-        gameplay: categoryRatings.gameplay ?? 0,
-        story: categoryRatings.story ?? 0,
-        ost: categoryRatings.ost ?? 0,
-        cinematics: categoryRatings.cinematics ?? 0,
-        voiceActing: categoryRatings.voiceActing ?? 0,
+        graphics: categoryRatings.graphics ?? null,
+        gameplay: categoryRatings.gameplay ?? null,
+        story: categoryRatings.story ?? null,
+        ost: categoryRatings.ost ?? null,
+        cinematics: categoryRatings.cinematics ?? null,
+        voiceActing: categoryRatings.voiceActing ?? null,
       };
 
       /* ---------------- Determine recent action ---------------- */
@@ -567,9 +567,14 @@ export default function GamesPage() {
         recentActionSummary = `Status changed to ${status}`;
       }
       if (prev.my_rating !== rating) {
-        recentActionSummary = `Rating changed ${prev.my_rating ?? 0} → ${rating}`;
+        recentActionSummary =
+          rating === null
+            ? "Rating cleared"
+            : prev.my_rating === null
+              ? `Rating set to ${rating}`
+              : `Rating changed ${prev.my_rating} -> ${rating}`;
       } else if (prev.progress !== progress) {
-        recentActionSummary = `Progress updated ${prev.progress ?? 0}% → ${progress}%`;
+        recentActionSummary = `Progress updated ${prev.progress ?? 0}% -> ${progress}%`;
       } else if (prev.playtime !== playtime) {
         const diff = playtime - (prev.playtime ?? 0);
 
@@ -594,7 +599,7 @@ export default function GamesPage() {
       /* ---------------- Save to Firestore ---------------- */
 
       const updatedGame = await updateTrackedGame(targetDocId, {
-        my_rating: rating ?? undefined,
+        my_rating: rating && rating > 0 ? rating : null,
         progress,
         playtime,
         status,
@@ -1208,7 +1213,9 @@ export default function GamesPage() {
                               ) : (
                                 <>
                                   <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
-                                  {(g.my_rating ?? 0).toFixed(1)}
+                                  {typeof g.my_rating === "number"
+                                    ? g.my_rating.toFixed(1)
+                                    : "---"}
                                 </>
                               )}
                             </span>
@@ -1269,7 +1276,7 @@ export default function GamesPage() {
           saving={saving}
           game={editingGame}
           initialNotes={editingGame.notes ?? ""}
-          initialRating={editingGame.my_rating ?? 0}
+          initialRating={editingGame.my_rating ?? null}
           initialCategoryRatings={editingGame.categoryRatings}
           initialProgress={editingGame.progress ?? 0}
           initialPlaytime={editingGame.playtime ?? 0}
@@ -1295,3 +1302,4 @@ export default function GamesPage() {
     </motion.main>
   );
 }
+
