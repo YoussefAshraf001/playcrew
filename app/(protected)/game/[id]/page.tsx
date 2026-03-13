@@ -50,6 +50,7 @@ import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
 import { IoCloseCircle } from "react-icons/io5";
+import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing â†’ blue = focus
@@ -78,37 +79,6 @@ type WinnerAward = {
   year: number;
   category: string;
 };
-
-interface CategoryRatings {
-  graphics: StoredRating;
-  gameplay: StoredRating;
-  story: StoredRating;
-  ost: StoredRating;
-  cinematics: StoredRating;
-  voiceActing: StoredRating;
-}
-
-interface TrackedGameModalData {
-  _docId: string;
-  name: string;
-  playtime?: number;
-  my_rating?: number;
-  status?: string;
-  progress?: number;
-  notes?: string;
-  categoryRatings?: CategoryRatings;
-  favorite?: boolean;
-  notInterested?: boolean;
-  igdb: {
-    id: number;
-    name: string;
-    cover?: string;
-    rating?: number;
-    total_rating?: number;
-    genres?: string[];
-    releaseDate?: Date;
-  };
-}
 
 interface SimilarGame {
   id: number;
@@ -816,7 +786,7 @@ export default function GamePage() {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
-  const trackingModalGame = useMemo<TrackedGameModalData | null>(() => {
+  const trackingModalGame = useMemo<TrackedGame | null>(() => {
     if (!game?.id) return null;
 
     let coverUrl = "/placeholder-game.jpg";
@@ -862,7 +832,7 @@ export default function GamePage() {
 
   const handleSaveTrackingModal = async (
     notes: string,
-    rating: number,
+    rating: number | null,
     progress: number,
     playtime: number,
     status: string,

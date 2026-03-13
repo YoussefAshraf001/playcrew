@@ -13,46 +13,13 @@ import {
 } from "react-icons/fa";
 import { MdBookmarkRemove } from "react-icons/md";
 import ConfirmModal from "./ConfirmModal";
-
-type StoredRating = number | "excluded" | null;
-
-interface CategoryRatings {
-  graphics: StoredRating;
-  gameplay: StoredRating;
-  story: StoredRating;
-  ost: StoredRating;
-  cinematics: StoredRating;
-  voiceActing: StoredRating;
-}
-
-interface TrackedGame {
-  _docId: string;
-  name: string;
-  playtime?: number;
-  my_rating?: number;
-  status?: string;
-  progress?: number;
-  notes?: string;
-  categoryRatings?: CategoryRatings;
-  favorite?: boolean;
-  favoriteAllTime?: boolean;
-  notInterested?: boolean;
-  lastUpdated?: any;
-  igdb: {
-    id: number;
-    name: string;
-    cover?: string;
-    rating?: number;
-    genres?: string[];
-    releaseDate?: Date;
-  };
-}
+import { CategoryRatings, TrackedGame } from "../types/trackedGame";
 
 interface GameTrackingModalProps {
   open: boolean;
   game: TrackedGame | null;
   initialNotes: string;
-  initialRating: number;
+  initialRating: number | null;
   initialProgress: number;
   initialPlaytime: number;
   initialStatus: string;
@@ -68,7 +35,7 @@ interface GameTrackingModalProps {
   onRemove?: () => Promise<void> | void;
   onSave: (
     notes: string,
-    rating: number,
+    rating: number | null,
     progress: number,
     playtime: number,
     status: string,
@@ -264,7 +231,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     const totalPlaytime = Number((hours + minutes / 60).toFixed(2));
     await onSave(
       notes,
-      weightedRating,
+      hasAnyRatings ? weightedRating : null,
       progress,
       totalPlaytime,
       status,
@@ -278,22 +245,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setNotInterested(true);
     setProgress(0);
     setCategoryRatings({ ...DEFAULT_CATEGORIES });
-    // toast.success(
-    //   <span>
-    //     <span className="font-bold">{game?.name ?? "Game"}</span>
-    //     <span className="text-black"> is now marked as not interested</span>
-    //   </span>,
-    // );
   };
 
   const clearNotInterested = () => {
     setNotInterested(false);
-    // toast.success(
-    //   <span>
-    //     <span className="font-bold">{game?.name ?? "Game"}</span>
-    //     <span className="text-black"> removed from Not Interested</span>
-    //   </span>,
-    // );
   };
 
   const handleNotInterested = () => {
@@ -479,11 +434,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       {categoryOrder.map((cat) => {
                         const value = categoryRatings[cat];
                         const isExcluded = value === "excluded";
-                        const numericValue = isExcluded
-                          ? 0
-                          : typeof value === "number"
-                            ? value
-                            : 0;
                         const canExclude =
                           cat === "voiceActing" || cat === "cinematics";
 
@@ -523,7 +473,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                 const isActive =
                                   !isExcluded &&
                                   typeof value === "number" &&
-                                  numericValue >= n;
+                                  value >= n;
 
                                 return (
                                   <button

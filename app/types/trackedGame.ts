@@ -15,22 +15,23 @@ export interface TrackedGame {
   name: string;
 
   playtime?: number;
-  my_rating?: number;
+  my_rating?: number | null;
   status?: string;
   progress?: number;
   notes?: string;
   categoryRatings?: CategoryRatings;
   favorite?: boolean;
   favoriteAllTime?: boolean;
+  notInterested?: boolean;
   lastUpdated?: any;
+  recentActionSummary?: string;
 
   igdb: {
     id: number;
     name: string;
     cover?: string;
     rating?: number;
-    releaseDate?: Date;
-
     genres?: string[];
+    releaseDate?: Date;
   };
 }

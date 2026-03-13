@@ -25,6 +25,7 @@ import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
 import styles from "./OnlineToggle.module.css";
+import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
 
 const STATUSES = [
   "All",
@@ -35,46 +36,6 @@ const STATUSES = [
   "Online",
   "Want To Play",
 ];
-
-type StoredRating = number | "excluded" | null;
-
-interface CategoryRatings {
-  graphics: StoredRating;
-  gameplay: StoredRating;
-  story: StoredRating;
-  ost: StoredRating;
-  cinematics: StoredRating;
-  voiceActing: StoredRating;
-}
-
-interface TrackedGame {
-  _docId: string;
-
-  name: string;
-
-  // User data
-  playtime?: number;
-  my_rating?: number;
-  status?: string;
-  progress?: number;
-  notes?: string;
-  categoryRatings?: CategoryRatings;
-  favorite?: boolean;
-  favoriteAllTime?: boolean;
-  notInterested?: boolean;
-  lastUpdated?: any;
-  recentActionSummary?: string;
-
-  // IGDB data
-  igdb: {
-    id: number;
-    name: string;
-    cover?: string;
-    rating?: number;
-    genres?: string[];
-    releaseDate?: Date;
-  };
-}
 
 interface UserProfile {
   uid: string;
@@ -568,7 +529,7 @@ export default function GamesPage() {
 
   const handleSaveModal = async (
     notes: string,
-    rating: number,
+    rating: number | null,
     progress: number,
     playtime: number,
     status: string,
@@ -633,7 +594,7 @@ export default function GamesPage() {
       /* ---------------- Save to Firestore ---------------- */
 
       const updatedGame = await updateTrackedGame(targetDocId, {
-        my_rating: rating,
+        my_rating: rating ?? undefined,
         progress,
         playtime,
         status,

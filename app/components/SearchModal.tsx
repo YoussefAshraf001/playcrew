@@ -22,6 +22,8 @@ import { useUser } from "@/app/context/UserContext";
 import { useGames } from "@/app/context/GameContext";
 import GameTrackingModal from "./GameTrackingModal";
 import { useRouter } from "next/navigation";
+import { CategoryRatings, TrackedGame } from "../types/trackedGame";
+import { IoCloseCircle } from "react-icons/io5";
 
 type SearchGame = {
   id: number;
@@ -31,48 +33,13 @@ type SearchGame = {
   version_parent?: number;
 };
 
-type StoredRating = number | "excluded" | null;
-
-interface CategoryRatings {
-  graphics: StoredRating;
-  gameplay: StoredRating;
-  story: StoredRating;
-  ost: StoredRating;
-  cinematics: StoredRating;
-  voiceActing: StoredRating;
-}
-
-interface TrackedGame {
-  _docId: string;
-  name: string;
-  playtime?: number;
-  my_rating?: number;
-  status?: string;
-  progress?: number;
-  notes?: string;
-  categoryRatings?: CategoryRatings;
-  favorite?: boolean;
-  favoriteAllTime?: boolean;
-  notInterested?: boolean;
-  lastUpdated?: unknown;
-  recentActionSummary?: string;
-  igdb: {
-    id: number;
-    name: string;
-    cover?: string;
-    rating?: number;
-    genres?: string[];
-    releaseDate?: Date;
-  };
-}
-
 const DEFAULT_CATEGORIES: CategoryRatings = {
-  graphics: 0,
-  gameplay: 0,
-  story: 0,
-  ost: 0,
-  cinematics: 0,
-  voiceActing: 0,
+  graphics: null,
+  gameplay: null,
+  story: null,
+  ost: null,
+  cinematics: null,
+  voiceActing: null,
 };
 
 const buildCoverUrl = (game?: SearchGame | null) => {
@@ -117,7 +84,7 @@ const mapSearchGameToEditable = (game: SearchGame): TrackedGame => ({
   _docId: String(game.id),
   name: game.name,
   playtime: 0,
-  my_rating: 0,
+  my_rating: null,
   status: "Want To Play",
   progress: 0,
   notes: "",
@@ -295,9 +262,6 @@ export default function SearchModal({
     }
   }, [selectedGameId]);
 
-  const delay = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
-
   const openTracking = async (game: SearchGame) => {
     if (!uid) {
       toast.error("You must be logged in to track games.");
@@ -312,8 +276,6 @@ export default function SearchModal({
       const gameRef = doc(db, "users", uid, "games_igdb", String(game.id));
 
       const snap = await getDoc(gameRef);
-
-      await delay(2000); // simulate slow network response
 
       if (snap.exists()) {
         setEditingGame(
@@ -332,7 +294,7 @@ export default function SearchModal({
 
   const handleSaveTracking = async (
     notes: string,
-    rating: number,
+    rating: number | null,
     progress: number,
     playtime: number,
     status: string,
@@ -468,9 +430,9 @@ export default function SearchModal({
             <button
               type="button"
               onClick={onClose}
-              className="mt-6 h-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/72 transition hover:bg-white/10 hover:text-white"
+              className="mt-6 h-11 items-center border border-white/10 justify-center rounded-full px-5 text-xs font-semibold uppercase tracking-[0.18em] text-white/72 transition hover:text-red-500 cursor-pointer"
             >
-              Close
+              <IoCloseCircle size={25} />
             </button>
           </div>
 
@@ -624,14 +586,6 @@ export default function SearchModal({
                                     </button>
                                   </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedGameId(game.id)}
-                                  className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/45 transition hover:bg-white/10 hover:text-white sm:inline-flex"
-                                  aria-label={`Preview ${game.name}`}
-                                >
-                                  <FiArrowRight size={14} />
-                                </button>
                               </div>
                             </div>
                           </div>
@@ -745,7 +699,7 @@ export default function SearchModal({
                               )}
                               {trackedById.has(selectedGame.id)
                                 ? "Edit Tracking"
-                                : "Quick Add"}
+                                : "Add Tracking"}
                             </button>
                             <Link
                               href={`/game/${selectedGame.id}`}
@@ -780,7 +734,7 @@ export default function SearchModal({
             onSave={handleSaveTracking}
             game={editingGame}
             initialNotes={editingGame.notes ?? ""}
-            initialRating={editingGame.my_rating ?? 0}
+            initialRating={editingGame.my_rating ?? null}
             initialCategoryRatings={
               editingGame.categoryRatings ?? DEFAULT_CATEGORIES
             }

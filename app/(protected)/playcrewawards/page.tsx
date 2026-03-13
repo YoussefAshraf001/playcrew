@@ -309,7 +309,7 @@ function FadeInImage({
 }
 
 export default function ShelfPage() {
-  const { user, profile, loading: userLoading } = useUser();
+  const { user, loading: userLoading } = useUser();
   const today = new Date();
   const currentCalendarYear = today.getFullYear();
   const nominationsOpenDate = new Date(currentCalendarYear, 10, 17, 0, 0, 0, 0);
@@ -688,8 +688,6 @@ export default function ShelfPage() {
     const isCelebrating = winnerCelebration?.category === category;
     const isSpotlightCelebrating =
       spotlightCelebrationActive && winnerCelebration?.category === category;
-    const shouldDimCard =
-      spotlightCelebrationActive && winnerCelebration?.category !== category;
     return (
       <motion.div
         key={category}
@@ -704,7 +702,7 @@ export default function ShelfPage() {
         tabIndex={0}
         whileHover={{ scale: 1.01 }}
         transition={{ duration: 0.22, ease: "easeOut" }}
-        className={`group relative z-0 w-full overflow-visible rounded-2xl text-left transition-all duration-300 hover:z-40 focus-within:z-40 ${isCelebrating ? "z-60" : ""} ${shouldDimCard ? "opacity-20 saturate-50" : ""}`}
+        className={`group relative z-0 w-full overflow-visible rounded-2xl text-left transition-all duration-300 hover:z-40 focus-within:z-40 ${isCelebrating ? "z-60" : ""}`}
       >
         <motion.div
           animate={
@@ -846,15 +844,6 @@ export default function ShelfPage() {
 
       <main className="relative min-h-screen overflow-y-auto bg-[#090704] px-4 pb-6 pt-20 sm:px-6 lg:px-8 xl:h-svh xl:overflow-hidden xl:pb-3">
         <AnimatePresence>
-          {spotlightCelebrationActive && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="pointer-events-none fixed inset-0 z-30 bg-black/68 backdrop-blur-[2px]"
-            />
-          )}
           {showConfettiBurst && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -1296,7 +1285,7 @@ export default function ShelfPage() {
                       Awards Locked
                     </p>
                     <h3 className="mt-3 text-xl font-semibold text-amber-50 sm:text-2xl">
-                      Nominations open on November 17, {currentCalendarYear}
+                      Nominations open on November 17th, {currentCalendarYear}
                     </h3>
                   </div>
                 </div>

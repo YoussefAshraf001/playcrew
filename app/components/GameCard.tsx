@@ -52,7 +52,9 @@ export default function GameCard({
 
   const isNotInterested = game?.notInterested === true;
   const hasRating =
-    typeof game?.my_rating === "number" && Number.isFinite(game.my_rating);
+    game?.my_rating !== null &&
+    game?.my_rating !== undefined &&
+    Number.isFinite(game.my_rating);
 
   return (
     <div

@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "react-hot-toast";
 import { FaStar } from "react-icons/fa6";
 import { GiTrophy } from "react-icons/gi";
-import { IoCloseCircle, IoTrashOutline } from "react-icons/io5";
+import { IoCloseCircle } from "react-icons/io5";
 
 import { db } from "@/app/lib/firebase";
 import { isAwardCategory } from "@/app/lib/awards";
@@ -284,11 +284,11 @@ export default function GamePickerModal({
     isMostAnticipated && awardYear === currentCalendarYear;
   const targetAwardYear =
     awardYear && isMostAnticipated ? awardYear + 1 : awardYear;
-const adjacentAwardYears = targetAwardYear
-  ? isMostAnticipated
-    ? [targetAwardYear + 1, targetAwardYear + 2]
-    : [targetAwardYear - 1, targetAwardYear - 2]
-  : [];
+  const adjacentAwardYears = targetAwardYear
+    ? isMostAnticipated
+      ? [targetAwardYear + 1, targetAwardYear + 2]
+      : [targetAwardYear - 1, targetAwardYear - 2]
+    : [];
   const maxNominees = DEFAULT_MAX_NOMINEES;
   const seededCurrentNominees = currentNominees ?? EMPTY_GAMES;
 
@@ -378,12 +378,8 @@ const adjacentAwardYears = targetAwardYear
           query: search.trim(),
           year: targetAwardYear,
           includeUnreleased,
-          includeAdjacentYear: isMostAnticipated ? true : includeAdjacentYear,
-          adjacentYearCount: isMostAnticipated
-            ? 2
-            : includeAdjacentYear
-              ? 1
-              : 0,
+          includeAdjacentYear: true,
+          adjacentYearCount: 2,
           adjacentYearDirection: isMostAnticipated ? "next" : "previous",
           category: categoryName,
         };
@@ -698,7 +694,9 @@ const adjacentAwardYears = targetAwardYear
     const now = new Date();
     const normalizedSearch = normalizeForSearch(search);
 
-    const filtered = igdbGames.filter((game) => {
+    const sourceGames = libraryOnly ? libraryGames : igdbGames;
+
+    const filtered = sourceGames.filter((game) => {
       if (!game.name || isPackageTitle(game.name)) return false;
 
       if (
