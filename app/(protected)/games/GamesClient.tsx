@@ -37,6 +37,9 @@ const STATUSES = [
   "Want To Play",
 ];
 
+const formatRating = (rating: number) =>
+  Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
+
 interface UserProfile {
   uid: string;
   username: string;
@@ -295,12 +298,12 @@ export default function GamesPage() {
 
         case "tier": {
           const aRating =
-            typeof a.my_rating === "number" && a.my_rating > 0
+            typeof a.my_rating === "number" && Number.isFinite(a.my_rating)
               ? a.my_rating
               : Number.NEGATIVE_INFINITY;
 
           const bRating =
-            typeof b.my_rating === "number" && b.my_rating > 0
+            typeof b.my_rating === "number" && Number.isFinite(b.my_rating)
               ? b.my_rating
               : Number.NEGATIVE_INFINITY;
 
@@ -594,7 +597,7 @@ export default function GamesPage() {
       /* ---------------- Save to Firestore ---------------- */
 
       const updatedGame = await updateTrackedGame(targetDocId, {
-        my_rating: rating && rating > 0 ? rating : null,
+        my_rating: typeof rating === "number" ? rating : null,
         progress,
         playtime,
         status,
@@ -1106,7 +1109,7 @@ export default function GamesPage() {
                   animate="center"
                   exit="exit"
                   transition={{ duration: 0.35, ease: "easeOut" }}
-                  className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"
+                  className="mx-auto grid w-fit grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"
                 >
                   {visibleGames.map((game) => (
                     <GameCard
@@ -1205,8 +1208,8 @@ export default function GamesPage() {
                                 <>
                                   <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
                                   {typeof g.my_rating === "number" &&
-                                  g.my_rating > 0
-                                    ? g.my_rating.toFixed(1)
+                                  Number.isFinite(g.my_rating)
+                                    ? formatRating(g.my_rating)
                                     : "---"}
                                 </>
                               )}

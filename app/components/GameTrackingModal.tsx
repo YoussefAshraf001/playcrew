@@ -110,6 +110,8 @@ const getCategoryShort = (cat: keyof CategoryRatings) => {
   return labels[cat] ?? "";
 };
 
+const formatRating = (rating: number) =>
+  Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
 export default function GameTrackingModal(props: GameTrackingModalProps) {
   const {
     open,
@@ -247,7 +249,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const applyNotInterested = () => {
     setNotInterested(true);
-    setProgress(0);
     setCategoryRatings({ ...DEFAULT_CATEGORIES });
   };
 
@@ -554,30 +555,36 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       !gameIsReleased ? "opacity-45" : ""
                     }`}
                   >
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.14em] text-zinc-200 pb-0.5">
-                          Overall
-                        </p>
-                        <p className="mt-1 inline-flex rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-zinc-200">
-                          {weightedRating !== null
-                            ? getClosestPreset(weightedRating)
-                            : "Not rated"}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 leading-none text-3xl font-bold text-white">
-                          {weightedRating !== null ? (
-                            weightedRating.toFixed(1)
-                          ) : (
-                            <span className="ml-1 text-zinc-400">---</span>
-                          )}
-                          {/* <FaStar className="text-amber-300" size={20} /> */}
-                        </div>
-                        <p className="mt-1 text-[11px] text-zinc-400">
-                          out of 10
-                        </p>
-                      </div>
+                    <div className="mb-3 flex flex-col items-center text-center">
+                      <p className="text-xs uppercase tracking-[0.14em] text-zinc-200">
+                        Overall
+                      </p>
+                      <motion.div
+                        key={weightedRating === null ? "empty" : formatRating(weightedRating)}
+                        className="mt-2 flex items-end justify-center gap-2 leading-none"
+                        animate={
+                          weightedRating !== null && !Number.isInteger(weightedRating)
+                            ? { x: [0, 6, 0] }
+                            : { x: 0 }
+                        }
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                      >
+                        {weightedRating !== null ? (
+                          <span className="text-4xl font-bold tracking-tight text-white">
+                            {formatRating(weightedRating)}
+                          </span>
+                        ) : (
+                          <span className="text-3xl font-bold text-zinc-400">---</span>
+                        )}
+                        <span className="pb-1 text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+                          /10
+                        </span>
+                      </motion.div>
+                      <p className="mt-2 inline-flex rounded-full border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-zinc-200">
+                        {weightedRating !== null
+                          ? getClosestPreset(weightedRating)
+                          : "Not rated"}
+                      </p>
                     </div>
 
                     <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
@@ -830,7 +837,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
           <ConfirmModal
             open={confirmNotInterestedOpen}
             title="Are you sure?"
-            message="Marking this game as not interested means this game did not click with you. Doing so will clear your ratings and progress for this game."
+            message="Marking this game as not interested means this game did not click with you. Doing so will clear your ratings for this game."
             confirmText="Yes, Clear"
             cancelText="Cancel"
             onCancel={() => setConfirmNotInterestedOpen(false)}
@@ -860,3 +867,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     </AnimatePresence>
   );
 }
+
+
+
+
+
+
+

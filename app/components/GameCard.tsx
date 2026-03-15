@@ -6,6 +6,8 @@ import GameActionsDropdown from "./GameActionsDropdown";
 import { MdBlock } from "react-icons/md";
 import { FaClock, FaExclamation, FaStar } from "react-icons/fa";
 
+const formatRating = (rating: number) =>
+  Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
 export default function GameCard({
   game,
   openEditModal,
@@ -61,7 +63,7 @@ export default function GameCard({
       className="
           group
           relative
-          w-54
+          w-53
           max-w-none
           bg-zinc-900/80
           rounded-xl
@@ -81,7 +83,7 @@ export default function GameCard({
       </div>
 
       <Link href={`/game/${game.igdb.id}`} prefetch={false}>
-        <div className="relative h-[210px] sm:h-[230px] md:h-60 lg:h-[220px] xl:h-[280px] w-full overflow-hidden rounded-t-xl">
+        <div className="relative h-[280px] w-full overflow-hidden rounded-t-xl">
           {!loaded && (
             <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
           )}
@@ -125,7 +127,7 @@ export default function GameCard({
                   <div className="flex items-center gap-1">
                     <FaStar size={7} />
 
-                    {game.my_rating.toFixed(1)}
+                    {formatRating(game.my_rating)}
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
