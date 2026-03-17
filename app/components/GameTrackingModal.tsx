@@ -198,9 +198,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setNotInterested(game?.notInterested === true);
     setPlayedSessions(normalizePlaySessions(initialPlayedSessions));
     setIsSaveDropActive(false);
-    console.log("SETTING SESSIONS:", initialPlayedSessions);
-    console.log("STATE:", playedSessions);
-    console.log("HISTORY:", sessionHistory);
 
     const hasMeaningfulCategoryRatings =
       !!initialCategoryRatings &&
@@ -969,7 +966,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     </div>
                   </div>
 
-                  <div className="relative rounded-2xl border border-white/15 bg-black/35 p-2 backdrop-blur-md">
+                  <div className="relative rounded-2xl border border-white/15 bg-black/35 h-[163px] p-2 backdrop-blur-md">
                     {uploadingSave && (
                       <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm">
                         <div className="flex flex-col items-center gap-2 text-white">
@@ -1018,7 +1015,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.25 }}
-                            className="mt-3 flex items-center gap-4 rounded-xl border border-amber-400/40 bg-black/50 px-4 py-3 min-h-20"
+                            className="mt-3 flex items-center gap-4 rounded-xl border border-amber-400/40 bg-black/50 px-4 py-6 min-h-20"
                           >
                             {/* 🎮 Cover */}
                             <img
@@ -1061,8 +1058,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                       existingSave?.uploadedAt ||
                                       saveUploads[0]?.uploadedAt ||
                                       game?.save?.uploadedAt;
-
-                                    console.log("RAW DATE:", raw, typeof raw);
 
                                     if (!raw) return "Unknown date";
 
@@ -1110,19 +1105,34 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               {/* ⬇ Download */}
                               <button
                                 onClick={async () => {
+                                  const fileName =
+                                    existingSave?.storageKey ||
+                                    saveUploads[0]?.storageKey;
+
+                                  if (!fileName) {
+                                    console.error("No fileName");
+                                    return;
+                                  }
+
                                   const res = await fetch(
                                     "/api/save-download",
                                     {
                                       method: "POST",
-                                      body: JSON.stringify({
-                                        fileName:
-                                          existingSave?.storageKey ||
-                                          saveUploads[0]?.storageKey,
-                                      }),
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({ fileName }),
                                     },
                                   );
-                                  const { downloadUrl } = await res.json();
-                                  window.open(downloadUrl, "_blank");
+
+                                  const data = await res.json();
+
+                                  if (!res.ok) {
+                                    console.error(data.error);
+                                    return;
+                                  }
+
+                                  window.open(data.downloadUrl, "_blank");
                                 }}
                                 className="text-white transition-all cursor-pointer hover:scale-125 duration-200 ease-in-out"
                               >

@@ -1425,8 +1425,8 @@ export default function GamePage() {
                             {/* Trophy */}
                             <div className="mx-auto mt-2 flex h-35 w-35 items-center justify-center">
                               <img
-                                src="GOTY-New.png"
-                                alt="Game of the Year award"
+                                src="/GOTY-New.png"
+                                alt=""
                                 className="h-45 w-45 object-contain drop-shadow-[0_0_22px_rgba(251,191,36,0.42)]"
                               />
                             </div>

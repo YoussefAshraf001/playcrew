@@ -6,17 +6,48 @@ const b2 = new B2({
 });
 
 export async function POST(req: Request) {
-  const { fileName } = await req.json();
+  try {
+    const { fileName } = await req.json();
 
-  await b2.authorize();
+    console.log("fileName:", fileName);
 
-  const download = await b2.getDownloadAuthorization({
-    bucketId: process.env.BACKBLAZE_B2_BUCKET_ID!,
-    fileNamePrefix: fileName,
-    validDurationInSeconds: 60,
-  });
+    if (!fileName) {
+      throw new Error("Missing fileName");
+    }
 
-  return Response.json({
-    downloadUrl: `https://f000.backblazeb2.com/file/${process.env.BACKBLAZE_B2_BUCKET_NAME}/${fileName}?Authorization=${download.data.authorizationToken}`,
-  });
+    // 🔹 Step 1: Authorize
+    const authResponse = await b2.authorize();
+    console.log("AUTH RESPONSE:", authResponse);
+
+    if (!authResponse?.data) {
+      throw new Error("B2 authorize failed");
+    }
+
+    const baseUrl = authResponse.data.downloadUrl;
+
+    // 🔹 Step 2: Get download authorization
+    const downloadAuth = await b2.getDownloadAuthorization({
+      bucketId: process.env.BACKBLAZE_B2_BUCKET_ID!,
+      fileNamePrefix: fileName,
+      validDurationInSeconds: 60,
+    });
+
+    console.log("DOWNLOAD AUTH:", downloadAuth);
+
+    if (!downloadAuth?.data?.authorizationToken) {
+      throw new Error(
+        "Download authorization failed: " + JSON.stringify(downloadAuth),
+      );
+    }
+
+    const downloadUrl = `${baseUrl}/file/${process.env.BACKBLAZE_B2_BUCKET_NAME}/${fileName}?Authorization=${downloadAuth.data.authorizationToken}`;
+
+    console.log("FINAL URL:", downloadUrl);
+
+    return Response.json({ downloadUrl });
+  } catch (err: any) {
+    console.error("💥 FULL ERROR:", err);
+
+    return Response.json({ error: err.message }, { status: 500 });
+  }
 }
