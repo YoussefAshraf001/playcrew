@@ -9,6 +9,15 @@ export interface CategoryRatings {
   voiceActing: StoredRating;
 }
 
+export type PickerGame = {
+  igdbId: number;
+  name: string;
+  cover: string;
+  status?: string;
+  rating: number;
+  releaseDate: Date | null;
+};
+
 export interface PlaySession {
   playedAt: any;
   durationHours: number;

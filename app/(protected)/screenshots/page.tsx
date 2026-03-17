@@ -39,6 +39,8 @@ import ConfirmModal from "@/app/components/ConfirmModal";
 import GamePickerModal from "@/app/components/GamePickerModal";
 import WheelLockSwitch from "@/app/components/WheelLockSwitch";
 import getCroppedImg from "@/app/lib/getCroppedImg";
+import ScreenshotsGamePickerModal from "@/app/components/ScreenshotsGamePickerModal";
+import { PickerGame } from "@/app/types/trackedGame";
 
 export const dynamic = "force-dynamic";
 
@@ -64,15 +66,6 @@ type Shot = {
   publicId: string;
   bytes?: number;
   createdAt?: unknown;
-};
-
-type PickerGame = {
-  igdbId: number;
-  name: string;
-  cover: string;
-  status: string;
-  rating: number;
-  releaseDate: Date | null;
 };
 
 const FEATURES = [
@@ -1570,15 +1563,13 @@ function ScreenshotsPageContent() {
           </motion.div>
         </div>
       )}
-      <GamePickerModal
-        modalOpen={gamePickerOpen}
-        setModalOpen={setGamePickerOpen}
-        currentCategory="Screenshots Gallery"
-        pickGame={pickGameForFolder}
+      <ScreenshotsGamePickerModal
+        open={gamePickerOpen}
+        onClose={() => setGamePickerOpen(false)}
+        onPick={pickGameForFolder}
         disabledGameIds={folders
           .map((f) => f.igdbId)
           .filter((id): id is number => typeof id === "number")}
-        disabledOverlayText="Already in Folder"
       />
       <ConfirmModal
         open={confirmOpen}
