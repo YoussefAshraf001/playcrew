@@ -6,6 +6,7 @@ export interface RecentActionTrackedGame {
   my_rating?: number | null;
   notes?: string | null;
   playtime?: number | null;
+  saveUploads?: Array<{ id?: string }> | null;
 }
 
 const normalizeNumber = (value: unknown) => {
@@ -15,6 +16,16 @@ const normalizeNumber = (value: unknown) => {
 
 const normalizeText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const formatDuration = (hoursValue: number) => {
+  const totalMinutes = Math.max(0, Math.round(hoursValue * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours && minutes) return `${hours}h ${minutes}m`;
+  if (hours) return `${hours}h`;
+  return `${minutes}m`;
+};
 
 export function getRecentGameActionSummary(
   previous: RecentActionTrackedGame | null | undefined,
@@ -70,9 +81,20 @@ export function getRecentGameActionSummary(
   const previousPlaytime = normalizeNumber(previous.playtime);
   const nextPlaytime = normalizeNumber(next.playtime);
   if (previousPlaytime !== nextPlaytime && nextPlaytime !== null) {
+    const diff = Math.abs(nextPlaytime - (previousPlaytime ?? 0));
+    const formatted = formatDuration(diff);
+
     return nextPlaytime > (previousPlaytime ?? 0)
-      ? `Playtime Increased to ${nextPlaytime}h`
-      : `Playtime Decreased to ${nextPlaytime}h`;
+      ? `Logged ${formatted} play session`
+      : `Playtime Decreased by ${formatted}`;
+  }
+
+  const previousSaveUploads = previous.saveUploads?.length ?? 0;
+  const nextSaveUploads = next.saveUploads?.length ?? 0;
+  if (previousSaveUploads !== nextSaveUploads) {
+    return nextSaveUploads > previousSaveUploads
+      ? "Save Backup Uploaded"
+      : "Save Backup Removed";
   }
 
   return defaultSummary;

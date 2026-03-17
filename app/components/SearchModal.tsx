@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -300,6 +300,7 @@ export default function SearchModal({
     favorite: boolean,
     categoryRatings: CategoryRatings,
     notInterested: boolean,
+    playedSessions: NonNullable<TrackedGame["playedSessions"]>,
   ) => {
     if (!uid || !editingGame || trackingSaving) return;
 
@@ -344,6 +345,7 @@ export default function SearchModal({
           favorite,
           notInterested,
           categoryRatings,
+          playedSessions,
           recentActionSummary,
           lastUpdated: new Date(),
         },
@@ -739,6 +741,7 @@ export default function SearchModal({
             }
             initialProgress={editingGame.progress ?? 0}
             initialPlaytime={editingGame.playtime ?? 0}
+            initialPlayedSessions={editingGame.playedSessions ?? []}
             initialStatus={editingGame.status ?? "Want To Play"}
             initialFavorite={editingGame.favorite ?? false}
             showStatus
@@ -752,3 +755,7 @@ export default function SearchModal({
 
   return createPortal(modal, document.body);
 }
+
+
+
+

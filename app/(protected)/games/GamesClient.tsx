@@ -534,6 +534,7 @@ export default function GamesPage() {
     favorite: boolean,
     categoryRatings: CategoryRatings,
     notInterested: boolean,
+    playedSessions: NonNullable<TrackedGame["playedSessions"]>,
   ) => {
     if (!editingGame || saving) return;
 
@@ -605,6 +606,7 @@ export default function GamesPage() {
         notInterested,
         notes,
         categoryRatings: safeCategoryRatings,
+        playedSessions,
         lastUpdated: new Date(),
         recentActionSummary,
       });
@@ -1297,3 +1299,7 @@ export default function GamesPage() {
     </motion.main>
   );
 }
+
+
+
+

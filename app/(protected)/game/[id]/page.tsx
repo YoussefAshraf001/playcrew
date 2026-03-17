@@ -817,6 +817,7 @@ export default function GamePage() {
       notes: trackedGameData?.notes ?? "",
       categoryRatings: trackedGameData?.categoryRatings,
       favorite: trackedGameData?.favorite ?? isFavorited ?? false,
+      playedSessions: trackedGameData?.playedSessions ?? [],
       notInterested: trackedGameData?.notInterested ?? false,
       igdb: {
         id: game.id,
@@ -839,6 +840,7 @@ export default function GamePage() {
     favorite: boolean,
     categoryRatings: CategoryRatings,
     notInterested: boolean,
+    playedSessions: NonNullable<TrackedGame["playedSessions"]>,
   ) => {
     if (!user || !game || trackingSaving) return;
 
@@ -853,6 +855,7 @@ export default function GamePage() {
         favorite,
         categoryRatings,
         notInterested,
+        playedSessions,
         lastUpdated: serverTimestamp(),
       });
 
@@ -868,6 +871,7 @@ export default function GamePage() {
         favorite,
         categoryRatings,
         notInterested,
+        playedSessions,
       }));
       setTrackingModalOpen(false);
       toast.success(
@@ -1826,6 +1830,7 @@ export default function GamePage() {
             initialCategoryRatings={trackingModalGame.categoryRatings}
             initialProgress={trackingModalGame.progress ?? 0}
             initialPlaytime={trackingModalGame.playtime ?? 0}
+            initialPlayedSessions={trackingModalGame.playedSessions ?? []}
             initialStatus={trackingModalGame.status ?? "Playing"}
             initialFavorite={trackingModalGame.favorite ?? false}
             showStatus={true}
@@ -1836,4 +1841,12 @@ export default function GamePage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
 

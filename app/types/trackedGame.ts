@@ -9,6 +9,20 @@ export interface CategoryRatings {
   voiceActing: StoredRating;
 }
 
+export interface PlaySession {
+  playedAt: any;
+  durationHours: number;
+}
+
+export interface SaveUpload {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  uploadedAt: any;
+  storageKey: string;
+  savePath?: string;
+}
+
 export interface TrackedGame {
   _docId: string;
 
@@ -23,6 +37,8 @@ export interface TrackedGame {
   favorite?: boolean;
   favoriteAllTime?: boolean;
   notInterested?: boolean;
+  playedSessions?: PlaySession[];
+  saveUploads?: SaveUpload[];
   lastUpdated?: any;
   recentActionSummary?: string;
 
