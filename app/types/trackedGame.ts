@@ -39,6 +39,12 @@ export interface TrackedGame {
   notInterested?: boolean;
   playedSessions?: PlaySession[];
   saveUploads?: SaveUpload[];
+  save?: {
+    storageKey: string;
+    fileName: string;
+    sizeBytes: number;
+    uploadedAt: Date;
+  } | null;
   lastUpdated?: any;
   recentActionSummary?: string;
 

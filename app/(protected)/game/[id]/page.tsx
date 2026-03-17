@@ -32,7 +32,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   onSnapshot,
   serverTimestamp,
@@ -475,6 +474,9 @@ export default function GamePage() {
         favorite: data.favorite ?? false,
 
         categoryRatings: data.categoryRatings ?? null,
+        playedSessions: data.playedSessions ?? [],
+        save: data.save ?? null,
+
         recentActionSummary:
           data.recentActionSummary ??
           getRecentGameActionSummary(previousTrackedGame, {
@@ -841,6 +843,7 @@ export default function GamePage() {
     categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
+    save?: TrackedGame["save"],
   ) => {
     if (!user || !game || trackingSaving) return;
 
@@ -856,6 +859,7 @@ export default function GamePage() {
         categoryRatings,
         notInterested,
         playedSessions,
+        save,
         lastUpdated: serverTimestamp(),
       });
 
@@ -1841,12 +1845,3 @@ export default function GamePage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-

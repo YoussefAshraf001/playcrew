@@ -27,8 +27,10 @@ import {
   normalizePlaySessions,
   normalizeSessionDate,
 } from "../lib/playSessions";
-import { formatSaveUploadSize } from "../lib/saveUploads";
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
+import { TiFolderDelete } from "react-icons/ti";
+import { BsSave } from "react-icons/bs";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 interface GameTrackingModalProps {
   open: boolean;
@@ -59,6 +61,7 @@ interface GameTrackingModalProps {
     categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: PlaySession[],
+    save?: SaveUpload | null,
   ) => Promise<void> | void;
 }
 
@@ -178,6 +181,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const [isSaveDropActive, setIsSaveDropActive] = useState(false);
   const [saveUploads, setSaveUploads] = useState<SaveUpload[]>([]);
   const [selectedSaveFile, setSelectedSaveFile] = useState<File | null>(null);
+  const [checkingSave, setCheckingSave] = useState(false);
   const [existingSave, setExistingSave] = useState<SaveUpload | null>(null);
   const [uploadingSave, setUploadingSave] = useState(false);
   const [pendingDeleteSession, setPendingDeleteSession] = useState<
@@ -221,13 +225,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       setCategoryRatings(DEFAULT_CATEGORIES);
     }
   }, [
-    open,
-    game?.igdb.id,
     initialNotes,
     initialRating,
     initialProgress,
     initialPlaytime,
-    initialPlayedSessions,
+    JSON.stringify(initialPlayedSessions),
     initialStatus,
     initialFavorite,
     initialCategoryRatings,
@@ -239,25 +241,47 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     const user = auth.currentUser;
     if (!user) return;
 
+    let isMounted = true;
+
     const checkSave = async () => {
+      const user = auth.currentUser;
+      if (!user || !game) return;
+
+      setCheckingSave(true);
+
       try {
-        const res = await fetch(
-          `/api/save-check?gameId=${game.igdb.id}&userId=${user.uid}`,
+        const ref = doc(
+          db,
+          "users",
+          user.uid,
+          "games_igdb",
+          game.igdb.id.toString(),
         );
 
-        if (!res.ok) return;
+        const snap = await getDoc(ref);
 
-        const data = await res.json();
-
-        if (data?.save) {
-          setExistingSave(data.save);
+        if (snap.exists()) {
+          setExistingSave(snap.data().save ?? null);
+        } else {
+          setExistingSave(null);
         }
       } catch (err) {
         console.error("Save check error:", err);
+      } finally {
+        setCheckingSave(false);
       }
     };
 
+    // reset previous state when switching games
+    setExistingSave(null);
+    setSaveUploads([]);
+    setSelectedSaveFile(null);
+
     checkSave();
+
+    return () => {
+      isMounted = false;
+    };
   }, [game]);
 
   const setCategory = (
@@ -303,11 +327,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const handleSave = async () => {
     const totalPlaytime = Number((hours + minutes / 60).toFixed(2));
-    const nextPlayedSessions = appendPlaySession(
-      playedSessions,
-      initialPlaytime,
-      totalPlaytime,
-    );
+    const nextPlayedSessions =
+      totalPlaytime > initialPlaytime
+        ? appendPlaySession(playedSessions, initialPlaytime, totalPlaytime)
+        : playedSessions;
 
     await onSave(
       notes,
@@ -336,8 +359,41 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       body: formData,
     });
 
-    if (!res.ok) throw new Error("Upload failed");
-    return await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (err: any) {
+      console.error("🔥 REAL SAVE UPLOAD ERROR:", err);
+      throw new Error("Invalid server response");
+    }
+    if (!res.ok) {
+      console.error("UPLOAD API ERROR:", data);
+      throw new Error(data?.error || "Upload failed");
+    }
+
+    return data;
+  };
+
+  const saveUploadOnly = async (upload: SaveUpload) => {
+    const user = auth.currentUser;
+    if (!user || !game) return;
+
+    const ref = doc(
+      db,
+      "users",
+      user.uid,
+      "games_igdb",
+      game.igdb.id.toString(),
+    );
+
+    await setDoc(
+      ref,
+      {
+        save: upload,
+        lastUpdated: new Date(),
+      },
+      { merge: true },
+    );
   };
 
   const handleUploadSelectedFile = async (file: File) => {
@@ -357,6 +413,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
         uploadedAt: new Date(),
         storageKey: result.storageKey,
       };
+
+      await saveUploadOnly(upload);
+
       setSaveUploads([upload]);
       setExistingSave(null);
     } catch {
@@ -448,10 +507,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const progressOffset =
     progressCircumference - (progress / 100) * progressCircumference;
 
-  const upload = saveUploads[0];
   const hasSave =
-    (saveUploads.length > 0 && saveUploads[0]?.storageKey) ||
-    existingSave?.storageKey;
+    !checkingSave &&
+    ((saveUploads.length > 0 && saveUploads[0]?.storageKey) ||
+      existingSave?.storageKey);
 
   const handleDeleteSession = async (index: number, deductTime: boolean) => {
     const removed = playedSessions[index];
@@ -473,23 +532,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       setMinutes(newMinutes);
     }
 
+    // ✅ update local state immediately
     setPlayedSessions(updated);
-
-    await onSave(
-      notes,
-      hasAnyRatings ? weightedRating : null,
-      progress,
-      Number((newHours + newMinutes / 60).toFixed(2)),
-      status,
-      favorite,
-      categoryRatings,
-      notInterested,
-      updated,
-    );
 
     toast.success(
       deductTime ? "Session removed & time deducted" : "Session removed",
     );
+  };
+
+  const formatSize = (bytes?: number) => {
+    if (!bytes) return "";
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
   };
 
   if (!game) return null;
@@ -808,9 +861,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         </p>
                         <button
                           type="button"
-                          onClick={() => {
-                            toast.success("Coming Soon");
-                          }}
+                          onClick={() => setSessionsOpen(true)}
                           className="mt-1 text-xs text-emerald-300 hover:underline"
                         >
                           View Sessions{" "}
@@ -930,122 +981,225 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       </div>
                     )}
 
-                    <motion.div
-                      layout
-                      className={`relative flex items-center ${hasSave ? "justify-between pl-3" : "justify-center"}`}
-                    >
+                    <AnimatePresence>
+                      {checkingSave && (
+                        <motion.div
+                          key="checking-save"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm"
+                        >
+                          <div className="flex flex-col items-center gap-2 text-white">
+                            <span className="loading loading-dots loading-md" />
+                            <p className="text-xs text-zinc-300">
+                              Checking save...
+                            </p>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <motion.div layout className="relative flex flex-col">
+                      {/* 🧠 HEADER */}
                       <motion.p
                         layout
-                        className="text-[11px] uppercase tracking-[0.18em] text-zinc-400"
+                        className="text-[11px] uppercase tracking-[0.25em] text-zinc-500 text-center pt-1"
                       >
-                        Save File Locker
+                        Save Slot
                       </motion.p>
 
-                      <AnimatePresence>
-                        {hasSave && (
+                      {/* 🎮 SLOT */}
+                      <AnimatePresence mode="wait">
+                        {hasSave ? (
                           <motion.div
-                            initial={{ x: 30, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: 30, opacity: 0 }}
-                            className="flex items-center gap-2"
+                            key="filled"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="mt-3 flex items-center gap-4 rounded-xl border border-amber-400/40 bg-black/50 px-4 py-3 min-h-20"
                           >
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const res = await fetch("/api/save-download", {
-                                  method: "POST",
-                                  body: JSON.stringify({
-                                    fileName:
-                                      existingSave?.storageKey ||
-                                      saveUploads[0]?.storageKey,
-                                  }),
-                                });
-                                const { downloadUrl } = await res.json();
-                                window.open(downloadUrl, "_blank");
-                              }}
-                              className="rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-300 transition hover:bg-emerald-500/20"
-                            >
-                              Download
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const fileName =
-                                  existingSave?.storageKey ||
-                                  saveUploads[0]?.storageKey;
-                                if (!fileName) return;
-                                try {
+                            {/* 🎮 Cover */}
+                            <img
+                              src={game.igdb.cover}
+                              alt={game.name}
+                              className="h-14 w-20 rounded-md object-cover border border-white/20"
+                            />
+
+                            {/* 📄 Info */}
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <motion.div
+                                initial="initial"
+                                animate="animate"
+                                className="flex flex-col"
+                              >
+                                <motion.p
+                                  variants={{
+                                    initial: { y: 6 },
+                                    animate: { y: 0 },
+                                  }}
+                                  transition={{
+                                    duration: 0.25,
+                                    ease: "easeOut",
+                                  }}
+                                  className="truncate max-w-[230px] text-base font-semibold text-white"
+                                >
+                                  {game?.name ?? "Slot 01"}
+                                </motion.p>
+
+                                <motion.p
+                                  variants={{
+                                    initial: { opacity: 0, y: 4 },
+                                    animate: { opacity: 1, y: 0 },
+                                  }}
+                                  transition={{ delay: 0.15, duration: 0.25 }}
+                                  className="text-[11px] text-amber-300 tracking-wide"
+                                >
+                                  {(() => {
+                                    const raw =
+                                      existingSave?.uploadedAt ||
+                                      saveUploads[0]?.uploadedAt ||
+                                      game?.save?.uploadedAt;
+
+                                    console.log("RAW DATE:", raw, typeof raw);
+
+                                    if (!raw) return "Unknown date";
+
+                                    // ✅ Firestore Timestamp (client SDK)
+                                    if (
+                                      typeof (raw as any).toDate === "function"
+                                    ) {
+                                      return (raw as any)
+                                        .toDate()
+                                        .toLocaleString();
+                                    }
+
+                                    // ✅ Firestore Timestamp (from API / JSON)
+                                    if (
+                                      typeof raw === "object" &&
+                                      "seconds" in raw
+                                    ) {
+                                      return new Date(
+                                        raw.seconds * 1000,
+                                      ).toLocaleString();
+                                    }
+
+                                    // ✅ fallback
+                                    const d = new Date(raw as any);
+                                    return isNaN(d.getTime())
+                                      ? "Unknown date"
+                                      : d.toLocaleString();
+                                  })()}
+                                </motion.p>
+                              </motion.div>
+                              <motion.p
+                                variants={{
+                                  initial: { opacity: 0, y: 4 },
+                                  animate: { opacity: 1, y: 0 },
+                                }}
+                                transition={{ delay: 0.15, duration: 0.25 }}
+                                className="text-[11px] text-amber-300 tracking-wide"
+                              >
+                                {formatSize(game?.save?.sizeBytes)}
+                              </motion.p>
+                            </div>
+
+                            {/* ⚡ Actions */}
+                            <div className="flex items-center gap-3 ml-2">
+                              {/* ⬇ Download */}
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(
+                                    "/api/save-download",
+                                    {
+                                      method: "POST",
+                                      body: JSON.stringify({
+                                        fileName:
+                                          existingSave?.storageKey ||
+                                          saveUploads[0]?.storageKey,
+                                      }),
+                                    },
+                                  );
+                                  const { downloadUrl } = await res.json();
+                                  window.open(downloadUrl, "_blank");
+                                }}
+                                className="text-white transition-all cursor-pointer hover:scale-125 duration-200 ease-in-out"
+                              >
+                                <BsSave size={15} />
+                              </button>
+
+                              {/* 🗑 Delete */}
+                              <button
+                                onClick={async () => {
+                                  const fileName =
+                                    existingSave?.storageKey ||
+                                    saveUploads[0]?.storageKey;
+                                  if (!fileName) return;
+
                                   await fetch("/api/save-delete", {
                                     method: "POST",
-                                    body: JSON.stringify({ fileName }),
+                                    body: JSON.stringify({
+                                      fileName,
+                                      gameId: game!.igdb.id,
+                                      userId: auth.currentUser!.uid,
+                                    }),
                                   });
+
                                   setSaveUploads([]);
                                   setSelectedSaveFile(null);
                                   setExistingSave(null);
-                                } catch (err) {
-                                  console.error(err);
-                                }
-                              }}
-                              className="rounded-full border border-white/12 bg-white/4 px-2.5 py-1 text-[10px] font-medium text-zinc-300 transition hover:border-white/25 hover:bg-white/8 hover:text-white"
-                            >
-                              Clear
-                            </button>
+                                }}
+                                className="text-white transition-all  cursor-pointer hover:scale-125 duration-200 ease-in-out"
+                              >
+                                <TiFolderDelete size={20} />
+                              </button>
+                            </div>
                           </motion.div>
+                        ) : (
+                          <motion.label
+                            key="empty"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 6 }}
+                            className={`mt-3 flex cursor-pointer items-center justify-center rounded-xl border border-dashed px-3 py-6 min-h-20 transition ${
+                              isSaveDropActive
+                                ? "border-amber-400/60 bg-amber-400/10"
+                                : "border-white/12 bg-white/3 hover:border-white/25 hover:bg-white/5"
+                            }`}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsSaveDropActive(true);
+                            }}
+                            onDragLeave={() => setIsSaveDropActive(false)}
+                            onDrop={handleSaveFileDrop}
+                          >
+                            <input
+                              type="file"
+                              accept=".zip"
+                              className="hidden"
+                              onChange={handleSaveFileChange}
+                            />
+
+                            <div className="flex items-center gap-4 w-full opacity-70">
+                              {/* 🎮 Image skeleton with centered text */}
+                              <div className="relative h-14 w-20 rounded-md bg-white/10 border border-white/10 flex items-center justify-center">
+                                <span className="text-[10px] text-zinc-400 tracking-wide">
+                                  EMPTY SLOT
+                                </span>
+                              </div>
+
+                              {/* 📄 Text */}
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-zinc-400">
+                                  Slot #1
+                                </p>
+                              </div>
+                            </div>
+                          </motion.label>
                         )}
                       </AnimatePresence>
                     </motion.div>
-
-                    <label
-                      className={`mt-2 flex cursor-pointer flex-col gap-2 rounded-xl border border-dashed px-3 py-2.5 transition ${
-                        isSaveDropActive
-                          ? "border-emerald-400/60 bg-emerald-400/10"
-                          : "border-white/12 bg-white/3 hover:border-white/25 hover:bg-white/5"
-                      }`}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        setIsSaveDropActive(true);
-                      }}
-                      onDragLeave={() => setIsSaveDropActive(false)}
-                      onDrop={handleSaveFileDrop}
-                    >
-                      <input
-                        type="file"
-                        accept=".zip,application/zip,application/x-zip-compressed"
-                        className="hidden"
-                        onChange={handleSaveFileChange}
-                      />
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-white">
-                            Drop save file here
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-zinc-400">
-                            Or click to choose it.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-1.5">
-                        {upload || existingSave ? (
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="min-w-0 truncate text-sm font-medium text-white">
-                              {game._docId}.zip
-                            </p>
-                            <p className="shrink-0 text-[10px] text-zinc-400">
-                              {formatSaveUploadSize(
-                                (upload || existingSave)?.sizeBytes ||
-                                  selectedSaveFile?.size ||
-                                  0,
-                              )}
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="text-[12px] text-zinc-400">
-                            No save file uploaded yet.
-                          </p>
-                        )}
-                      </div>
-                    </label>
                   </div>
                 </aside>
               </div>
@@ -1204,56 +1358,58 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <ConfirmModal
+              open={confirmNotInterestedOpen}
+              title="Are you sure?"
+              message="Marking this game as not interested means this game did not click with you. Doing so will clear your ratings for this game."
+              confirmText="Yes, Clear"
+              cancelText="Cancel"
+              onCancel={() => setConfirmNotInterestedOpen(false)}
+              onConfirm={() => {
+                applyNotInterested();
+                setConfirmNotInterestedOpen(false);
+              }}
+            />
+
+            <ConfirmModal
+              open={confirmRemoveOpen}
+              title="Remove entry?"
+              message="This will remove the game from your library entry, including tracking data saved for it."
+              confirmText={removing ? "Removing..." : "Yes, Remove"}
+              cancelText="Cancel"
+              onCancel={() => {
+                if (!removing) setConfirmRemoveOpen(false);
+              }}
+              onConfirm={async () => {
+                if (!onRemove) return;
+                await onRemove();
+                setConfirmRemoveOpen(false);
+              }}
+            />
+
+            <ConfirmModal
+              open={pendingDeleteSession !== null}
+              title="Remove session?"
+              message="Do you want to remove this session only, or also deduct its time from total playtime?"
+              confirmText="Remove & Deduct"
+              cancelText="Remove Only"
+              onCancel={() => {
+                if (pendingDeleteSession === null) return;
+
+                const index = pendingDeleteSession;
+                setPendingDeleteSession(null);
+                handleDeleteSession(index, false);
+              }}
+              onConfirm={() => {
+                if (pendingDeleteSession === null) return;
+
+                const index = pendingDeleteSession;
+                setPendingDeleteSession(null);
+                handleDeleteSession(index, true);
+              }}
+            />
           </motion.div>
-
-          <ConfirmModal
-            open={confirmNotInterestedOpen}
-            title="Are you sure?"
-            message="Marking this game as not interested means this game did not click with you. Doing so will clear your ratings for this game."
-            confirmText="Yes, Clear"
-            cancelText="Cancel"
-            onCancel={() => setConfirmNotInterestedOpen(false)}
-            onConfirm={() => {
-              applyNotInterested();
-              setConfirmNotInterestedOpen(false);
-            }}
-          />
-
-          <ConfirmModal
-            open={confirmRemoveOpen}
-            title="Remove entry?"
-            message="This will remove the game from your library entry, including tracking data saved for it."
-            confirmText={removing ? "Removing..." : "Yes, Remove"}
-            cancelText="Cancel"
-            onCancel={() => {
-              if (!removing) setConfirmRemoveOpen(false);
-            }}
-            onConfirm={async () => {
-              if (!onRemove) return;
-              await onRemove();
-              setConfirmRemoveOpen(false);
-            }}
-          />
-
-          <ConfirmModal
-            open={pendingDeleteSession !== null}
-            title="Remove session?"
-            message="Do you want to remove this session only, or also deduct its time from total playtime?"
-            confirmText="Remove & Deduct"
-            cancelText="Remove Only"
-            onCancel={async () => {
-              if (pendingDeleteSession === null) return;
-
-              await handleDeleteSession(pendingDeleteSession, false);
-              setPendingDeleteSession(null);
-            }}
-            onConfirm={async () => {
-              if (pendingDeleteSession === null) return;
-
-              await handleDeleteSession(pendingDeleteSession, true);
-              setPendingDeleteSession(null);
-            }}
-          />
         </motion.div>
       )}
     </AnimatePresence>

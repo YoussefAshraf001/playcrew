@@ -301,6 +301,7 @@ export default function SearchModal({
     categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
+    save?: TrackedGame["save"],
   ) => {
     if (!uid || !editingGame || trackingSaving) return;
 
@@ -346,6 +347,7 @@ export default function SearchModal({
           notInterested,
           categoryRatings,
           playedSessions,
+          save: save ?? null,
           recentActionSummary,
           lastUpdated: new Date(),
         },
@@ -755,7 +757,3 @@ export default function SearchModal({
 
   return createPortal(modal, document.body);
 }
-
-
-
-

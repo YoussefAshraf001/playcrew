@@ -258,9 +258,19 @@ export default function GamesPage() {
       list = list.filter((g) => g.status !== "Online");
     }
 
+    const normalize = (str: string) =>
+      str
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ") // removes :, -, etc
+        .replace(/\s+/g, " ")
+        .trim();
+
     if (debouncedSearch) {
-      const lower = debouncedSearch.toLowerCase();
-      list = list.filter((g) => g.name && g.name.toLowerCase().includes(lower));
+      const normalizedQuery = normalize(debouncedSearch);
+
+      list = list.filter(
+        (g) => g.name && normalize(g.name).includes(normalizedQuery),
+      );
     }
 
     if (releaseFilter !== "All") {
@@ -535,6 +545,7 @@ export default function GamesPage() {
     categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
+    save?: TrackedGame["save"],
   ) => {
     if (!editingGame || saving) return;
 
@@ -607,6 +618,7 @@ export default function GamesPage() {
         notes,
         categoryRatings: safeCategoryRatings,
         playedSessions,
+        save: save ?? null,
         lastUpdated: new Date(),
         recentActionSummary,
       });
@@ -1277,6 +1289,7 @@ export default function GamesPage() {
           initialCategoryRatings={editingGame.categoryRatings}
           initialProgress={editingGame.progress ?? 0}
           initialPlaytime={editingGame.playtime ?? 0}
+          initialPlayedSessions={editingGame.playedSessions}
           initialStatus={editingGame.status ?? "Playing"}
           initialFavorite={editingGame.favorite ?? false}
           showStatus={true}
@@ -1299,7 +1312,3 @@ export default function GamesPage() {
     </motion.main>
   );
 }
-
-
-
-

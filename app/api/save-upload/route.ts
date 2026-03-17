@@ -39,6 +39,7 @@ export async function POST(req: Request) {
       data: buffer,
     });
 
+    // ✅ RETURN SUCCESS (NO FIREBASE YET)
     return Response.json({
       success: true,
       storageKey,
@@ -46,9 +47,15 @@ export async function POST(req: Request) {
       fileName: file.name,
       sizeBytes: file.size,
     });
-  } catch (err) {
-    console.error("Save upload error:", err);
+  } catch (err: any) {
+    console.error("🔥 SERVER ERROR:", err);
 
-    return Response.json({ error: "Upload failed" }, { status: 500 });
+    return Response.json(
+      {
+        error: err?.message || String(err),
+        stack: err?.stack || null,
+      },
+      { status: 500 },
+    );
   }
 }
