@@ -16,6 +16,8 @@ import { useEffect } from "react";
 import { UIProvider } from "./context/UIContext";
 import RouteTransitionLoader from "./components/RouteTransitionLoader";
 import { GameProvider } from "./context/GameContext";
+import ReleaseDateAutoSync from "./components/ReleaseDateAutoSync";
+import ReleaseNotificationSync from "./components/ReleaseNotificationSync";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -61,6 +63,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
           <AuthModalProvider>
             <UserProvider>
               <GameProvider>
+                <ReleaseDateAutoSync />
+                <ReleaseNotificationSync />
                 <MusicProvider>
                   <UIProvider>
                     <RouteTransitionLoader />
@@ -88,3 +92,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
     </html>
   );
 }
+
+
+
+
+

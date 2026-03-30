@@ -5,6 +5,7 @@ import { useState } from "react";
 import GameActionsDropdown from "./GameActionsDropdown";
 import { MdBlock } from "react-icons/md";
 import { FaClock, FaExclamation, FaStar } from "react-icons/fa";
+import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
 
 const formatRating = (rating: number) =>
   Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
@@ -15,42 +16,15 @@ export default function GameCard({
 }: any) {
   const [loaded, setLoaded] = useState(false);
 
-  const getReleaseDate = () => {
-    const d = game?.igdb?.releaseDate;
-    if (!d) return null;
-
-    if (typeof d === "object" && "seconds" in d) {
-      return new Date(d.seconds * 1000);
-    }
-
-    if (d instanceof Date) {
-      return d;
-    }
-
-    if (typeof d === "number") {
-      return new Date(d < 1e12 ? d * 1000 : d);
-    }
-
-    if (typeof d === "string") {
-      const parsed = new Date(d);
-      return isNaN(parsed.getTime()) ? null : parsed;
-    }
-
-    return null;
-  };
-
-  const releaseDate = getReleaseDate();
+  const releaseDate = parseReleaseDate(game?.igdb?.releaseDate);
   const isReleased =
     releaseDate instanceof Date &&
     !isNaN(releaseDate.getTime()) &&
     releaseDate.getTime() <= Date.now();
-  const formattedReleaseDate = releaseDate
-    ? releaseDate.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "TBA";
+  const formattedReleaseDate = formatReleaseDate(
+    game?.igdb?.releaseDate,
+    game?.igdb?.releaseDatePrecision,
+  );
 
   const isNotInterested = game?.notInterested === true;
   const hasRating =

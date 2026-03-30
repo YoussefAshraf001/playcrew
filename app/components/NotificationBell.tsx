@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -35,7 +35,7 @@ type Game = {
 
 type Notification = {
   id: string;
-  type: "game_release";
+  type: "game_release" | "game_release_change";
   gameId: string;
   gameName: string;
   gameCover?: string;
@@ -47,6 +47,7 @@ type Notification = {
 };
 
 type FireNotificationDoc = {
+  type?: "game_release" | "game_release_change";
   gameId?: string;
   gameName?: string;
   gameCover?: string;
@@ -70,18 +71,17 @@ const toDate = (value: unknown): Date | null => {
   }
 
   if (value instanceof Date) {
-    return isNaN(value.getTime()) ? null : value;
+    return Number.isNaN(value.getTime()) ? null : value;
   }
 
   if (typeof value === "number") {
-    // Support both unix seconds and milliseconds.
     const parsed = new Date(value < 1e12 ? value * 1000 : value);
-    return isNaN(parsed.getTime()) ? null : parsed;
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   if (typeof value === "string") {
     const parsed = new Date(value);
-    return isNaN(parsed.getTime()) ? null : parsed;
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   return null;
@@ -92,6 +92,27 @@ const dateKey = (d: Date) => {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+};
+
+const dateFromKey = (value: string | null | undefined) => {
+  if (!value) return null;
+
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return null;
+
+  const parsed = new Date(y, m - 1, d);
+  parsed.setHours(0, 0, 0, 0);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatReleaseLabel = (value: Date | null) => {
+  if (!value) return "TBA";
+
+  return value.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 };
 
 const formatTimeAgo = (value: Date | null, nowMs: number) => {
@@ -135,6 +156,7 @@ export default function NotificationBell({
     ids: Set<string>;
   } | null>(null);
   const [swipedId, setSwipedId] = useState<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const currentItems = useMemo(() => (user ? items : []), [items, user]);
 
@@ -165,8 +187,8 @@ export default function NotificationBell({
       return;
     }
 
-    const ref = collection(db, "users", uid, "notifications");
-    const q = query(ref, orderBy("createdAt", "desc"), limit(25));
+    const notificationsRef = collection(db, "users", uid, "notifications");
+    const q = query(notificationsRef, orderBy("createdAt", "desc"), limit(25));
 
     const unsub = onSnapshot(q, (snap) => {
       const next: Notification[] = snap.docs
@@ -178,7 +200,10 @@ export default function NotificationBell({
 
           return {
             id: docSnap.id,
-            type: "game_release",
+            type:
+              data.type === "game_release_change"
+                ? "game_release_change"
+                : "game_release",
             gameId: String(data.gameId ?? ""),
             gameName: data.gameName ?? "Unknown game",
             gameCover: data.gameCover,
@@ -207,6 +232,23 @@ export default function NotificationBell({
     let cancelled = false;
 
     const createReleaseNotifications = async () => {
+      const releaseStateRef = collection(
+        db,
+        "users",
+        uid,
+        "notificationReleaseState",
+      );
+      const releaseStateSnap = await getDocs(releaseStateRef);
+      const knownReleaseState = new Map<string, string | null>();
+
+      for (const docSnap of releaseStateSnap.docs) {
+        const data = docSnap.data() as { releaseDateKey?: unknown };
+        knownReleaseState.set(
+          docSnap.id,
+          typeof data.releaseDateKey === "string" ? data.releaseDateKey : null,
+        );
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
@@ -219,50 +261,95 @@ export default function NotificationBell({
 
       const candidates: Array<{
         id: string;
+        type: "game_release" | "game_release_change";
         gameId: string;
         gameName: string;
         gameCover?: string;
-        releaseDate: Date;
+        releaseDate: Date | null;
         message: string;
       }> = [];
+      const stateUpdates = new Map<string, string | null>();
+      const trackedGameIds = new Set<string>();
 
-      // --- candidate creation loop ---
       for (const game of games) {
-        const release = toDate(game.igdb?.releaseDate);
-        if (!release) continue;
+        const gameId = String(game.id);
+        trackedGameIds.add(gameId);
 
-        release.setHours(0, 0, 0, 0);
-        const releaseKey = dateKey(release);
+        const parsedRelease = toDate(game.igdb?.releaseDate);
+        const normalizedRelease = parsedRelease ? new Date(parsedRelease) : null;
+        if (normalizedRelease) {
+          normalizedRelease.setHours(0, 0, 0, 0);
+        }
+
+        const releaseKey = normalizedRelease ? dateKey(normalizedRelease) : null;
+        const previousReleaseKey = knownReleaseState.get(gameId);
+
+        if (previousReleaseKey !== releaseKey && knownReleaseState.has(gameId)) {
+          const previousReleaseDate = dateFromKey(previousReleaseKey);
+          const changeId = `release-change-${gameId}-${previousReleaseKey ?? "tba"}-to-${releaseKey ?? "tba"}`;
+          let message = "Release date updated.";
+
+          if (previousReleaseKey === null && normalizedRelease) {
+            message = `Release date announced: ${formatReleaseLabel(normalizedRelease)}.`;
+          } else if (previousReleaseKey && releaseKey === null) {
+            message = `Release date moved from ${formatReleaseLabel(previousReleaseDate)} to TBA.`;
+          } else if (previousReleaseDate && normalizedRelease) {
+            message = `Release date changed from ${formatReleaseLabel(previousReleaseDate)} to ${formatReleaseLabel(normalizedRelease)}.`;
+          }
+
+          candidates.push({
+            id: changeId,
+            type: "game_release_change",
+            gameId,
+            gameName: game.name,
+            gameCover: game.igdb?.cover,
+            releaseDate: normalizedRelease ? new Date(normalizedRelease) : null,
+            message,
+          });
+        }
+
+        if (previousReleaseKey !== releaseKey || !knownReleaseState.has(gameId)) {
+          stateUpdates.set(gameId, releaseKey);
+        }
+
+        if (!normalizedRelease) {
+          continue;
+        }
+
         const diffDays = Math.floor(
-          (release.getTime() - today.getTime()) / DAY_MS,
+          (normalizedRelease.getTime() - today.getTime()) / DAY_MS,
         );
 
         if (diffDays < 0) continue;
 
         if (releaseKey === todayKey && diffDays === 0) {
-          const notificationId = `release-${game.id}-${todayKey}`;
           candidates.push({
-            id: notificationId,
-            gameId: String(game.id),
+            id: `release-${gameId}-${todayKey}`,
+            type: "game_release",
+            gameId,
             gameName: game.name,
             gameCover: game.igdb?.cover,
-            releaseDate: new Date(release),
+            releaseDate: new Date(normalizedRelease),
             message: "Releases today.",
           });
         }
 
         if (releaseKey === tomorrowKey || diffDays === 1) {
-          const soonId = `release-soon-${game.id}-${releaseKey}`;
           candidates.push({
-            id: soonId,
-            gameId: String(game.id),
+            id: `release-soon-${gameId}-${releaseKey}`,
+            type: "game_release",
+            gameId,
             gameName: game.name,
             gameCover: game.igdb?.cover,
-            releaseDate: new Date(release),
+            releaseDate: new Date(normalizedRelease),
             message: "Releases tomorrow.",
           });
         }
       }
+
+      const stateDeletes = releaseStateSnap.docs
+        .map((docSnap) => docSnap.id)
+        .filter((gameId) => !trackedGameIds.has(gameId));
 
       const writes: typeof candidates = [];
 
@@ -274,15 +361,14 @@ export default function NotificationBell({
           "notifications",
           candidate.id,
         );
-
         const existing = await getDoc(notificationRef);
-
         if (!existing.exists()) {
           writes.push(candidate);
         }
       }
 
-      if (cancelled || !writes.length) return;
+      if (cancelled) return;
+      if (!writes.length && !stateUpdates.size && !stateDeletes.length) return;
 
       const batch = writeBatch(db);
 
@@ -296,19 +382,34 @@ export default function NotificationBell({
         );
 
         batch.set(notificationRef, {
-          type: "game_release",
+          type: entry.type,
           gameId: entry.gameId,
           gameName: entry.gameName,
           gameCover: entry.gameCover ?? null,
           message: entry.message,
-          releaseDate: Timestamp.fromDate(entry.releaseDate),
+          releaseDate: entry.releaseDate
+            ? Timestamp.fromDate(entry.releaseDate)
+            : null,
           read: false,
           createdAt: serverTimestamp(),
         });
       }
 
+      for (const [gameId, releaseDateKey] of stateUpdates) {
+        const stateRef = doc(releaseStateRef, gameId);
+        batch.set(stateRef, {
+          gameId,
+          releaseDateKey,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      for (const gameId of stateDeletes) {
+        batch.delete(doc(releaseStateRef, gameId));
+      }
+
       await batch.commit();
-    }; // ✅ function closed here
+    };
 
     createReleaseNotifications().catch((err) => {
       if (!cancelled) {
@@ -329,7 +430,6 @@ export default function NotificationBell({
     today.setHours(0, 0, 0, 0);
     const trackedGameIds = new Set(games.map((g) => String(g.id)));
 
-    // Reconcile stale or duplicate release notifications.
     const toDelete = new Set<string>();
     const byGameRelease = new Map<string, Notification[]>();
 
@@ -340,7 +440,6 @@ export default function NotificationBell({
 
       if (!isReleaseNotif) continue;
 
-      // If game is no longer tracked, remove stale release notifications.
       if (!trackedGameIds.has(String(item.gameId))) {
         toDelete.add(item.id);
         continue;
@@ -354,7 +453,6 @@ export default function NotificationBell({
         (release.getTime() - today.getTime()) / DAY_MS,
       );
 
-      // "release-soon" is valid only for tomorrow.
       if (item.id.startsWith("release-soon-") && diffDays !== 1) {
         toDelete.add(item.id);
         continue;
@@ -366,7 +464,6 @@ export default function NotificationBell({
       byGameRelease.set(key, bucket);
     }
 
-    // Keep one notification per game+release date.
     for (const bucket of byGameRelease.values()) {
       if (bucket.length <= 1) continue;
 
@@ -429,6 +526,7 @@ export default function NotificationBell({
     }
   };
 
+
   const markAllRead = async () => {
     if (!uid) return;
 
@@ -486,7 +584,6 @@ export default function NotificationBell({
 
   return (
     <>
-      {/* BELL */}
       <div
         ref={ref}
         className={
@@ -541,7 +638,6 @@ export default function NotificationBell({
           )}
         </button>
 
-        {/* DROPDOWN */}
         <AnimatePresence>
           {open && (
             <motion.div
@@ -571,9 +667,6 @@ export default function NotificationBell({
                   <p className="text-xs text-white/60 mt-0.5">
                     {unreadCount} Unread Messages
                   </p>
-                  {/* <p className="text-xs text-white/60 mt-0.5">
-                    {currentItems.length} total
-                  </p> */}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -612,7 +705,12 @@ export default function NotificationBell({
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {currentItems.map((item) => (
+                    {currentItems.map((item) => {
+                      const isReleaseChangePending =
+                        item.type === "game_release_change" && !item.read;
+                      const isActionPending = pendingActionId === item.id;
+
+                      return (
                       <div
                         key={item.id}
                         className="group relative overflow-hidden rounded-[1.6rem]"
@@ -645,8 +743,9 @@ export default function NotificationBell({
                             damping: 36,
                           }}
                           onDragStart={() => {
-                            if (swipedId && swipedId !== item.id)
+                            if (swipedId && swipedId !== item.id) {
                               setSwipedId(null);
+                            }
                           }}
                           onDragEnd={(_, info) => {
                             if (info.offset.x <= -50) {
@@ -709,7 +808,7 @@ export default function NotificationBell({
                                           )}
                                         </span>
                                         <span className="text-white/25">
-                                          â€¢
+                                          -
                                         </span>
                                       </>
                                     )}
@@ -744,7 +843,8 @@ export default function NotificationBell({
                           </button>
                         </motion.div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -755,3 +855,9 @@ export default function NotificationBell({
     </>
   );
 }
+
+
+
+
+
+

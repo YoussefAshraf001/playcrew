@@ -1,3 +1,5 @@
+import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
+
 export type StoredRating = number | "excluded" | null;
 
 export interface CategoryRatings {
@@ -30,6 +32,7 @@ export interface SaveUpload {
   uploadedAt: any;
   storageKey: string;
   savePath?: string;
+  location?: string;
 }
 
 export interface TrackedGame {
@@ -44,6 +47,7 @@ export interface TrackedGame {
   notes?: string;
   categoryRatings?: CategoryRatings;
   favorite?: boolean;
+  favoriteOrder?: number;
   favoriteAllTime?: boolean;
   notInterested?: boolean;
   playedSessions?: PlaySession[];
@@ -64,5 +68,6 @@ export interface TrackedGame {
     rating?: number;
     genres?: string[];
     releaseDate?: Date;
+    releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 }

@@ -40,6 +40,7 @@ import {
 import { Helmet } from "react-helmet-async";
 
 import { getAwardCategoryFromDocId, getAwardYears } from "@/app/lib/awards";
+import { formatReleaseDate } from "@/app/lib/releaseDates";
 import { db } from "@/app/lib/firebase";
 import { getRecentGameActionSummary } from "@/app/lib/recentGameActions";
 import { useUser } from "@/app/context/UserContext";
@@ -50,6 +51,7 @@ import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
 import { IoCloseCircle } from "react-icons/io5";
 import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
+import { FiEdit3 } from "react-icons/fi";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing â†’ blue = focus
@@ -1057,16 +1059,7 @@ export default function GamePage() {
                       </h3>
 
                       <div className="text-[12px] font-semibold text-white">
-                        {game.released
-                          ? new Date(game.released * 1000).toLocaleDateString(
-                              "en-US",
-                              {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              },
-                            )
-                          : "TBA"}
+                        {game.released ? formatReleaseDate(game.released * 1000) : "TBA"}
                       </div>
 
                       {/* <p className="mt-1 text-[10px] text-white/55">
@@ -1168,7 +1161,7 @@ export default function GamePage() {
                                       if (!requireLogin()) return;
                                       setTrackingModalOpen(true);
                                     }}
-                                    className="rounded-xl border border-white/12 bg-transparent px-4 py-2 text-[13px] text-white/90 transition hover:scale-105 hover:border-cyan-400/35 hover:bg-cyan-500/12"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/35 bg-emerald-400/12 px-4 py-2 text-[13px] font-semibold text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,0.12)] transition hover:scale-105 hover:border-emerald-200/50 hover:bg-emerald-400/18"
                                     initial={{
                                       opacity: 0,
                                       x: 18,
@@ -1196,7 +1189,10 @@ export default function GamePage() {
                                       delay: 0.04,
                                     }}
                                   >
-                                    Edit Tracking
+                                    <>
+                                      <FiEdit3 size={14} />
+                                      Edit Tracking
+                                    </>
                                   </motion.button>
                                 </>
                               )}
@@ -1845,3 +1841,8 @@ export default function GamePage() {
     </>
   );
 }
+
+
+
+
+

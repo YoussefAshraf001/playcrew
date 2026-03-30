@@ -6,7 +6,7 @@ import { TbPlaystationCircle, TbPlaystationX } from "react-icons/tb";
 interface ConfirmModalProps {
   open: boolean;
   title?: string;
-  message: string;
+  message: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   onConfirm: () => void;

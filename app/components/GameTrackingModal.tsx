@@ -31,6 +31,7 @@ import { auth, db } from "../lib/firebase";
 import { TiFolderDelete } from "react-icons/ti";
 import { BsSave } from "react-icons/bs";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
 
 interface GameTrackingModalProps {
   open: boolean;
@@ -179,15 +180,40 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     normalizePlaySessions(initialPlayedSessions),
   );
   const [isSaveDropActive, setIsSaveDropActive] = useState(false);
-  const [saveUploads, setSaveUploads] = useState<SaveUpload[]>([]);
-  const [selectedSaveFile, setSelectedSaveFile] = useState<File | null>(null);
+  const [saveLocation, setSaveLocation] = useState("");
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [tempLocation, setTempLocation] = useState("");
+  const [pendingUpload, setPendingUpload] = useState<SaveUpload | null>(null);
   const [checkingSave, setCheckingSave] = useState(false);
   const [existingSave, setExistingSave] = useState<SaveUpload | null>(null);
   const [uploadingSave, setUploadingSave] = useState(false);
+  const [confirmOverwriteOpen, setConfirmOverwriteOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingDeleteSession, setPendingDeleteSession] = useState<
     number | null
   >(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletedSave, setDeletedSave] = useState(false);
+  const [deletingSave, setDeletingSave] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [open]);
   useEffect(() => {
     setNotes(initialNotes ?? "");
     setProgress(initialProgress ?? 0);
@@ -238,8 +264,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     const user = auth.currentUser;
     if (!user) return;
 
-    let isMounted = true;
-
     const checkSave = async () => {
       const user = auth.currentUser;
       if (!user || !game) return;
@@ -259,6 +283,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
         if (snap.exists()) {
           setExistingSave(snap.data().save ?? null);
+          setSaveLocation(snap.data().save?.location ?? "");
         } else {
           setExistingSave(null);
         }
@@ -269,16 +294,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       }
     };
 
-    // reset previous state when switching games
-    setExistingSave(null);
-    setSaveUploads([]);
-    setSelectedSaveFile(null);
-
     checkSave();
-
-    return () => {
-      isMounted = false;
-    };
   }, [game]);
 
   const setCategory = (
@@ -329,6 +345,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
         ? appendPlaySession(playedSessions, initialPlaytime, totalPlaytime)
         : playedSessions;
 
+    const normalizedSave: SaveUpload | null = currentSave
+      ? {
+          id: (currentSave as any).id ?? crypto.randomUUID(), // ✅ ensure id
+          fileName: currentSave.fileName,
+          sizeBytes: currentSave.sizeBytes,
+          uploadedAt: currentSave.uploadedAt,
+          storageKey: currentSave.storageKey,
+          location: (currentSave as any).location,
+        }
+      : null;
+
     await onSave(
       notes,
       hasAnyRatings ? weightedRating : null,
@@ -339,6 +366,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       categoryRatings,
       notInterested,
       nextPlayedSessions,
+      normalizedSave,
     );
   };
 
@@ -394,6 +422,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   };
 
   const handleUploadSelectedFile = async (file: File) => {
+    if (!gameIsReleased) {
+      toast.error("Game is unreleased.");
+      return;
+    }
+
     if (!isZipFile(file)) {
       toast.error("Only .zip save files are allowed.");
       return;
@@ -401,7 +434,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
     try {
       setUploadingSave(true);
-      setSelectedSaveFile(file);
       const result = await uploadSaveFile(file);
       const upload: SaveUpload = {
         id: crypto.randomUUID(),
@@ -411,10 +443,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
         storageKey: result.storageKey,
       };
 
-      await saveUploadOnly(upload);
-
-      setSaveUploads([upload]);
-      setExistingSave(null);
+      setPendingUpload(upload);
+      setTempLocation("");
+      setLocationModalOpen(true);
     } catch {
       toast.error("Upload failed.");
     } finally {
@@ -423,8 +454,19 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   };
 
   const handleSaveFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!gameIsReleased) {
+      toast.error("Game is unreleased.");
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
+    if (hasSave) {
+      setPendingFile(file);
+      setConfirmOverwriteOpen(true);
+      return;
+    }
+
     await handleUploadSelectedFile(file);
   };
 
@@ -433,9 +475,119 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     event.stopPropagation();
     setIsSaveDropActive(false);
 
+    if (!gameIsReleased) {
+      toast.error("Game is unreleased.");
+      return;
+    }
+
     const file = event.dataTransfer.files?.[0];
     if (!file) return;
+    if (hasSave) {
+      setPendingFile(file);
+      setConfirmOverwriteOpen(true);
+      return;
+    }
+
     await handleUploadSelectedFile(file);
+  };
+
+  const handleSaveLocation = async () => {
+    if (!pendingUpload) return;
+
+    const finalUpload = {
+      ...pendingUpload,
+      location: tempLocation || undefined,
+    };
+
+    await saveUploadOnly(finalUpload);
+
+    setExistingSave(finalUpload);
+
+    setLocationModalOpen(false);
+    setPendingUpload(null);
+
+    toast.success("Save uploaded");
+  };
+
+  const handleIgnoreLocation = async () => {
+    if (!pendingUpload) return;
+
+    await saveUploadOnly(pendingUpload);
+
+    setExistingSave(pendingUpload);
+
+    setLocationModalOpen(false);
+    setPendingUpload(null);
+
+    toast.success("Save uploaded");
+  };
+
+  const confirmOverwrite = async () => {
+    if (!pendingFile || uploadingSave) return;
+
+    try {
+      setConfirmOverwriteOpen(false);
+
+      await handleUploadSelectedFile(pendingFile);
+
+      toast.success("Save file updated");
+    } catch (err) {
+      console.error("Overwrite failed:", err);
+      toast.error("Failed to update save file");
+    } finally {
+      setPendingFile(null);
+    }
+  };
+
+  const handleDeleteSave = async () => {
+    try {
+      setDeletingSave(true);
+
+      const fileName = `saves/${auth.currentUser!.uid}/${game!.igdb.id}/save.zip`;
+
+      const res = await fetch("/api/save-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileName,
+          gameId: game!.igdb.id,
+          userId: auth.currentUser!.uid,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Delete failed:", data);
+        toast.error("Failed to delete save");
+        return;
+      }
+
+      // ✅ 🔥 THIS WAS MISSING
+      const ref = doc(
+        db,
+        "users",
+        auth.currentUser!.uid,
+        "games_igdb",
+        game!.igdb.id.toString(),
+      );
+
+      await setDoc(ref, { save: null }, { merge: true });
+
+      // ✅ update UI
+      setExistingSave(null);
+      setDeletedSave(true);
+
+      toast.success("Save deleted");
+    } catch (err) {
+      console.error(err);
+      toast.error("Delete failed");
+    } finally {
+      setDeletingSave(false);
+      setConfirmDeleteOpen(false);
+    }
   };
 
   const getProgressText = (value: number) => {
@@ -471,20 +623,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     applyNotInterested();
   };
 
-  const normalizeDate = (value?: any) => {
-    if (!value) return null;
-    if (typeof value === "object" && typeof value.seconds === "number") {
-      return new Date(value.seconds * 1000);
-    }
-    if (typeof value?.toDate === "function") {
-      return value.toDate();
-    }
-    if (typeof value === "number") {
-      return new Date(value * 1000);
-    }
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? null : d;
-  };
+  const normalizeDate = (value?: any) => parseReleaseDate(value);
 
   const bgUrl = game?.igdb.cover || "/placeholder-game.jpg";
   const releaseDate = normalizeDate(game?.igdb.releaseDate);
@@ -492,7 +631,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const blockIfUnreleased = () => {
     if (!gameIsReleased) {
-      toast.error("Game isn't released yet.");
+      toast.error("Game is unreleased.");
       return true;
     }
     return false;
@@ -504,10 +643,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const progressOffset =
     progressCircumference - (progress / 100) * progressCircumference;
 
-  const hasSave =
-    !checkingSave &&
-    ((saveUploads.length > 0 && saveUploads[0]?.storageKey) ||
-      existingSave?.storageKey);
+  const currentSave = existingSave ?? game?.save ?? null;
+  const hasSave = !!currentSave?.storageKey;
 
   const handleDeleteSession = async (index: number, deductTime: boolean) => {
     const removed = playedSessions[index];
@@ -585,13 +722,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       {game?.name}
                     </h3>
                     <p className="truncate text-xs text-zinc-200/85 sm:text-sm">
-                      {releaseDate
-                        ? releaseDate.toLocaleDateString(undefined, {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })
-                        : "Release date unknown"}
+                      {formatReleaseDate(
+                        game?.igdb.releaseDate,
+                        game?.igdb.releaseDatePrecision,
+                      )}
                     </p>
                   </div>
                 </div>
@@ -735,12 +869,15 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   <button
                                     key={n}
                                     type="button"
-                                    disabled={
-                                      !gameIsReleased ||
-                                      isNotInterested ||
-                                      isExcluded
-                                    }
-                                    onClick={() => setCategory(cat, n)}
+                                    disabled={isNotInterested || isExcluded}
+                                    onClick={() => {
+                                      if (!gameIsReleased) {
+                                        blockIfUnreleased();
+                                        return;
+                                      }
+                                      if (isNotInterested || isExcluded) return;
+                                      setCategory(cat, n);
+                                    }}
                                     className={`h-5 min-w-5 rounded-md border px-1 text-[10px] font-semibold transition ${
                                       isActive
                                         ? "scale-105 bg-white/80 text-black"
@@ -778,7 +915,13 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   </div>
                 </section>
 
-                <aside className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:min-h-0 md:grid-cols-1 md:grid-rows-[auto_auto_auto_auto] md:content-start">
+                <aside
+                  className={`grid gap-2 sm:grid-cols-2 md:grid-cols-1 md:min-h-0 ${
+                    game.status !== "Online"
+                      ? "md:grid-rows-[auto_1fr_1fr]"
+                      : "md:grid-rows-[auto_1fr]"
+                  }`}
+                >
                   <div
                     className={`relative rounded-2xl border border-white/15 bg-black/35 p-2 backdrop-blur-md sm:col-span-2 md:col-span-1 ${!gameIsReleased ? "opacity-45" : ""}`}
                   >
@@ -846,7 +989,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   </div>
 
                   <div
-                    className={`rounded-2xl border border-white/20 bg-black/40 p-4 backdrop-blur-md ${!gameIsReleased ? "opacity-45" : ""}`}
+                    className={`flex flex-col rounded-2xl border border-white/20 bg-black/40 p-4 backdrop-blur-md ${!gameIsReleased ? "opacity-45" : ""}`}
                   >
                     <div className="flex items-start justify-between">
                       <div>
@@ -966,85 +1109,151 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     </div>
                   </div>
 
-                  <div className="relative rounded-2xl border border-white/15 bg-black/35 h-[163px] p-2 backdrop-blur-md">
-                    {uploadingSave && (
-                      <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm">
-                        <div className="flex flex-col items-center gap-2 text-white">
-                          <span className="loading loading-dots loading-md" />
-                          <p className="text-xs text-zinc-300">
-                            Uploading save...
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <AnimatePresence>
-                      {checkingSave && (
-                        <motion.div
-                          key="checking-save"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm"
-                        >
+                  {game.status !== "Online" && (
+                    <div className="relative rounded-2xl border border-white/15 bg-black/35 h-[163px] p-2 backdrop-blur-md">
+                      {uploadingSave && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm">
                           <div className="flex flex-col items-center gap-2 text-white">
                             <span className="loading loading-dots loading-md" />
                             <p className="text-xs text-zinc-300">
-                              Checking save...
+                              Uploading save...
                             </p>
                           </div>
-                        </motion.div>
+                        </div>
                       )}
-                    </AnimatePresence>
+                      {deletingSave && (
+                        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm">
+                          <div className="flex flex-col items-center gap-2 text-white">
+                            <span className="loading loading-dots loading-md" />
+                            <p className="text-xs text-zinc-300">
+                              Deleting save...
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
-                    <motion.div layout className="relative flex flex-col">
-                      {/* 🧠 HEADER */}
-                      <motion.p
-                        layout
-                        className="text-[11px] uppercase tracking-[0.25em] text-zinc-500 text-center pt-1"
-                      >
-                        Save Slot
-                      </motion.p>
-
-                      {/* 🎮 SLOT */}
-                      <AnimatePresence mode="wait">
-                        {hasSave ? (
+                      <AnimatePresence>
+                        {checkingSave && (
                           <motion.div
-                            key="filled"
+                            key="checking-save"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            transition={{ duration: 0.25 }}
-                            className="mt-3 flex items-center gap-4 rounded-xl border border-amber-400/40 bg-black/50 px-4 py-6 min-h-20"
+                            className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/70 backdrop-blur-sm"
                           >
-                            {/* 🎮 Cover */}
-                            <img
-                              src={game.igdb.cover}
-                              alt={game.name}
-                              className="h-14 w-20 rounded-md object-cover border border-white/20"
-                            />
+                            <div className="flex flex-col items-center gap-2 text-white">
+                              <span className="loading loading-dots loading-md" />
+                              <p className="text-xs text-zinc-300">
+                                Checking save...
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
-                            {/* 📄 Info */}
-                            <div className="min-w-0 flex-1 overflow-hidden">
-                              <motion.div
-                                initial="initial"
-                                animate="animate"
-                                className="flex flex-col"
-                              >
-                                <motion.p
-                                  variants={{
-                                    initial: { y: 6 },
-                                    animate: { y: 0 },
-                                  }}
-                                  transition={{
-                                    duration: 0.25,
-                                    ease: "easeOut",
-                                  }}
-                                  className="truncate max-w-[230px] text-base font-semibold text-white"
+                      <motion.div layout className="relative flex flex-col">
+                        {/* 🧠 HEADER */}
+                        <motion.p
+                          layout
+                          className="text-[11px] uppercase tracking-[0.25em] text-zinc-500 text-center pt-1"
+                        >
+                          Save Slot
+                        </motion.p>
+
+                        {/* 🎮 SLOT */}
+                        <AnimatePresence mode="wait">
+                          {hasSave ? (
+                            <motion.div
+                              key="filled"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="mt-3 flex items-center gap-4 rounded-xl border border-amber-400/40 bg-black/50 px-4 py-6 min-h-20"
+                            >
+                              {/* 🎮 Cover */}
+                              <img
+                                src={game.igdb.cover}
+                                alt={game.name}
+                                className="h-14 w-20 rounded-md object-cover border border-white/20"
+                              />
+
+                              {/* 📄 Info */}
+                              <div className="min-w-0 flex-1 overflow-hidden">
+                                <motion.div
+                                  initial="initial"
+                                  animate="animate"
+                                  className="flex flex-col"
                                 >
-                                  {game?.name ?? "Slot 01"}
-                                </motion.p>
+                                  <motion.p
+                                    variants={{
+                                      initial: { y: 6 },
+                                      animate: { y: 0 },
+                                    }}
+                                    transition={{
+                                      duration: 0.25,
+                                      ease: "easeOut",
+                                    }}
+                                    className="truncate max-w-[230px] text-base font-semibold text-white"
+                                  >
+                                    {game?.name ?? "Slot 01"}
+                                  </motion.p>
 
+                                  <motion.p
+                                    variants={{
+                                      initial: { y: 6 },
+                                      animate: { y: 0 },
+                                    }}
+                                    transition={{
+                                      duration: 0.25,
+                                      ease: "easeOut",
+                                    }}
+                                    className="truncate max-w-[230px] text-[10px] font-semibold text-white"
+                                  >
+                                    {(currentSave as SaveUpload)?.location}
+                                  </motion.p>
+
+                                  <motion.p
+                                    variants={{
+                                      initial: { opacity: 0, y: 4 },
+                                      animate: { opacity: 1, y: 0 },
+                                    }}
+                                    transition={{ delay: 0.15, duration: 0.25 }}
+                                    className="text-[11px] text-amber-300 tracking-wide"
+                                  >
+                                    {(() => {
+                                      const raw = currentSave?.uploadedAt;
+
+                                      if (!raw) return "Unknown date";
+
+                                      // ✅ Firestore Timestamp (client SDK)
+                                      if (
+                                        typeof (raw as any).toDate ===
+                                        "function"
+                                      ) {
+                                        return (raw as any)
+                                          .toDate()
+                                          .toLocaleString();
+                                      }
+
+                                      // ✅ Firestore Timestamp (from API / JSON)
+                                      if (
+                                        typeof raw === "object" &&
+                                        "seconds" in raw
+                                      ) {
+                                        return new Date(
+                                          raw.seconds * 1000,
+                                        ).toLocaleString();
+                                      }
+
+                                      // ✅ fallback
+                                      const d = new Date(raw as any);
+                                      return isNaN(d.getTime())
+                                        ? "Unknown date"
+                                        : d.toLocaleString();
+                                    })()}
+                                  </motion.p>
+                                </motion.div>
                                 <motion.p
                                   variants={{
                                     initial: { opacity: 0, y: 4 },
@@ -1053,164 +1262,109 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   transition={{ delay: 0.15, duration: 0.25 }}
                                   className="text-[11px] text-amber-300 tracking-wide"
                                 >
-                                  {(() => {
-                                    const raw =
-                                      existingSave?.uploadedAt ||
-                                      saveUploads[0]?.uploadedAt ||
-                                      game?.save?.uploadedAt;
-
-                                    if (!raw) return "Unknown date";
-
-                                    // ✅ Firestore Timestamp (client SDK)
-                                    if (
-                                      typeof (raw as any).toDate === "function"
-                                    ) {
-                                      return (raw as any)
-                                        .toDate()
-                                        .toLocaleString();
-                                    }
-
-                                    // ✅ Firestore Timestamp (from API / JSON)
-                                    if (
-                                      typeof raw === "object" &&
-                                      "seconds" in raw
-                                    ) {
-                                      return new Date(
-                                        raw.seconds * 1000,
-                                      ).toLocaleString();
-                                    }
-
-                                    // ✅ fallback
-                                    const d = new Date(raw as any);
-                                    return isNaN(d.getTime())
-                                      ? "Unknown date"
-                                      : d.toLocaleString();
-                                  })()}
+                                  {formatSize(currentSave?.sizeBytes)}
                                 </motion.p>
-                              </motion.div>
-                              <motion.p
-                                variants={{
-                                  initial: { opacity: 0, y: 4 },
-                                  animate: { opacity: 1, y: 0 },
-                                }}
-                                transition={{ delay: 0.15, duration: 0.25 }}
-                                className="text-[11px] text-amber-300 tracking-wide"
-                              >
-                                {formatSize(game?.save?.sizeBytes)}
-                              </motion.p>
-                            </div>
+                              </div>
 
-                            {/* ⚡ Actions */}
-                            <div className="flex items-center gap-3 ml-2">
-                              {/* ⬇ Download */}
-                              <button
-                                onClick={async () => {
-                                  const fileName =
-                                    existingSave?.storageKey ||
-                                    saveUploads[0]?.storageKey;
+                              {/* ⚡ Actions */}
+                              <div className="flex items-center gap-3 ml-2">
+                                {/* ⬇ Download */}
+                                <button
+                                  onClick={async () => {
+                                    const fileName = currentSave?.storageKey;
 
-                                  if (!fileName) {
-                                    console.error("No fileName");
-                                    return;
-                                  }
+                                    if (!fileName) {
+                                      console.error("No fileName");
+                                      return;
+                                    }
 
-                                  const res = await fetch(
-                                    "/api/save-download",
-                                    {
-                                      method: "POST",
-                                      headers: {
-                                        "Content-Type": "application/json",
+                                    const res = await fetch(
+                                      "/api/save-download",
+                                      {
+                                        method: "POST",
+                                        headers: {
+                                          "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify({ fileName }),
                                       },
-                                      body: JSON.stringify({ fileName }),
-                                    },
-                                  );
+                                    );
 
-                                  const data = await res.json();
+                                    const data = await res.json();
 
-                                  if (!res.ok) {
-                                    console.error(data.error);
-                                    return;
-                                  }
+                                    if (!res.ok) {
+                                      console.error(data.error);
+                                      return;
+                                    }
 
-                                  window.open(data.downloadUrl, "_blank");
-                                }}
-                                className="text-white transition-all cursor-pointer hover:scale-125 duration-200 ease-in-out"
-                              >
-                                <BsSave size={15} />
-                              </button>
+                                    window.open(data.downloadUrl, "_blank");
+                                  }}
+                                  className="text-white transition-all cursor-pointer hover:scale-125 duration-200 ease-in-out"
+                                >
+                                  <BsSave size={15} />
+                                </button>
 
-                              {/* 🗑 Delete */}
-                              <button
-                                onClick={async () => {
-                                  const fileName =
-                                    existingSave?.storageKey ||
-                                    saveUploads[0]?.storageKey;
-                                  if (!fileName) return;
-
-                                  await fetch("/api/save-delete", {
-                                    method: "POST",
-                                    body: JSON.stringify({
-                                      fileName,
-                                      gameId: game!.igdb.id,
-                                      userId: auth.currentUser!.uid,
-                                    }),
-                                  });
-
-                                  setSaveUploads([]);
-                                  setSelectedSaveFile(null);
-                                  setExistingSave(null);
-                                }}
-                                className="text-white transition-all  cursor-pointer hover:scale-125 duration-200 ease-in-out"
-                              >
-                                <TiFolderDelete size={20} />
-                              </button>
-                            </div>
-                          </motion.div>
-                        ) : (
-                          <motion.label
-                            key="empty"
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 6 }}
-                            className={`mt-3 flex cursor-pointer items-center justify-center rounded-xl border border-dashed px-3 py-6 min-h-20 transition ${
-                              isSaveDropActive
-                                ? "border-amber-400/60 bg-amber-400/10"
-                                : "border-white/12 bg-white/3 hover:border-white/25 hover:bg-white/5"
-                            }`}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              setIsSaveDropActive(true);
-                            }}
-                            onDragLeave={() => setIsSaveDropActive(false)}
-                            onDrop={handleSaveFileDrop}
-                          >
-                            <input
-                              type="file"
-                              accept=".zip"
-                              className="hidden"
-                              onChange={handleSaveFileChange}
-                            />
-
-                            <div className="flex items-center gap-4 w-full opacity-70">
-                              {/* 🎮 Image skeleton with centered text */}
-                              <div className="relative h-14 w-20 rounded-md bg-white/10 border border-white/10 flex items-center justify-center">
-                                <span className="text-[10px] text-zinc-400 tracking-wide">
-                                  EMPTY SLOT
-                                </span>
+                                {/* 🗑 Delete */}
+                                <button
+                                  onClick={() => setConfirmDeleteOpen(true)}
+                                  className="text-white transition-all  cursor-pointer hover:scale-125 duration-200 ease-in-out"
+                                >
+                                  <TiFolderDelete size={20} />
+                                </button>
                               </div>
+                            </motion.div>
+                          ) : (
+                            <motion.label
+                              key="empty"
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: 6 }}
+                              className={`mt-3 flex items-center justify-center rounded-xl border border-dashed px-3 py-6 min-h-20 transition ${
+                                !gameIsReleased
+                                  ? "cursor-not-allowed border-white/10 bg-white/3 opacity-45"
+                                  : isSaveDropActive
+                                    ? "cursor-pointer border-amber-400/60 bg-amber-400/10"
+                                    : "cursor-pointer border-white/12 bg-white/3 hover:border-white/25 hover:bg-white/5"
+                              }`}
+                              onDragOver={(e) => {
+                                if (!gameIsReleased) return;
+                                e.preventDefault();
+                                setIsSaveDropActive(true);
+                              }}
+                              onDragLeave={() => setIsSaveDropActive(false)}
+                              onDrop={handleSaveFileDrop}
+                            >
+                              <input
+                                type="file"
+                                accept=".zip"
+                                className="hidden"
+                                disabled={!gameIsReleased}
+                                onChange={handleSaveFileChange}
+                              />
 
-                              {/* 📄 Text */}
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-zinc-400">
-                                  Slot #1
-                                </p>
+                              <div className="flex items-center gap-4 w-full opacity-70">
+                                <div className="relative flex h-14 w-20 items-center justify-center rounded-md border border-white/10 bg-white/10">
+                                  <span className="text-[10px] text-zinc-400 tracking-wide">
+                                    EMPTY SLOT
+                                  </span>
+                                </div>
+
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold text-zinc-400">
+                                    Slot #1
+                                  </p>
+                                  <p className="mt-1 text-xs text-zinc-500">
+                                    {!gameIsReleased
+                                      ? "Save uploads unlock on release day"
+                                      : "Drop your zip save here or click to browse"}
+                                  </p>
+                                </div>
                               </div>
-                            </div>
-                          </motion.label>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-                  </div>
+                            </motion.label>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    </div>
+                  )}
                 </aside>
               </div>
 
@@ -1369,6 +1523,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               )}
             </AnimatePresence>
 
+            {/* CONFIRM TO SET GAME AS NOT INTERESTED */}
             <ConfirmModal
               open={confirmNotInterestedOpen}
               title="Are you sure?"
@@ -1382,6 +1537,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               }}
             />
 
+            {/* DELETE GAME ENTRY */}
             <ConfirmModal
               open={confirmRemoveOpen}
               title="Remove entry?"
@@ -1398,6 +1554,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               }}
             />
 
+            {/* DELETE SESSION */}
             <ConfirmModal
               open={pendingDeleteSession !== null}
               title="Remove session?"
@@ -1418,6 +1575,56 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 setPendingDeleteSession(null);
                 handleDeleteSession(index, true);
               }}
+            />
+
+            {/* DELETE SAVE FILE */}
+            <ConfirmModal
+              open={confirmDeleteOpen}
+              title="Delete Save File?"
+              message="This will permanently delete your save file. This action cannot be undone."
+              confirmText="Delete"
+              cancelText="Cancel"
+              onCancel={() => setConfirmDeleteOpen(false)}
+              onConfirm={handleDeleteSave}
+            />
+
+            {/* OVERWRITE SAVE FILE */}
+            <ConfirmModal
+              open={confirmOverwriteOpen}
+              title="Overwrite Save File?"
+              message="You’re about to overwrite your current save with a new version. This action cannot be undone."
+              confirmText="Overwrite"
+              cancelText="Cancel"
+              onCancel={() => {
+                setConfirmOverwriteOpen(false);
+                setPendingFile(null);
+              }}
+              onConfirm={confirmOverwrite}
+            />
+
+            {/*  */}
+            <ConfirmModal
+              open={locationModalOpen}
+              title="Add Save Location (Optional)"
+              message={
+                <div className="flex flex-col gap-3 mt-2">
+                  <p className="text-sm text-zinc-300">
+                    You can store where this save came from on your PC.
+                  </p>
+
+                  <input
+                    type="text"
+                    value={tempLocation}
+                    onChange={(e) => setTempLocation(e.target.value)}
+                    placeholder="e.g. Documents/My Games/Elden Ring"
+                    className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-400/50"
+                  />
+                </div>
+              }
+              confirmText="Save"
+              cancelText="Ignore"
+              onCancel={handleIgnoreLocation}
+              onConfirm={handleSaveLocation}
             />
           </motion.div>
         </motion.div>

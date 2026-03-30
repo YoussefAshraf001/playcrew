@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, Reorder } from "framer-motion";
 import Link from "next/link";
 import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
@@ -26,6 +26,7 @@ import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
 import styles from "./OnlineToggle.module.css";
 import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
+import { useRouter } from "next/navigation";
 
 const STATUSES = [
   "All",
@@ -66,6 +67,7 @@ interface UserProfile {
 export default function GamesPage() {
   const { profile: userProfile, loading: userLoading, user } = useUser();
   const { games: sharedGames, gamesLoading } = useGames();
+  const router = useRouter();
   const uid = user?.uid as string | undefined;
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("Playing");
@@ -80,6 +82,7 @@ export default function GamesPage() {
 
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [orderedFavorites, setOrderedFavorites] = useState<TrackedGame[]>([]);
   const [includeOnlineGames, setIncludeOnlineGames] = useState(() => {
     if (typeof window === "undefined") return true;
     const stored = window.localStorage.getItem("games.includeOnlineGames");
@@ -105,6 +108,8 @@ export default function GamesPage() {
   const [confirmAction, setConfirmAction] = useState<
     () => void | Promise<void>
   >(() => {});
+
+  const isDraggingRef = useRef(false);
 
   // Hydrate local profile from shared games context
   useEffect(() => {
@@ -365,9 +370,16 @@ export default function GamesPage() {
   }, [validGames, currentPage]);
 
   const favoriteGames = useMemo(
-    () => allGames.filter((g) => g.favorite),
+    () =>
+      allGames
+        .filter((g) => g.favorite)
+        .sort((a, b) => (a.favoriteOrder ?? 9999) - (b.favoriteOrder ?? 9999)),
     [allGames],
   );
+
+  useEffect(() => {
+    setOrderedFavorites(favoriteGames);
+  }, [favoriteGames]);
 
   const recentlyEditedGames = useMemo(
     () =>
@@ -535,6 +547,24 @@ export default function GamesPage() {
     return updated as TrackedGame;
   };
 
+  const reorderFavorites = async (reordered: TrackedGame[]) => {
+    if (!user) return;
+
+    const updates = reordered.map((game, index) => {
+      const ref = doc(
+        db,
+        "users",
+        user.uid,
+        "games_igdb",
+        game._docId ?? String(game.igdb.id),
+      );
+
+      return setDoc(ref, { favoriteOrder: index }, { merge: true });
+    });
+
+    await Promise.all(updates);
+  };
+
   const handleSaveModal = async (
     notes: string,
     rating: number | null,
@@ -568,6 +598,17 @@ export default function GamesPage() {
       /* ---------------- Determine recent action ---------------- */
 
       let recentActionSummary = "Game Updated";
+
+      // 🧠 SAVE LOGIC FIRST (before everything else)
+      if (!prev.save && save) {
+        recentActionSummary = "Save file uploaded";
+      } else if (prev.save && !save) {
+        recentActionSummary = "Save file deleted";
+      } else if (prev.save && save) {
+        if (prev.save.storageKey !== save.storageKey) {
+          recentActionSummary = "Save overwritten";
+        }
+      }
 
       if (!prev.notInterested && notInterested) {
         recentActionSummary = "Marked as Not Interested";
@@ -618,7 +659,7 @@ export default function GamesPage() {
         notes,
         categoryRatings: safeCategoryRatings,
         playedSessions,
-        save: save ?? null,
+        ...(save !== undefined ? { save } : {}),
         lastUpdated: new Date(),
         recentActionSummary,
       });
@@ -831,7 +872,7 @@ export default function GamesPage() {
             <div className="relative w-full pt-5">
               <motion.div
                 layout
-                className="relative mx-auto flex w-fit max-w-full flex-nowrap items-center gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm"
+                className="relative mx-auto flex w-full max-w-full flex-wrap items-center justify-center gap-2 overflow-visible rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm lg:w-fit lg:flex-nowrap lg:overflow-x-auto"
                 initial={false}
                 transition={{
                   type: "spring",
@@ -895,7 +936,7 @@ export default function GamesPage() {
                         <motion.div
                           key="release-filter"
                           layout
-                          className="flex shrink-0 items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-black/35 p-1"
+                          className="flex shrink-0 flex-wrap items-center justify-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-black/35 p-1 lg:flex-nowrap"
                           initial={{ opacity: 0, width: 0, x: -8 }}
                           animate={{ opacity: 1, width: "auto", x: 0 }}
                           exit={{
@@ -1188,51 +1229,95 @@ export default function GamesPage() {
                     <p className="text-zinc-500">No Favorite Games</p>
                   </div>
                 ) : (
-                  favoriteGames.map((g) => (
-                    <Link key={g.igdb.id} href={`/game/${g.igdb.id}`}>
-                      <div className="flex items-center gap-2 p-2 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md">
-                        <img
-                          className="w-12 h-16 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
-                          src={g.igdb.cover}
-                          alt={g.name}
-                        />
-                        <div className="flex-1 flex flex-col justify-center">
-                          <span className="text-white/90 font-medium text-[13px] group-hover:text-white transition-colors duration-300 truncate max-w-43">
-                            {g.name}
-                          </span>
-                          <div className="flex gap-1.5 mt-1">
-                            <span className="text-[11px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
-                              {g.playtime
-                                ? `${Math.floor(g.playtime)}h ${Math.round(
-                                    (g.playtime % 1) * 60,
-                                  )}m`
-                                : "0h 0m"}
+                  <Reorder.Group
+                    axis="y"
+                    values={orderedFavorites}
+                    onReorder={(newOrder) => {
+                      setOrderedFavorites(newOrder);
+                      reorderFavorites(newOrder);
+                    }}
+                    className="flex flex-col gap-3"
+                  >
+                    {orderedFavorites.map((g) => (
+                      <Reorder.Item
+                        key={g.igdb.id}
+                        value={g}
+                        drag="y"
+                        onDragStart={() => (isDraggingRef.current = true)}
+                        onDragEnd={() => {
+                          setTimeout(
+                            () => (isDraggingRef.current = false),
+                            120,
+                          );
+                        }}
+                        whileDrag={{
+                          scale: 1.03,
+                          zIndex: 50,
+                          boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+                        }}
+                        className="rounded-xl"
+                      >
+                        <div
+                          onClick={(e) => {
+                            if (isDraggingRef.current) {
+                              e.preventDefault();
+                              return;
+                            }
+
+                            router.push(`/game/${g.igdb.id}`);
+                          }}
+                          className="flex items-center gap-2 p-1 rounded-xl cursor-pointer group hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md"
+                        >
+                          <img
+                            className="w-12 h-16 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
+                            src={g.igdb.cover}
+                            alt={g.name}
+                          />
+                          <div className="flex-1 flex flex-col justify-center">
+                            <span className="text-white/90 font-medium text-[13px] group-hover:text-white transition-colors duration-300 truncate max-w-[130px]">
+                              {g.name}
                             </span>
 
-                            <span
-                              className={`flex items-center gap-1 text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
-                                g.notInterested
-                                  ? "text-red-300 group-hover:text-red-200"
-                                  : "text-white/70 group-hover:text-white"
-                              }`}
-                            >
-                              {g.notInterested ? (
-                                "Not Interested"
-                              ) : (
-                                <>
-                                  <IoStarSharp className="w-3 h-3 text-amber-400" />{" "}
-                                  {typeof g.my_rating === "number" &&
-                                  Number.isFinite(g.my_rating)
-                                    ? formatRating(g.my_rating)
-                                    : "---"}
-                                </>
-                              )}
-                            </span>
+                            <div className="flex gap-1.5 mt-1">
+                              <span className="text-[11px] font-semibold bg-white/10 text-white/70 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 group-hover:text-white transition">
+                                {g.playtime
+                                  ? `${Math.floor(g.playtime)}h ${Math.round(
+                                      (g.playtime % 1) * 60,
+                                    )}m`
+                                  : "0h 0m"}
+                              </span>
+
+                              <span
+                                className={`flex items-center gap-1 text-[11px] font-semibold bg-white/10 px-1.5 py-0.5 rounded-full group-hover:bg-white/20 transition-colors duration-300 ${
+                                  g.notInterested
+                                    ? "text-red-300 group-hover:text-red-200"
+                                    : "text-white/70 group-hover:text-white"
+                                }`}
+                              >
+                                {g.notInterested ? (
+                                  "Not Interested"
+                                ) : (
+                                  <>
+                                    <IoStarSharp className="w-3 h-3 text-amber-400" />
+                                    {typeof g.my_rating === "number" &&
+                                    Number.isFinite(g.my_rating)
+                                      ? formatRating(g.my_rating)
+                                      : "---"}
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div
+                            className="cursor-grab active:cursor-grabbing px-2 text-white/40"
+                            onPointerDown={(e) => e.stopPropagation()}
+                          >
+                            ☰
                           </div>
                         </div>
-                      </div>
-                    </Link>
-                  ))
+                      </Reorder.Item>
+                    ))}
+                  </Reorder.Group>
                 )}
               </div>
             </div>

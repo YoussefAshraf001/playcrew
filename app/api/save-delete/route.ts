@@ -1,8 +1,7 @@
 export const runtime = "nodejs";
 
 import B2 from "backblaze-b2";
-import { db } from "@/app/lib/firebase";
-import { doc, updateDoc, deleteField } from "firebase/firestore";
+import { adminDb } from "@/app/lib/firebase-admin";
 
 const b2 = new B2({
   applicationKeyId: process.env.BACKBLAZE_B2_KEY_ID!,
@@ -32,25 +31,30 @@ export async function POST(req: Request) {
     const files = list.data.files;
 
     if (!files.length) {
-      return Response.json({ error: "File not found" }, { status: 404 });
+      console.warn("File already deleted in B2:", fileName);
+    } else {
+      await Promise.all(
+        files.map((file: any) =>
+          b2.deleteFileVersion({
+            fileId: file.fileId,
+            fileName: file.fileName,
+          }),
+        ),
+      );
     }
 
-    // 🔥 delete ALL versions
-    await Promise.all(
-      files.map((file: any) =>
-        b2.deleteFileVersion({
-          fileId: file.fileId,
-          fileName: file.fileName,
-        }),
-      ),
-    );
-
     // 🧠 Delete from Firebase
-    const ref = doc(db, "users", userId, "games", gameId.toString());
+    const ref = adminDb
+      .collection("users")
+      .doc(userId)
+      .collection("games_igdb")
+      .doc(gameId.toString());
 
-    await updateDoc(ref, {
-      save: deleteField(), // 🔥 removes it completely
-    });
+    try {
+      await ref.set({ save: null }, { merge: true });
+    } catch (err) {
+      console.error("Firestore cleanup failed:", err);
+    }
 
     return Response.json({ success: true });
   } catch (err: any) {

@@ -41,15 +41,13 @@ export async function refreshGameData(
 
   if (fields.platforms) {
     maybeUpdate("igdb.platforms", igdb.platforms, game.igdb.platforms);
-  }
-
-  if (fields.released) {
-    const releaseDate =
+  }  if (fields.released) {
+    const nextReleaseDate =
       typeof igdb.releaseDate === "number"
         ? new Date(igdb.releaseDate * 1000)
         : null;
 
-    update["igdb.releaseDate"] = releaseDate;
+    maybeUpdate("igdb.releaseDate", nextReleaseDate, game.igdb.releaseDate ?? null);
   }
 
   update.lastUpdated = serverTimestamp();
@@ -116,3 +114,8 @@ export async function refreshGameData(
 
 //   return { update, diff };
 // }
+
+
+
+
+
