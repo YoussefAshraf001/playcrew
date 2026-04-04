@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Helmet } from "react-helmet-async";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   FaArrowLeft,
   FaArrowRight,
-  FaChevronLeft,
-  FaChevronRight,
   FaCrown,
   FaPause,
   FaPlay,
@@ -18,7 +16,10 @@ import { GiMouthWatering } from "react-icons/gi";
 
 import Countdown from "@/app/components/Countdowncomponent";
 import { useGames } from "@/app/context/GameContext";
-import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
+import {
+  parseReleaseDate,
+  type ReleaseDatePrecision,
+} from "@/app/lib/releaseDates";
 
 type CalendarGame = {
   id: string;
@@ -27,22 +28,51 @@ type CalendarGame = {
   igdb?: {
     cover?: string;
     releaseDate?: unknown;
+    releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 };
 
 type GameWithParsedDate = CalendarGame & { date: Date | null };
 type DatedGame = CalendarGame & { date: Date };
+type CalendarPanel = "confirmed" | "tba";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DESKTOP_DRAWER_WIDTH = 360;
+const PANEL_TABS: Array<{
+  id: CalendarPanel;
+  label: string;
+  eyebrow: string;
+  title: (year: number) => string;
+}> = [
+  {
+    id: "confirmed",
+    label: "Confirmed",
+    eyebrow: "We Are Locked In Gang.",
+    title: () => "Upcoming This Month",
+  },
+  {
+    id: "tba",
+    label: "TBA",
+    eyebrow: "Expected this year, but no specific release day yet.",
+    title: (year) => `Coming in ${year}`,
+  },
+];
 
-const isYearOnlyRelease = (date: Date | null) => {
+const isEstimatedYearOnlyRelease = (date: Date | null) => {
   if (!date) return false;
   return (
     date.getTime() > Date.now() &&
     date.getMonth() === 11 &&
     date.getDate() === 31
   );
+};
+
+const hasConfirmedReleaseDay = (
+  date: Date | null,
+  precision?: ReleaseDatePrecision | null,
+) => {
+  if (!date) return false;
+  if (precision) return precision === "day";
+  return !isEstimatedYearOnlyRelease(date);
 };
 
 export default function CalendarPage() {
@@ -54,11 +84,8 @@ export default function CalendarPage() {
   const [selectedDayGames, setSelectedDayGames] = useState<DatedGame[] | null>(
     null,
   );
-  const [yearDrawerOpen, setYearDrawerOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const stored = window.localStorage.getItem("calendar.yearDrawerOpen");
-    return stored === null ? true : stored === "true";
-  });
+  const [activePanel, setActivePanel] = useState<CalendarPanel>("confirmed");
+  const [panelDirection, setPanelDirection] = useState<1 | -1>(1);
 
   const month = cursor.getMonth();
   const year = cursor.getFullYear();
@@ -78,7 +105,7 @@ export default function CalendarPage() {
   const monthGames = useMemo(() => {
     return parsedGames.filter(
       (g) =>
-        !isYearOnlyRelease(g.date) &&
+        hasConfirmedReleaseDay(g.date, g.igdb?.releaseDatePrecision) &&
         g.date.getMonth() === month &&
         g.date.getFullYear() === year,
     );
@@ -95,9 +122,13 @@ export default function CalendarPage() {
   }, [monthGames]);
 
   const yearOnlyGames = useMemo(() => {
-    return parsedGames.filter(
-      (g) => isYearOnlyRelease(g.date) && g.date.getFullYear() === year,
-    );
+    return parsedGames
+      .filter(
+        (g) =>
+          !hasConfirmedReleaseDay(g.date, g.igdb?.releaseDatePrecision) &&
+          g.date.getFullYear() === year,
+      )
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [parsedGames, year]);
 
   const gamesByDay = useMemo(() => {
@@ -117,6 +148,7 @@ export default function CalendarPage() {
 
   const isCurrentMonth =
     month === today.getMonth() && year === today.getFullYear();
+  const isViewingCurrentMonth = isCurrentMonth;
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -161,6 +193,18 @@ export default function CalendarPage() {
     }
   };
 
+  const handlePanelChange = (nextPanel: CalendarPanel) => {
+    if (nextPanel === activePanel) return;
+
+    const currentIndex = PANEL_TABS.findIndex((tab) => tab.id === activePanel);
+    const nextIndex = PANEL_TABS.findIndex((tab) => tab.id === nextPanel);
+    setPanelDirection(nextIndex > currentIndex ? 1 : -1);
+    setActivePanel(nextPanel);
+  };
+
+  const activeTab =
+    PANEL_TABS.find((tab) => tab.id === activePanel) ?? PANEL_TABS[0];
+
   return (
     <>
       <Helmet>
@@ -181,12 +225,26 @@ export default function CalendarPage() {
                 <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-300/80">
                   Release Tracker
                 </p>
-                <h1 className="mt-1.5 text-xl font-semibold tracking-wide sm:text-2xl">
-                  {cursor.toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </h1>
+                <div className="mt-1.5 flex flex-wrap items-center gap-3">
+                  <h1 className="text-xl font-semibold tracking-wide sm:text-2xl">
+                    {cursor.toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </h1>
+                  {!isViewingCurrentMonth && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+                      }}
+                      className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:border-cyan-300/55 hover:bg-cyan-400/16"
+                    >
+                      Back to Current Month
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-2 sm:gap-3">
@@ -316,211 +374,229 @@ export default function CalendarPage() {
               <motion.aside
                 layout
                 transition={{ duration: 0.28, ease: "easeOut" }}
-                className="hidden min-h-0 w-[420px] shrink-0 border-l border-white/10 p-3.5 xl:flex xl:flex-col sm:p-5 lg:p-6"
+                className="hidden min-h-0 w-[420px] shrink-0 border-l border-white/10 bg-[linear-gradient(180deg,rgba(6,15,22,0.97),rgba(3,8,14,0.98))] xl:flex xl:flex-col"
               >
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h2 className="text-base font-semibold tracking-wide sm:text-lg">
-                    Upcoming This Month
-                  </h2>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={`month-${year}-${month}`}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2, ease: "easeOut" }}
-                      className="space-y-3"
-                    >
-                      {gamesLoading ? (
-                        <div className="flex min-h-60 items-center justify-center">
-                          <span className="loading loading-dots loading-xl" />
-                        </div>
-                      ) : sidebarMonthGames.length === 0 ? (
-                        <div className="rounded-xl border border-white/10 bg-black/35 p-5 text-sm text-white/60">
-                          No confirmed release dates in this month.
-                        </div>
-                      ) : (
-                        sidebarMonthGames.map((g, index) => {
-                          const statusBadge = getStatusBadge(g.status);
-                          const isReleased = g.date.getTime() <= Date.now();
-                          return (
-                            <motion.div
-                              key={g.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{
-                                duration: 0.2,
-                                delay: index * 0.03,
-                              }}
-                              className="pr-4"
-                            >
-                              <Link
-                                href={`/game/${g.id}`}
-                                className="group block overflow-hidden rounded-xl border border-white/10 bg-black/35 pt-2 transition hover:border-cyan-400/35"
-                              >
-                                <div className="flex gap-3 px-2.5 py-2">
-                                  <img
-                                    src={
-                                      g.igdb?.cover || "/placeholder-game.jpg"
-                                    }
-                                    alt={g.name}
-                                    className="h-28 w-20 shrink-0 rounded-lg object-cover"
-                                  />
-
-                                  <div className="flex min-w-0 flex-1 flex-col">
-                                    <p className="truncate text-sm font-medium sm:text-base">
-                                      {g.name}
-                                    </p>
-                                    <p className="mt-1 text-xs text-white/60">
-                                      {g.date.toLocaleDateString(undefined, {
-                                        weekday: "short",
-                                        month: "short",
-                                        day: "numeric",
-                                      })}
-                                    </p>
-                                    {isReleased ? (
-                                      <div className="mt-auto flex flex-wrap items-center gap-2 pb-2">
-                                        <Countdown date={g.date} />
-                                        {statusBadge && (
-                                          <span
-                                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${statusBadge.className}`}
-                                          >
-                                            {statusBadge.icon}
-                                            {statusBadge.label}
-                                          </span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="mt-2 text-xs text-cyan-300">
-                                        <Countdown date={g.date} />
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </Link>
-                            </motion.div>
-                          );
-                        })
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </motion.aside>
-
-              <AnimatePresence initial={false}>
-                {yearOnlyGames.length > 0 && (
-                  <motion.button
-                    type="button"
-                    aria-label={
-                      yearDrawerOpen
-                        ? `Hide ${year} drawer`
-                        : `Show ${year} drawer`
-                    }
-                    onClick={() => setYearDrawerOpen((open) => !open)}
-                    initial={false}
-                    animate={{ x: yearDrawerOpen ? -DESKTOP_DRAWER_WIDTH : 0 }}
-                    transition={{ duration: 0.28, ease: "easeOut" }}
-                    className="absolute right-0 top-1/2 z-30 hidden h-24 w-10 -translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 border-amber-300/25 bg-[linear-gradient(180deg,rgba(245,158,11,0.14),rgba(5,5,5,0.94))] text-amber-100 shadow-[-12px_0_30px_rgba(0,0,0,0.3)] transition hover:border-amber-200/40 xl:flex"
-                  >
-                    {yearDrawerOpen ? <FaChevronRight /> : <FaChevronLeft />}
-                  </motion.button>
-                )}
-              </AnimatePresence>
-
-              <motion.aside
-                initial={false}
-                animate={{
-                  width:
-                    yearDrawerOpen && yearOnlyGames.length > 0
-                      ? DESKTOP_DRAWER_WIDTH
-                      : 0,
-                  opacity: yearDrawerOpen && yearOnlyGames.length > 0 ? 1 : 0,
-                }}
-                transition={{ duration: 0.28, ease: "easeOut" }}
-                className="relative hidden min-h-0 shrink-0 overflow-hidden border-l border-amber-300/20 bg-[linear-gradient(180deg,rgba(14,10,3,0.96),rgba(5,5,5,0.98))] xl:flex xl:flex-col"
-              >
-                <div className="flex min-w-[360px] flex-1 flex-col">
-                  <div className="flex items-center justify-between border-b border-white/10 px-4 py-4 sm:px-5">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-200/70">
-                        Expected this year, but no specific release day yet.
-                      </p>
-                      <h2 className="mt-1 text-lg font-semibold text-white">
-                        Coming in {year}
-                      </h2>
+                <div className="border-b border-white/10 px-4 py-4 sm:px-5">
+                  <div className="rounded-2xl border border-white/10 bg-black/25 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {PANEL_TABS.map((tab) => {
+                        const isActive = tab.id === activePanel;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => handlePanelChange(tab.id)}
+                            className={`relative overflow-hidden rounded-[18px] px-4 py-3 text-left transition ${
+                              isActive
+                                ? "bg-white text-black shadow-[0_14px_26px_rgba(255,255,255,0.1)]"
+                                : tab.id === "confirmed"
+                                  ? "bg-cyan-500/8 text-cyan-100 hover:bg-cyan-500/14"
+                                  : "bg-amber-500/8 text-amber-100 hover:bg-amber-500/14"
+                            }`}
+                          >
+                            <div
+                              className={`absolute inset-0 opacity-80 ${
+                                isActive
+                                  ? tab.id === "confirmed"
+                                    ? "bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.22),transparent_60%)]"
+                                    : "bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.22),transparent_60%)]"
+                                  : ""
+                              }`}
+                            />
+                            <div className="relative z-10">
+                              <p className="text-[10px] uppercase tracking-[0.28em] text-current/65">
+                                {tab.id === "confirmed"
+                                  ? "Calendar"
+                                  : `${year} Window`}
+                              </p>
+                              <p className="mt-1 text-sm font-semibold tracking-wide">
+                                {tab.label}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
+                </div>
 
-                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-                    <div className="space-y-3">
-                      {gamesLoading ? (
-                        <div className="flex min-h-60 items-center justify-center">
-                          <span className="loading loading-dots loading-xl" />
-                        </div>
-                      ) : yearOnlyGames.length === 0 ? (
-                        <div className="rounded-xl border border-white/10 bg-black/35 p-5 text-sm text-white/60">
-                          No year-only releases tracked for {year}.
-                        </div>
-                      ) : (
-                        yearOnlyGames.map((g, index) => {
-                          const statusBadge = getStatusBadge(g.status);
-                          return (
-                            <motion.div
-                              key={g.id}
-                              initial={{ opacity: 0, x: 18 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{
-                                duration: 0.22,
-                                delay: index * 0.03,
-                              }}
-                            >
-                              <Link
-                                href={`/game/${g.id}`}
-                                className="group block overflow-hidden rounded-[22px] border border-amber-300/20 bg-[linear-gradient(145deg,rgba(53,35,8,0.95),rgba(18,12,4,0.98))] shadow-[0_18px_40px_rgba(0,0,0,0.28)] transition duration-300 hover:-translate-y-0.5 hover:border-amber-200/35 hover:shadow-[0_22px_50px_rgba(0,0,0,0.34)]"
-                              >
-                                <div className="flex gap-3.5 p-3">
-                                  <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/25 shadow-[0_12px_26px_rgba(0,0,0,0.25)]">
-                                    <img
-                                      src={
-                                        g.igdb?.cover || "/placeholder-game.jpg"
-                                      }
-                                      alt={g.name}
-                                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                                    />
-                                    <div className="absolute inset-0 bg-linear-to-t from-black/65 via-transparent to-transparent" />
-                                  </div>
+                <div
+                  className="flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-5"
+                  style={{ perspective: 1600 }}
+                >
+                  <div className="mb-4 shrink-0">
+                    <p
+                      className={`text-[11px] font-semibold uppercase tracking-[0.28em] ${
+                        activePanel === "confirmed"
+                          ? "text-cyan-200/75"
+                          : "text-amber-200/75"
+                      }`}
+                    >
+                      {activeTab.eyebrow}
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold text-white">
+                      {activeTab.title(year)}
+                    </h2>
+                  </div>
 
-                                  <div className="flex min-w-0 flex-1 flex-col justify-between">
-                                    <div>
-                                      <p className="line-clamp-2 text-[17px] font-semibold leading-tight text-white">
-                                        {g.name}
-                                      </p>
-                                      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/75">
-                                        Date Unconfirmed
-                                      </p>
-                                    </div>
+                  <div className="relative min-h-0 flex-1 overflow-hidden rounded-[26px] border border-white/8 bg-black/20">
+                    <AnimatePresence
+                      custom={panelDirection}
+                      mode="wait"
+                      initial={false}
+                    >
+                      <motion.div
+                        key={`${activePanel}-${year}-${month}`}
+                        custom={panelDirection}
+                        initial={(direction: 1 | -1) => ({
+                          opacity: 0,
+                          y: direction > 0 ? 42 : -42,
+                          scale: 0.98,
+                        })}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                          scale: 1,
+                        }}
+                        exit={(direction: 1 | -1) => ({
+                          opacity: 0,
+                          y: direction > 0 ? -42 : 42,
+                          scale: 0.98,
+                        })}
+                        transition={{
+                          duration: 0.34,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className="absolute inset-0 flex min-h-0 flex-col"
+                        style={{
+                          willChange: "transform, opacity",
+                        }}
+                      >
+                        <div className="min-h-0 flex-1 overflow-y-auto p-3.5 pr-4 pb-5 [scrollbar-gutter:stable_both-edges]">
+                          {gamesLoading ? (
+                            <div className="flex min-h-60 h-full items-center justify-center rounded-[22px] border border-white/10 bg-black/35">
+                              <span className="loading loading-dots loading-xl" />
+                            </div>
+                          ) : activePanel === "confirmed" ? (
+                            sidebarMonthGames.length === 0 ? (
+                              <div className="rounded-[22px] border border-white/10 bg-black/35 p-5 text-sm text-white/60">
+                                No confirmed release dates in this month.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {sidebarMonthGames.map((g, index) => {
+                                  const statusBadge = getStatusBadge(g.status);
+                                  const isReleased =
+                                    g.date.getTime() <= today.getTime();
+                                  return (
+                                    <motion.div
+                                      key={g.id}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      transition={{
+                                        duration: 0.2,
+                                        delay: index * 0.03,
+                                      }}
+                                    >
+                                      <Link
+                                        href={`/game/${g.id}`}
+                                        className="group block overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(145deg,rgba(5,12,18,0.97),rgba(3,7,12,0.98))] pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:border-cyan-400/35 hover:shadow-[0_24px_50px_rgba(0,0,0,0.28)]"
+                                      >
+                                        <div className="flex gap-3 px-2.5 py-2">
+                                          <img
+                                            src={
+                                              g.igdb?.cover ||
+                                              "/placeholder-game.jpg"
+                                            }
+                                            alt={g.name}
+                                            className="h-28 w-20 shrink-0 rounded-[16px] object-cover"
+                                          />
 
-                                    {statusBadge && (
-                                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                                        <span
-                                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${statusBadge.className}`}
-                                        >
-                                          {statusBadge.icon}
-                                          {statusBadge.label}
-                                        </span>
+                                          <div className="flex min-w-0 flex-1 flex-col">
+                                            <p className="truncate text-sm font-medium sm:text-base">
+                                              {g.name}
+                                            </p>
+                                            <p className="mt-1 text-xs text-white/60">
+                                              {g.date.toLocaleDateString(
+                                                undefined,
+                                                {
+                                                  weekday: "short",
+                                                  month: "short",
+                                                  day: "numeric",
+                                                },
+                                              )}
+                                            </p>
+                                            {isReleased ? (
+                                              <div className="mt-auto flex flex-wrap items-center gap-2 pb-2">
+                                                <Countdown date={g.date} />
+                                                {statusBadge && (
+                                                  <span
+                                                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${statusBadge.className}`}
+                                                  >
+                                                    {statusBadge.icon}
+                                                    {statusBadge.label}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <div className="mt-2 text-xs text-cyan-300">
+                                                <Countdown date={g.date} />
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </Link>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            )
+                          ) : yearOnlyGames.length === 0 ? (
+                            <div className="rounded-[22px] border border-white/10 bg-black/35 p-5 text-sm text-white/60">
+                              No year-only releases tracked for {year}.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-3 pr-1">
+                              {yearOnlyGames.map((g, index) => {
+                                return (
+                                  <motion.div
+                                    key={g.id}
+                                    initial={{ opacity: 0, y: 18, scale: 0.96 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    transition={{
+                                      duration: 0.24,
+                                      delay: index * 0.04,
+                                    }}
+                                  >
+                                    <Link
+                                      href={`/game/${g.id}`}
+                                      className="group block overflow-hidden rounded-3xl border border-gray-600/50"
+                                    >
+                                      <div className="relative aspect-[0.72] overflow-hidden">
+                                        <img
+                                          src={
+                                            g.igdb?.cover ||
+                                            "/placeholder-game.jpg"
+                                          }
+                                          alt={g.name}
+                                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                        />
+                                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.18)_34%,rgba(7,5,2,0.88)_76%,rgba(7,5,2,0.98))]" />
+                                        <div className="absolute inset-x-0 bottom-0 translate-y-2 p-3.5 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                                          <p className="line-clamp-3 text-[14px] font-semibold leading-[1.04] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                                            {g.name}
+                                          </p>
+                                        </div>
                                       </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </Link>
-                            </motion.div>
-                          );
-                        })
-                      )}
-                    </div>
+                                    </Link>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
                 </div>
               </motion.aside>
@@ -572,12 +648,12 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="relative z-10 max-h-[74vh] overflow-y-auto p-4 sm:p-6">
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                  <div className="flex flex-wrap justify-center gap-4">
                     {selectedDayGames.map((g) => (
                       <Link
                         key={g.id}
                         href={`/game/${g.id}`}
-                        className="group relative h-60 overflow-hidden rounded-xl border border-white/10 transition hover:border-cyan-400/35"
+                        className="group relative h-60 w-[176px] overflow-hidden rounded-xl border border-white/10 transition hover:border-cyan-400/35 sm:w-[188px]"
                       >
                         <img
                           src={g.igdb?.cover || "/placeholder-game.jpg"}
@@ -602,5 +678,6 @@ export default function CalendarPage() {
     </>
   );
 }
+
 
 
