@@ -3,15 +3,26 @@
 import { useEffect, useRef } from "react";
 import { useGames } from "@/app/context/GameContext";
 import { useUser } from "@/app/context/UserContext";
-import { refreshGameData } from "@/app/utils/refreshGame";
+import { refreshGameData, type RefreshableGame } from "@/app/utils/refreshGame";
 
 type SyncGame = {
   id: string;
   status?: string;
   igdb?: {
     id?: number;
+    name?: string;
+    cover?: string;
+    genres?: unknown;
+    rating?: number | null;
+    platforms?: unknown;
     releaseDate?: unknown;
   };
+};
+
+const isRefreshableGame = (
+  game: SyncGame,
+): game is SyncGame & RefreshableGame => {
+  return typeof game.igdb?.id === "number";
 };
 
 const toDate = (value: unknown): Date | null => {
@@ -63,15 +74,19 @@ export default function ReleaseDateAutoSync() {
     if (runningForUidRef.current === uid) return;
 
     const now = new Date();
-    const candidates = (games as SyncGame[]).filter((game) => {
-      if (!game?.igdb?.id) return false;
-      if (game.status === "Completed" || game.status === "Dropped") return false;
+    const candidates = (games as SyncGame[]).filter(
+      (game): game is SyncGame & RefreshableGame => {
+        if (!isRefreshableGame(game)) return false;
+        if (game.status === "Completed" || game.status === "Dropped") {
+          return false;
+        }
 
-      const releaseDate = toDate(game.igdb.releaseDate);
-      if (!releaseDate) return true;
+        const releaseDate = toDate(game.igdb.releaseDate);
+        if (!releaseDate) return true;
 
-      return releaseDate.getTime() >= now.getTime();
-    });
+        return releaseDate.getTime() >= now.getTime();
+      },
+    );
 
     if (!candidates.length) {
       runningForUidRef.current = uid;
@@ -118,4 +133,3 @@ export default function ReleaseDateAutoSync() {
 
   return null;
 }
-

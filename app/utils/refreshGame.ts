@@ -1,7 +1,7 @@
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 
-type RefreshableGame = {
+export type RefreshableGame = {
   name?: string;
   igdb: {
     id: number;
@@ -131,3 +131,4 @@ export async function refreshGameData(
 
   return { update, diff };
 }
+
