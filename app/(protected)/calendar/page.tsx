@@ -17,6 +17,7 @@ import { GiMouthWatering } from "react-icons/gi";
 import Countdown from "@/app/components/Countdowncomponent";
 import { useGames } from "@/app/context/GameContext";
 import {
+  hasConfirmedReleaseDay,
   parseReleaseDate,
   type ReleaseDatePrecision,
 } from "@/app/lib/releaseDates";
@@ -56,24 +57,6 @@ const PANEL_TABS: Array<{
     title: (year) => `Coming in ${year}`,
   },
 ];
-
-const isEstimatedYearOnlyRelease = (date: Date | null) => {
-  if (!date) return false;
-  return (
-    date.getTime() > Date.now() &&
-    date.getMonth() === 11 &&
-    date.getDate() === 31
-  );
-};
-
-const hasConfirmedReleaseDay = (
-  date: Date | null,
-  precision?: ReleaseDatePrecision | null,
-) => {
-  if (!date) return false;
-  if (precision) return precision === "day";
-  return !isEstimatedYearOnlyRelease(date);
-};
 
 export default function CalendarPage() {
   const { games, gamesLoading } = useGames();
@@ -685,6 +668,7 @@ export default function CalendarPage() {
     </>
   );
 }
+
 
 
 

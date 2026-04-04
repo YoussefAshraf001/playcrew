@@ -1,5 +1,6 @@
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
+import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
 
 export type RefreshableGame = {
   name?: string;
@@ -11,6 +12,7 @@ export type RefreshableGame = {
     rating?: number | null;
     platforms?: unknown;
     releaseDate?: unknown;
+    releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 };
 
@@ -73,6 +75,7 @@ export async function refreshGameData(
     rating?: number | null;
     platforms?: unknown;
     releaseDate?: number | null;
+    releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 
   const update: Record<string, unknown> = {};
@@ -112,7 +115,16 @@ export async function refreshGameData(
         ? new Date(igdb.releaseDate * 1000)
         : null;
 
-    maybeUpdate("igdb.releaseDate", nextReleaseDate, game.igdb.releaseDate ?? null);
+    maybeUpdate(
+      "igdb.releaseDate",
+      nextReleaseDate,
+      game.igdb.releaseDate ?? null,
+    );
+    maybeUpdate(
+      "igdb.releaseDatePrecision",
+      igdb.releaseDatePrecision ?? null,
+      game.igdb.releaseDatePrecision ?? null,
+    );
   }
 
   if (!Object.keys(update).length) {
@@ -120,7 +132,11 @@ export async function refreshGameData(
   }
 
   update.lastUpdated = serverTimestamp();
-  if (fields.released && update["igdb.releaseDate"] !== undefined) {
+  if (
+    fields.released &&
+    (update["igdb.releaseDate"] !== undefined ||
+      update["igdb.releaseDatePrecision"] !== undefined)
+  ) {
     update.recentActionSummary = "Release Date Updated";
   }
 
@@ -131,4 +147,3 @@ export async function refreshGameData(
 
   return { update, diff };
 }
-

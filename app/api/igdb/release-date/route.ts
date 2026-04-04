@@ -1,14 +1,6 @@
 import { igdbReleaseDateQuery } from "@/app/lib/igdb";
+import { inferReleaseDatePrecision } from "@/app/lib/releaseDates";
 import { NextResponse } from "next/server";
-
-const inferPrecision = (human?: string | null) => {
-  if (!human) return "day" as const;
-
-  const value = human.trim();
-  if (/^\d{4}$/.test(value)) return "year" as const;
-  if (/^[A-Za-z]+\s+\d{4}$/.test(value)) return "month" as const;
-  return "day" as const;
-};
 
 export async function POST(req: Request) {
   try {
@@ -33,7 +25,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       igdbDate: entry.date,
-      precision: inferPrecision(entry.human),
+      precision: inferReleaseDatePrecision(entry.human),
       human: entry.human ?? null,
     });
   } catch (err: any) {

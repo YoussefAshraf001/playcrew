@@ -1,4 +1,5 @@
-import { getIGDBToken } from "@/app/lib/igdb";
+import { getIGDBToken, igdbReleaseDateQuery } from "@/app/lib/igdb";
+import { inferReleaseDatePrecision } from "@/app/lib/releaseDates";
 import { NextResponse } from "next/server";
 
 const SIMILAR_TARGET = 20;
@@ -47,6 +48,13 @@ export async function POST(req: Request) {
     }
 
     const [game] = await gameRes.json();
+
+    const [releaseDateInfo] = await igdbReleaseDateQuery(`
+      fields date, human, y, m;
+      where game = ${id};
+      sort date asc;
+      limit 1;
+    `);
 
     // 2) Fetch time to beat
     const timeRes = await fetch("https://api.igdb.com/v4/game_time_to_beats", {
@@ -193,6 +201,9 @@ export async function POST(req: Request) {
       platforms:
         game.platforms?.map((p: any) => ({ platform: { name: p.name } })) || [],
       released: game.first_release_date,
+      releaseDatePrecision: inferReleaseDatePrecision(
+        releaseDateInfo?.human ?? null,
+      ),
       rating: game.aggregated_rating ? Math.round(game.aggregated_rating) : 0,
       total_rating: game.total_rating,
       total_rating_count: game.total_rating_count,
@@ -220,6 +231,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
 
 
 

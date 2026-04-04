@@ -40,7 +40,10 @@ import {
 import { Helmet } from "react-helmet-async";
 
 import { getAwardCategoryFromDocId, getAwardYears } from "@/app/lib/awards";
-import { formatReleaseDate } from "@/app/lib/releaseDates";
+import {
+  formatReleaseDate,
+  hasConfirmedReleaseDay,
+} from "@/app/lib/releaseDates";
 import { db } from "@/app/lib/firebase";
 import { getRecentGameActionSummary } from "@/app/lib/recentGameActions";
 import { useUser } from "@/app/context/UserContext";
@@ -466,6 +469,7 @@ export default function GamePage() {
           genres,
           platforms,
           releaseDate,
+          releaseDatePrecision: game.releaseDatePrecision ?? null,
         },
 
         my_rating: data.my_rating ?? null,
@@ -774,9 +778,16 @@ export default function GamePage() {
       : `${absDays} day${absDays > 1 ? "s" : ""} ago`;
   };
 
-  const isReleased = game?.released
-    ? game.released * 1000 <= Date.now()
-    : false;
+  const isReleased =
+    hasConfirmedReleaseDay(
+      typeof game?.released === "number" ? game.released * 1000 : null,
+      game?.releaseDatePrecision,
+    ) && game.released * 1000 <= Date.now();
+
+  const awardYear =
+    typeof game?.released === "number"
+      ? new Date(game.released * 1000).getFullYear()
+      : new Date().getFullYear();
 
   // Official only makes sense if released
   const hasReleaseDate = Boolean(game?.released);
@@ -830,6 +841,7 @@ export default function GamePage() {
         rating: game.rating || 0,
         genres: normalizeGenres(game.genres),
         releaseDate,
+        releaseDatePrecision: game.releaseDatePrecision ?? null,
       },
     };
   }, [game, trackedGameData, currentStatus, isFavorited]);
@@ -1041,7 +1053,7 @@ export default function GamePage() {
                             ? `${Math.round(game.total_rating)} / 100`
                             : isReleased
                               ? "Not rated"
-                              : "TBA"}
+                              : "Unreleased"}
                         </span>
                       </div>
 
@@ -1059,7 +1071,12 @@ export default function GamePage() {
                       </h3>
 
                       <div className="text-[12px] font-semibold text-white">
-                        {game.released ? formatReleaseDate(game.released * 1000) : "TBA"}
+                        {game.released
+                          ? formatReleaseDate(
+                              game.released * 1000,
+                              game.releaseDatePrecision,
+                            )
+                          : "TBA"}
                       </div>
 
                       {/* <p className="mt-1 text-[10px] text-white/55">
@@ -1279,9 +1296,10 @@ export default function GamePage() {
                             animate={{ opacity: 1 }}
                             className="text-[12px] text-white/70 text-center"
                           >
-                            2026 PlayCrew Game Awards will be announced on{" "}
+                            {awardYear} PlayCrew Game Awards will be announced
+                            on{" "}
                             <span className="font-semibold text-amber-200">
-                              December 10th
+                              December 10th, {awardYear}
                             </span>
                             .
                           </motion.div>
@@ -1841,8 +1859,3 @@ export default function GamePage() {
     </>
   );
 }
-
-
-
-
-

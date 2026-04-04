@@ -1,4 +1,4 @@
-export type ReleaseDatePrecision = "year" | "month" | "day";
+export type ReleaseDatePrecision = "year" | "quarter" | "month" | "day";
 
 export const parseReleaseDate = (value: unknown): Date | null => {
   if (!value) return null;
@@ -38,7 +38,19 @@ export const parseReleaseDate = (value: unknown): Date | null => {
   return null;
 };
 
-const isEstimatedYearOnlyDate = (date: Date) => {
+export const inferReleaseDatePrecision = (
+  human?: string | null,
+): ReleaseDatePrecision => {
+  if (!human) return "day";
+
+  const value = human.trim();
+  if (/^\d{4}$/.test(value)) return "year";
+  if (/^Q[1-4]\s+\d{4}$/i.test(value)) return "quarter";
+  if (/^[A-Za-z]+\s+\d{4}$/.test(value)) return "month";
+  return "day";
+};
+
+export const isEstimatedYearOnlyDate = (date: Date) => {
   const now = new Date();
   return (
     date.getTime() > now.getTime() &&
@@ -47,16 +59,65 @@ const isEstimatedYearOnlyDate = (date: Date) => {
   );
 };
 
+const isEstimatedQuarterOnlyDate = (date: Date) => {
+  const now = new Date();
+  if (date.getTime() <= now.getTime()) return false;
+
+  const month = date.getMonth();
+  const day = date.getDate();
+  const lastDayOfMonth = new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0,
+  ).getDate();
+
+  return month !== 11 && [2, 5, 8].includes(month) && day === lastDayOfMonth;
+};
+
+const resolveReleasePrecision = (
+  date: Date,
+  precision?: ReleaseDatePrecision | null,
+): ReleaseDatePrecision => {
+  if (precision) return precision;
+  if (isEstimatedYearOnlyDate(date)) return "year";
+  if (isEstimatedQuarterOnlyDate(date)) return "quarter";
+  return "day";
+};
+
+export const hasConfirmedReleaseDay = (
+  value: unknown,
+  precision?: ReleaseDatePrecision | null,
+) => {
+  const date = parseReleaseDate(value);
+  if (!date) return false;
+  return resolveReleasePrecision(date, precision) === "day";
+};
+
+const getQuarter = (date: Date) => Math.floor(date.getMonth() / 3) + 1;
+
 export const formatReleaseDate = (
   value: unknown,
-  _precision?: ReleaseDatePrecision | null,
+  precision?: ReleaseDatePrecision | null,
   locale = "en-US",
 ): string => {
   const date = parseReleaseDate(value);
   if (!date) return "TBA";
 
-  if (isEstimatedYearOnlyDate(date)) {
+  const resolvedPrecision = resolveReleasePrecision(date, precision);
+
+  if (resolvedPrecision === "year") {
     return date.toLocaleDateString(locale, { year: "numeric" });
+  }
+
+  if (resolvedPrecision === "quarter") {
+    return `Q${getQuarter(date)} ${date.getFullYear()}`;
+  }
+
+  if (resolvedPrecision === "month") {
+    return date.toLocaleDateString(locale, {
+      month: "short",
+      year: "numeric",
+    });
   }
 
   return date.toLocaleDateString(locale, {

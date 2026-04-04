@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getIGDBToken } from "@/app/lib/igdb";
+import { getIGDBToken, igdbReleaseDateQuery } from "@/app/lib/igdb";
+import { inferReleaseDatePrecision } from "@/app/lib/releaseDates";
 
 export async function GET(req: Request) {
   try {
@@ -56,6 +57,13 @@ export async function GET(req: Request) {
       throw parseErr;
     }
 
+    const [releaseDateInfo] = await igdbReleaseDateQuery(`
+      fields date, human, y, m;
+      where game = ${id};
+      sort date asc;
+      limit 1;
+    `);
+
     return NextResponse.json({
       id: game.id,
       name: game.name,
@@ -66,6 +74,9 @@ export async function GET(req: Request) {
       rating: game.rating ?? null,
       platforms: game.platforms?.map((p: any) => p.name) ?? [],
       releaseDate: game.first_release_date ?? null,
+      releaseDatePrecision: inferReleaseDatePrecision(
+        releaseDateInfo?.human ?? null,
+      ),
     });
   } catch (err) {
     console.error("IGDB ROUTE ERROR:", err);
