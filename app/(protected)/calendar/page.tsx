@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Helmet } from "react-helmet-async";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import {
   FaArrowLeft,
   FaArrowRight,
@@ -204,6 +204,24 @@ export default function CalendarPage() {
 
   const activeTab =
     PANEL_TABS.find((tab) => tab.id === activePanel) ?? PANEL_TABS[0];
+
+  const panelVariants: Variants = {
+    enter: (direction: 1 | -1) => ({
+      opacity: 0,
+      y: direction > 0 ? 42 : -42,
+      scale: 0.98,
+    }),
+    center: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+    },
+    exit: (direction: 1 | -1) => ({
+      opacity: 0,
+      y: direction > 0 ? -42 : 42,
+      scale: 0.98,
+    }),
+  };
 
   return (
     <>
@@ -448,21 +466,10 @@ export default function CalendarPage() {
                       <motion.div
                         key={`${activePanel}-${year}-${month}`}
                         custom={panelDirection}
-                        initial={(direction: 1 | -1) => ({
-                          opacity: 0,
-                          y: direction > 0 ? 42 : -42,
-                          scale: 0.98,
-                        })}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                          scale: 1,
-                        }}
-                        exit={(direction: 1 | -1) => ({
-                          opacity: 0,
-                          y: direction > 0 ? -42 : 42,
-                          scale: 0.98,
-                        })}
+                        variants={panelVariants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
                         transition={{
                           duration: 0.34,
                           ease: [0.22, 1, 0.36, 1],
@@ -678,6 +685,7 @@ export default function CalendarPage() {
     </>
   );
 }
+
 
 
 
