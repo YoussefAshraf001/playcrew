@@ -23,6 +23,11 @@ import { useUser } from "../context/UserContext";
 import { useMusic } from "../context/MusicContext";
 import { IoMailOpen } from "react-icons/io5";
 import { MdDelete } from "react-icons/md";
+import {
+  formatReleaseDate,
+  hasConfirmedReleaseDay,
+  ReleaseDatePrecision,
+} from "../lib/releaseDates";
 
 type Game = {
   id: string;
@@ -30,6 +35,7 @@ type Game = {
   igdb?: {
     cover?: string;
     releaseDate?: unknown;
+    releaseDatePrecision?: ReleaseDatePrecision; // ✅ add this
   };
 };
 
@@ -275,21 +281,27 @@ export default function NotificationBell({
         trackedGameIds.add(gameId);
 
         const parsedRelease = toDate(game.igdb?.releaseDate);
-        const normalizedRelease = parsedRelease ? new Date(parsedRelease) : null;
+        const normalizedRelease = parsedRelease
+          ? new Date(parsedRelease)
+          : null;
         if (normalizedRelease) {
           normalizedRelease.setHours(0, 0, 0, 0);
         }
 
-        const releaseKey = normalizedRelease ? dateKey(normalizedRelease) : null;
+        const releaseKey = normalizedRelease
+          ? dateKey(normalizedRelease)
+          : null;
         const previousReleaseKey = knownReleaseState.get(gameId);
 
-        if (previousReleaseKey !== releaseKey && knownReleaseState.has(gameId)) {
+        if (
+          previousReleaseKey !== releaseKey &&
+          knownReleaseState.has(gameId)
+        ) {
           const previousReleaseDate = dateFromKey(previousReleaseKey);
           const changeId = `release-change-${gameId}-${previousReleaseKey ?? "tba"}-to-${releaseKey ?? "tba"}`;
           let message = "Release date updated.";
-          const hasConfirmedPreviousDay = hasConfirmedReleaseDay(
-            previousReleaseDate,
-          );
+          const hasConfirmedPreviousDay =
+            hasConfirmedReleaseDay(previousReleaseDate);
           const hasConfirmedCurrentDay = hasConfirmedReleaseDay(
             normalizedRelease,
             game.igdb?.releaseDatePrecision,
@@ -321,7 +333,10 @@ export default function NotificationBell({
           });
         }
 
-        if (previousReleaseKey !== releaseKey || !knownReleaseState.has(gameId)) {
+        if (
+          previousReleaseKey !== releaseKey ||
+          !knownReleaseState.has(gameId)
+        ) {
           stateUpdates.set(gameId, releaseKey);
         }
 
@@ -539,7 +554,6 @@ export default function NotificationBell({
     }
   };
 
-
   const markAllRead = async () => {
     if (!uid) return;
 
@@ -724,138 +738,141 @@ export default function NotificationBell({
                       const isActionPending = pendingActionId === item.id;
 
                       return (
-                      <div
-                        key={item.id}
-                        className="group relative overflow-hidden rounded-[1.6rem]"
-                      >
-                        <div className="absolute inset-y-0 right-0 flex w-20 items-center justify-center bg-red-600/85 md:hidden">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteNotification(item.id);
-                            }}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-200/40 bg-black/30 text-red-100 transition hover:bg-black/45"
-                            aria-label={`Delete notification for ${item.gameName}`}
-                            title="Delete notification"
-                          >
-                            <MdDelete size={18} />
-                          </button>
-                        </div>
-
-                        <motion.div
-                          drag="x"
-                          dragDirectionLock
-                          dragConstraints={{ left: -80, right: 0 }}
-                          dragElastic={0.06}
-                          dragMomentum={false}
-                          animate={{ x: swipedId === item.id ? -80 : 0 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 420,
-                            damping: 36,
-                          }}
-                          onDragStart={() => {
-                            if (swipedId && swipedId !== item.id) {
-                              setSwipedId(null);
-                            }
-                          }}
-                          onDragEnd={(_, info) => {
-                            if (info.offset.x <= -50) {
-                              setSwipedId(item.id);
-                            } else if (swipedId === item.id) {
-                              setSwipedId(null);
-                            }
-                          }}
-                          className={`relative w-full ${
-                            item.read
-                              ? "bg-[#10161f] hover:bg-[#141d2a] opacity-85"
-                              : "bg-[#162434] hover:bg-[#1b2b3c] shadow-[inset_0_0_0_1px_rgba(125,211,252,0.35)]"
-                          }`}
+                        <div
+                          key={item.id}
+                          className="group relative overflow-hidden rounded-[1.6rem]"
                         >
-                          <Link
-                            href={item.gameId ? `/game/${item.gameId}` : "#"}
-                            onClick={(e) => {
-                              if (swipedId === item.id) {
-                                e.preventDefault();
-                                setSwipedId(null);
-                                return;
-                              }
+                          <div className="absolute inset-y-0 right-0 flex w-20 items-center justify-center bg-red-600/85 md:hidden">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(item.id);
+                              }}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-200/40 bg-black/30 text-red-100 transition hover:bg-black/45"
+                              aria-label={`Delete notification for ${item.gameName}`}
+                              title="Delete notification"
+                            >
+                              <MdDelete size={18} />
+                            </button>
+                          </div>
 
-                              if (!item.read) {
-                                void markNotificationRead(item.id);
+                          <motion.div
+                            drag="x"
+                            dragDirectionLock
+                            dragConstraints={{ left: -80, right: 0 }}
+                            dragElastic={0.06}
+                            dragMomentum={false}
+                            animate={{ x: swipedId === item.id ? -80 : 0 }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 420,
+                              damping: 36,
+                            }}
+                            onDragStart={() => {
+                              if (swipedId && swipedId !== item.id) {
+                                setSwipedId(null);
                               }
                             }}
-                            className="block p-3.5 md:pr-12"
+                            onDragEnd={(_, info) => {
+                              if (info.offset.x <= -50) {
+                                setSwipedId(item.id);
+                              } else if (swipedId === item.id) {
+                                setSwipedId(null);
+                              }
+                            }}
+                            className={`relative w-full ${
+                              item.read
+                                ? "bg-[#10161f] hover:bg-[#141d2a] opacity-85"
+                                : "bg-[#162434] hover:bg-[#1b2b3c] shadow-[inset_0_0_0_1px_rgba(125,211,252,0.35)]"
+                            }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={item.gameCover || "/placeholder-game.jpg"}
-                                alt={item.gameName}
-                                className={`h-10 w-10 shrink-0 rounded-lg object-cover ${
-                                  item.read ? "opacity-80" : ""
-                                }`}
-                              />
+                            <Link
+                              href={item.gameId ? `/game/${item.gameId}` : "#"}
+                              onClick={(e) => {
+                                if (swipedId === item.id) {
+                                  e.preventDefault();
+                                  setSwipedId(null);
+                                  return;
+                                }
 
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
+                                if (!item.read) {
+                                  void markNotificationRead(item.id);
+                                }
+                              }}
+                              className="block p-3.5 md:pr-12"
+                            >
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={
+                                    item.gameCover || "/placeholder-game.jpg"
+                                  }
+                                  alt={item.gameName}
+                                  className={`h-10 w-10 shrink-0 rounded-lg object-cover ${
+                                    item.read ? "opacity-80" : ""
+                                  }`}
+                                />
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p
+                                      className={`text-[13px] leading-none ${
+                                        item.read
+                                          ? "text-white/70"
+                                          : "max-w-[190px] truncate font-semibold text-white"
+                                      }`}
+                                    >
+                                      {item.gameName}
+                                    </p>
+                                    <div className=" flex items-center gap-2 text-[11px] text-white/45">
+                                      {item.releaseDate && (
+                                        <>
+                                          <span className="uppercase tracking-wide text-white/40">
+                                            {item.releaseDate.toLocaleDateString(
+                                              undefined,
+                                              {
+                                                month: "short",
+                                                day: "numeric",
+                                              },
+                                            )}
+                                          </span>
+                                          <span className="text-white/25">
+                                            -
+                                          </span>
+                                        </>
+                                      )}
+
+                                      <span className="shrink-0 text-white/50">
+                                        {formatTimeAgo(item.createdAt, nowMs)}{" "}
+                                        ago
+                                      </span>
+                                    </div>
+                                  </div>
                                   <p
-                                    className={`text-[13px] leading-none ${
-                                      item.read
-                                        ? "text-white/70"
-                                        : "max-w-[190px] truncate font-semibold text-white"
+                                    className={`mt-1 text-[11px] leading-snug ${
+                                      item.read ? "text-white/55" : "text-white"
                                     }`}
                                   >
-                                    {item.gameName}
+                                    {item.message}
                                   </p>
-                                  <div className=" flex items-center gap-2 text-[11px] text-white/45">
-                                    {item.releaseDate && (
-                                      <>
-                                        <span className="uppercase tracking-wide text-white/40">
-                                          {item.releaseDate.toLocaleDateString(
-                                            undefined,
-                                            {
-                                              month: "short",
-                                              day: "numeric",
-                                            },
-                                          )}
-                                        </span>
-                                        <span className="text-white/25">
-                                          -
-                                        </span>
-                                      </>
-                                    )}
-
-                                    <span className="shrink-0 text-white/50">
-                                      {formatTimeAgo(item.createdAt, nowMs)} ago
-                                    </span>
-                                  </div>
                                 </div>
-                                <p
-                                  className={`mt-1 text-[11px] leading-snug ${
-                                    item.read ? "text-white/55" : "text-white"
-                                  }`}
-                                >
-                                  {item.message}
-                                </p>
                               </div>
-                            </div>
-                          </Link>
+                            </Link>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteNotification(item.id);
-                            }}
-                            className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/35 text-zinc-300 opacity-0 transition hover:border-red-300/35 hover:bg-red-500/20 hover:text-red-200 group-hover:opacity-100 md:inline-flex"
-                            aria-label={`Delete notification for ${item.gameName}`}
-                            title="Delete notification"
-                          >
-                            <MdDelete size={14} />
-                          </button>
-                        </motion.div>
-                      </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteNotification(item.id);
+                              }}
+                              className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/35 text-zinc-300 opacity-0 transition hover:border-red-300/35 hover:bg-red-500/20 hover:text-red-200 group-hover:opacity-100 md:inline-flex"
+                              aria-label={`Delete notification for ${item.gameName}`}
+                              title="Delete notification"
+                            >
+                              <MdDelete size={14} />
+                            </button>
+                          </motion.div>
+                        </div>
                       );
                     })}
                   </div>
@@ -868,9 +885,3 @@ export default function NotificationBell({
     </>
   );
 }
-
-
-
-
-
-
