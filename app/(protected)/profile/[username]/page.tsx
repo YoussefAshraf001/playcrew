@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, ChangeEvent, useRef, MouseEvent } from "react";
+import { useEffect, useState, ChangeEvent, useRef } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -90,9 +90,11 @@ export default function EditProfilePage() {
   const [zoom, setZoom] = useState(1);
   const [croppedPixels, setCroppedPixels] = useState<Area | null>(null);
   const [passwordResetRequested, setPasswordResetRequested] = useState(false);
+  const [wallpaperLoaded, setWallpaperLoaded] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const accountPanelRef = useRef<HTMLDivElement>(null);
+  const currentWallpaperData = (editing ? draft : profile)?.wallpaper?.data;
 
   /* ---------------- INIT ---------------- */
 
@@ -102,6 +104,10 @@ export default function EditProfilePage() {
       setOriginal(profile);
     }
   }, [editing, profile]);
+
+  useEffect(() => {
+    setWallpaperLoaded(false);
+  }, [currentWallpaperData]);
 
   if (loading || !profile)
     return (
@@ -230,6 +236,10 @@ export default function EditProfilePage() {
       const base64 = await getCroppedImg(
         URL.createObjectURL(selectedFile!),
         croppedPixels!,
+        cropType === "wallpaper" ? 3840 : 1280,
+        cropType === "wallpaper" ? 0.92 : 0.7,
+        cropType === "wallpaper" ? 1920 : undefined,
+        cropType === "wallpaper" ? 1080 : undefined,
       );
 
       setDraft((p) => ({
@@ -592,16 +602,17 @@ export default function EditProfilePage() {
         animate={{ opacity: 1 }}
       >
         {active?.wallpaper?.data && (
-          <div
-            className="absolute inset-0 scale-110 opacity-45"
-            style={{
-              backgroundImage: `url(${active.wallpaper.data})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              filter: "blur(14px)",
-            }}
-          />
+          <div className="absolute inset-0 bg-black">
+            <img
+              src={active.wallpaper.data}
+              alt=""
+              onLoad={() => setWallpaperLoaded(true)}
+              className={`absolute inset-0 h-full w-full scale-110 object-cover transition-opacity duration-700 ease-out ${
+                wallpaperLoaded ? "opacity-45" : "opacity-0"
+              }`}
+              style={{ filter: "blur(14px)" }}
+            />
+          </div>
         )}
 
         <motion.div
@@ -892,9 +903,7 @@ function ImageOverlay({
   return (
     <div
       className={`relative group ${
-        rounded
-          ? "h-40 w-40 rounded-2xl sm:h-[170px] sm:w-[170px]"
-          : "h-40 w-full rounded-2xl"
+        rounded ? "h-42 w-40 rounded-2xl" : "h-42 w-full rounded-2xl"
       } overflow-hidden border border-cyan-300/35 bg-slate-800/70 shadow-[0_8px_30px_rgba(0,0,0,0.35)]`}
     >
       <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md border border-cyan-300/35 bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200">

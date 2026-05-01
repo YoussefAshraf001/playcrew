@@ -105,14 +105,13 @@ const dateFromKey = (value: string | null | undefined) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const formatReleaseLabel = (value: Date | null) => {
+const formatReleaseLabel = (
+  value: Date | null,
+  precision?: ReleaseDatePrecision | null,
+) => {
   if (!value) return "TBA";
 
-  return value.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatReleaseDate(value, precision);
 };
 
 const formatTimeAgo = (value: Date | null, nowMs: number) => {
@@ -288,13 +287,27 @@ export default function NotificationBell({
           const previousReleaseDate = dateFromKey(previousReleaseKey);
           const changeId = `release-change-${gameId}-${previousReleaseKey ?? "tba"}-to-${releaseKey ?? "tba"}`;
           let message = "Release date updated.";
+          const hasConfirmedPreviousDay = hasConfirmedReleaseDay(
+            previousReleaseDate,
+          );
+          const hasConfirmedCurrentDay = hasConfirmedReleaseDay(
+            normalizedRelease,
+            game.igdb?.releaseDatePrecision,
+          );
 
           if (previousReleaseKey === null && normalizedRelease) {
-            message = `Release date announced: ${formatReleaseLabel(normalizedRelease)}.`;
+            message = `Release date announced: ${formatReleaseLabel(normalizedRelease, game.igdb?.releaseDatePrecision)}.`;
+          } else if (
+            previousReleaseDate &&
+            normalizedRelease &&
+            !hasConfirmedPreviousDay &&
+            hasConfirmedCurrentDay
+          ) {
+            message = `Release date announced: ${formatReleaseLabel(normalizedRelease, game.igdb?.releaseDatePrecision)}.`;
           } else if (previousReleaseKey && releaseKey === null) {
             message = `Release date moved from ${formatReleaseLabel(previousReleaseDate)} to TBA.`;
           } else if (previousReleaseDate && normalizedRelease) {
-            message = `Release date changed from ${formatReleaseLabel(previousReleaseDate)} to ${formatReleaseLabel(normalizedRelease)}.`;
+            message = `Release date changed from ${formatReleaseLabel(previousReleaseDate)} to ${formatReleaseLabel(normalizedRelease, game.igdb?.releaseDatePrecision)}.`;
           }
 
           candidates.push({

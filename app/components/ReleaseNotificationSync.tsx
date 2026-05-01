@@ -13,6 +13,11 @@ import {
 import { db } from "@/app/lib/firebase";
 import { useGames } from "@/app/context/GameContext";
 import { useUser } from "@/app/context/UserContext";
+import {
+  formatReleaseDate,
+  hasConfirmedReleaseDay,
+  type ReleaseDatePrecision,
+} from "@/app/lib/releaseDates";
 
 type Game = {
   id: string;
@@ -21,6 +26,7 @@ type Game = {
   igdb?: {
     cover?: string;
     releaseDate?: unknown;
+    releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 };
 
@@ -79,18 +85,16 @@ const dateFromKey = (value: string | null | undefined) => {
 const formatReleaseLabel = (value: Date | null) => {
   if (!value) return "TBA";
 
-  return value.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatReleaseDate(value, null);
 };
 
 export default function ReleaseNotificationSync() {
   const { user } = useUser();
   const { games, gamesLoading } = useGames();
   const uid = user?.uid;
-  const previousReleaseKeysRef = useRef<Map<string, string | null> | null>(null);
+  const previousReleaseKeysRef = useRef<Map<string, string | null> | null>(
+    null,
+  );
   const previousUidRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -115,14 +119,19 @@ export default function ReleaseNotificationSync() {
       const releaseStateSnap = await getDocs(releaseStateRef);
       const persistedReleaseState = new Map<
         string,
-        { releaseDateKey: string | null; lastNotifiedTransitionKey: string | null }
+        {
+          releaseDateKey: string | null;
+          lastNotifiedTransitionKey: string | null;
+        }
       >();
 
       for (const docSnap of releaseStateSnap.docs) {
         const data = docSnap.data() as ReleaseStateDoc;
         persistedReleaseState.set(docSnap.id, {
           releaseDateKey:
-            typeof data.releaseDateKey === "string" ? data.releaseDateKey : null,
+            typeof data.releaseDateKey === "string"
+              ? data.releaseDateKey
+              : null,
           lastNotifiedTransitionKey:
             typeof data.lastNotifiedTransitionKey === "string"
               ? data.lastNotifiedTransitionKey
@@ -166,12 +175,16 @@ export default function ReleaseNotificationSync() {
         trackedGameIds.add(gameId);
 
         const parsedRelease = toDate(game.igdb?.releaseDate);
-        const normalizedRelease = parsedRelease ? new Date(parsedRelease) : null;
+        const normalizedRelease = parsedRelease
+          ? new Date(parsedRelease)
+          : null;
         if (normalizedRelease) {
           normalizedRelease.setHours(0, 0, 0, 0);
         }
 
-        const releaseKey = normalizedRelease ? dateKey(normalizedRelease) : null;
+        const releaseKey = normalizedRelease
+          ? dateKey(normalizedRelease)
+          : null;
         currentReleaseKeys.set(gameId, releaseKey);
 
         const persistedState = persistedReleaseState.get(gameId) ?? {
@@ -185,19 +198,36 @@ export default function ReleaseNotificationSync() {
           ? previousReleaseKeys.has(gameId)
           : persistedReleaseState.has(gameId);
 
-        let nextLastNotifiedTransitionKey = persistedState.lastNotifiedTransitionKey;
+        let nextLastNotifiedTransitionKey =
+          persistedState.lastNotifiedTransitionKey;
 
         if (previousReleaseKey !== releaseKey && hasKnownPrevious) {
           const previousReleaseDate = dateFromKey(previousReleaseKey);
           const transitionKey = `${previousReleaseKey ?? "tba"}->${releaseKey ?? "tba"}`;
           let message: string | null = null;
+          const hasConfirmedPreviousDay = hasConfirmedReleaseDay(
+            previousReleaseDate,
+          );
+          const hasConfirmedCurrentDay = hasConfirmedReleaseDay(
+            normalizedRelease,
+            game.igdb?.releaseDatePrecision,
+          );
 
           if (previousReleaseKey === null && normalizedRelease) {
-            message = `Game now has a release date: ${formatReleaseLabel(normalizedRelease)}.`;
+            message = `Release date announced: ${formatReleaseLabel(normalizedRelease)}.`;
+          } else if (
+            previousReleaseDate &&
+            normalizedRelease &&
+            !hasConfirmedPreviousDay &&
+            hasConfirmedCurrentDay
+          ) {
+            message = `Release date announced: ${formatReleaseLabel(normalizedRelease)}.`;
           } else if (previousReleaseDate && normalizedRelease) {
             if (normalizedRelease.getTime() < previousReleaseDate.getTime()) {
               message = `Release date moved up from ${formatReleaseLabel(previousReleaseDate)} to ${formatReleaseLabel(normalizedRelease)}.`;
-            } else if (normalizedRelease.getTime() > previousReleaseDate.getTime()) {
+            } else if (
+              normalizedRelease.getTime() > previousReleaseDate.getTime()
+            ) {
               message = `Release date moved down from ${formatReleaseLabel(previousReleaseDate)} to ${formatReleaseLabel(normalizedRelease)}.`;
             }
           }
@@ -213,7 +243,9 @@ export default function ReleaseNotificationSync() {
               gameId,
               gameName: game.name,
               gameCover: game.igdb?.cover,
-              releaseDate: normalizedRelease ? new Date(normalizedRelease) : null,
+              releaseDate: normalizedRelease
+                ? new Date(normalizedRelease)
+                : null,
               message,
             });
             nextLastNotifiedTransitionKey = transitionKey;
@@ -222,12 +254,14 @@ export default function ReleaseNotificationSync() {
 
         if (
           persistedState.releaseDateKey !== releaseKey ||
-          persistedState.lastNotifiedTransitionKey !== nextLastNotifiedTransitionKey ||
+          persistedState.lastNotifiedTransitionKey !==
+            nextLastNotifiedTransitionKey ||
           !persistedReleaseState.has(gameId)
         ) {
           stateUpdates.set(gameId, {
             releaseDateKey: releaseKey,
-            lastNotifiedTransitionKey: nextLastNotifiedTransitionKey ?? undefined,
+            lastNotifiedTransitionKey:
+              nextLastNotifiedTransitionKey ?? undefined,
           });
         }
 
@@ -274,7 +308,13 @@ export default function ReleaseNotificationSync() {
 
       for (const entry of writes) {
         if (entry.type === "game_release") {
-          const notificationRef = doc(db, "users", uid, "notifications", entry.id);
+          const notificationRef = doc(
+            db,
+            "users",
+            uid,
+            "notifications",
+            entry.id,
+          );
           const existing = await getDoc(notificationRef);
           if (existing.exists()) {
             continue;
@@ -288,12 +328,19 @@ export default function ReleaseNotificationSync() {
 
       previousReleaseKeysRef.current = currentReleaseKeys;
 
-      if (!dedupedWrites.length && !stateUpdates.size && !stateDeletes.length) return;
+      if (!dedupedWrites.length && !stateUpdates.size && !stateDeletes.length)
+        return;
 
       const batch = writeBatch(db);
 
       for (const entry of dedupedWrites) {
-        const notificationRef = doc(db, "users", uid, "notifications", entry.id);
+        const notificationRef = doc(
+          db,
+          "users",
+          uid,
+          "notifications",
+          entry.id,
+        );
         batch.set(notificationRef, {
           type: entry.type,
           gameId: entry.gameId,
@@ -338,16 +385,3 @@ export default function ReleaseNotificationSync() {
 
   return null;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
