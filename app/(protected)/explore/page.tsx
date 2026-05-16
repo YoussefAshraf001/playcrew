@@ -235,7 +235,7 @@ export default function ExplorePage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Explore</title>
+        <title>Discovery Deck • PlayCrew</title>
         <meta
           name="description"
           content="Discover new games, browse recommendations, and explore what to play next."

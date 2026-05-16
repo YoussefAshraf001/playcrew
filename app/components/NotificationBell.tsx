@@ -35,7 +35,7 @@ type Game = {
   igdb?: {
     cover?: string;
     releaseDate?: unknown;
-    releaseDatePrecision?: ReleaseDatePrecision; // ✅ add this
+    releaseDatePrecision?: ReleaseDatePrecision;
   };
 };
 

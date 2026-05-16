@@ -52,6 +52,10 @@ export default function Dashboard() {
   const [canContinue, setCanContinue] = useState(false);
 
   useEffect(() => {
+    document.title = "Command Center • PlayCrew";
+  }, []);
+
+  useEffect(() => {
     setPanelOpen(openPanel !== "none");
   }, [openPanel, setPanelOpen]);
 
@@ -301,7 +305,7 @@ export default function Dashboard() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Dashboard</title>
+        <title>Command Center • PlayCrew</title>
         <meta
           name="description"
           content="Your PlayCrew dashboard for tracking progress, activity, and updates."
@@ -384,7 +388,11 @@ export default function Dashboard() {
                 </span>
 
                 <span className="text-[11px] sm:text-xs text-white/60 mt-1 tracking-wide sm:tracking-widest truncate">
-                  {profile.bio ? profile.bio : `XP ${totalXP}`}
+                  {profile.bio &&
+                  typeof profile.bio === "string" &&
+                  profile.bio.trim()
+                    ? profile.bio
+                    : `XP ${totalXP}`}
                 </span>
               </div>
 

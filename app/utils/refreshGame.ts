@@ -49,6 +49,10 @@ const toComparableDate = (value: unknown): number | null => {
 };
 
 const hasMeaningfulChange = (nextValue: unknown, previousValue: unknown) => {
+  if (nextValue == null && previousValue == null) {
+    return false;
+  }
+
   const nextDate = toComparableDate(nextValue);
   const previousDate = toComparableDate(previousValue);
 

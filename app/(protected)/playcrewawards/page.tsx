@@ -835,7 +835,7 @@ export default function ShelfPage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Awards Shelf</title>
+        <title>Awards Shelf • PlayCrew</title>
         <meta
           name="description"
           content="Build and manage your yearly PlayCrew game awards."

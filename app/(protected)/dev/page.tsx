@@ -185,7 +185,7 @@ export default function DevReleaseDatesPage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Dev Release Dates</title>
+        <title>Release Debugger • PlayCrew</title>
       </Helmet>
 
       <main className="min-h-screen bg-black px-4 pb-10 pt-24 text-white sm:px-6 lg:px-8">

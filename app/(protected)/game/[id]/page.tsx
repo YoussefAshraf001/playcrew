@@ -456,46 +456,52 @@ export default function GamePage() {
       playtime: trackedGameData?.playtime ?? 0,
     };
 
+    const shouldSkipLastUpdated = (data?.skipLastUpdated ?? false) === true;
+
+    const payload: any = {
+      name: game.name,
+
+      igdb: {
+        id: game.id,
+        name: game.name,
+        cover: coverUrl,
+        rating: game.rating || 0,
+        genres,
+        platforms,
+        releaseDate,
+        releaseDatePrecision: game.releaseDatePrecision ?? null,
+      },
+
+      my_rating: data.my_rating ?? null,
+      playtime: data.playtime ?? 0,
+      progress: data.progress ?? 0,
+      notes: data.notes ?? "",
+      status: data.status,
+      favorite: data.favorite ?? false,
+
+      categoryRatings: data.categoryRatings ?? null,
+      playedSessions: data.playedSessions ?? [],
+      save: data.save ?? null,
+
+      recentActionSummary:
+        data.recentActionSummary ??
+        getRecentGameActionSummary(previousTrackedGame, {
+          favorite: data.favorite ?? false,
+          status: data.status,
+          progress: data.progress ?? 0,
+          my_rating: data.my_rating ?? null,
+          notes: data.notes ?? "",
+          playtime: data.playtime ?? 0,
+        }),
+    };
+
+    if (!shouldSkipLastUpdated) {
+      payload.lastUpdated = serverTimestamp();
+    }
+
     await setDoc(
       doc(db, "users", user.uid, "games_igdb", game.id.toString()),
-      {
-        name: game.name,
-
-        igdb: {
-          id: game.id,
-          name: game.name,
-          cover: coverUrl,
-          rating: game.rating || 0,
-          genres,
-          platforms,
-          releaseDate,
-          releaseDatePrecision: game.releaseDatePrecision ?? null,
-        },
-
-        my_rating: data.my_rating ?? null,
-        playtime: data.playtime ?? 0,
-        progress: data.progress ?? 0,
-        notes: data.notes ?? "",
-        status: data.status,
-        favorite: data.favorite ?? false,
-
-        categoryRatings: data.categoryRatings ?? null,
-        playedSessions: data.playedSessions ?? [],
-        save: data.save ?? null,
-
-        recentActionSummary:
-          data.recentActionSummary ??
-          getRecentGameActionSummary(previousTrackedGame, {
-            favorite: data.favorite ?? false,
-            status: data.status,
-            progress: data.progress ?? 0,
-            my_rating: data.my_rating ?? null,
-            notes: data.notes ?? "",
-            playtime: data.playtime ?? 0,
-          }),
-
-        lastUpdated: serverTimestamp(),
-      },
+      payload,
       { merge: true },
     );
   };
@@ -512,6 +518,7 @@ export default function GamePage() {
       await updateTrackedGame({
         favorite: newFav,
         status: currentStatus,
+        skipLastUpdated: true,
       });
       setIsFavorited(newFav);
       toast.success(
@@ -958,7 +965,7 @@ export default function GamePage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - {game.name}</title>
+        <title>{game.name} • PlayCrew</title>
         <meta
           name="description"
           content={`View ${game.name} details, ratings, and tracking progress on PlayCrew.`}

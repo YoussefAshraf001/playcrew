@@ -5,26 +5,44 @@ import {
   useContext,
   useEffect,
   useState,
+  Dispatch,
   ReactNode,
+  SetStateAction,
 } from "react";
 import { auth, db } from "@/app/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { FontPreset, ThemePreset } from "@/app/lib/themes";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
+
+type CropData = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+type MediaValue =
+  | { type: "image"; data: string }
+  | { type: "gif"; data: string; crop: CropData };
 
 interface UserProfile {
   uid: string;
   username?: string;
+  avatar?: MediaValue;
   avatarBase64?: string;
   avatarUrl?: string;
   email?: string;
-  [key: string]: any;
+  bio?: string;
+  wallpaper?: MediaValue;
+  themePreset?: ThemePreset;
+  fontPreset?: FontPreset;
+  [key: string]: unknown;
 }
 
 interface UserContextType {
-  user: any | null;
+  user: User | null;
   profile: UserProfile | null;
   loading: boolean;
-  setProfile: (profile: UserProfile) => void;
+  setProfile: Dispatch<SetStateAction<UserProfile | null>>;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -35,36 +53,29 @@ const UserContext = createContext<UserContextType>({
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [authResolved, setAuthResolved] = useState(false);
+  const [profileResolved, setProfileResolved] = useState(false);
   const uid = user?.uid as string | undefined;
+  const resolvedProfile = uid ? profile : null;
+  const loading = !authResolved || (Boolean(uid) && !profileResolved);
 
   useEffect(() => {
     // Listen to auth state changes
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthResolved(true);
+      setProfileResolved(!currentUser);
     });
 
     return () => unsubAuth();
   }, []);
 
   useEffect(() => {
-    if (!authResolved) {
-      setLoading(true);
+    if (!authResolved || !uid) {
       return;
     }
-
-    if (!uid) {
-      setProfile(null);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setProfile(null);
 
     const docRef = doc(db, "users", uid);
 
@@ -77,10 +88,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
         }
-        setLoading(false);
+        setProfileResolved(true);
       },
       () => {
-        setLoading(false);
+        setProfileResolved(true);
       },
     );
 
@@ -88,7 +99,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, [uid, authResolved]);
 
   return (
-    <UserContext.Provider value={{ user, profile, loading, setProfile }}>
+    <UserContext.Provider
+      value={{ user, profile: resolvedProfile, loading, setProfile }}
+    >
       {children}
     </UserContext.Provider>
   );

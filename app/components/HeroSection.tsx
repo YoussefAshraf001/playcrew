@@ -297,7 +297,6 @@ export default function HeroSection({
       ref,
       {
         favorite: updated,
-        lastUpdated: new Date(),
       },
       { merge: true },
     );

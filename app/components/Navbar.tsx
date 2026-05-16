@@ -171,7 +171,7 @@
 //                     href={`/profile/${user?.displayName}`}
 //                     className="px-4 py-2 flex items-center gap-2 hover:bg-zinc-800"
 //                   >
-//                     <FaCog /> Settings
+//                     <FaUser /> Profile
 //                   </Link>
 //                   <button
 //                     onClick={() => setShowLogoutModal(true)}
@@ -331,7 +331,9 @@ export default function Navbar() {
   const { games } = useGames();
 
   const newUserImage = user?.photoURL;
-  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const avatarSrc = profile?.avatar?.data || newUserImage || "";
+  const [loadedAvatarSrc, setLoadedAvatarSrc] = useState<string | null>(null);
+  const avatarLoaded = !avatarSrc || loadedAvatarSrc === avatarSrc;
 
   const {
     playerVisible,
@@ -372,7 +374,10 @@ export default function Navbar() {
       href: null,
       icon: FaSearch,
       label: "Search",
-      onClick: () => setSearchModalOpen(true),
+      onClick: () => {
+        setAccountOpen(false);
+        setSearchModalOpen(true);
+      },
     },
   ];
   const mobileMainLabels = ["Dashboard", "My Games", "Calendar", "Screenshots"];
@@ -391,14 +396,6 @@ export default function Navbar() {
     startRouteLoading();
     router.push("/dashboard");
   };
-
-  useEffect(() => {
-    setAvatarLoaded(false);
-  }, [profile?.avatar?.data]);
-
-  useEffect(() => {
-    setHoveredIndex(null);
-  }, [pathname]);
 
   useEffect(() => {
     const update = () => {
@@ -420,16 +417,6 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    if (searchModalOpen || showLogoutModal) {
-      setAccountOpen(false);
-    }
-  }, [searchModalOpen, showLogoutModal]);
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     if (!mobileMenuOpen) return;
     closePlayer();
   }, [mobileMenuOpen, closePlayer]);
@@ -440,15 +427,12 @@ export default function Navbar() {
         <motion.nav
           className="
   fixed top-0 left-2 right-2 sm:left-4 sm:right-4 lg:left-6 lg:right-6 z-90
-  bg-black/20 backdrop-blur-md
-  border-b-3 border-cyan-600
+  theme-nav backdrop-blur-md
+  border-b-3
   border-x
-  shadow-xl
   px-2 sm:px-3 md:px-4 lg:px-6 py-1.5
   flex items-center justify-between
-  text-white
   transition-colors duration-300
-  hover:bg-black/80
   rounded-b-xl sm:rounded-b-2xl
 "
           initial={{ y: -50, opacity: 0 }}
@@ -459,13 +443,13 @@ export default function Navbar() {
             <Link href="/dashboard" className="inline-flex items-center gap-2">
               <img src="/logo.png" alt="PlayCrew" className="h-7 w-9" />
               <span className="text-base font-semibold uppercase tracking-[0.08em] text-white">
-                Play<span className="text-cyan-300 font-black">Crew</span>
+                Play<span className="theme-accent-text font-black">Crew</span>
               </span>
             </Link>
             <button
               type="button"
               onClick={() => setMobileMenuOpen((prev) => !prev)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-zinc-900/70 text-zinc-100 transition hover:bg-zinc-800"
+              className="theme-surface theme-hover-surface inline-flex h-9 w-9 items-center justify-center rounded-full border transition"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
               {mobileMenuOpen ? <FaTimes /> : <FaBars />}
@@ -476,7 +460,7 @@ export default function Navbar() {
             <Link href="/dashboard" className="flex items-center gap-2">
               <img src="/logo.png" alt="PlayCrew" className="w-11 h-8" />
               <span className="text-white text-2xl font-semibold uppercase tracking-wider">
-                Play<span className="text-cyan-300 font-black">Crew</span>
+                Play<span className="theme-accent-text font-black">Crew</span>
               </span>
             </Link>
           </div>
@@ -499,14 +483,14 @@ export default function Navbar() {
                   {href ? (
                     <Link
                       href={href}
-                      className="w-9 h-9 sm:w-10 sm:h-10 md:w-10 md:h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer shrink-0"
+                      className="theme-hover-surface w-9 h-9 sm:w-10 sm:h-10 md:w-10 md:h-10 flex items-center justify-center rounded-full transition relative z-10 cursor-pointer shrink-0"
                     >
                       <Icon className="text-base sm:text-lg" />
                     </Link>
                   ) : (
                     <button
                       onClick={onClick}
-                      className="w-9 h-9 sm:w-10 sm:h-10 md:w-10 md:h-10 flex items-center justify-center rounded-full hover:bg-zinc-800 transition relative z-10 cursor-pointer shrink-0"
+                      className="theme-hover-surface w-9 h-9 sm:w-10 sm:h-10 md:w-10 md:h-10 flex items-center justify-center rounded-full transition relative z-10 cursor-pointer shrink-0"
                     >
                       <Icon className="text-base sm:text-lg" />
                     </button>
@@ -523,7 +507,7 @@ export default function Navbar() {
                           stiffness: 200,
                           damping: 25,
                         }}
-                        className="absolute left-full top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded bg-zinc-800 px-2 py-1 text-xs text-white shadow-lg pointer-events-none lg:block"
+                        className="theme-surface absolute left-full top-1/2 z-50 hidden -translate-y-1/2 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-lg pointer-events-none lg:block"
                       >
                         {label}
                       </motion.span>
@@ -546,8 +530,8 @@ export default function Navbar() {
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
               className={`hidden h-8 w-10.5 cursor-pointer select-none items-center justify-center rounded-full border transition-all duration-300 md:flex ${
                 playerVisible
-                  ? "border-cyan-300/60 bg-white/10 text-white shadow-[0_0_18px_rgba(125,211,252,0.35)]"
-                  : "border-white/15 bg-zinc-900/70 text-zinc-200 hover:bg-zinc-800/85"
+                  ? "theme-accent-soft-bg shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.35)]"
+                  : "theme-surface theme-hover-surface"
               }`}
             >
               {playerVisible ? (
@@ -576,6 +560,7 @@ export default function Navbar() {
                   <div
                     className={`
                       absolute inset-0 rounded-full bg-zinc-700
+                      theme-surface-alt
                       transition-opacity duration-300
                       ${avatarLoaded ? "opacity-0" : "opacity-100"}
                     `}
@@ -583,12 +568,12 @@ export default function Navbar() {
 
                   {/* Avatar */}
                   <img
-                    src={profile.avatar?.data || newUserImage}
+                    src={avatarSrc}
                     alt="Profile"
-                    onLoad={() => setAvatarLoaded(true)}
+                    onLoad={() => setLoadedAvatarSrc(avatarSrc)}
                     className={`
                       w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover cursor-pointer
-                      border-2 border-zinc-700
+                      theme-avatar-ring border-2
                       transition-opacity duration-300
                       ${avatarLoaded ? "opacity-100" : "opacity-0"}
                     `}
@@ -602,13 +587,13 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -6, scale: 0.98 }}
                       transition={{ duration: 0.18, ease: "easeOut" }}
-                      className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-cyan-400/25 bg-[#0b0f16]/95 p-2 text-sm shadow-[0_20px_48px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+                      className="theme-panel-strong absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border p-2 text-sm shadow-[0_20px_48px_rgba(0,0,0,0.55)] backdrop-blur-xl"
                     >
-                      <div className="mb-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">
+                      <div className="theme-surface-alt mb-1 rounded-xl border px-3 py-2">
+                        <p className="theme-accent-soft-text text-[10px] font-semibold uppercase tracking-[0.14em]">
                           Account
                         </p>
-                        <p className="truncate text-xs font-medium text-zinc-100">
+                        <p className="truncate text-xs font-medium text-white">
                           @{profile.username}
                         </p>
                       </div>
@@ -616,13 +601,26 @@ export default function Navbar() {
                       <Link
                         href={`/profile/${profile.username}`}
                         onClick={() => setAccountOpen(false)}
-                        className="flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150 hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                        className="theme-hover-accent flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150"
                       >
-                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-cyan-300/35 bg-cyan-500/12 text-cyan-200">
+                        <span className="theme-accent-soft-bg inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border">
+                          <FaUser className="text-[13px]" />
+                        </span>
+                        <span className="font-semibold tracking-wide">
+                          Profile
+                        </span>
+                      </Link>
+
+                      <Link
+                        href={`/settings`}
+                        onClick={() => setAccountOpen(false)}
+                        className="theme-hover-accent mt-0.5 flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150"
+                      >
+                        <span className="theme-accent-soft-bg inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border">
                           <FaCog className="text-[13px]" />
                         </span>
                         <span className="font-semibold tracking-wide">
-                          Settings
+                          Site Settings
                         </span>
                       </Link>
                       <button
@@ -644,7 +642,7 @@ export default function Navbar() {
                 </AnimatePresence>
               </div>
             ) : loading ? (
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-cyan-500 bg-zinc-700 animate-pulse" />
+              <div className="theme-accent-soft-bg w-7 h-7 sm:w-8 sm:h-8 rounded-full border animate-pulse" />
             ) : (
               // --- USER NOT LOGGED IN ---
               <div className="flex items-center" ref={accountMenuRef}>
@@ -659,7 +657,7 @@ export default function Navbar() {
                   whileTap={{ scale: 0.95 }}
                   whileHover={{ scale: 1.05 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full font-semibold bg-zinc-800 text-zinc-300 border border-zinc-600 hover:bg-zinc-700 cursor-pointer select-none"
+                  className="theme-surface theme-hover-surface flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full font-semibold border cursor-pointer select-none"
                 >
                   <FaUser className="text-xs sm:text-sm" />
                 </motion.button>
@@ -672,16 +670,16 @@ export default function Navbar() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -6, scale: 0.98 }}
                       transition={{ duration: 0.18, ease: "easeOut" }}
-                      className="absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border border-white/12 bg-[#0a0d12]/96 p-1 text-sm shadow-[0_14px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl"
+                      className="theme-panel-strong absolute right-0 top-full z-50 mt-2 w-44 overflow-hidden rounded-xl border p-1 text-sm shadow-[0_14px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl"
                     >
                       <button
                         onClick={() => {
                           setAccountOpen(false);
                           open("login");
                         }}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150 hover:border-cyan-400/25 hover:bg-cyan-500/8"
+                        className="theme-hover-accent flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150"
                       >
-                        <span className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200">
+                        <span className="theme-accent-soft-bg inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border">
                           <CiLogin className="text-[15px]" />
                         </span>
                         <span className="font-semibold tracking-wide">
@@ -694,9 +692,9 @@ export default function Navbar() {
                           setAccountOpen(false);
                           open("signup");
                         }}
-                        className="mt-0.5 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150 hover:border-cyan-400/25 hover:bg-cyan-500/8"
+                        className="theme-hover-accent mt-0.5 flex w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-zinc-100 transition-all duration-150"
                       >
-                        <span className="inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200">
+                        <span className="theme-accent-soft-bg inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-md border">
                           <FaUserPlus className="text-[13px]" />
                         </span>
                         <span className="font-semibold tracking-wide">
@@ -717,7 +715,7 @@ export default function Navbar() {
             <motion.button
               type="button"
               onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 z-1300 bg-black/55 sm:hidden"
+              className="theme-modal-backdrop fixed inset-0 z-1300 sm:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -728,10 +726,10 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -14 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              className="fixed left-2 right-2 top-14 z-1310 rounded-2xl border border-cyan-500/25 bg-[#09090b]/95 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.55)] sm:hidden"
+              className="theme-panel-strong fixed left-2 right-2 top-14 z-1310 rounded-2xl border p-3 shadow-[0_20px_60px_rgba(0,0,0,0.55)] sm:hidden"
             >
               <div className="space-y-2">
-                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                <p className="theme-text-muted px-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
                   Main
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -742,7 +740,7 @@ export default function Navbar() {
                           key={`mobile-main-${label}`}
                           href={href}
                           onClick={() => setMobileMenuOpen(false)}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                          className="theme-surface theme-hover-surface inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                         >
                           <Icon className="text-sm" />
                           {label}
@@ -755,7 +753,7 @@ export default function Navbar() {
                             onClick?.();
                             setMobileMenuOpen(false);
                           }}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                          className="theme-surface theme-hover-surface inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                         >
                           <Icon className="text-sm" />
                           {label}
@@ -763,7 +761,7 @@ export default function Navbar() {
                       ),
                   )}
                 </div>
-                <p className="px-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                <p className="theme-text-muted px-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
                   Explore
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -774,7 +772,7 @@ export default function Navbar() {
                           key={`mobile-extra-${label}`}
                           href={href}
                           onClick={() => setMobileMenuOpen(false)}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                          className="theme-surface theme-hover-surface inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                         >
                           <Icon className="text-sm" />
                           {label}
@@ -787,7 +785,7 @@ export default function Navbar() {
                             onClick?.();
                             setMobileMenuOpen(false);
                           }}
-                          className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                          className="theme-surface theme-hover-surface inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                         >
                           <Icon className="text-sm" />
                           {label}
@@ -802,17 +800,17 @@ export default function Navbar() {
                       mobileSearchItem.onClick?.();
                       setMobileMenuOpen(false);
                     }}
-                    className="inline-flex h-10 w-full items-center gap-2 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                    className="theme-surface theme-hover-surface inline-flex h-10 w-full items-center gap-2 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                   >
                     <mobileSearchItem.icon className="text-sm" />
                     Search
                   </button>
                 )}
               </div>
-              <div className="mt-3 rounded-lg border border-white/10 bg-zinc-900/50 p-2.5">
+              <div className="theme-surface mt-3 rounded-lg border p-2.5">
                 <NotificationBell games={games} fullWidthTrigger />
               </div>
-              <div className="mt-3 rounded-xl border border-white/12 bg-zinc-900/65 p-2.5">
+              <div className="theme-surface mt-3 rounded-xl border p-2.5">
                 <div className="mb-2 flex items-center gap-2.5">
                   {currentTrack?.cover ? (
                     <img
@@ -821,13 +819,13 @@ export default function Navbar() {
                       className="h-12 w-12 shrink-0 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="h-12 w-12 shrink-0 rounded-lg bg-zinc-800" />
+                    <div className="theme-surface-alt h-12 w-12 shrink-0 rounded-lg border" />
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[11px] font-semibold text-white">
                       {currentTrack?.title ?? "No track loaded"}
                     </p>
-                    <p className="truncate text-[10px] text-zinc-300">
+                    <p className="theme-text-muted truncate text-[10px]">
                       {Array.isArray(currentTrack?.artist)
                         ? currentTrack.artist.join(", ")
                         : (currentTrack?.artist ?? "PlayCrew Radio")}
@@ -848,7 +846,7 @@ export default function Navbar() {
                         ),
                       );
                     }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/35 text-white transition hover:bg-black/55"
+                    className="theme-surface theme-hover-surface inline-flex h-8 w-8 items-center justify-center rounded-full border text-white transition"
                     aria-label={volume > 0.001 ? "Mute" : "Unmute"}
                   >
                     {volume > 0.001 ? (
@@ -862,7 +860,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={playPrev}
-                    className="inline-flex h-8 items-center justify-center rounded-lg border border-white/20 bg-black/35 text-white transition hover:bg-black/55"
+                    className="theme-surface theme-hover-surface inline-flex h-8 items-center justify-center rounded-lg border text-white transition"
                     aria-label="Previous track"
                   >
                     <FaStepBackward size={11} />
@@ -870,7 +868,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={togglePlay}
-                    className="inline-flex h-8 items-center justify-center rounded-lg border border-cyan-300/35 bg-cyan-500/15 text-cyan-100 transition hover:bg-cyan-500/25"
+                    className="theme-accent-soft-bg inline-flex h-8 items-center justify-center rounded-lg border text-cyan-100 transition hover:bg-cyan-500/25"
                     aria-label={isPlaying ? "Pause" : "Play"}
                   >
                     {isPlaying ? <FaPause size={11} /> : <FaPlay size={11} />}
@@ -878,7 +876,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={playNext}
-                    className="inline-flex h-8 items-center justify-center rounded-lg border border-white/20 bg-black/35 text-white transition hover:bg-black/55"
+                    className="theme-surface theme-hover-surface inline-flex h-8 items-center justify-center rounded-lg border text-white transition"
                     aria-label="Next track"
                   >
                     <FaStepForward size={11} />
@@ -886,14 +884,29 @@ export default function Navbar() {
                 </div>
               </div>
               {profile ? (
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                   <Link
                     href={`/profile/${profile.username}`}
                     onClick={() => setMobileMenuOpen(false)}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                    className="theme-surface theme-hover-surface inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
+                  >
+                    <FaUser size={12} />
+                    Profile
+                  </Link>
+                  <Link
+                    href={`/profile/${profile.username}#site-settings`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="theme-surface theme-hover-surface inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                   >
                     <FaCog size={12} />
-                    Settings
+                    Site
+                  </Link>
+                  <Link
+                    href={`/profile/${profile.username}#site-settings`}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-4 py-2 flex items-center gap-2 hover:bg-zinc-800"
+                  >
+                    <FaCog /> Site Settings
                   </Link>
                   <button
                     type="button"
@@ -915,7 +928,7 @@ export default function Navbar() {
                       setMobileMenuOpen(false);
                       open("login");
                     }}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-zinc-900/75 px-3 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+                    className="theme-surface theme-hover-surface inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold text-zinc-100 transition"
                   >
                     <CiLogin size={14} />
                     Log In
@@ -926,7 +939,7 @@ export default function Navbar() {
                       setMobileMenuOpen(false);
                       open("signup");
                     }}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+                    className="theme-accent-soft-bg inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition hover:bg-cyan-500/20"
                   >
                     <FaUserPlus size={12} />
                     Sign Up

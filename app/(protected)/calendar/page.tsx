@@ -209,19 +209,19 @@ export default function CalendarPage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Release Calendar</title>
+        <title>Release Radar • PlayCrew</title>
         <meta
           name="description"
           content="Track upcoming and recent game releases in your PlayCrew release calendar."
         />
       </Helmet>
 
-      <main className="h-svh overflow-hidden bg-black px-3 pt-22 text-white sm:px-4 lg:px-7">
+      <main className="h-svh overflow-hidden bg-[var(--theme-bg)] px-3 pt-22 theme-text sm:px-4 lg:px-7">
         <section className="mx-auto h-full max-w-[1680px]">
-          <div className="relative flex h-full origin-top scale-[0.9] flex-col overflow-hidden rounded-2xl border border-cyan-500/20 bg-linear-to-br from-[#07121c]/95 via-[#050a10]/95 to-black/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)] sm:scale-[0.92] lg:scale-[0.9] 2xl:scale-[0.93]">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(6,182,212,0.14),transparent_50%)]" />
+          <div className="relative flex h-full origin-top scale-[0.9] flex-col overflow-hidden rounded-2xl border border-[var(--theme-border)] theme-panel shadow-[0_25px_80px_rgba(0,0,0,0.22)] sm:scale-[0.92] lg:scale-[0.9] 2xl:scale-[0.93]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.14),transparent_50%)]" />
 
-            <div className="relative z-10 flex flex-col gap-3 border-b border-white/10 p-3.5 md:flex-row md:items-center md:justify-between sm:p-5 lg:p-6">
+            <div className="relative z-10 flex flex-col gap-3 border-b border-[var(--theme-border)] p-3.5 md:flex-row md:items-center md:justify-between sm:p-5 lg:p-6">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-300/80">
                   Release Tracker
@@ -238,7 +238,9 @@ export default function CalendarPage() {
                       type="button"
                       onClick={() => {
                         const now = new Date();
-                        setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+                        setCursor(
+                          new Date(now.getFullYear(), now.getMonth(), 1),
+                        );
                       }}
                       className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-100 transition hover:border-cyan-300/55 hover:bg-cyan-400/16"
                     >
@@ -257,7 +259,7 @@ export default function CalendarPage() {
                         new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
                     )
                   }
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-black/40 transition hover:bg-cyan-500/20"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] transition hover:bg-[rgba(var(--theme-accent-rgb),0.16)]"
                 >
                   <FaArrowLeft />
                 </button>
@@ -270,7 +272,7 @@ export default function CalendarPage() {
                         new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
                     )
                   }
-                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-white/15 bg-black/40 transition hover:bg-cyan-500/20"
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] transition hover:bg-[rgba(var(--theme-accent-rgb),0.16)]"
                 >
                   <FaArrowRight />
                 </button>
@@ -281,13 +283,13 @@ export default function CalendarPage() {
               <motion.section
                 layout
                 transition={{ duration: 0.28, ease: "easeOut" }}
-                className="flex min-w-0 flex-1 flex-col border-b border-white/10 p-3.5 xl:border-b-0 xl:border-r sm:p-5 lg:p-6"
+                className="flex min-w-0 flex-1 flex-col border-b border-[var(--theme-border)] p-3.5 xl:border-b-0 xl:border-r sm:p-5 lg:p-6"
               >
                 <div className="mb-2 grid grid-cols-7 gap-2">
                   {WEEK_DAYS.map((d) => (
                     <div
                       key={d}
-                      className="py-2 text-center text-[10px] uppercase tracking-[0.15em] text-white/60 sm:text-xs"
+                      className="py-2 text-center text-[10px] uppercase tracking-[0.15em] theme-text-muted sm:text-xs"
                     >
                       {d}
                     </div>
@@ -354,14 +356,14 @@ export default function CalendarPage() {
                             </div>
                           )}
 
-                          <div className="absolute inset-0 bg-black/55" />
+                          <div className="absolute inset-0 bg-black/15 backdrop-blur-[0.5px]" />
 
-                          <span className="absolute right-3 top-2 z-10 text-[11px] font-medium text-white/95 sm:text-xs">
+                          <span className="absolute right-3 top-2 z-10 text-[11px] font-medium theme-text sm:text-xs">
                             {day}
                           </span>
 
                           {dayGames.length > 1 && (
-                            <span className="absolute bottom-1.5 right-1.5 z-10 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] text-white/90 sm:text-[11px]">
+                            <span className="absolute bottom-1.5 right-1.5 z-10 rounded-md bg-[var(--theme-panel)] px-1.5 py-0.5 text-[10px] theme-text-muted sm:text-[11px]">
                               {dayGames.length} Games
                             </span>
                           )}
@@ -375,10 +377,10 @@ export default function CalendarPage() {
               <motion.aside
                 layout
                 transition={{ duration: 0.28, ease: "easeOut" }}
-                className="hidden min-h-0 w-[420px] shrink-0 border-l border-white/10 bg-[linear-gradient(180deg,rgba(6,15,22,0.97),rgba(3,8,14,0.98))] xl:flex xl:flex-col"
+                className="hidden min-h-0 w-[420px] shrink-0 border-l border-[var(--theme-border)] theme-surface xl:flex xl:flex-col"
               >
                 <div className="border-b border-white/10 px-4 py-4 sm:px-5">
-                  <div className="rounded-2xl border border-white/10 bg-black/25 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                  <div className="rounded-2xl border border-[var(--theme-border)] theme-surface p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                     <div className="grid grid-cols-2 gap-1.5">
                       {PANEL_TABS.map((tab) => {
                         const isActive = tab.id === activePanel;
@@ -389,7 +391,7 @@ export default function CalendarPage() {
                             onClick={() => handlePanelChange(tab.id)}
                             className={`relative overflow-hidden rounded-[18px] px-4 py-3 text-left transition ${
                               isActive
-                                ? "bg-white text-black shadow-[0_14px_26px_rgba(255,255,255,0.1)]"
+                                ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] shadow-[0_14px_26px_rgba(var(--theme-accent-rgb),0.25)]"
                                 : tab.id === "confirmed"
                                   ? "bg-cyan-500/8 text-cyan-100 hover:bg-cyan-500/14"
                                   : "bg-amber-500/8 text-amber-100 hover:bg-amber-500/14"
@@ -440,7 +442,7 @@ export default function CalendarPage() {
                     </h2>
                   </div>
 
-                  <div className="relative min-h-0 flex-1 overflow-hidden rounded-[26px] border border-white/8 bg-black/20">
+                  <div className="relative min-h-0 flex-1 overflow-hidden rounded-[26px] border border-[var(--theme-border)] theme-surface">
                     <AnimatePresence
                       custom={panelDirection}
                       mode="wait"
@@ -464,12 +466,12 @@ export default function CalendarPage() {
                       >
                         <div className="min-h-0 flex-1 overflow-y-auto p-3.5 pr-4 pb-5 [scrollbar-gutter:stable_both-edges]">
                           {gamesLoading ? (
-                            <div className="flex min-h-60 h-full items-center justify-center rounded-[22px] border border-white/10 bg-black/35">
+                            <div className="flex min-h-60 h-full items-center justify-center rounded-[22px] border border-[var(--theme-border)] theme-surface">
                               <span className="loading loading-dots loading-xl" />
                             </div>
                           ) : activePanel === "confirmed" ? (
                             sidebarMonthGames.length === 0 ? (
-                              <div className="rounded-[22px] border border-white/10 bg-black/35 p-5 text-sm text-white/60">
+                              <div className="rounded-[22px] border border-[var(--theme-border)] theme-surface p-5 text-sm theme-text-muted">
                                 No confirmed release dates in this month.
                               </div>
                             ) : (
@@ -490,7 +492,7 @@ export default function CalendarPage() {
                                     >
                                       <Link
                                         href={`/game/${g.id}`}
-                                        className="group block overflow-hidden rounded-[22px] border border-white/10 bg-[linear-gradient(145deg,rgba(5,12,18,0.97),rgba(3,7,12,0.98))] pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:border-cyan-400/35 hover:shadow-[0_24px_50px_rgba(0,0,0,0.28)]"
+                                        className="group block overflow-hidden rounded-[22px] border border-[var(--theme-border)] theme-surface pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.15)] transition hover:-translate-y-0.5 hover:border-[rgba(var(--theme-accent-rgb),0.35)]"
                                       >
                                         <div className="flex gap-3 px-2.5 py-2">
                                           <img
@@ -668,8 +670,3 @@ export default function CalendarPage() {
     </>
   );
 }
-
-
-
-
-

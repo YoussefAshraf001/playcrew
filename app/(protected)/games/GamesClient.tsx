@@ -20,7 +20,6 @@ import {
   FiList,
   FiSearch,
   FiSliders,
-  FiX,
 } from "react-icons/fi";
 import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
@@ -28,6 +27,13 @@ import { useGames } from "@/app/context/GameContext";
 import styles from "./OnlineToggle.module.css";
 import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
 import { useRouter } from "next/navigation";
+import {
+  clampGamesBgBlur,
+  clampGamesBgOverlay,
+  DEFAULT_BG_BLUR,
+  DEFAULT_BG_OVERLAY,
+  PAGE_SETTINGS_STORAGE_KEY,
+} from "@/app/lib/gamesPageSettings";
 
 const STATUSES = [
   "All",
@@ -65,9 +71,7 @@ interface UserProfile {
   lastSignInTime?: Date;
 }
 
-const PAGE_SETTINGS_STORAGE_KEY = "games.pageSettings";
-const DEFAULT_BG_BLUR = 12;
-const DEFAULT_BG_OVERLAY = 50;
+type ProfileMedia = UserProfile["avatar"] | UserProfile["wallpaper"];
 
 export default function GamesPage() {
   const { profile: userProfile, loading: userLoading, user } = useUser();
@@ -98,7 +102,6 @@ export default function GamesPage() {
     "name" | "date" | "tier" | "release" | "playtime"
   >("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [bgBlur, setBgBlur] = useState(DEFAULT_BG_BLUR);
   const [bgOverlay, setBgOverlay] = useState(DEFAULT_BG_OVERLAY);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -196,11 +199,11 @@ export default function GamesPage() {
       };
 
       if (typeof parsed.bgBlur === "number") {
-        setBgBlur(Math.min(24, Math.max(0, parsed.bgBlur)));
+        setBgBlur(clampGamesBgBlur(parsed.bgBlur));
       }
 
       if (typeof parsed.bgOverlay === "number") {
-        setBgOverlay(Math.min(85, Math.max(0, parsed.bgOverlay)));
+        setBgOverlay(clampGamesBgOverlay(parsed.bgOverlay));
       }
     } catch (error) {
       console.error("Failed to parse games page settings", error);
@@ -218,26 +221,13 @@ export default function GamesPage() {
     );
   }, [bgBlur, bgOverlay, settingsHydrated]);
 
-  useEffect(() => {
-    if (!settingsOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSettingsOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [settingsOpen]);
-
-  const getMediaSrc = (media?: any, legacy?: string) => {
+  const getMediaSrc = (media?: ProfileMedia, legacy?: string) => {
     if (!media && legacy) return legacy;
     if (!media) return undefined;
     return media.data;
   };
 
-  const getMediaStyle = (media?: any) => {
+  const getMediaStyle = (media?: ProfileMedia) => {
     if (!media || media.type !== "gif" || !media.crop) return undefined;
 
     const { x, y, zoom } = media.crop;
@@ -288,17 +278,26 @@ export default function GamesPage() {
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  const getReleaseTime = (value: any): number => {
+  const getReleaseTime = (value: unknown): number => {
     if (!value) return Infinity;
 
     // Firestore Timestamp
-    if (typeof value === "object" && typeof value.toDate === "function") {
-      return value.toDate().getTime();
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "toDate" in value &&
+      typeof (value as { toDate: unknown }).toDate === "function"
+    ) {
+      return (value as { toDate: () => Date }).toDate().getTime();
     }
 
-    // ISO string fallback
-    const date = new Date(value);
-    return isNaN(date.getTime()) ? Infinity : date.getTime();
+    // ISO string or number fallback
+    if (typeof value === "string" || typeof value === "number") {
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? Infinity : date.getTime();
+    }
+
+    return Infinity;
   };
 
   // Filter and sort safely
@@ -794,7 +793,7 @@ export default function GamesPage() {
   if (!user) {
     return (
       <motion.main
-        className="min-h-screen flex flex-col items-center justify-center bg-black text-white px-4"
+        className="min-h-screen flex flex-col items-center justify-center bg-[var(--theme-bg)] theme-text px-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -820,7 +819,7 @@ export default function GamesPage() {
 
   return (
     <motion.main
-      className={`min-h-screen overflow-y-auto bg-black text-white lg:h-svh lg:overflow-hidden`}
+      className={`min-h-screen overflow-y-auto bg-[var(--theme-bg)] theme-text lg:h-svh lg:overflow-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -831,7 +830,7 @@ export default function GamesPage() {
         <div className="max-w-[1850px] mx-auto flex flex-col gap-4 px-3 pt-14 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6">
           {/* Blurred Background */}
           {wallpaperMedia && (
-            <div className="fixed inset-0 z-10 overflow-hidden bg-black">
+            <div className="fixed inset-0 z-10 overflow-hidden bg-[var(--theme-bg)]">
               <img
                 src={getMediaSrc(wallpaperMedia)}
                 onLoad={() => setWallpaperLoaded(true)}
@@ -858,7 +857,7 @@ export default function GamesPage() {
 
           {/* Left Panel (Stats) */}
           <div className="w-full lg:w-72 lg:h-[calc(100svh-4.5rem)] shrink-0 px-4 relative z-10 pt-3">
-            <div className="bg-zinc-900/55 border border-white/10 rounded-2xl p-3 sm:p-4 flex flex-col items-center shadow-xl max-w-[330px] mx-auto lg:mx-0 lg:h-full">
+            <div className="theme-panel border border-[var(--theme-border)] rounded-2xl p-3 sm:p-4 flex flex-col items-center shadow-xl max-w-[330px] mx-auto lg:mx-0 lg:h-full">
               {/* Avatar */}
               <Link href={`/profile/${profileUsername}`} className="group">
                 {localProfile?.avatar || userProfile?.avatar ? (
@@ -873,7 +872,7 @@ export default function GamesPage() {
                     className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-zinc-700 flex items-center justify-center text-4xl sm:text-5xl text-zinc-400 border-4 border-cyan-400 shadow-lg">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full theme-panel flex items-center justify-center text-4xl sm:text-5xl theme-text-muted border-4 border-[var(--theme-border)] shadow-lg">
                     {localProfile?.username?.[0]?.toUpperCase()}
                   </div>
                 )}
@@ -881,13 +880,16 @@ export default function GamesPage() {
 
               {/* Username / Email */}
               <div className="text-center mt-3.5 w-full">
-                <h3 className="font-extrabold text-2xl sm:text-3xl text-white capitalize truncate px-2">
+                <h3 className="font-extrabold text-2xl sm:text-3xl theme-text capitalize truncate px-2">
                   {localProfile?.username || userProfile?.username || "Player"}
                 </h3>
-                <p className="hidden sm:block text-sm text-zinc-300 py-1 cursor-default blur-xs hover:blur-none transition">
-                  {localProfile?.email}
+                <p
+                  className="hidden blur-xs hover:blur-none transition-all duration-200 sm:block w-full max-w-full min-w-0 px-2 py-1 text-sm leading-tight tracking-[-0.02em] theme-text-muted cursor-default truncate"
+                  title={localProfile?.email}
+                >
+                  {localProfile?.email || userProfile?.email}
                 </p>
-                <p className="text-[12px] text-zinc-300 mt-1 max-w-[230px] mx-auto">
+                <p className="text-[12px] theme-text-muted mt-1 max-w-[230px] mx-auto">
                   Joined On: {formattedDate}
                 </p>
                 {/* <p className="text-sm capitalize text-zinc-300 mt-1 max-w-[230px] mx-auto line-clamp-2">
@@ -897,11 +899,11 @@ export default function GamesPage() {
                 </p> */}
               </div>
 
-              <hr className="my-4 sm:my-6 w-full border-zinc-700" />
+              <hr className="my-4 sm:my-6 w-full border-[var(--theme-border)]" />
 
               {/* Stats */}
               <div className="w-full overflow-y-auto px-1">
-                <div className="w-full flex flex-col gap-0.5 text-sm text-zinc-300 overflow-y-auto p-1">
+                <div className="w-full flex flex-col gap-0.5 text-sm theme-text-muted overflow-y-auto p-1">
                   {[
                     // ["Member Since", formattedDate],
                     ["Total Games", allGames.length],
@@ -915,10 +917,10 @@ export default function GamesPage() {
                   ].map(([label, value]) => (
                     <div
                       key={label?.toString()}
-                      className="flex justify-between w-full px-3 py-2 rounded-lg hover:bg-white/10 transition-colors duration-200"
+                      className="flex justify-between w-full px-3 py-2 rounded-lg hover:bg-[var(--theme-panel-alt)] transition-colors duration-200"
                     >
                       <span className="font-medium">{label}</span>
-                      <span className="font-semibold text-white">{value}</span>
+                      <span className="font-semibold theme-text">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -939,7 +941,7 @@ export default function GamesPage() {
             <div className="relative w-full pt-5">
               <motion.div
                 layout
-                className="relative mx-auto flex w-full max-w-full flex-wrap items-center justify-center gap-2 overflow-visible rounded-2xl border border-white/10 bg-zinc-900/55 p-2 backdrop-blur-sm lg:w-fit lg:flex-nowrap lg:overflow-x-auto"
+                className="relative mx-auto flex w-full max-w-full flex-wrap items-center justify-center gap-2 overflow-visible rounded-2xl border border-[var(--theme-border)] theme-panel p-2 backdrop-blur-sm lg:w-fit lg:flex-nowrap lg:overflow-x-auto"
                 initial={false}
                 transition={{
                   type: "spring",
@@ -1039,8 +1041,7 @@ export default function GamesPage() {
                 )}
               </motion.div>
             </div>
-
-            <div className="mb-4 rounded-2xl border border-white/10 bg-zinc-900/55 p-2.5 backdrop-blur-sm">
+            <div className="mb-4 rounded-2xl border border-[var(--theme-border)] theme-panel p-2.5 backdrop-blur-sm">
               <div className="flex min-w-0 items-center gap-2">
                 <button
                   disabled={currentPage === 1}
@@ -1109,7 +1110,14 @@ export default function GamesPage() {
                     <select
                       value={sortBy}
                       onChange={(e) => {
-                        setSortBy(e.target.value as any);
+                        setSortBy(
+                          e.target.value as
+                            | "name"
+                            | "date"
+                            | "tier"
+                            | "release"
+                            | "playtime",
+                        );
                         setCurrentPage(1);
                       }}
                       className="h-8 min-w-[158px] appearance-none rounded-xl border border-white/10 bg-white/4 pl-3 pr-9 text-sm font-medium text-white outline-none transition focus:border-cyan-300/65 focus:bg-white/[0.07]"
@@ -1142,21 +1150,13 @@ export default function GamesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSettingsOpen(true)}
-                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-3 text-xs font-semibold tracking-wide text-white/90 transition hover:border-cyan-300/35 hover:bg-cyan-500/10 hover:text-cyan-100"
-                  >
-                    <FiSliders className="h-3.5 w-3.5" />
-                    Page Settings
-                  </button>
+                <div className="flex flex-wrap items-center gap-2">
                   <div
-                    className={`group relative flex h-9 items-center gap-3 rounded-xl border border-white/15 px-3 transition ${selectedStatus === "Online" && "pointer-events-none opacity-50"}`}
+                    className={`group relative flex h-9 items-center gap-3 rounded-xl border border-white/15 px-3 transition ${selectedStatus === "Online" ? "pointer-events-none opacity-50" : ""}`}
                   >
                     <span className={styles.toggleLabel}>Include Online</span>
                     <label
-                      className={`${styles.switch}`}
+                      className={styles.switch}
                       aria-label="Exclude online games"
                       title={
                         includeOnlineGames
@@ -1185,6 +1185,7 @@ export default function GamesPage() {
                       </div>
                     </label>
                   </div>
+
                   <button
                     onClick={() =>
                       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -1254,7 +1255,6 @@ export default function GamesPage() {
               </AnimatePresence>
             </div>
           </div>
-
           {/* Right Panel (Favorites + Recently Edited) */}
           <div className="relative z-10 w-full shrink-0 px-1 pt-3 flex flex-col gap-3 sm:px-2 md:px-3 lg:h-[calc(100svh-5.5rem)] lg:w-64 lg:px-0 xl:w-72">
             {/* Favorites */}
@@ -1438,124 +1438,6 @@ export default function GamesPage() {
           </div>
         </div>
       )}
-
-      <AnimatePresence>
-        {settingsOpen && (
-          <>
-            <motion.button
-              type="button"
-              aria-label="Close page settings"
-              className="fixed inset-0 z-1400 bg-black/55 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              onClick={() => setSettingsOpen(false)}
-            />
-
-            <motion.aside
-              initial={{ opacity: 0, x: 120 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 120 }}
-              transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed right-0 top-0 z-1410 flex h-svh w-full max-w-md"
-            >
-              <div className="relative ml-auto flex h-full w-full flex-col border-l border-cyan-300/15 bg-[linear-gradient(180deg,rgba(7,12,19,0.96),rgba(5,8,14,0.98))] p-5 shadow-[-24px_0_60px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/65">
-                      My Games
-                    </p>
-                    <h2 className="mt-2 text-2xl font-bold text-white">
-                      Page Settings
-                    </h2>
-                    <p className="mt-2 max-w-sm text-sm text-white/62">
-                      Adjust the wallpaper blur and dark overlay for this page.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSettingsOpen(false)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/75 transition hover:border-cyan-300/35 hover:bg-cyan-500/10 hover:text-cyan-100"
-                  >
-                    <FiX className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="mt-8 space-y-5">
-                  <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-white">
-                          Background Blur
-                        </h3>
-                        <p className="mt-1 text-xs text-white/55">
-                          Controls how soft the wallpaper looks behind the page.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-100">
-                        {bgBlur}px
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="0"
-                      max="24"
-                      step="1"
-                      value={bgBlur}
-                      onChange={(event) =>
-                        setBgBlur(Number(event.target.value))
-                      }
-                      className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-white/12 accent-cyan-400"
-                    />
-                  </section>
-
-                  <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-sm font-semibold text-white">
-                          Overlay Opacity
-                        </h3>
-                        <p className="mt-1 text-xs text-white/55">
-                          Darkens the background to help the content stand out.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-100">
-                        {bgOverlay}%
-                      </span>
-                    </div>
-
-                    <input
-                      type="range"
-                      min="0"
-                      max="85"
-                      step="1"
-                      value={bgOverlay}
-                      onChange={(event) =>
-                        setBgOverlay(Number(event.target.value))
-                      }
-                      className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-white/12 accent-cyan-400"
-                    />
-                  </section>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBgBlur(DEFAULT_BG_BLUR);
-                      setBgOverlay(DEFAULT_BG_OVERLAY);
-                    }}
-                    className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/12 bg-black/25 px-4 text-sm font-semibold text-white/85 transition hover:border-white/20 hover:bg-white/8"
-                  >
-                    Reset to Default
-                  </button>
-                </div>
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
 
       {editingGame && (
         <GameTrackingModal

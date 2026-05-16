@@ -3,6 +3,7 @@
 import { ReactNode, useRef } from "react";
 import { motion, Variants } from "framer-motion";
 import Navbar from "./components/Navbar";
+import ThemeSync from "./components/ThemeSync";
 import "./globals.css";
 import { UserProvider } from "./context/UserContext";
 import { MusicProvider } from "./context/MusicContext";
@@ -55,20 +56,21 @@ export default function RootLayout({ children }: RootLayoutProps) {
   }, [pathname]);
 
   return (
-    <html lang="en">
-      <body className="antialiased bg-black">
+    <html lang="en" suppressHydrationWarning>
+      <body className="app-body antialiased">
         <GlobalToaster />
 
         <HelmetProvider>
           <AuthModalProvider>
             <UserProvider>
+              <ThemeSync />
               <GameProvider>
                 <ReleaseDateAutoSync />
                 <ReleaseNotificationSync />
                 <MusicProvider>
                   <UIProvider>
                     <RouteTransitionLoader />
-                    <div className="flex min-h-screen overflow-hidden">
+                    <div className="app-shell flex min-h-screen overflow-hidden">
                       <Navbar />
 
                       <motion.main

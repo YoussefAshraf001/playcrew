@@ -36,6 +36,14 @@ import { useUser } from "../../../context/UserContext";
 import { db, auth } from "@/app/lib/firebase";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
+
+import {
+  clampGamesBgBlur,
+  clampGamesBgOverlay,
+  DEFAULT_BG_BLUR,
+  DEFAULT_BG_OVERLAY,
+  PAGE_SETTINGS_STORAGE_KEY,
+} from "@/app/lib/gamesPageSettings";
 import { useRouter } from "next/navigation";
 import { useUI } from "@/app/context/UIContext";
 import { useAuthModal } from "@/app/context/AuthModalContext";
@@ -91,12 +99,19 @@ export default function EditProfilePage() {
   const [croppedPixels, setCroppedPixels] = useState<Area | null>(null);
   const [passwordResetRequested, setPasswordResetRequested] = useState(false);
   const [wallpaperLoaded, setWallpaperLoaded] = useState(false);
+  const [gamesBgBlur, setGamesBgBlur] = useState(DEFAULT_BG_BLUR);
+  const [gamesBgOverlay, setGamesBgOverlay] = useState(DEFAULT_BG_OVERLAY);
+  const [siteSettingsHydrated, setSiteSettingsHydrated] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const accountPanelRef = useRef<HTMLDivElement>(null);
   const currentWallpaperData = (editing ? draft : profile)?.wallpaper?.data;
 
   /* ---------------- INIT ---------------- */
+
+  useEffect(() => {
+    document.title = "Identity Hub • PlayCrew";
+  }, []);
 
   useEffect(() => {
     if (editing && profile) {
@@ -109,9 +124,50 @@ export default function EditProfilePage() {
     setWallpaperLoaded(false);
   }, [currentWallpaperData]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const stored = window.localStorage.getItem(PAGE_SETTINGS_STORAGE_KEY);
+    if (!stored) {
+      setSiteSettingsHydrated(true);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as {
+        bgBlur?: number;
+        bgOverlay?: number;
+      };
+
+      if (typeof parsed.bgBlur === "number") {
+        setGamesBgBlur(clampGamesBgBlur(parsed.bgBlur));
+      }
+
+      if (typeof parsed.bgOverlay === "number") {
+        setGamesBgOverlay(clampGamesBgOverlay(parsed.bgOverlay));
+      }
+    } catch (error) {
+      console.warn("Failed to parse site settings", error);
+    } finally {
+      setSiteSettingsHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !siteSettingsHydrated) return;
+
+    window.localStorage.setItem(
+      PAGE_SETTINGS_STORAGE_KEY,
+      JSON.stringify({
+        bgBlur: gamesBgBlur,
+        bgOverlay: gamesBgOverlay,
+      }),
+    );
+  }, [gamesBgBlur, gamesBgOverlay, siteSettingsHydrated]);
+
   if (loading || !profile)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--theme-bg)]">
         <LoadingSpinner />
       </div>
     );
@@ -589,7 +645,7 @@ export default function EditProfilePage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Profile & Account Settings</title>
+        <title>Identity Hub • PlayCrew</title>
         <meta
           name="description"
           content="Manage your PlayCrew profile, preferences, and account settings."
@@ -597,7 +653,7 @@ export default function EditProfilePage() {
       </Helmet>
 
       <motion.main
-        className="relative min-h-screen overflow-hidden bg-[#04070b] px-4 py-24 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-8"
+        className="relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 py-24 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
@@ -617,7 +673,7 @@ export default function EditProfilePage() {
 
         <motion.div
           ref={accountPanelRef}
-          className="relative z-10 mx-auto w-full max-w-6xl rounded-4xl border border-cyan-300/15 bg-slate-900/20 p-4 shadow-[0_30px_110px_rgba(0,0,0,0.7)] backdrop-blur-2xl sm:p-6 lg:p-8"
+          className="theme-panel relative z-10 mx-auto w-full max-w-6xl rounded-4xl border p-4 backdrop-blur-2xl sm:p-6 lg:p-8"
           initial={{ y: 40, opacity: 0 }}
           animate={{
             y: otherModalOpen ? 8 : 0,
@@ -627,15 +683,15 @@ export default function EditProfilePage() {
           }}
           transition={{ duration: 0.22, ease: "easeOut" }}
         >
-          <div className="mb-5 flex flex-col gap-4 border-b border-cyan-300/15 pb-5 md:flex-row md:items-start md:justify-between">
+          <div className="mb-5 flex flex-col gap-4 border-b border-[var(--theme-border)] pb-5 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-300/80">
+              <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.22em]">
                 Profile Studio
               </p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              <h1 className="mt-1 text-2xl font-black tracking-tight theme-text sm:text-3xl">
                 Account Settings
               </h1>
-              <p className="mt-1 text-sm text-zinc-300">
+              <p className="theme-text-muted mt-1 text-sm">
                 Customize your identity, security, and visuals in one place.
               </p>
             </div>
@@ -648,8 +704,8 @@ export default function EditProfilePage() {
                   className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold ${
                     passwordInvalid
                       ? "cursor-not-allowed bg-zinc-700 text-zinc-400"
-                      : "bg-cyan-400 text-black shadow-[0_10px_30px_rgba(34,211,238,0.35)]"
-                  } transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300`}
+                      : "theme-accent-bg"
+                  } transition-all duration-300 hover:-translate-y-0.5`}
                 >
                   <FiCheck size={18} />
                   Save
@@ -657,7 +713,7 @@ export default function EditProfilePage() {
 
                 <button
                   onClick={cancelEditing}
-                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-800 px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-red-500/85"
+                  className="theme-surface theme-hover-surface inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium theme-text transition-all duration-300 hover:-translate-y-0.5"
                 >
                   <FiX /> Cancel
                 </button>
@@ -665,7 +721,7 @@ export default function EditProfilePage() {
             ) : (
               <button
                 onClick={() => setEditing(true)}
-                className="inline-flex items-center gap-2 self-start rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-black shadow-[0_10px_30px_rgba(34,211,238,0.35)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-300 md:self-auto"
+                className="theme-accent-bg inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-300 hover:-translate-y-0.5 md:self-auto"
               >
                 <FiEdit2 /> Edit
               </button>
@@ -673,8 +729,8 @@ export default function EditProfilePage() {
           </div>
 
           <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr]">
-            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/45 p-4 sm:p-5">
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/75">
+            <div className="theme-panel-strong rounded-2xl border p-4 sm:p-5">
+              <p className="theme-accent-soft-text mb-4 text-xs font-semibold uppercase tracking-[0.18em]">
                 Visual Identity
               </p>
               <div className="grid gap-4 sm:grid-cols-[170px_1fr] sm:items-start">
@@ -701,8 +757,8 @@ export default function EditProfilePage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/45 p-4 sm:p-5">
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300/75">
+            <div className="theme-panel-strong rounded-2xl border p-4 sm:p-5">
+              <p className="theme-accent-soft-text mb-4 text-xs font-semibold uppercase tracking-[0.18em]">
                 Profile Details
               </p>
               <motion.div
@@ -759,8 +815,8 @@ export default function EditProfilePage() {
             }
           />
 
-          <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-slate-950/45 p-4 sm:p-5">
-            <h2 className="mb-4 text-lg font-semibold text-white">
+          <div className="theme-panel-strong mt-5 rounded-2xl border p-4 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold theme-text">
               Privacy & Security
             </h2>
 
@@ -793,7 +849,7 @@ export default function EditProfilePage() {
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="mt-3 text-sm text-cyan-300 underline underline-offset-2 transition hover:text-cyan-200"
+                className="theme-accent-text mt-3 text-sm underline underline-offset-2 transition hover:brightness-110"
               >
                 Forgot your password?
               </button>
@@ -832,7 +888,7 @@ export default function EditProfilePage() {
                 </div>
 
                 <div className="flex-1">
-                  <p className="text-sm text-white truncate">Profile Images</p>
+                  <p className="text-sm theme-text truncate">Profile Images</p>
                   <p className="text-xs text-slate-400">Uploading…</p>
                 </div>
 
@@ -858,20 +914,20 @@ export default function EditProfilePage() {
           {changingUsername ||
             (isSaving && (
               <motion.div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                className="theme-modal-backdrop fixed inset-0 z-50 flex items-center justify-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
                 <motion.div
-                  className="flex flex-col items-center gap-4 rounded-2xl border border-cyan-300/25 bg-slate-900/70 px-8 py-7 text-white shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
+                  className="theme-panel-strong flex flex-col items-center gap-4 rounded-2xl border px-8 py-7 theme-text shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
                   initial={{ scale: 0.9 }}
                   animate={{ scale: 1 }}
                 >
-                  <p className="text-md tracking-wide text-cyan-300">
+                  <p className="theme-accent-text text-md tracking-wide">
                     Updating Your Account
                   </p>
-                  <span className="loading loading-dots loading-xl text-cyan-300" />
+                  <span className="theme-accent-text loading loading-dots loading-xl" />
                 </motion.div>
               </motion.div>
             ))}
@@ -1032,7 +1088,7 @@ function AnimatedField(props: any) {
         className={`w-full rounded-xl px-3 py-2.5 text-sm transition-colors duration-300 ${
           disabled
             ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
-            : "border border-cyan-300/45 bg-slate-800 text-white focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
+            : "border border-cyan-300/45 bg-slate-800 theme-text focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
         }`}
       />
     </motion.div>
@@ -1052,7 +1108,7 @@ function Textarea({ label, disabled, ...props }: any) {
         className={`w-full resize-none rounded-xl px-3 py-2.5 text-sm ${
           disabled
             ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
-            : "border border-cyan-300/45 bg-slate-800 text-white focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
+            : "border border-cyan-300/45 bg-slate-800 theme-text focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
         }`}
       />
     </div>

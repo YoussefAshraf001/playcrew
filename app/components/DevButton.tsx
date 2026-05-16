@@ -39,6 +39,7 @@ interface GameData {
   favorite?: boolean;
   notes?: string;
   my_rating?: number;
+  lastUpdated?: unknown;
 }
 
 const DEV_KEY = "dev_unlock";
@@ -186,9 +187,8 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     updateField("playtime", safeHours + safeMinutes / 60);
   };
 
-  const toLocalDateInput = (value: unknown) => {
-    if (!value) return "";
-    let d: Date | null = null;
+  const parseDateValue = (value: unknown): Date | null => {
+    if (!value) return null;
 
     if (
       typeof value === "object" &&
@@ -196,24 +196,49 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
       "toDate" in value &&
       typeof (value as { toDate?: unknown }).toDate === "function"
     ) {
-      d = (value as { toDate: () => Date }).toDate();
-    } else if (value instanceof Date) {
-      d = value;
-    } else if (typeof value === "number") {
-      d = new Date(value * 1000);
-    } else if (typeof value === "string") {
-      const t = new Date(value);
-      if (!isNaN(t.getTime())) d = t;
+      return (value as { toDate: () => Date }).toDate();
     }
 
+    if (value instanceof Date) {
+      return value;
+    }
+
+    if (typeof value === "number") {
+      return new Date(value);
+    }
+
+    if (typeof value === "string") {
+      const t = new Date(value);
+      return Number.isNaN(t.getTime()) ? null : t;
+    }
+
+    return null;
+  };
+
+  const toLocalDateInput = (value: unknown) => {
+    const d = parseDateValue(value);
     if (!d) return "";
+
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
       .toISOString()
       .slice(0, 10);
   };
 
+  const toLocalDateTimeInput = (value: unknown) => {
+    const d = parseDateValue(value);
+    if (!d) return "";
+
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+  };
+
   const setReleaseDateFromInput = (value: string) => {
     updateIGDB("releaseDate", value ? new Date(value) : null);
+  };
+
+  const setLastUpdatedFromInput = (value: string) => {
+    updateField("lastUpdated", value ? new Date(value) : null);
   };
 
   const saveChanges = async () => {
@@ -235,7 +260,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
             .map((v) => v.trim())
             .filter(Boolean),
         },
-        lastUpdated: new Date(),
+        lastUpdated: parseDateValue(gameData.lastUpdated) ?? new Date(),
       });
       toast.success(
         <span>
@@ -472,6 +497,20 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                           className="checkbox checkbox-sm"
                         />
                         Favorite
+                      </label>
+
+                      <label className="flex flex-col gap-1 md:col-span-2">
+                        <span className="text-xs text-zinc-400">
+                          Last Updated
+                        </span>
+                        <input
+                          type="datetime-local"
+                          className="bg-zinc-800 p-2.5 rounded border border-white/10"
+                          value={toLocalDateTimeInput(gameData.lastUpdated)}
+                          onChange={(e) =>
+                            setLastUpdatedFromInput(e.target.value)
+                          }
+                        />
                       </label>
                     </div>
                   </section>

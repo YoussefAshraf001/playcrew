@@ -1,7 +1,7 @@
 import GamesClient from "./GamesClient";
 
 export const metadata = {
-  title: "PlayCrew – My Games",
+  title: "Game Vault • PlayCrew",
 };
 
 export default function GamesPage() {

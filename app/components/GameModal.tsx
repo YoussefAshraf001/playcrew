@@ -190,7 +190,6 @@ export default function GameModal({
         doc(db, "users", user.uid, "games_igdb", gameId),
         {
           favorite: updated,
-          lastUpdated: serverTimestamp(),
         },
         { merge: true },
       );

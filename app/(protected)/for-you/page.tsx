@@ -351,7 +351,7 @@ export default function ForYouPage() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - For You</title>
+        <title>Picked For You • PlayCrew</title>
         <meta
           name="description"
           content="Genre-based recommendations personalized from your library."

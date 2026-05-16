@@ -984,7 +984,7 @@ function ScreenshotsPageContent() {
   return (
     <>
       <Helmet>
-        <title>PlayCrew - Screenshots Gallery</title>
+        <title>Shots Gallery • PlayCrew</title>
         <meta
           name="description"
           content="Curate your game screenshots in an art-gallery style workspace."
