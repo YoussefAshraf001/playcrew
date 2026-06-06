@@ -58,6 +58,7 @@ const STATUS_OPTIONS = [
   "On Hold",
   "Dropped",
   "Online",
+  "Try Again?",
   "Want To Play",
 ];
 

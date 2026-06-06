@@ -358,7 +358,7 @@ export default function SearchModal({
         <span>
           <span className="font-bold pr-1">{editingGame.name}</span>
           <span className="text-black">
-            {existing ? "updated from search" : "added to library"}
+            {existing ? "updated from search" : "added to my collection"}
           </span>
         </span>,
       );
@@ -384,7 +384,7 @@ export default function SearchModal({
 
   const modal = (
     <motion.div
-      className="fixed inset-0 z-120 bg-black/78 backdrop-blur-md"
+      className="theme-modal-backdrop fixed inset-0 z-120"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -397,23 +397,23 @@ export default function SearchModal({
           exit={{ opacity: 0, y: 16, scale: 0.98 }}
           transition={{ duration: 0.22, ease: "easeOut" }}
           onClick={(e) => e.stopPropagation()}
-          className="relative flex h-[min(92dvh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top,#14253a,transparent_32%),linear-gradient(180deg,#090c12_0%,#050608_100%)] shadow-[0_30px_120px_rgba(0,0,0,0.72)]"
+          className="theme-panel relative flex h-[min(92dvh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_120px_rgba(0,0,0,0.42)]"
         >
-          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(34,211,238,0.06),transparent_28%,transparent_72%,rgba(250,204,21,0.08))]" />
-          <div className="relative z-10 flex items-center gap-3 border-b border-white/10 px-4 py-4 sm:px-5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-400/25 bg-cyan-400/10 text-cyan-200 shadow-[0_0_20px_rgba(34,211,238,0.16)]">
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(var(--theme-accent-rgb),0.06),transparent_28%,transparent_72%,rgba(var(--theme-accent-rgb),0.08))]" />
+          <div className="relative z-10 flex items-center gap-3 border-b border-[var(--theme-border)] px-4 py-4 sm:px-5">
+            <div className="theme-accent-soft-bg flex h-11 w-11 items-center justify-center rounded-2xl border shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.16)]">
               <FiSearch size={18} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-200/70">
+              <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.28em]">
                 Search Library
               </p>
-              <div className="mt-2 flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
-                <FiSearch className="shrink-0 text-white/35" size={16} />
+              <div className="theme-surface-alt mt-2 flex items-center gap-2 rounded-2xl border px-3">
+                <FiSearch className="theme-text-muted shrink-0" size={16} />
                 <input
                   autoFocus
                   ref={inputRef}
-                  className="h-12 w-full bg-transparent text-[15px] text-white outline-none placeholder:text-white/30"
+                  className="theme-text h-12 w-full bg-transparent text-[15px] outline-none placeholder:text-[color:var(--theme-text-muted)]"
                   placeholder="Search games, editions, remasters..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -422,7 +422,7 @@ export default function SearchModal({
                   <button
                     type="button"
                     onClick={handleClear}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+                    className="theme-surface theme-hover-surface theme-text-muted inline-flex h-8 w-8 items-center justify-center rounded-full border transition"
                     aria-label="Clear search"
                   >
                     <FiX size={14} />
@@ -433,20 +433,20 @@ export default function SearchModal({
             <button
               type="button"
               onClick={onClose}
-              className="mt-6 h-11 items-center border border-white/10 justify-center rounded-full px-5 text-xs font-semibold uppercase tracking-[0.18em] text-white/72 transition hover:text-red-500 cursor-pointer"
+              className="theme-surface theme-hover-surface theme-text-muted mt-6 h-11 items-center justify-center rounded-full border px-5 text-xs font-semibold uppercase tracking-[0.18em] transition hover:text-red-500 cursor-pointer"
             >
               <IoCloseCircle size={25} />
             </button>
           </div>
 
           <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-0 md:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <section className="flex min-h-0 flex-col border-b border-white/10 md:border-b-0 md:border-r md:border-white/10">
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
+            <section className="flex min-h-0 flex-col border-b border-[var(--theme-border)] md:border-b-0 md:border-r">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--theme-border)] px-4 py-3 sm:px-5">
                 <div>
-                  <p className="text-sm font-semibold text-white">Results</p>
-                  <p className="text-xs text-white/45">{resultCountLabel}</p>
+                  <p className="theme-text text-sm font-semibold">Results</p>
+                  <p className="theme-text-muted text-xs">{resultCountLabel}</p>
                 </div>
-                <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/45 sm:block">
+                <div className="theme-surface hidden rounded-full border px-3 py-1 text-[11px] theme-text-muted sm:block">
                   Arrow keys to move
                 </div>
               </div>
@@ -460,7 +460,7 @@ export default function SearchModal({
                     {Array.from({ length: 8 }).map((_, i) => (
                       <div
                         key={i}
-                        className="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-white/5"
+                        className="theme-surface flex items-center gap-3 rounded-2xl border p-3"
                       >
                         <div className="h-18 w-14 rounded-xl bg-white/10" />
                         <div className="flex-1 space-y-2">
@@ -471,24 +471,24 @@ export default function SearchModal({
                     ))}
                   </div>
                 ) : error ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-white/55">
-                    <p className="text-base font-semibold text-white/75">
+                  <div className="theme-text-muted flex h-full flex-col items-center justify-center gap-2 text-center">
+                    <p className="theme-text text-base font-semibold">
                       Search failed
                     </p>
                     <p className="text-sm">{error}</p>
                   </div>
                 ) : results.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/35">
+                    <div className="theme-surface theme-text-muted flex h-16 w-16 items-center justify-center rounded-3xl border">
                       <FiSearch size={24} />
                     </div>
                     <div>
-                      <p className="text-base font-semibold text-white/75">
+                      <p className="theme-text text-base font-semibold">
                         {query.trim().length >= 2
                           ? "No games found"
                           : "Search for a game"}
                       </p>
-                      <p className="mt-1 text-sm text-white/40">
+                      <p className="theme-text-muted mt-1 text-sm">
                         {query.trim().length >= 2
                           ? "Try another name or a simpler search term."
                           : "Results will appear here with quick add and preview actions."}
@@ -515,25 +515,25 @@ export default function SearchModal({
                           className={`group rounded-2xl border transition ${
                             isSelected
                               ? "border-cyan-300/40 bg-cyan-400/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
-                              : "border-white/8 bg-white/3 hover:border-white/15 hover:bg-white/5"
+                              : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
                           }`}
                         >
                           <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
                             <img
                               src={buildCoverUrl(game)}
                               alt={game.name}
-                              className="h-18 w-14 shrink-0 rounded-xl border border-white/10 object-cover shadow-lg"
+                              className="h-18 w-14 shrink-0 rounded-xl border border-[var(--theme-border)] object-cover shadow-lg"
                             />
 
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold text-white sm:text-[15px]">
+                                  <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
                                     {game.name}
                                   </p>
-                                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-white/45">
+                                  <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                                     {releaseDate && (
-                                      <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
+                                      <span className="theme-surface inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
                                         <FiCalendar size={11} />
                                         {releaseDate.getFullYear()}
                                       </span>
@@ -556,7 +556,7 @@ export default function SearchModal({
                                         e.stopPropagation();
                                         setSelectedGameId(game.id);
                                       }}
-                                      className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/10"
+                                      className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
                                     >
                                       Preview
                                     </button>
@@ -583,7 +583,7 @@ export default function SearchModal({
                                         onClose();
                                         router.push(`/game/${game.id}`);
                                       }}
-                                      className="flex-1 text-center rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 hover:bg-white/10"
+                                      className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold text-center"
                                     >
                                       Open
                                     </button>
@@ -601,11 +601,11 @@ export default function SearchModal({
             </section>
 
             <aside className="hidden min-h-0 flex-col md:flex">
-              <div className="border-b border-white/10 px-5 py-3">
-                <p className="text-sm font-semibold text-white">
+              <div className="border-b border-[var(--theme-border)] px-5 py-3">
+                <p className="theme-text text-sm font-semibold">
                   Quick Preview
                 </p>
-                <p className="text-xs text-white/45">
+                <p className="theme-text-muted text-xs">
                   Inspect the selected game before opening its page.
                 </p>
               </div>
@@ -621,8 +621,8 @@ export default function SearchModal({
                       exit={{ opacity: 0, y: -6 }}
                       transition={{ duration: 0.18, ease: "easeOut" }}
                     >
-                      <div className="overflow-hidden mx-auto rounded-[26px] lg:w-[360px] border border-white/10 bg-white/4">
-                        <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_48%),linear-gradient(180deg,rgba(8,10,14,0.96),rgba(4,5,8,1))]">
+                      <div className="theme-surface overflow-hidden mx-auto rounded-[26px] lg:w-[360px] border">
+                        <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.12),transparent_48%),linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.72),rgba(var(--theme-bg-rgb),0.95))]">
                           <motion.img
                             className="max-h-[480px] w-full object-contain"
                             key={selectedGame.id}
@@ -632,21 +632,21 @@ export default function SearchModal({
                             transition={{ duration: 0.2 }}
                           />
                           <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black via-black/45 to-transparent px-4 pb-4 pt-16">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200/70">
+                            <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.24em]">
                               Selected Result
                             </p>
-                            <h3 className="mt-2 text-2xl font-bold text-white">
+                            <h3 className="theme-text mt-2 text-2xl font-bold">
                               {selectedGame.name}
                             </h3>
                           </div>
                         </div>
                         <div className="grid gap-3 p-4">
                           <div className="grid grid-cols-2 gap-3">
-                            <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                            <div className="theme-surface-alt rounded-2xl border p-3">
+                              <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
                                 Release
                               </p>
-                              <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-white">
+                              <p className="theme-text mt-2 flex items-center gap-2 text-sm font-semibold">
                                 <FiClock
                                   size={14}
                                   className="text-cyan-200/70"
@@ -662,11 +662,11 @@ export default function SearchModal({
                                   : "Unknown"}
                               </p>
                             </div>
-                            <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                              <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                            <div className="theme-surface-alt rounded-2xl border p-3">
+                              <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
                                 Library
                               </p>
-                              <p className="mt-2 text-sm font-semibold text-white">
+                              <p className="theme-text mt-2 text-sm font-semibold">
                                 {trackedById.has(selectedGame.id)
                                   ? "Already tracked"
                                   : "Not tracked yet"}
@@ -692,7 +692,7 @@ export default function SearchModal({
                                   ? trackedById.has(selectedGame.id)
                                     ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
                                     : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
-                                  : "cursor-not-allowed border border-white/10 bg-white/5 text-white/30"
+                                  : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
                               }`}
                             >
                               {trackedById.has(selectedGame.id) ? (
@@ -707,7 +707,7 @@ export default function SearchModal({
                             <Link
                               href={`/game/${selectedGame.id}`}
                               onClick={onClose}
-                              className="inline-flex h-10 flex-1 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm font-semibold text-white/80 transition hover:bg-white/10 hover:text-white"
+                              className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
                             >
                               Open Game Page
                             </Link>
@@ -716,7 +716,7 @@ export default function SearchModal({
                       </div>
                     </motion.div>
                   ) : (
-                    <div className="flex h-full items-center justify-center text-center text-white/40">
+                    <div className="theme-text-muted flex h-full items-center justify-center text-center">
                       Select a result to preview it here.
                     </div>
                   )}
@@ -730,6 +730,7 @@ export default function SearchModal({
       {editingGame && (
         <div className="relative">
           <GameTrackingModal
+            key={`${editingGame._docId ?? editingGame.igdb.id}-${trackingOpen ? "open" : "closed"}`}
             loading={trackingLoading}
             open={trackingOpen}
             onClose={() => setTrackingOpen(false)}
@@ -757,8 +758,3 @@ export default function SearchModal({
 
   return createPortal(modal, document.body);
 }
-
-
-
-
-

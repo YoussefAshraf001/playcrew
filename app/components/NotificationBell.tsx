@@ -8,26 +8,21 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
-  Timestamp,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "../context/UserContext";
 import { useMusic } from "../context/MusicContext";
+import { usePathname } from "next/navigation";
+import { useUI } from "../context/UIContext";
 import { IoMailOpen } from "react-icons/io5";
 import { MdDelete } from "react-icons/md";
-import {
-  formatReleaseDate,
-  hasConfirmedReleaseDay,
-  ReleaseDatePrecision,
-} from "../lib/releaseDates";
+import { ReleaseDatePrecision } from "../lib/releaseDates";
 
 type Game = {
   id: string;
@@ -100,26 +95,6 @@ const dateKey = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
-const dateFromKey = (value: string | null | undefined) => {
-  if (!value) return null;
-
-  const [y, m, d] = value.split("-").map(Number);
-  if (!y || !m || !d) return null;
-
-  const parsed = new Date(y, m - 1, d);
-  parsed.setHours(0, 0, 0, 0);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const formatReleaseLabel = (
-  value: Date | null,
-  precision?: ReleaseDatePrecision | null,
-) => {
-  if (!value) return "TBA";
-
-  return formatReleaseDate(value, precision);
-};
-
 const formatTimeAgo = (value: Date | null, nowMs: number) => {
   if (!value) return "";
 
@@ -146,23 +121,23 @@ const formatTimeAgo = (value: Date | null, nowMs: number) => {
 export default function NotificationBell({
   games,
   fullWidthTrigger = false,
+  compactPanelAnchor = "bottom-end",
 }: {
   games: Game[];
   fullWidthTrigger?: boolean;
+  compactPanelAnchor?: "bottom-end" | "right-center";
 }) {
   const { user } = useUser();
   const { closePlayer } = useMusic();
   const uid = user?.uid as string | undefined;
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
-  const [nowMs, setNowMs] = useState(Date.now());
-  const [knownByUser, setKnownByUser] = useState<{
-    uid: string;
-    ids: Set<string>;
-  } | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [swipedId, setSwipedId] = useState<string | null>(null);
-  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const { navbarLayout } = useUI();
+  const pathname = usePathname();
+  const isDashboard = pathname.includes("/dashboard");
   const currentItems = useMemo(() => (user ? items : []), [items, user]);
 
   const unreadCount = useMemo(
@@ -187,9 +162,10 @@ export default function NotificationBell({
 
   useEffect(() => {
     if (!uid) {
-      setItems([]);
-      setKnownByUser(null);
-      return;
+      const reset = window.setTimeout(() => {
+        setItems([]);
+      }, 0);
+      return () => window.clearTimeout(reset);
     }
 
     const notificationsRef = collection(db, "users", uid, "notifications");
@@ -220,235 +196,10 @@ export default function NotificationBell({
         });
 
       setItems(next);
-      setKnownByUser({
-        uid,
-        ids: new Set(snap.docs.map((d) => d.id)),
-      });
     });
 
     return () => unsub();
   }, [uid]);
-
-  useEffect(() => {
-    if (!uid || !knownByUser) return;
-    if (knownByUser.uid !== uid) return;
-    if (!games.length) return;
-
-    let cancelled = false;
-
-    const createReleaseNotifications = async () => {
-      const releaseStateRef = collection(
-        db,
-        "users",
-        uid,
-        "notificationReleaseState",
-      );
-      const releaseStateSnap = await getDocs(releaseStateRef);
-      const knownReleaseState = new Map<string, string | null>();
-
-      for (const docSnap of releaseStateSnap.docs) {
-        const data = docSnap.data() as { releaseDateKey?: unknown };
-        knownReleaseState.set(
-          docSnap.id,
-          typeof data.releaseDateKey === "string" ? data.releaseDateKey : null,
-        );
-      }
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-
-      const todayKey = dateKey(today);
-      const tomorrowKey = dateKey(tomorrow);
-      const DAY_MS = 24 * 60 * 60 * 1000;
-
-      const candidates: Array<{
-        id: string;
-        type: "game_release" | "game_release_change";
-        gameId: string;
-        gameName: string;
-        gameCover?: string;
-        releaseDate: Date | null;
-        message: string;
-      }> = [];
-      const stateUpdates = new Map<string, string | null>();
-      const trackedGameIds = new Set<string>();
-
-      for (const game of games) {
-        const gameId = String(game.id);
-        trackedGameIds.add(gameId);
-
-        const parsedRelease = toDate(game.igdb?.releaseDate);
-        const normalizedRelease = parsedRelease
-          ? new Date(parsedRelease)
-          : null;
-        if (normalizedRelease) {
-          normalizedRelease.setHours(0, 0, 0, 0);
-        }
-
-        const releaseKey = normalizedRelease
-          ? dateKey(normalizedRelease)
-          : null;
-        const previousReleaseKey = knownReleaseState.get(gameId);
-
-        if (
-          previousReleaseKey !== releaseKey &&
-          knownReleaseState.has(gameId)
-        ) {
-          const previousReleaseDate = dateFromKey(previousReleaseKey);
-          const changeId = `release-change-${gameId}-${previousReleaseKey ?? "tba"}-to-${releaseKey ?? "tba"}`;
-          let message = "Release date updated.";
-          const hasConfirmedPreviousDay =
-            hasConfirmedReleaseDay(previousReleaseDate);
-          const hasConfirmedCurrentDay = hasConfirmedReleaseDay(
-            normalizedRelease,
-            game.igdb?.releaseDatePrecision,
-          );
-
-          if (previousReleaseKey === null && normalizedRelease) {
-            message = `Release date announced: ${formatReleaseLabel(normalizedRelease, game.igdb?.releaseDatePrecision)}.`;
-          } else if (
-            previousReleaseDate &&
-            normalizedRelease &&
-            !hasConfirmedPreviousDay &&
-            hasConfirmedCurrentDay
-          ) {
-            message = `Release date announced: ${formatReleaseLabel(normalizedRelease, game.igdb?.releaseDatePrecision)}.`;
-          } else if (previousReleaseKey && releaseKey === null) {
-            message = `Release date moved from ${formatReleaseLabel(previousReleaseDate)} to TBA.`;
-          } else if (previousReleaseDate && normalizedRelease) {
-            message = `Release date changed from ${formatReleaseLabel(previousReleaseDate)} to ${formatReleaseLabel(normalizedRelease, game.igdb?.releaseDatePrecision)}.`;
-          }
-
-          candidates.push({
-            id: changeId,
-            type: "game_release_change",
-            gameId,
-            gameName: game.name,
-            gameCover: game.igdb?.cover,
-            releaseDate: normalizedRelease ? new Date(normalizedRelease) : null,
-            message,
-          });
-        }
-
-        if (
-          previousReleaseKey !== releaseKey ||
-          !knownReleaseState.has(gameId)
-        ) {
-          stateUpdates.set(gameId, releaseKey);
-        }
-
-        if (!normalizedRelease) {
-          continue;
-        }
-
-        const diffDays = Math.floor(
-          (normalizedRelease.getTime() - today.getTime()) / DAY_MS,
-        );
-
-        if (diffDays < 0) continue;
-
-        if (releaseKey === todayKey && diffDays === 0) {
-          candidates.push({
-            id: `release-${gameId}-${todayKey}`,
-            type: "game_release",
-            gameId,
-            gameName: game.name,
-            gameCover: game.igdb?.cover,
-            releaseDate: new Date(normalizedRelease),
-            message: "Releases today.",
-          });
-        }
-
-        if (releaseKey === tomorrowKey || diffDays === 1) {
-          candidates.push({
-            id: `release-soon-${gameId}-${releaseKey}`,
-            type: "game_release",
-            gameId,
-            gameName: game.name,
-            gameCover: game.igdb?.cover,
-            releaseDate: new Date(normalizedRelease),
-            message: "Releases tomorrow.",
-          });
-        }
-      }
-
-      const stateDeletes = releaseStateSnap.docs
-        .map((docSnap) => docSnap.id)
-        .filter((gameId) => !trackedGameIds.has(gameId));
-
-      const writes: typeof candidates = [];
-
-      for (const candidate of candidates) {
-        const notificationRef = doc(
-          db,
-          "users",
-          uid,
-          "notifications",
-          candidate.id,
-        );
-        const existing = await getDoc(notificationRef);
-        if (!existing.exists()) {
-          writes.push(candidate);
-        }
-      }
-
-      if (cancelled) return;
-      if (!writes.length && !stateUpdates.size && !stateDeletes.length) return;
-
-      const batch = writeBatch(db);
-
-      for (const entry of writes) {
-        const notificationRef = doc(
-          db,
-          "users",
-          uid,
-          "notifications",
-          entry.id,
-        );
-
-        batch.set(notificationRef, {
-          type: entry.type,
-          gameId: entry.gameId,
-          gameName: entry.gameName,
-          gameCover: entry.gameCover ?? null,
-          message: entry.message,
-          releaseDate: entry.releaseDate
-            ? Timestamp.fromDate(entry.releaseDate)
-            : null,
-          read: false,
-          createdAt: serverTimestamp(),
-        });
-      }
-
-      for (const [gameId, releaseDateKey] of stateUpdates) {
-        const stateRef = doc(releaseStateRef, gameId);
-        batch.set(stateRef, {
-          gameId,
-          releaseDateKey,
-          updatedAt: serverTimestamp(),
-        });
-      }
-
-      for (const gameId of stateDeletes) {
-        batch.delete(doc(releaseStateRef, gameId));
-      }
-
-      await batch.commit();
-    };
-
-    createReleaseNotifications().catch((err) => {
-      if (!cancelled) {
-        console.error("Failed to create release notifications", err);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [games, knownByUser, uid]);
 
   useEffect(() => {
     if (!uid || !currentItems.length) return;
@@ -616,8 +367,7 @@ export default function NotificationBell({
         className={
           fullWidthTrigger
             ? "relative z-50 w-full"
-            : `relative z-50 rounded-full px-1.5 cursor-pointer transition-all duration-300 border
-        bg-zinc-900/70 text-zinc-200 border-white/15 backdrop-blur-xl hover:bg-zinc-800/85
+            : `theme-surface theme-hover-surface relative z-50 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border transition-all duration-300
         ${
           open &&
           "bg-white/10 text-white border-cyan-300/60 shadow-[0_0_18px_rgba(125,211,252,0.35)]"
@@ -633,7 +383,7 @@ export default function NotificationBell({
                     ? "border-cyan-300/60 bg-white/10 text-white shadow-[0_0_18px_rgba(125,211,252,0.35)]"
                     : "border-white/15 bg-zinc-900/70 text-zinc-200 backdrop-blur-xl hover:bg-zinc-800/85"
                 }`
-              : "relative rounded-full p-2"
+              : "relative inline-flex h-8 w-8 items-center justify-center rounded-full"
           }
           onClick={(e) => {
             e.stopPropagation();
@@ -668,22 +418,59 @@ export default function NotificationBell({
         <AnimatePresence>
           {open && (
             <motion.div
-              initial={{ opacity: 0, y: -12, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12, scale: 0.96 }}
+              {...(navbarLayout === "sidebar"
+                ? {
+                    initial: { opacity: 0, x: -12 },
+                    animate: { opacity: 1, x: 0 },
+                    exit: { opacity: 0, x: -12 },
+                  }
+                : {
+                    initial: { opacity: 0, y: -12, scale: 0.96 },
+                    animate: { opacity: 1, y: 0, scale: 1 },
+                    exit: { opacity: 0, y: -12, scale: 0.96 },
+                  })}
               transition={{
                 type: "spring",
                 stiffness: 260,
                 damping: 22,
               }}
-              className="
+              className={
+                navbarLayout === "sidebar"
+                  ? `
+        fixed left-20 ${isDashboard ? "top-6 md:top-6" : "top-18 md:top-8"} w-100 max-w-[calc(100vw-1rem)]
+        rounded-2xl overflow-hidden
+        bg-zinc-950
+        border border-cyan-300/25
+        shadow-[0_18px_44px_rgba(0,0,0,0.55)]
+        z-50
+      `
+                  : fullWidthTrigger
+                    ? `
         absolute right-0 mt-3 w-100 max-w-[calc(100vw-1rem)] max-[639px]:left-0 max-[639px]:right-auto
         rounded-2xl overflow-hidden
         bg-zinc-950
         border border-cyan-300/25
         shadow-[0_18px_44px_rgba(0,0,0,0.55)]
         z-50
-      "
+      `
+                    : compactPanelAnchor === "right-center"
+                      ? `
+        absolute left-full top-1/2 ml-3 w-100 max-w-[calc(100vw-6rem)] -translate-y-1/2
+        rounded-2xl overflow-hidden
+        bg-zinc-950
+        border border-cyan-300/25
+        shadow-[0_18px_44px_rgba(0,0,0,0.55)]
+        z-50
+      `
+                      : `
+        absolute right-0 mt-3 w-100 max-w-[calc(100vw-1rem)]
+        rounded-2xl overflow-hidden
+        bg-zinc-950
+        border border-cyan-300/25
+        shadow-[0_18px_44px_rgba(0,0,0,0.55)]
+        z-50
+      `
+              }
               onClick={(e) => e.stopPropagation()}
             >
               <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between gap-3">
@@ -720,7 +507,7 @@ export default function NotificationBell({
                 </div>
               </div>
 
-              <div className="max-h-[65vh] overflow-y-auto p-2">
+              <div className="max-h-[55vh] overflow-y-auto p-2">
                 {currentItems.length === 0 ? (
                   <div className="px-4 py-14 text-center">
                     <p className="text-base text-white/75">
@@ -733,9 +520,8 @@ export default function NotificationBell({
                 ) : (
                   <div className="space-y-2">
                     {currentItems.map((item) => {
-                      const isReleaseChangePending =
-                        item.type === "game_release_change" && !item.read;
-                      const isActionPending = pendingActionId === item.id;
+                      const timeLabel = formatTimeAgo(item.createdAt, nowMs);
+                      const showAgo = /[0-9](m|h|d)$/.test(timeLabel);
 
                       return (
                         <div
@@ -751,7 +537,6 @@ export default function NotificationBell({
                               }}
                               className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-red-200/40 bg-black/30 text-red-100 transition hover:bg-black/45"
                               aria-label={`Delete notification for ${item.gameName}`}
-                              title="Delete notification"
                             >
                               <MdDelete size={18} />
                             </button>
@@ -824,8 +609,8 @@ export default function NotificationBell({
                                     >
                                       {item.gameName}
                                     </p>
-                                    <div className=" flex items-center gap-2 text-[11px] text-white/45">
-                                      {item.releaseDate && (
+                                    <div className="flex items-center gap-2 text-[11px] text-white/45">
+                                      {/* {item.releaseDate && (
                                         <>
                                           <span className="uppercase tracking-wide text-white/40">
                                             {item.releaseDate.toLocaleDateString(
@@ -840,11 +625,11 @@ export default function NotificationBell({
                                             -
                                           </span>
                                         </>
-                                      )}
+                                      )} */}
 
                                       <span className="shrink-0 text-white/50">
-                                        {formatTimeAgo(item.createdAt, nowMs)}{" "}
-                                        ago
+                                        {timeLabel}
+                                        {showAgo ? " ago" : ""}
                                       </span>
                                     </div>
                                   </div>
@@ -865,9 +650,8 @@ export default function NotificationBell({
                                 e.stopPropagation();
                                 deleteNotification(item.id);
                               }}
-                              className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/35 text-zinc-300 opacity-0 transition hover:border-red-300/35 hover:bg-red-500/20 hover:text-red-200 group-hover:opacity-100 md:inline-flex"
+                              className="absolute right-2 top-2 hidden h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-black/35 text-zinc-300 opacity-0 transition hover:border-red-300/35 hover:bg-red-500/20 hover:text-red-200 group-hover:opacity-100 md:inline-flex pointer-events-none group-hover:pointer-events-auto"
                               aria-label={`Delete notification for ${item.gameName}`}
-                              title="Delete notification"
                             >
                               <MdDelete size={14} />
                             </button>

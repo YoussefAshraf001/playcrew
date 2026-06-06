@@ -36,6 +36,7 @@ import {
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
 import getCroppedImg from "@/app/lib/getCroppedImg";
+import { useUI } from "@/app/context/UIContext";
 
 type Folder = {
   id: string;
@@ -198,6 +199,7 @@ function FadeInImage({
 
 export default function ScreenshotFolderPage() {
   const { user } = useUser();
+  const { navbarLayout } = useUI();
   const params = useParams<{ id: string }>();
   const folderId = useMemo(() => params?.id ?? "", [params]);
 
@@ -220,9 +222,6 @@ export default function ScreenshotFolderPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeShotTab, setActiveShotTab] = useState<"favorites" | "others">(
-    "favorites",
-  );
   const [sizeLoading, setSizeLoading] = useState(false);
   const dragDepthRef = useRef(0);
   const bytesBackfilledRef = useRef<Set<string>>(new Set());
@@ -247,25 +246,13 @@ export default function ScreenshotFolderPage() {
   );
   const PAGE_SIZE = 6;
   const totalPages = useMemo(
-    () =>
-      Math.max(
-        1,
-        Math.ceil(
-          (activeShotTab === "favorites"
-            ? favoriteShots.length
-            : regularShots.length) / PAGE_SIZE,
-        ),
-      ),
-    [activeShotTab, favoriteShots.length, regularShots.length],
-  );
-  const tabShots = useMemo(
-    () => (activeShotTab === "favorites" ? favoriteShots : regularShots),
-    [activeShotTab, favoriteShots, regularShots],
+    () => Math.max(1, Math.ceil(sortedShots.length / PAGE_SIZE)),
+    [sortedShots.length],
   );
   const pagedShots = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
-    return tabShots.slice(start, start + PAGE_SIZE);
-  }, [tabShots, currentPage]);
+    return sortedShots.slice(start, start + PAGE_SIZE);
+  }, [sortedShots, currentPage]);
   const paginationItems = useMemo(() => {
     if (totalPages <= 7) {
       return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -428,13 +415,7 @@ export default function ScreenshotFolderPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeShotTab]);
-
-  useEffect(() => {
-    if (favoriteShots.length === 0 && activeShotTab === "favorites") {
-      setActiveShotTab("others");
-    }
-  }, [favoriteShots.length, activeShotTab]);
+  }, [sortedShots.length]);
 
   useEffect(() => {
     if (!galleryScrollRef.current) return;
@@ -1218,7 +1199,11 @@ export default function ScreenshotFolderPage() {
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-[#070504] px-4 pt-24 text-white">
+      <main
+        className={`min-h-screen ${
+          navbarLayout === "sidebar" ? "pt-15" : "pt-24"
+        } bg-[#070504] px-4 text-white`}
+      >
         <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-black/50 p-6">
           <p className="text-zinc-200">You need to be logged in.</p>
         </div>
@@ -1228,7 +1213,9 @@ export default function ScreenshotFolderPage() {
 
   return (
     <main
-      className="min-h-svh xl:h-svh xl:overflow-hidden bg-[#070504] px-4 pt-20 text-white sm:px-6 lg:px-8"
+      className={`min-h-svh ${
+        navbarLayout === "sidebar" ? "pt-15" : "pt-20"
+      } xl:h-svh xl:overflow-hidden bg-[#070504] px-4 text-white sm:px-6 lg:px-8`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1288,7 +1275,7 @@ export default function ScreenshotFolderPage() {
                   title={folderSizeTooltip}
                 >
                   <p className="text-[10px] uppercase tracking-[0.13em] text-zinc-400">
-                    Known Size
+                    Size
                   </p>
                   <p className="mt-1 text-sm font-bold text-zinc-100">
                     {sizeDisplayText}
@@ -1409,32 +1396,10 @@ export default function ScreenshotFolderPage() {
             <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border border-white/10 bg-zinc-900/35 px-3 py-2">
               <div />
               <div className="flex items-center gap-2 justify-self-center">
-                {favoriteShots.length > 0 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setActiveShotTab("favorites")}
-                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
-                        activeShotTab === "favorites"
-                          ? "border-amber-300/45 bg-amber-500/20 text-amber-100"
-                          : "border-white/15 bg-black/30 text-zinc-300 hover:bg-zinc-800"
-                      }`}
-                    >
-                      Favorites ({favoriteShots.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveShotTab("others")}
-                      className={`rounded-lg border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] transition ${
-                        activeShotTab === "others"
-                          ? "border-cyan-300/45 bg-cyan-500/20 text-cyan-100"
-                          : "border-white/15 bg-black/30 text-zinc-300 hover:bg-zinc-800"
-                      }`}
-                    >
-                      Others ({regularShots.length})
-                    </button>
-                  </>
-                )}
+                <p className="text-xs text-zinc-300">
+                  Favorites: {favoriteShots.length} • Others:{" "}
+                  {regularShots.length}
+                </p>
               </div>
               <p className="justify-self-end text-xs text-zinc-400">
                 Page {currentPage} of {totalPages}
@@ -1457,19 +1422,15 @@ export default function ScreenshotFolderPage() {
                   {pagedShots.map((shot) =>
                     renderShotCard(
                       shot,
-                      activeShotTab === "favorites" ? "favorite" : "regular",
+                      shot.favorite ? "favorite" : "regular",
                     ),
                   )}
                 </motion.div>
               </AnimatePresence>
 
-              {!tabShots.length && (
+              {!sortedShots.length && (
                 <div className="flex h-full min-h-[220px] items-center justify-center">
-                  <p className="text-sm text-zinc-400">
-                    {activeShotTab === "favorites"
-                      ? "No favorited screenshots yet."
-                      : "No non-favorite screenshots yet."}
-                  </p>
+                  <p className="text-sm text-zinc-400">No screenshots yet.</p>
                 </div>
               )}
             </div>

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { auth, db } from "@/app/lib/firebase";
 import { FontPreset, ThemePreset } from "@/app/lib/themes";
+import { NavbarLayout } from "@/app/lib/uiPreferences";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 
@@ -35,6 +36,8 @@ interface UserProfile {
   wallpaper?: MediaValue;
   themePreset?: ThemePreset;
   fontPreset?: FontPreset;
+  navbarLayout?: NavbarLayout;
+  hasSeenWhatsNew?: boolean;
   [key: string]: unknown;
 }
 

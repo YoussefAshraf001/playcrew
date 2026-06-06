@@ -10,6 +10,7 @@ import {
   FaCrown,
   FaPause,
   FaPlay,
+  FaRedoAlt,
 } from "react-icons/fa";
 import { MdBlock, MdOutlineOnlinePrediction } from "react-icons/md";
 import { GiMouthWatering } from "react-icons/gi";
@@ -21,6 +22,7 @@ import {
   parseReleaseDate,
   type ReleaseDatePrecision,
 } from "@/app/lib/releaseDates";
+import { useUI } from "@/app/context/UIContext";
 
 type CalendarGame = {
   id: string;
@@ -60,6 +62,7 @@ const PANEL_TABS: Array<{
 
 export default function CalendarPage() {
   const { games, gamesLoading } = useGames();
+  const { navbarLayout } = useUI();
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -165,6 +168,12 @@ export default function CalendarPage() {
           icon: <MdOutlineOnlinePrediction size={12} />,
           className: "border-purple-300/35 bg-purple-500/15 text-purple-100",
         };
+      case "Try Again?":
+        return {
+          label: "Try Again?",
+          icon: <FaRedoAlt size={10} />,
+          className: "border-orange-300/35 bg-orange-500/15 text-orange-100",
+        };
       case "Want To Play":
         return {
           label: "Want To Play",
@@ -216,7 +225,11 @@ export default function CalendarPage() {
         />
       </Helmet>
 
-      <main className="h-svh overflow-hidden bg-[var(--theme-bg)] px-3 pt-22 theme-text sm:px-4 lg:px-7">
+      <main
+        className={`h-svh overflow-hidden bg-[var(--theme-bg)] ${
+          navbarLayout === "sidebar" ? "pt-15" : "px-3 pt-22"
+        } theme-text sm:px-4 lg:px-7`}
+      >
         <section className="mx-auto h-full max-w-[1680px]">
           <div className="relative flex h-full origin-top scale-[0.9] flex-col overflow-hidden rounded-2xl border border-[var(--theme-border)] theme-panel shadow-[0_25px_80px_rgba(0,0,0,0.22)] sm:scale-[0.92] lg:scale-[0.9] 2xl:scale-[0.93]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.14),transparent_50%)]" />
@@ -573,7 +586,7 @@ export default function CalendarPage() {
                                           alt={g.name}
                                           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                                         />
-                                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.18)_34%,rgba(7,5,2,0.88)_76%,rgba(7,5,2,0.98))]" />
+                                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.18)_34%,rgba(7,5,2,0.88)_90%,rgba(7,5,2,0.98))]" />
                                         <div className="absolute inset-x-0 bottom-0 translate-y-2 p-3.5 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
                                           <p className="line-clamp-3 text-[14px] font-semibold leading-[1.04] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
                                             {g.name}

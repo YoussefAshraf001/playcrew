@@ -13,6 +13,7 @@ import SkeletonRow from "@/app/components/SkeletonRow";
 import HeroSkeleton from "@/app/components/HeroSkeleton";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
+import { useUI } from "@/app/context/UIContext";
 
 const TOP_GENRE_COUNT = 6;
 const ROW_LIMIT = 30;
@@ -77,6 +78,7 @@ const scoreFromSavedGame = (game: SavedGame): number => {
 
 export default function ForYouPage() {
   const { user } = useUser();
+  const { navbarLayout } = useUI();
   const [savedGames, setSavedGames] = useState<Record<string, SavedGame>>({});
   const [genrePools, setGenrePools] = useState<Record<string, any[]>>({});
   const [horrorPool, setHorrorPool] = useState<any[]>([]);
@@ -151,7 +153,9 @@ export default function ForYouPage() {
         ]);
 
         const horrorPayload = horrorRes.ok ? await horrorRes.json() : [];
-        const storyRichPayload = storyRichRes.ok ? await storyRichRes.json() : [];
+        const storyRichPayload = storyRichRes.ok
+          ? await storyRichRes.json()
+          : [];
 
         if (!active) return;
         setGenrePools(Object.fromEntries(responses));
@@ -335,7 +339,9 @@ export default function ForYouPage() {
 
     const updateScrollState = () => {
       setCanScrollTasteLeft(el.scrollLeft > 0);
-      setCanScrollTasteRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+      setCanScrollTasteRight(
+        el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+      );
     };
 
     updateScrollState();
@@ -358,7 +364,11 @@ export default function ForYouPage() {
         />
       </Helmet>
 
-      <main className="relative min-h-screen overflow-x-hidden bg-[#020408] pb-18 pt-16 text-white">
+      <main
+        className={`relative min-h-screen ${
+          navbarLayout === "sidebar" ? "pt-5 pl-5" : "pt-16"
+        } overflow-x-hidden bg-[#020408] text-white`}
+      >
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-0 top-0 h-[520px] w-full bg-linear-to-b from-cyan-500/10 via-cyan-400/5 to-transparent" />
           <div className="absolute -left-24 top-24 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
@@ -408,52 +418,58 @@ export default function ForYouPage() {
           </section>
 
           <div className="mb-6 rounded-2xl border border-cyan-300/20 bg-zinc-900/40 p-3 sm:p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-cyan-100 sm:text-base">
-                    Top Taste Matches
-                  </h2>
-                  <span className="text-[10px] text-zinc-400">
-                    Estimated genre-fit score
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      tasteRowRef.current?.scrollBy({ left: -420, behavior: "smooth" })
-                    }
-                    disabled={!canScrollTasteLeft}
-                    className={`rounded-full border p-2 transition ${
-                      canScrollTasteLeft
-                        ? "border-white/20 bg-black/35 text-white hover:border-cyan-300/50 hover:bg-cyan-500/15"
-                        : "cursor-not-allowed border-white/10 bg-white/5 text-white/30"
-                    }`}
-                    aria-label="Scroll taste matches left"
-                  >
-                    <FiArrowLeft />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      tasteRowRef.current?.scrollBy({ left: 420, behavior: "smooth" })
-                    }
-                    disabled={!canScrollTasteRight}
-                    className={`rounded-full border p-2 transition ${
-                      canScrollTasteRight
-                        ? "border-white/20 bg-black/35 text-white hover:border-cyan-300/50 hover:bg-cyan-500/15"
-                        : "cursor-not-allowed border-white/10 bg-white/5 text-white/30"
-                    }`}
-                    aria-label="Scroll taste matches right"
-                  >
-                    <FiArrowRight />
-                  </button>
-                </div>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-cyan-100 sm:text-base">
+                  Top Taste Matches
+                </h2>
+                <span className="text-[10px] text-zinc-400">
+                  Estimated genre-fit score
+                </span>
               </div>
-              <div
-                ref={tasteRowRef}
-                className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide"
-              >
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    tasteRowRef.current?.scrollBy({
+                      left: -420,
+                      behavior: "smooth",
+                    })
+                  }
+                  disabled={!canScrollTasteLeft}
+                  className={`rounded-full border p-2 transition ${
+                    canScrollTasteLeft
+                      ? "border-white/20 bg-black/35 text-white hover:border-cyan-300/50 hover:bg-cyan-500/15"
+                      : "cursor-not-allowed border-white/10 bg-white/5 text-white/30"
+                  }`}
+                  aria-label="Scroll taste matches left"
+                >
+                  <FiArrowLeft />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    tasteRowRef.current?.scrollBy({
+                      left: 420,
+                      behavior: "smooth",
+                    })
+                  }
+                  disabled={!canScrollTasteRight}
+                  className={`rounded-full border p-2 transition ${
+                    canScrollTasteRight
+                      ? "border-white/20 bg-black/35 text-white hover:border-cyan-300/50 hover:bg-cyan-500/15"
+                      : "cursor-not-allowed border-white/10 bg-white/5 text-white/30"
+                  }`}
+                  aria-label="Scroll taste matches right"
+                >
+                  <FiArrowRight />
+                </button>
+              </div>
+            </div>
+            <div
+              ref={tasteRowRef}
+              className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide"
+            >
               {personalized.tasteMatches.length === 0 ? (
                 <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-zinc-300">
                   No strong matches yet.

@@ -20,6 +20,7 @@ import GamePickerModal from "@/app/components/GamePickerModal";
 import LoadingSpinner from "../explore/loading";
 import { IoCloseCircle } from "react-icons/io5";
 import { FaInfoCircle } from "react-icons/fa";
+import { useUI } from "@/app/context/UIContext";
 
 interface ShelfGame {
   igdbId: number;
@@ -310,6 +311,7 @@ function FadeInImage({
 
 export default function ShelfPage() {
   const { user, loading: userLoading } = useUser();
+  const { navbarLayout } = useUI();
   const today = new Date();
   const currentCalendarYear = today.getFullYear();
   const nominationsOpenDate = new Date(currentCalendarYear, 10, 17, 0, 0, 0, 0);
@@ -842,7 +844,13 @@ export default function ShelfPage() {
         />
       </Helmet>
 
-      <main className="relative min-h-screen overflow-y-auto bg-[#090704] px-4 pb-6 pt-20 sm:px-6 lg:px-8 xl:h-svh xl:overflow-hidden xl:pb-3">
+      <main
+        className={`theme-text ${
+          navbarLayout === "sidebar"
+            ? "pt-15"
+            : "px-4 pb-6 pt-20 sm:px-6 lg:px-8 xl:h-svh xl:overflow-hidden xl:pb-3"
+        } relative min-h-screen overflow-y-auto bg-[var(--theme-bg)]`}
+      >
         <AnimatePresence>
           {showConfettiBurst && (
             <motion.div
@@ -1061,7 +1069,7 @@ export default function ShelfPage() {
           animate={{ opacity: showIntro ? 0 : 1, y: showIntro ? 10 : 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         >
-          <header className="shrink-0 overflow-hidden rounded-2xl border border-amber-200/25 bg-zinc-950/70 backdrop-blur-xl">
+          <header className="theme-panel-strong shrink-0 overflow-hidden rounded-2xl border backdrop-blur-xl">
             <div className="bg-linear-to-r from-amber-500/34 via-yellow-200/16 to-orange-500/28 px-4 py-2">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[12px] font-semibold uppercase tracking-[0.34em] text-amber-50 drop-shadow-[0_0_18px_rgba(251,191,36,0.32)]">
@@ -1070,8 +1078,8 @@ export default function ShelfPage() {
                 <div className="h-px flex-1 bg-linear-to-r from-amber-200/45 to-transparent" />
               </div>
             </div>
-            <div className="border-b border-white/8 px-4 py-3 sm:px-5">
-              <div className="relative overflow-hidden rounded-2xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="border-b border-[var(--theme-border)] px-4 py-3 sm:px-5">
+              <div className="theme-surface-alt relative overflow-hidden rounded-2xl border px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="relative z-10 flex flex-wrap items-center justify-center gap-2">
                   {awardYears.map((year) => {
                     const isSelected = selectedYear === year;
@@ -1096,8 +1104,8 @@ export default function ShelfPage() {
                           isSelected
                             ? "border-amber-200/60 bg-[linear-gradient(180deg,rgba(251,191,36,0.22),rgba(251,191,36,0.08))] text-amber-50 shadow-[0_0_0_1px_rgba(251,191,36,0.14),0_12px_26px_rgba(0,0,0,0.28)]"
                             : isNear
-                              ? "border-white/12 bg-white/4 text-zinc-200 hover:border-white/18 hover:text-white"
-                              : "border-white/8 bg-black/20 text-zinc-500 hover:border-white/15 hover:text-zinc-200"
+                              ? "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] theme-text hover:border-white/18"
+                              : "border-[var(--theme-border)] bg-[var(--theme-bg-elevated)] theme-text-muted hover:border-white/15 hover:theme-text"
                         }`}
                       >
                         {year}
@@ -1117,7 +1125,7 @@ export default function ShelfPage() {
                     imgClassName="h-full w-full object-contain drop-shadow-[0_0_22px_rgba(251,191,36,0.45)]"
                   />
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-amber-200/85">
+                    <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.32em]">
                       The PlayCrew Awards
                     </p>
                     <AnimatePresence mode="wait" initial={false}>
@@ -1145,7 +1153,7 @@ export default function ShelfPage() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: yearDirection > 0 ? -16 : 16 }}
                         transition={{ duration: 0.24, ease: "easeOut" }}
-                        className="mt-1.5 max-w-152 text-sm text-zinc-300 lg:text-[15px]"
+                        className="theme-text-muted mt-1.5 max-w-152 text-sm lg:text-[15px]"
                       >
                         The Game Awards are cooked. These are the real winners.
                       </motion.p>
@@ -1154,13 +1162,13 @@ export default function ShelfPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
-                <div className="rounded-xl border border-amber-200/25 bg-black/35 px-3 py-2 text-right shadow-[0_8px_26px_rgba(0,0,0,0.35)]">
-                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-400">
+                <div className="theme-surface rounded-xl border px-3 py-2 text-right shadow-[0_8px_26px_rgba(0,0,0,0.25)]">
+                  <p className="theme-text-muted text-xs uppercase tracking-[0.14em]">
                     Winners Locked
                   </p>
                   <p className="text-xl font-bold text-amber-300">
                     {filledCount}
-                    <span className="pl-1 text-zinc-500">
+                    <span className="theme-text-muted pl-1">
                       / {AWARD_CATEGORIES.length}
                     </span>
                   </p>
@@ -1181,9 +1189,9 @@ export default function ShelfPage() {
               <motion.section
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex flex-col overflow-hidden rounded-2xl border border-amber-200/25 bg-zinc-950/76 backdrop-blur-xl xl:min-h-0 ${isSelectedYearNominationLocked ? "pointer-events-none select-none" : ""}`}
+                className={`theme-panel-strong flex flex-col overflow-hidden rounded-2xl border backdrop-blur-xl xl:min-h-0 ${isSelectedYearNominationLocked ? "pointer-events-none select-none" : ""}`}
               >
-                <div className="flex items-center justify-center border-b border-white/8 px-3 py-2.5">
+                <div className="flex items-center justify-center border-b border-[var(--theme-border)] px-3 py-2.5">
                   <p className="text-md font-bold uppercase tracking-[0.4em] text-amber-100/85">
                     The Game of the Year
                   </p>
@@ -1215,7 +1223,7 @@ export default function ShelfPage() {
                         : undefined
                     }
                     transition={{ duration: 0.8, ease: "easeOut" }}
-                    className="relative mx-auto h-[min(48vh,420px)] w-full max-w-[390px] overflow-hidden rounded-2xl border border-amber-200/28 bg-[#05080d] shadow-[0_0_0_1px_rgba(251,191,36,0.16)] transition-all duration-300 group-hover:border-amber-200/60 group-hover:shadow-[0_0_0_1px_rgba(251,191,36,0.28),0_18px_40px_rgba(0,0,0,0.45)] sm:h-[min(52vh,500px)] xl:h-[clamp(300px,52vh,620px)]"
+                    className="theme-surface relative mx-auto h-[min(48vh,420px)] w-full max-w-[390px] overflow-hidden rounded-2xl border shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.16)] transition-all duration-300 group-hover:border-amber-200/60 group-hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.28),0_18px_40px_rgba(0,0,0,0.35)] sm:h-[min(52vh,500px)] xl:h-[clamp(300px,52vh,620px)]"
                   >
                     <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.18),transparent_58%)]" />
                     <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),transparent_24%,rgba(0,0,0,0.24)_100%)]" />
@@ -1225,10 +1233,10 @@ export default function ShelfPage() {
                         <Poster
                           src={bestCover}
                           alt={bestGame?.name || "Best game"}
-                          imgClassName="object-cover bg-[#05080d]"
+                          imgClassName="object-cover bg-[var(--theme-bg-elevated)]"
                         />
                       ) : (
-                        <div className="flex h-full flex-col items-center justify-center text-zinc-400">
+                        <div className="theme-text-muted flex h-full flex-col items-center justify-center">
                           <img
                             src="/Award.png"
                             alt="Award trophy"
@@ -1248,7 +1256,7 @@ export default function ShelfPage() {
                         removeGame("Game of the Year");
                       }}
                       aria-label={`Remove ${selectedYear} Game of the Year`}
-                      className="group absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center gap-0 overflow-hidden rounded-full border border-white/20 bg-black/60 px-0 text-zinc-100 opacity-0 pointer-events-none shadow-lg backdrop-blur-sm transition-all duration-300 ease-out group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto hover:w-28 hover:gap-1.5 hover:rounded-xl hover:border-red-300/60 hover:bg-red-500/25 hover:px-3 hover:text-red-100 focus-visible:w-28 focus-visible:gap-1.5 focus-visible:rounded-xl focus-visible:px-3 focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40"
+                      className="theme-surface group absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center gap-0 overflow-hidden rounded-full border px-0 theme-text opacity-0 pointer-events-none shadow-lg backdrop-blur-sm transition-all duration-300 ease-out group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto hover:w-28 hover:gap-1.5 hover:rounded-xl hover:border-red-300/60 hover:bg-red-500/25 hover:px-3 hover:text-red-100 focus-visible:w-28 focus-visible:gap-1.5 focus-visible:rounded-xl focus-visible:px-3 focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40"
                     >
                       <IoCloseCircle size={18} className="shrink-0" />
                     </button>
@@ -1260,13 +1268,13 @@ export default function ShelfPage() {
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 }}
-                className={`flex flex-col overflow-visible rounded-2xl border border-white/10 bg-zinc-950/72 backdrop-blur-xl xl:min-h-0 xl:max-w-[1120px] ${isSelectedYearNominationLocked ? "pointer-events-none select-none" : ""}`}
+                className={`theme-panel flex flex-col overflow-visible rounded-2xl border backdrop-blur-xl xl:min-h-0 xl:max-w-[1120px] ${isSelectedYearNominationLocked ? "pointer-events-none select-none" : ""}`}
               >
-                <div className="flex items-center justify-between border-b border-white/8 px-3 py-2.5">
-                  <p className="text-xs uppercase tracking-[0.2em] text-zinc-300">
+                <div className="flex items-center justify-between border-b border-[var(--theme-border)] px-3 py-2.5">
+                  <p className="theme-text-muted text-xs uppercase tracking-[0.2em]">
                     {selectedYear} Categories
                   </p>
-                  <span className="text-xs text-zinc-500">
+                  <span className="theme-text-muted text-xs">
                     Tap any card to pick a game
                   </span>
                 </div>
@@ -1279,8 +1287,8 @@ export default function ShelfPage() {
               </motion.section>
 
               {isSelectedYearNominationLocked && (
-                <div className="absolute inset-0 z-30 flex items-center justify-center rounded-2xl border border-amber-200/20 bg-[linear-gradient(180deg,rgba(5,3,1,0.25),rgba(8,6,3,0.8))] backdrop-blur-sm">
-                  <div className="mx-4 max-w-xl rounded-3xl border border-amber-200/30 bg-black/55 px-6 py-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+                <div className="absolute inset-0 z-30 flex items-center justify-center rounded-2xl border border-amber-200/20 bg-[linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.35),rgba(var(--theme-bg-rgb),0.82))] backdrop-blur-sm">
+                  <div className="theme-panel mx-4 max-w-xl rounded-3xl border px-6 py-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
                     <p className="text-[11px] uppercase tracking-[0.32em] text-amber-200/75">
                       Awards Locked
                     </p>

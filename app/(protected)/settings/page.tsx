@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { FiCheck } from "react-icons/fi";
 import { Helmet } from "react-helmet-async";
 
 import { useUser } from "@/app/context/UserContext";
+import { useUI } from "@/app/context/UIContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { AnimatePresence, motion } from "framer-motion";
 
 import {
   DEFAULT_FONT_PRESET,
@@ -71,12 +72,22 @@ const getStoredPageSettings = () => {
 
 export default function SiteSettingsPage() {
   const { user, profile, setProfile, loading } = useUser();
+  const { navbarLayout, setNavbarLayout } = useUI();
 
-  const [gamesBgBlur, setGamesBgBlur] = useState(() => getStoredPageSettings().bgBlur);
+  const [gamesBgBlur, setGamesBgBlur] = useState(
+    () => getStoredPageSettings().bgBlur,
+  );
 
   const [gamesBgOverlay, setGamesBgOverlay] = useState(
     () => getStoredPageSettings().bgOverlay,
   );
+
+  const [wallpaperPreview, setWallpaperPreview] = useState(false);
+
+  const previewVariants = {
+    visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
+    hidden: { opacity: 0.08, y: 0, transition: { duration: 0.18 } },
+  };
 
   const [activeThemePreset, setActiveThemePreset] =
     useState<ThemePreset>(DEFAULT_THEME_PRESET);
@@ -272,7 +283,9 @@ export default function SiteSettingsPage() {
       </Helmet>
 
       <motion.main
-        className="relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 pt-20 pb-5 sm:px-6"
+        className={`relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 sm:px-6 ${
+          navbarLayout === "sidebar" ? "pt-22" : "pt-22"
+        }`}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
@@ -300,18 +313,24 @@ export default function SiteSettingsPage() {
 
         <div className="relative z-10 mx-auto max-w-7xl">
           {/* HEADER */}
-          <div className="mb-5">
+          {/* <div className="mb-5">
             <h1 className="text-3xl font-bold theme-text">Site Settings</h1>
 
             <p className="theme-text-muted mt-1 text-sm">
               Customize your PlayCrew experience
             </p>
-          </div>
+          </div> */}
 
           {/* LAYOUT */}
           <div className="grid gap-5 xl:grid-cols-[1.6fr_0.75fr]">
             {/* THEMES */}
-            <section className="theme-panel-strong rounded-2xl border p-6">
+            <motion.section
+              className="theme-panel-strong rounded-2xl border p-6"
+              initial={false}
+              animate={wallpaperPreview ? "hidden" : "visible"}
+              variants={previewVariants}
+              style={{ pointerEvents: wallpaperPreview ? "none" : "auto" }}
+            >
               <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
@@ -349,11 +368,7 @@ export default function SiteSettingsPage() {
               {/* THEMES GRID */}
               <div className="relative">
                 <div
-                  className={`grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 ${
-                    themeMode === "light"
-                      ? "pointer-events-none select-none opacity-60"
-                      : ""
-                  }`}
+                  className={`grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 `}
                 >
                   {THEME_PRESETS.filter(
                     (theme) => theme.mode === themeMode,
@@ -408,7 +423,7 @@ export default function SiteSettingsPage() {
                 </div>
 
                 {/* LIGHT MODE OVERLAY */}
-                {themeMode === "light" && (
+                {/* {themeMode === "light" && (
                   <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-black/65 backdrop-blur-[4px]">
                     <div className="flex items-end gap-2">
                       <div className="h-10 w-5 animate-[build_1.2s_ease-in-out_infinite] rounded-t-md bg-white/90" />
@@ -426,21 +441,92 @@ export default function SiteSettingsPage() {
                       Light Themes Coming Soon
                     </p>
                   </div>
-                )}
+                )} */}
               </div>
-            </section>
+            </motion.section>
 
             {/* SIDEBAR */}
             <div className="space-y-4">
-              <section className="theme-panel-strong rounded-2xl border p-4">
+              <motion.section
+                className="theme-panel-strong rounded-2xl border p-4"
+                initial={false}
+                animate={wallpaperPreview ? "hidden" : "visible"}
+                variants={previewVariants}
+                style={{ pointerEvents: wallpaperPreview ? "none" : "auto" }}
+              >
+                <div className="mb-4">
+                  <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                    Navigation
+                  </p>
+
+                  <h2 className="theme-text text-lg font-semibold">
+                    Navbar Layout
+                  </h2>
+
+                  <p className="theme-text-muted mt-1 text-sm">
+                    Choose between the classic top bar and the pill sidebar.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      {
+                        id: "sidebar",
+                        name: "Gaming Pill",
+                        description: "Vertical pill navigation on the left.",
+                      },
+                      {
+                        id: "top",
+                        name: "Classic",
+                        description: "Horizontal navigation across the top.",
+                      },
+                    ] as const
+                  ).map((option) => {
+                    const isSelected = navbarLayout === option.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => void setNavbarLayout(option.id)}
+                        className={`relative rounded-xl border p-3 text-left transition-all duration-200 ${
+                          isSelected
+                            ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
+                            : "theme-surface theme-hover-surface"
+                        }`}
+                      >
+                        <p className="theme-text text-sm font-semibold">
+                          {option.name}
+                        </p>
+                        <p className="theme-text-muted mt-1 text-[11px] leading-4">
+                          {option.description}
+                        </p>
+
+                        {isSelected && (
+                          <span className="absolute right-2 top-2 theme-accent-soft-bg inline-flex h-5 w-5 items-center justify-center rounded-full border">
+                            <FiCheck size={11} />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.section>
+
+              <motion.section
+                className="theme-panel-strong rounded-2xl border p-4"
+                initial={false}
+                animate={wallpaperPreview ? "hidden" : "visible"}
+                variants={previewVariants}
+                style={{ pointerEvents: wallpaperPreview ? "none" : "auto" }}
+              >
                 <div className="mb-4">
                   <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
                     Customization
                   </p>
 
-                  <h2 className="theme-text text-lg font-semibold">
-                    Fonts & Background
-                  </h2>
+                  <h2 className="theme-text text-lg font-semibold">Fonts</h2>
                 </div>
 
                 {/* FONT GRID */}
@@ -460,10 +546,12 @@ export default function SiteSettingsPage() {
                         }`}
                       >
                         <p
-                          className="theme-text text-lg font-bold"
-                          style={{
-                            fontFamily: font.fontFamily,
-                          }}
+                          className={`theme-text ${
+                            font.id === "game-of-thrones"
+                              ? "text-sm"
+                              : "text-lg"
+                          } font-bold`}
+                          style={{ fontFamily: font.fontFamily }}
                         >
                           Aa
                         </p>
@@ -481,13 +569,21 @@ export default function SiteSettingsPage() {
                     );
                   })}
                 </div>
+              </motion.section>
 
-                {/* DIVIDER */}
-                <div className="my-4 h-px bg-white/10" />
+              <section className="theme-panel-strong rounded-2xl border p-4">
+                <div className="mb-4">
+                  <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                    Customization
+                  </p>
+
+                  <h2 className="theme-text text-lg font-semibold">
+                    Background
+                  </h2>
+                </div>
 
                 {/* BG SETTINGS */}
                 <div className="space-y-3">
-                  {/* BLUR */}
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-xs font-semibold uppercase tracking-wide theme-text">
@@ -514,7 +610,6 @@ export default function SiteSettingsPage() {
                     />
                   </div>
 
-                  {/* OVERLAY */}
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <p className="text-xs font-semibold uppercase tracking-wide theme-text">
@@ -542,13 +637,28 @@ export default function SiteSettingsPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={resetGamesPageSettings}
-                  className="theme-surface theme-hover-surface mt-4 inline-flex h-9 w-full items-center justify-center rounded-xl border px-4 text-sm font-semibold theme-text/85 transition"
-                >
-                  Reset Background
-                </button>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={resetGamesPageSettings}
+                    className="theme-surface theme-hover-surface inline-flex h-9 items-center justify-center rounded-xl border px-4 text-sm font-semibold theme-text/85 transition"
+                  >
+                    Reset Background
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setWallpaperPreview((v) => !v)}
+                    aria-pressed={wallpaperPreview}
+                    className={`inline-flex h-9 items-center justify-center rounded-xl border px-4 text-sm font-semibold transition ${
+                      wallpaperPreview
+                        ? "theme-surface theme-hover-surface"
+                        : "theme-accent-bg"
+                    }`}
+                  >
+                    {wallpaperPreview ? "Close" : "Preview Wallpaper"}
+                  </button>
+                </div>
               </section>
             </div>
           </div>

@@ -31,7 +31,7 @@ export default function ConfirmModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.65 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black z-999"
+            className="theme-modal-backdrop fixed inset-0 z-999"
             onClick={onCancel}
           />
 
@@ -45,25 +45,25 @@ export default function ConfirmModal({
               fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
               z-1000
               w-[640px] max-w-[92vw]
-              bg-black/80 backdrop-blur-lg
-              border border-zinc-600
-              shadow-[0_0_80px_rgba(0,0,0,0.85)]
+              theme-panel-strong backdrop-blur-lg
+              border
+              shadow-[0_0_80px_rgba(0,0,0,0.45)]
             "
           >
             <div className="px-10 pb-8 text-center">
               {/* Title */}
-              <h2 className="relative uppercase text-lg tracking-[0.45em] text-zinc-200 mb-4 py-4">
+              <h2 className="theme-text relative mb-4 py-4 text-lg uppercase tracking-[0.45em]">
                 {title}
 
                 {/* Main etched line */}
-                <span className="pointer-events-none absolute left-0 bottom-1 h-px w-full bg-linear-to-r from-transparent via-zinc-400/70 to-transparent" />
+                <span className="pointer-events-none absolute bottom-1 left-0 h-px w-full bg-linear-to-r from-transparent via-[rgba(var(--theme-accent-rgb),0.7)] to-transparent" />
 
                 {/* Secondary scratch */}
-                <span className="pointer-events-none absolute left-1/4 bottom-1 h-px w-1/2 bg-zinc-600/30 blur-[0.5px]" />
+                <span className="pointer-events-none absolute bottom-1 left-1/4 h-px w-1/2 bg-[rgba(var(--theme-accent-rgb),0.22)] blur-[0.5px]" />
               </h2>
 
               {/* Message */}
-              <p className="text-base text-zinc-400 leading-relaxed mb-10">
+              <p className="theme-text-muted mb-10 text-base leading-relaxed">
                 {message}
               </p>
 
@@ -74,9 +74,9 @@ export default function ConfirmModal({
                   onClick={onConfirm}
                   className="
       group flex items-center gap-4
-      text-zinc-100 font-medium
+      theme-text font-medium
       transition-all duration-200
-      hover:text-white
+      hover:opacity-100
     "
                 >
                   <TbPlaystationX
@@ -96,9 +96,9 @@ export default function ConfirmModal({
                   onClick={onCancel}
                   className="
       group flex items-center gap-4
-      text-zinc-300 font-medium
+      theme-text-muted font-medium
       transition-all duration-200
-      hover:text-zinc-100
+      hover:theme-text
     "
                 >
                   <TbPlaystationCircle

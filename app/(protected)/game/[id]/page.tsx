@@ -12,6 +12,7 @@ import {
   FaSteam,
   FaPause,
   FaPlay,
+  FaRedoAlt,
   FaCrown,
   FaInfoCircle,
   FaLinux,
@@ -20,7 +21,7 @@ import {
   FaWindows,
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
-import { IoLogoGameControllerA } from "react-icons/io";
+import { IoLogoGameControllerA, IoLogoGameControllerB } from "react-icons/io";
 import { GiMouthWatering } from "react-icons/gi";
 import {
   MdOutlineOnlinePrediction,
@@ -28,6 +29,7 @@ import {
 } from "react-icons/md";
 import { DiAndroid } from "react-icons/di";
 import { SiEpicgames, SiStadia, SiWii } from "react-icons/si";
+import { IoCloseCircle } from "react-icons/io5";
 import {
   collection,
   deleteDoc,
@@ -47,14 +49,13 @@ import {
 import { db } from "@/app/lib/firebase";
 import { getRecentGameActionSummary } from "@/app/lib/recentGameActions";
 import { useUser } from "@/app/context/UserContext";
+import { useUI } from "@/app/context/UIContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
-import { IoCloseCircle } from "react-icons/io5";
 import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
-import { FiEdit3 } from "react-icons/fi";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing â†’ blue = focus
@@ -70,6 +71,11 @@ const statuses = [
     icon: <MdOutlineOnlinePrediction size={23} />,
     color: "bg-purple-500",
   }, // Neutral / discovery â†’ purple
+  {
+    label: "Try Again?",
+    icon: <FaRedoAlt size={18} />,
+    color: "bg-orange-500",
+  },
   {
     label: "Want To Play",
     icon: <GiMouthWatering size={20} />,
@@ -95,6 +101,7 @@ interface SimilarGame {
 export default function GamePage() {
   const { id } = useParams();
   const { user } = useUser();
+  const { navbarLayout } = useUI();
 
   const [game, setGame] = useState<any>(null);
   const [bgImage, setBgImage] = useState<string | null>(null);
@@ -720,39 +727,6 @@ export default function GamePage() {
     return text.length > length ? text.slice(0, length) + "..." : text;
   };
 
-  // const getReleaseLabel = (unixSeconds: number) => {
-  //   const now = new Date();
-  //   const releaseDate = new Date(unixSeconds * 1000);
-
-  //   const diffMs = releaseDate.getTime() - now.getTime();
-  //   const isFuture = diffMs > 0;
-
-  //   const abs = Math.abs(diffMs);
-  //   const days = Math.floor(abs / (1000 * 60 * 60 * 24));
-  //   const years = Math.floor(abs / (1000 * 60 * 60 * 24 * 365));
-  //   const months = Math.floor(
-  //     (abs % (1000 * 60 * 60 * 24 * 365)) / (1000 * 60 * 60 * 24 * 30),
-  //   );
-
-  //   if (years === 0 && months === 0 && days > 0) {
-  //     return isFuture
-  //       ? `Releases in ${days} day${days > 1 ? "s" : ""}`
-  //       : `${days} day${days > 1 ? "s" : ""} ago`;
-  //   }
-
-  //   if (years === 0 && months === 0 && days === 0) {
-  //     return isFuture ? "Coming today" : "Just released";
-  //   }
-
-  //   const parts = [];
-  //   if (years > 0) parts.push(`${years} year${years > 1 ? "s" : ""}`);
-  //   if (months > 0) parts.push(`${months} month${months > 1 ? "s" : ""}`);
-
-  //   return isFuture
-  //     ? `Releases in ${parts.join(", ")}`
-  //     : `${parts.join(", ")} ago`;
-  // };
-
   const getReleaseLabel = (unixSeconds: number) => {
     const today = new Date();
     const release = new Date(unixSeconds * 1000);
@@ -972,7 +946,12 @@ export default function GamePage() {
         />
       </Helmet>
 
-      <div className="relative min-h-screen text-white bg-transparent pt-12 sm:pt-14 lg:pt-12">
+      {/* dynamic top padding: larger spacing when top nav is used, smaller for sidebar */}
+      <div
+        className={`relative min-h-screen text-white bg-transparent ${
+          navbarLayout === "sidebar" ? "" : "pt-12 sm:pt-14 lg:pt-12"
+        }`}
+      >
         {/* HERO BACKGROUND */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -1085,14 +1064,6 @@ export default function GamePage() {
                             )
                           : "TBA"}
                       </div>
-
-                      {/* <p className="mt-1 text-[10px] text-white/55">
-                        (
-                        {game.released
-                          ? getReleaseLabel(game.released)
-                          : "Pending"}
-                        )
-                      </p> */}
                     </div>
                   </div>
                 </aside>
@@ -1127,37 +1098,14 @@ export default function GamePage() {
                                   <motion.button
                                     key="favorite"
                                     onClick={handleFavoriteToggle}
-                                    className={`relative flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-[13px] font-semibold transition hover:scale-105 ${
+                                    whileHover={{ y: -2, scale: 1.03 }}
+                                    whileTap={{ scale: 0.96 }}
+                                    className={`relative flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-[13px] font-semibold ${
                                       isFavorited
                                         ? "border-red-400/45 bg-red-600 text-white"
                                         : "border-white/12 bg-transparent text-white/90 hover:bg-red-500 hover:text-white"
                                     }`}
                                     disabled={loadingFavorite}
-                                    initial={{
-                                      opacity: 0,
-                                      x: 18,
-                                      width: 0,
-                                      paddingLeft: 0,
-                                      paddingRight: 0,
-                                    }}
-                                    animate={{
-                                      opacity: 1,
-                                      x: 0,
-                                      width: "auto",
-                                      paddingLeft: 16,
-                                      paddingRight: 16,
-                                    }}
-                                    exit={{
-                                      opacity: 0,
-                                      x: 18,
-                                      width: 0,
-                                      paddingLeft: 0,
-                                      paddingRight: 0,
-                                    }}
-                                    transition={{
-                                      duration: 0.26,
-                                      ease: "easeOut",
-                                    }}
                                   >
                                     {/* Main content (keeps width) */}
                                     <span
@@ -1185,37 +1133,13 @@ export default function GamePage() {
                                       if (!requireLogin()) return;
                                       setTrackingModalOpen(true);
                                     }}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/35 bg-emerald-400/12 px-4 py-2 text-[13px] font-semibold text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,0.12)] transition hover:scale-105 hover:border-emerald-200/50 hover:bg-emerald-400/18"
-                                    initial={{
-                                      opacity: 0,
-                                      x: 18,
-                                      width: 0,
-                                      paddingLeft: 0,
-                                      paddingRight: 0,
-                                    }}
-                                    animate={{
-                                      opacity: 1,
-                                      x: 0,
-                                      width: "auto",
-                                      paddingLeft: 16,
-                                      paddingRight: 16,
-                                    }}
-                                    exit={{
-                                      opacity: 0,
-                                      x: 18,
-                                      width: 0,
-                                      paddingLeft: 0,
-                                      paddingRight: 0,
-                                    }}
-                                    transition={{
-                                      duration: 0.26,
-                                      ease: "easeOut",
-                                      delay: 0.04,
-                                    }}
+                                    whileHover={{ y: -2, scale: 1.03 }}
+                                    whileTap={{ scale: 0.96 }}
+                                    className="inline-flex px-2 py-2 items-center gap-2 rounded-xl border border-emerald-300/35 bg-emerald-400/12 text-[13px] font-semibold text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,0.12)] hover:border-emerald-200/50 hover:bg-emerald-400/18"
                                   >
                                     <>
-                                      <FiEdit3 size={14} />
-                                      Edit Tracking
+                                      <IoLogoGameControllerB size={15} />
+                                      Manage Game
                                     </>
                                   </motion.button>
                                 </>
@@ -1231,16 +1155,18 @@ export default function GamePage() {
                             currentStatus?.trim().toLowerCase() ===
                             s.label.toLowerCase();
                           return (
-                            <button
+                            <motion.button
                               key={s.label}
                               onClick={() => {
                                 if (!requireLogin()) return;
                                 handleChangeStatus(s.label);
                               }}
-                              className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-[13px] transition hover:scale-105 ${
+                              whileHover={{ y: -2, scale: 1.03 }}
+                              whileTap={{ scale: 0.96 }}
+                              className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-[13px] ${
                                 isSelected
                                   ? `${s.color} border-transparent text-white`
-                                  : "border-white/10 bg-transparent text-white/88 hover:bg-white/14"
+                                  : "border-white/12 bg-transparent text-white/88 hover:bg-white/14"
                               }`}
                             >
                               <span className="relative inline-grid place-items-center">
@@ -1260,7 +1186,7 @@ export default function GamePage() {
                                   </span>
                                 )}
                               </span>
-                            </button>
+                            </motion.button>
                           );
                         })}
                       </div>
@@ -1303,12 +1229,18 @@ export default function GamePage() {
                             animate={{ opacity: 1 }}
                             className="text-[12px] text-white/70 text-center"
                           >
-                            {awardYear} PlayCrew Game Awards will be announced
-                            on{" "}
-                            <span className="font-semibold text-amber-200">
-                              December 10th, {awardYear}
-                            </span>
-                            .
+                            {hasReleaseDate ? (
+                              <>
+                                {awardYear} PlayCrew Game Awards will be
+                                announced on{" "}
+                                <span className="font-semibold text-amber-200">
+                                  December 10th, {awardYear}
+                                </span>
+                                .
+                              </>
+                            ) : (
+                              <span>This game is unannounced yet.</span>
+                            )}
                           </motion.div>
                         )}
 
@@ -1485,37 +1417,43 @@ export default function GamePage() {
             </section>
 
             <section className="rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] sm:p-5 xl:p-6">
-              <div className="mb-5 flex flex-wrap justify-center gap-2 text-[12px]">
-                <button
-                  onClick={() => setTab("screenshots")}
-                  className={`rounded-full border px-4 py-2 transition-all duration-300 hover:scale-105 ${
+              <div className="mb-5 flex flex-wrap justify-center gap-2 text-[15px]">
+                <motion.button
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  className={`rounded-full border px-4 py-2 ${
                     tab === "screenshots"
                       ? "border-cyan-300/50 bg-cyan-400 text-black"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
+                  onClick={() => setTab("screenshots")}
                 >
                   Screenshots
-                </button>
-                <button
-                  onClick={() => setTab("trailers")}
-                  className={`rounded-full border px-4 py-2 transition-all duration-300 hover:scale-105 ${
+                </motion.button>
+                <motion.button
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  className={`rounded-full border px-4 py-2 ${
                     tab === "trailers"
                       ? "border-cyan-300/50 bg-cyan-400 text-black"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
+                  onClick={() => setTab("trailers")}
                 >
                   Trailers
-                </button>
-                <button
-                  onClick={() => setTab("similar")}
-                  className={`rounded-full border px-4 py-2 transition-all duration-300 hover:scale-105 ${
+                </motion.button>
+                <motion.button
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  className={`rounded-full border px-4 py-2 ${
                     tab === "similar"
                       ? "border-cyan-300/50 bg-cyan-400 text-black"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
+                  onClick={() => setTab("similar")}
                 >
                   Similar Games
-                </button>
+                </motion.button>
               </div>
 
               <AnimatePresence mode="wait">
@@ -1622,22 +1560,28 @@ export default function GamePage() {
                               ];
                             })
                             .map((item: any) => (
-                              <a
+                              <motion.button
                                 key={item.key}
-                                href={getPlatformLink(item.platform, game.name)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[12px] transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
+                                onClick={() =>
+                                  window.open(
+                                    getPlatformLink(item.platform, game.name),
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  )
+                                }
+                                whileHover={{ y: -2, scale: 1.02 }}
+                                className="flex w-full items-center gap-2 rounded-xl bg-white/8 px-3 py-2 transition-colors duration-300 hover:bg-white/16"
                               >
                                 {getPlatformIcon(item.platform)}
-                                <span>
+
+                                <span className="text-[12px]">
                                   {item.label.toLowerCase().includes("pc")
                                     ? item.platform === "steam"
                                       ? "Steam"
                                       : "Epic Games"
                                     : item.label}
                                 </span>
-                              </a>
+                              </motion.button>
                             ))}
                         </>
                       ) : (
@@ -1658,11 +1602,11 @@ export default function GamePage() {
                       <button
                         type="button"
                         aria-label="Cracked availability note"
-                        className="inline-flex h-4 w-4 items-center justify-center text-white/55 transition hover:text-white/80 focus:outline-none"
+                        className="inline-flex h-4 w-4 items-center justify-center text-white/55 transition-all hover:text-white/80 focus:outline-none"
                       >
                         <FaInfoCircle size={12} />
                       </button>
-                      <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-48 -translate-x-1/2 rounded-md border border-white/15 bg-black/75 px-2 py-1 text-[13px] font-medium leading-relaxed tracking-wide text-zinc-200 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-48 -translate-x-1/2 rounded-md border border-white/15 bg-black/75 px-2 py-1 text-[13px] font-medium leading-relaxed tracking-wide text-zinc-200 opacity-0 transition-all group-hover:opacity-100 group-focus-within:opacity-100">
                         If the game has
                         <span className="text-red-500 pl-1">Denuvo</span>, it
                         most likely will not be cracked soon.
@@ -1687,7 +1631,7 @@ export default function GamePage() {
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
+                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-all duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
                       >
                         <img
                           src="https://www.google.com/s2/favicons?domain=fitgirl-repacks.site&sz=64"
@@ -1705,7 +1649,7 @@ export default function GamePage() {
                         )}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
+                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-all duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
                       >
                         <img
                           src="https://www.google.com/s2/favicons?domain=dodi-repacks.site&sz=64"
@@ -1717,7 +1661,7 @@ export default function GamePage() {
                         href={`https://gamedrive.org/?s=${encodeURIComponent(game.name)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
+                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-all duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
                       >
                         <img
                           src="https://www.google.com/s2/favicons?domain=gamedrive.org&sz=64"
@@ -1729,7 +1673,7 @@ export default function GamePage() {
                         href={`https://www.skidrowreloaded.com/?s=${encodeURIComponent(game.name)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
+                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-all duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
                       >
                         <img
                           src="https://www.google.com/s2/favicons?domain=skidrowreloaded.com&sz=64"
@@ -1741,7 +1685,7 @@ export default function GamePage() {
                         href={`https://www.aimhaven.com/?s=${encodeURIComponent(game.name)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-transform duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
+                        className="flex items-center gap-2 rounded-xl bg-white/8 px-3 py-2 text-[11px] transition-all duration-300 ease-in-out hover:scale-[1.02] hover:bg-white/16"
                       >
                         <img
                           src="https://www.google.com/s2/favicons?domain=aimhaven.com&sz=64"
@@ -1844,6 +1788,7 @@ export default function GamePage() {
 
         {trackingModalGame && (
           <GameTrackingModal
+            key={`${trackingModalGame._docId ?? trackingModalGame.igdb.id}-${trackingModalOpen ? "open" : "closed"}`}
             open={trackingModalOpen}
             onClose={() => setTrackingModalOpen(false)}
             onSave={handleSaveTrackingModal}

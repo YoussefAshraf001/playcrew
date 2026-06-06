@@ -1,13 +1,36 @@
 "use client";
-
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { useUI } from "@/app/context/UIContext";
 
 export default function RouteTransitionLoader() {
   const pathname = usePathname();
-  const { routeLoading, startRouteLoading, stopRouteLoading } = useUI();
+  const {
+    routeLoading,
+    startRouteLoading,
+    stopRouteLoading,
+    layoutTransitioning,
+  } = useUI();
+
+  const [phase, setPhase] = useState<"spinner" | "black">("spinner");
+
+  useEffect(() => {
+    let timer: number | undefined;
+    if (layoutTransitioning) {
+      setPhase("spinner");
+      // after a short delay, transition to full black
+      timer = window.setTimeout(() => setPhase("black"), 260);
+    } else {
+      // reset phase when not transitioning
+      setPhase("spinner");
+    }
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [layoutTransitioning]);
 
   useEffect(() => {
     stopRouteLoading();
@@ -62,11 +85,48 @@ export default function RouteTransitionLoader() {
     };
   }, [startRouteLoading]);
 
-  if (!routeLoading) return null;
+  if (!routeLoading && !layoutTransitioning) return null;
 
   return (
-    <div className="fixed inset-0 z-120 pointer-events-none flex items-center justify-center bg-black/45 backdrop-blur-[1px]">
-      <span className="loading loading-dots loading-xl text-cyan-300" />
-    </div>
+    <AnimatePresence>
+      {layoutTransitioning ? (
+        <motion.div
+          key="layout-transition"
+          className="pointer-events-none fixed inset-0 z-120 overflow-hidden"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          {phase === "spinner" ? (
+            <motion.div
+              className="fixed inset-0 z-120 flex items-center justify-center bg-black/30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <span className="loading loading-dots loading-xl text-cyan-300" />
+            </motion.div>
+          ) : (
+            <motion.div
+              className="fixed inset-0 z-120 bg-black"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.28 }}
+            />
+          )}
+        </motion.div>
+      ) : (
+        <motion.div
+          key="route-transition"
+          className="fixed inset-0 z-120 pointer-events-none flex items-center justify-center bg-black/45 backdrop-blur-[1px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <span className="loading loading-dots loading-xl text-cyan-300" />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

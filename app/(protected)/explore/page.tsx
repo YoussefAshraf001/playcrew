@@ -11,6 +11,7 @@ import SkeletonRow from "@/app/components/SkeletonRow";
 import HeroSkeleton from "@/app/components/HeroSkeleton";
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
+import { useUI } from "@/app/context/UIContext";
 
 const SECTION_ORDER = [
   "Trending Now",
@@ -42,6 +43,7 @@ const PAGE_LIMIT = 30;
 
 export default function ExplorePage() {
   const { user } = useUser();
+  const { navbarLayout } = useUI();
   const [hero, setHero] = useState<any[]>([]);
   const [sections, setSections] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
@@ -242,7 +244,11 @@ export default function ExplorePage() {
         />
       </Helmet>
 
-      <main className="relative min-h-screen overflow-x-hidden bg-[#020408] pb-18 pt-16 text-white">
+      <main
+        className={`relative min-h-screen  ${
+          navbarLayout === "sidebar" ? "pt-5 pl-5" : "pt-16"
+        } overflow-x-hidden bg-[#020408] text-white`}
+      >
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-0 top-0 h-[520px] w-full bg-linear-to-b from-cyan-500/10 via-cyan-400/5 to-transparent" />
           <div className="absolute -left-24 top-24 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />

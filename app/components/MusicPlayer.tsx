@@ -104,7 +104,7 @@ export default function MusicPlayer() {
     isLoadingTrack,
   } = useMusic();
 
-  const { panelOpen } = useUI();
+  const { panelOpen, navbarLayout } = useUI();
   const shouldShowPlayer = playerVisible && !panelOpen;
   const formatTime = (t: number) => {
     if (!Number.isFinite(t) || t < 0) return "0:00";
@@ -149,16 +149,33 @@ export default function MusicPlayer() {
   return (
     <motion.div
       ref={playerRef}
-      initial={{ y: -200, opacity: 0 }}
-      animate={{
-        y: shouldShowPlayer ? 0 : -200,
-        opacity: shouldShowPlayer ? 1 : 0,
-        pointerEvents: shouldShowPlayer ? "auto" : "none",
-      }}
+      {...(navbarLayout === "sidebar"
+        ? {
+            initial: { x: -200, opacity: 0, scaleY: 0 },
+            animate: {
+              x: shouldShowPlayer ? 0 : -200,
+              opacity: shouldShowPlayer ? 1 : 0,
+              scaleY: shouldShowPlayer ? 1 : 0,
+              pointerEvents: shouldShowPlayer ? "auto" : "none",
+            },
+            exit: { x: -200, opacity: 0, scaleY: 0 },
+          }
+        : {
+            initial: { y: -200, opacity: 0 },
+            animate: {
+              y: shouldShowPlayer ? 0 : -200,
+              opacity: shouldShowPlayer ? 1 : 0,
+              pointerEvents: shouldShowPlayer ? "auto" : "none",
+            },
+            exit: { y: -200, opacity: 0 },
+          })}
       transition={{ duration: 0.35, ease: "easeInOut" }}
-      className={`fixed left-1/2 z-1000 w-[min(95vw,38rem)] -translate-x-1/2 rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:left-auto md:right-4 md:w-[580px] md:translate-x-0 lg:right-6 ${
-        isDashboard ? "top-6 md:top-6" : "top-18 md:top-16"
-      }`}
+      className={`fixed z-1000 w-[min(95vw,38rem)] rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:w-[580px] lg:right-6 ${
+        navbarLayout === "sidebar"
+          ? "left-25 origin-top-left -translate-y-[-750%]"
+          : "left-1/2 -translate-x-1/2 md:left-auto md:right-4 md:translate-x-0"
+      } ${isDashboard ? "top-6 md:top-6" : "top-18 md:top-16"}`}
+      style={navbarLayout === "sidebar" ? { transformOrigin: "top left" } : {}}
     >
       <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[170px_1fr_160px] md:grid-cols-[200px_1fr_180px]">
         {/* Song Info (skeleton OR real data) */}

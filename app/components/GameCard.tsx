@@ -40,10 +40,12 @@ export default function GameCard({
           w-53
           max-w-none
           bg-zinc-900/80
+          border border-[var(--theme-border)]
           rounded-xl
           overflow-visible
         shadow-md
-        hover:shadow-xl
+        hover:border-cyan-300/45
+        hover:shadow-[0_0_0_1px_rgba(34,211,238,0.24),0_0_24px_rgba(var(--theme-accent-rgb),0.22),0_18px_36px_rgba(0,0,0,0.38)]
         transition-all
         duration-300
         "
@@ -71,7 +73,7 @@ export default function GameCard({
               transform-gpu scale-[1.001]
               transition-transform duration-500
               ${loaded ? "opacity-100" : "opacity-0"}
-              group-hover:scale-[1.10]
+              group-hover:scale-[1.021]
             `}
           />
         </div>

@@ -14,8 +14,12 @@ import {
   FaPause,
   FaCrown,
   FaMusic,
+  FaRedoAlt,
   FaVolumeMute,
   FaVolumeUp,
+  FaRegHeart,
+  FaHeart,
+  FaHeartBroken,
 } from "react-icons/fa";
 import {
   MdRemoveCircleOutline,
@@ -48,6 +52,7 @@ const STATUS_CONFIG = [
     icon: <MdOutlineOnlinePrediction />,
     color: "bg-purple-500",
   },
+  { label: "Try Again?", icon: <FaRedoAlt />, color: "bg-orange-500" },
   { label: "Want To Play", icon: <GiMouthWatering />, color: "bg-teal-500" },
 ];
 const HERO_TRAILER_VOLUME_KEY = "hero-trailer-volume";
@@ -277,7 +282,7 @@ export default function HeroSection({
     toast.success(
       <span>
         <span className="font-bold pr-1">{game.name}</span>
-        <span className="text-black">added to library</span>
+        <span className="text-black">added to my collection</span>
       </span>,
     );
   };
@@ -317,7 +322,11 @@ export default function HeroSection({
         </span>
       </span>,
       {
-        icon: updated ? "â¤ï¸" : "ðŸ’”",
+        icon: updated ? (
+          <FaHeart className="text-red-500" />
+        ) : (
+          <FaHeartBroken className="text-red-500" />
+        ),
       },
     );
   };
@@ -986,13 +995,21 @@ export default function HeroSection({
 
             <button
               onClick={toggleFavorite}
-              className={`px-5 py-3 rounded-xl ${
+              className={`flex gap-2 items-center px-5 py-3 rounded-xl ${
                 game?.favorite
                   ? "bg-red-500 text-white"
                   : "bg-white/10 hover:bg-white/20"
               } cursor-pointer hover:scale-105 ease-in-out transition-all duration-300`}
             >
-              â˜… Favorite
+              {game?.favorite ? (
+                <>
+                  <FaHeart /> Favorited
+                </>
+              ) : (
+                <>
+                  <FaRegHeart /> Favorite
+                </>
+              )}
             </button>
           </div>
         </div>

@@ -34,6 +34,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { db } from "@/app/lib/firebase";
+import { useUI } from "@/app/context/UIContext";
 import { useUser } from "@/app/context/UserContext";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import GamePickerModal from "@/app/components/GamePickerModal";
@@ -108,6 +109,7 @@ const toHighQualityIgdbCover = (url?: string | null) => {
 };
 
 function ScreenshotsPageContent() {
+  const { navbarLayout } = useUI();
   const { user } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -973,7 +975,11 @@ function ScreenshotsPageContent() {
 
   if (!hydrated || !featureResolved) {
     return (
-      <main className="relative h-svh overflow-hidden bg-[#070504] pt-20 text-white">
+      <main
+        className={`page-top-offset relative h-svh overflow-hidden bg-[#070504] ${
+          navbarLayout === "sidebar" ? "pt-10" : "pt-20"
+        } text-white`}
+      >
         <div className="mx-auto flex h-[calc(100svh-5rem)] max-w-6xl items-center justify-center px-4">
           <span className="loading loading-dots loading-xl text-cyan-500" />
         </div>
@@ -991,7 +997,11 @@ function ScreenshotsPageContent() {
         />
       </Helmet>
 
-      <main className="relative h-svh overflow-hidden bg-[#070504] px-4 pt-20 text-white sm:px-6 lg:px-8">
+      <main
+        className={`theme-text relative h-svh overflow-hidden bg-[var(--theme-bg)] px-4 sm:px-6 lg:px-8 ${
+          navbarLayout === "sidebar" ? "pt-20" : "pt-20"
+        } `}
+      >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(6,182,212,0.12),transparent_35%),radial-gradient(circle_at_86%_80%,rgba(6,182,212,0.1),transparent_40%)]" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-size-[44px_44px]" />
 
@@ -1001,7 +1011,7 @@ function ScreenshotsPageContent() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.24 }}
-              className="rounded-3xl border border-cyan-500/25 bg-black/70 p-6 shadow-[0_28px_80px_rgba(0,0,0,0.58)] sm:p-8"
+              className="theme-panel-strong rounded-3xl border p-6 shadow-[0_28px_80px_rgba(0,0,0,0.38)] sm:p-8"
             >
               <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/35 bg-cyan-500/10 text-cyan-500">
                 <FaImages size={20} />
@@ -1011,7 +1021,7 @@ function ScreenshotsPageContent() {
                   <h1 className="text-3xl font-bold sm:text-4xl">
                     Screenshot Art Gallery
                   </h1>
-                  <p className="mt-3 max-w-2xl text-sm text-zinc-300 sm:text-base">
+                  <p className="theme-text-muted mt-3 max-w-2xl text-sm sm:text-base">
                     Curate your best game captures as if each folder is a
                     private exhibition room.
                   </p>
@@ -1022,15 +1032,15 @@ function ScreenshotsPageContent() {
                         <motion.div
                           key={item.title}
                           whileHover={{ y: -4 }}
-                          className="rounded-2xl border border-white/10 bg-zinc-900/70 p-3.5 transition hover:border-cyan-500/35"
+                          className="theme-surface rounded-2xl border p-3.5 transition hover:border-cyan-500/35"
                         >
                           <div className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-500/25 bg-cyan-500/10 text-cyan-500">
                             <Icon size={14} />
                           </div>
-                          <p className="text-sm font-semibold text-zinc-100">
+                          <p className="theme-text text-sm font-semibold">
                             {item.title}
                           </p>
-                          <p className="mt-1 text-xs text-zinc-400">
+                          <p className="theme-text-muted mt-1 text-xs">
                             {item.body}
                           </p>
                         </motion.div>
@@ -1038,11 +1048,11 @@ function ScreenshotsPageContent() {
                     })}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5">
+                <div className="theme-surface rounded-2xl border p-5">
                   <p className="text-[11px] uppercase tracking-[0.15em] text-cyan-500/80">
                     Start
                   </p>
-                  <p className="mt-2 text-sm text-zinc-200">
+                  <p className="theme-text mt-2 text-sm">
                     Enable the gallery workspace to create folders, upload
                     shots, set covers, rename collections, and delete content.
                   </p>
@@ -1068,22 +1078,22 @@ function ScreenshotsPageContent() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
-              className="relative flex h-[calc(100svh-6.5rem)] flex-col overflow-hidden rounded-3xl border border-cyan-500/20 bg-black/70 p-4 sm:p-6"
+              className="theme-panel relative flex h-[calc(100svh-6.5rem)] flex-col overflow-hidden rounded-3xl border p-4 sm:p-6"
             >
               <header className="mb-4 flex flex-col gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] lg:items-center">
                 <div className="lg:justify-self-start">
-                  <h1 className="text-lg font-semibold tracking-wide text-zinc-100 sm:text-xl">
+                  <h1 className="theme-text text-lg font-semibold tracking-wide sm:text-xl">
                     Screenshot Collections
                   </h1>
                   <div className="flex items-center gap-2">
-                    <p className="hidden text-xs text-zinc-400 sm:block">
+                    <p className="theme-text-muted hidden text-xs sm:block">
                       Click arrows or scroll. Click center card to open folder.
                     </p>
                   </div>
                 </div>
                 <div className="hidden lg:flex lg:justify-center">
-                  <div className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-zinc-900/65 px-3 py-1.5">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-300">
+                  <div className="theme-surface inline-flex items-center gap-2 rounded-xl border px-3 py-1.5">
+                    <span className="theme-text-muted text-[11px] font-semibold uppercase tracking-[0.12em]">
                       Use Scroll Wheel to move
                     </span>
                     <WheelLockSwitch
@@ -1099,7 +1109,7 @@ function ScreenshotsPageContent() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search collections..."
-                      className="h-9 w-full rounded-xl border border-white/15 bg-zinc-900/70 px-3 text-xs text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-cyan-500/50 sm:w-56"
+                      className="theme-surface-alt h-9 w-full rounded-xl border px-3 text-xs theme-text outline-none transition placeholder:text-zinc-500 focus:border-cyan-500/50 sm:w-56"
                     />
                   </div>
                   <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -1116,7 +1126,7 @@ function ScreenshotsPageContent() {
                       type="button"
                       onClick={handleEditFolder}
                       disabled={!selectedFolder || renaming}
-                      className="inline-flex h-9 min-w-[84px] shrink-0 items-center justify-center rounded-xl border border-white/15 bg-zinc-900/70 px-3 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-800 disabled:opacity-45 sm:min-w-[92px] sm:px-4"
+                      className="theme-surface theme-hover-surface inline-flex h-9 min-w-[84px] shrink-0 items-center justify-center rounded-xl border px-3 text-xs font-semibold theme-text transition disabled:opacity-45 sm:min-w-[92px] sm:px-4"
                     >
                       <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                         <FiEdit2 size={11} />
@@ -1142,14 +1152,14 @@ function ScreenshotsPageContent() {
               </header>
 
               {!user ? (
-                <p className="text-sm text-zinc-300">
+                <p className="theme-text-muted text-sm">
                   You need to be logged in.
                 </p>
               ) : (
                 <>
-                  <div className="relative flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-zinc-900/45 p-3 sm:p-5">
+                  <div className="theme-surface relative flex min-h-0 flex-1 flex-col rounded-2xl border p-3 sm:p-5">
                     <div
-                      className="relative z-10 min-h-0 flex-1 select-none overflow-hidden rounded-xl border border-white/10 bg-black/45"
+                      className="theme-surface-alt relative z-10 min-h-0 flex-1 select-none overflow-hidden rounded-xl border"
                       onWheel={handleCarouselWheel}
                     >
                       {foldersLoading ? (
@@ -1588,10 +1598,16 @@ function ScreenshotsPageContent() {
 }
 
 export default function ScreenshotsPage() {
+  const { navbarLayout } = useUI();
+
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-[#070504] px-4 pt-24 text-white">
+        <main
+          className={`page-top-offset min-h-screen bg-[#070504] px-4 ${
+            navbarLayout === "sidebar" ? "pt-10" : "pt-24"
+          } text-white`}
+        >
           <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-black/50 p-6">
             <p className="text-zinc-200">Loading screenshots</p>
             <span className="loading loading-dots loading-xl text-cyan-500" />
