@@ -421,27 +421,6 @@ export default function SiteSettingsPage() {
                     );
                   })}
                 </div>
-
-                {/* LIGHT MODE OVERLAY */}
-                {/* {themeMode === "light" && (
-                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-black/65 backdrop-blur-[4px]">
-                    <div className="flex items-end gap-2">
-                      <div className="h-10 w-5 animate-[build_1.2s_ease-in-out_infinite] rounded-t-md bg-white/90" />
-
-                      <div className="h-16 w-5 animate-[build_1.2s_ease-in-out_0.15s_infinite] rounded-t-md bg-white/90" />
-
-                      <div className="h-24 w-5 animate-[build_1.2s_ease-in-out_0.3s_infinite] rounded-t-md bg-white/90" />
-
-                      <div className="h-14 w-5 animate-[build_1.2s_ease-in-out_0.45s_infinite] rounded-t-md bg-white/90" />
-
-                      <div className="h-20 w-5 animate-[build_1.2s_ease-in-out_0.6s_infinite] rounded-t-md bg-white/90" />
-                    </div>
-
-                    <p className="mt-4 text-xs font-bold uppercase tracking-[0.35em] text-white">
-                      Light Themes Coming Soon
-                    </p>
-                  </div>
-                )} */}
               </div>
             </motion.section>
 
@@ -475,11 +454,13 @@ export default function SiteSettingsPage() {
                         id: "sidebar",
                         name: "Gaming Pill",
                         description: "Vertical pill navigation on the left.",
+                        locked: true,
                       },
                       {
                         id: "top",
                         name: "Classic",
                         description: "Horizontal navigation across the top.",
+                        locked: false,
                       },
                     ] as const
                   ).map((option) => {
@@ -489,21 +470,79 @@ export default function SiteSettingsPage() {
                       <button
                         key={option.id}
                         type="button"
-                        onClick={() => void setNavbarLayout(option.id)}
-                        className={`relative rounded-xl border p-3 text-left transition-all duration-200 ${
+                        disabled={option.locked}
+                        onClick={() => {
+                          if (!option.locked) {
+                            void setNavbarLayout(option.id);
+                          }
+                        }}
+                        className={`relative overflow-hidden rounded-xl border p-3 text-left transition-all duration-200 ${
                           isSelected
                             ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
                             : "theme-surface theme-hover-surface"
-                        }`}
+                        } ${option.locked ? "cursor-not-allowed" : ""}`}
                       >
+                        {/* LOCK OVERLAY ONLY FOR GAMING PILL */}
+                        {option.locked && (
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm bg-black/55">
+                            {/* particles */}
+                            <div className="absolute inset-0 overflow-hidden">
+                              {[...Array(6)].map((_, i) => (
+                                <motion.div
+                                  key={i}
+                                  className="absolute h-3 w-3 right-1/2 top-2 rounded-full bg-gray-300/50"
+                                  initial={{
+                                    y: "120%",
+                                    x: `${15 + i * 12}%`,
+                                  }}
+                                  animate={{
+                                    y: "-20%",
+                                    opacity: [0, 1, 0],
+                                  }}
+                                  transition={{
+                                    repeat: Infinity,
+                                    duration: 2 + i * 0.2,
+                                    delay: i * 0.15,
+                                    ease: "linear",
+                                  }}
+                                />
+                              ))}
+                            </div>
+
+                            {/* animated icon */}
+                            <motion.div
+                              animate={{
+                                rotate: [-6, 6, -6],
+                                scale: [1, 1.08, 1],
+                              }}
+                              transition={{
+                                repeat: Infinity,
+                                duration: 2,
+                              }}
+                              className="text-3xl mb-2"
+                            >
+                              🚧
+                            </motion.div>
+
+                            <p className="text-xs font-bold tracking-[0.2em] text-amber-300">
+                              COMING SOON
+                            </p>
+
+                            <p className="mt-1 text-[10px] text-white/70">
+                              Builder in progress
+                            </p>
+                          </div>
+                        )}
+
                         <p className="theme-text text-sm font-semibold">
                           {option.name}
                         </p>
+
                         <p className="theme-text-muted mt-1 text-[11px] leading-4">
                           {option.description}
                         </p>
 
-                        {isSelected && (
+                        {isSelected && !option.locked && (
                           <span className="absolute right-2 top-2 theme-accent-soft-bg inline-flex h-5 w-5 items-center justify-center rounded-full border">
                             <FiCheck size={11} />
                           </span>

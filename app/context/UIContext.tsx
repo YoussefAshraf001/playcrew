@@ -36,13 +36,14 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [layoutTransitioning, setLayoutTransitioning] = useState(false);
-  const [navbarLayoutOverride, setNavbarLayoutOverride] = useState<
-    NavbarLayout | null
-  >(() => {
-    if (typeof window === "undefined") return null;
-    const storedLayout = window.localStorage.getItem(NAVBAR_LAYOUT_STORAGE_KEY);
-    return isNavbarLayout(storedLayout) ? storedLayout : null;
-  });
+  const [navbarLayoutOverride, setNavbarLayoutOverride] =
+    useState<NavbarLayout | null>(() => {
+      if (typeof window === "undefined") return null;
+      const storedLayout = window.localStorage.getItem(
+        NAVBAR_LAYOUT_STORAGE_KEY,
+      );
+      return isNavbarLayout(storedLayout) ? storedLayout : null;
+    });
   const [hasSeenWhatsNewOverride, setHasSeenWhatsNewOverride] = useState<
     boolean | null
   >(() => {
@@ -74,23 +75,26 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     );
   }, [hasSeenWhatsNew, navbarLayout]);
 
-  const persistProfile = useCallback(async (data: Record<string, unknown>) => {
-    if (!user?.uid) return;
+  const persistProfile = useCallback(
+    async (data: Record<string, unknown>) => {
+      if (!user?.uid) return;
 
-    await fetch("/api/save-delete", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        uid: user.uid,
-        action: "update",
-        data,
-      }),
-    });
+      await fetch("/api/save-delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          action: "update",
+          data,
+        }),
+      });
 
-    setProfile((current) => (current ? { ...current, ...data } : current));
-  }, [setProfile, user]);
+      setProfile((current) => (current ? { ...current, ...data } : current));
+    },
+    [setProfile, user],
+  );
 
   const setNavbarLayout = useCallback(
     async (layout: NavbarLayout) => {

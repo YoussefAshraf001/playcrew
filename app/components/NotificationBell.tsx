@@ -425,14 +425,15 @@ export default function NotificationBell({
                     exit: { opacity: 0, x: -12 },
                   }
                 : {
-                    initial: { opacity: 0, y: -12, scale: 0.96 },
-                    animate: { opacity: 1, y: 0, scale: 1 },
-                    exit: { opacity: 0, y: -12, scale: 0.96 },
+                    initial: { opacity: 0, y: -8, scale: 0.985 },
+                    animate: { opacity: 1, y: 330, scale: 1 },
+                    exit: { opacity: 0, y: -330, scale: 0.985 },
                   })}
               transition={{
                 type: "spring",
-                stiffness: 260,
-                damping: 22,
+                stiffness: 140,
+                damping: 26,
+                mass: 1.05,
               }}
               className={
                 navbarLayout === "sidebar"

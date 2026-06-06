@@ -123,7 +123,7 @@ export default function Navbar() {
       ? "theme-panel-strong absolute right-full top-1/2 z-[100] mr-2 block -translate-y-1/2 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-lg backdrop-blur-xl pointer-events-none"
       : "theme-panel-strong absolute left-full top-1/2 z-[100] ml-2 block -translate-y-1/2 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-lg backdrop-blur-xl pointer-events-none";
 
-  const accountHoverX = navbarLayout === "top" ? -12 : 12;
+  const accountHoverX = navbarLayout === "top" ? 12 : 12;
 
   const handleLogout = async () => {
     if (!user) return;
