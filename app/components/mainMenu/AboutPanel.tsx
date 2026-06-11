@@ -1,5 +1,6 @@
 import { motion, type Variants } from "framer-motion";
 import { GiAbdominalArmor } from "react-icons/gi";
+import { IoCloseCircle, IoCloseSharp } from "react-icons/io5";
 import { LuCalendarClock } from "react-icons/lu";
 import { MdExplore } from "react-icons/md";
 import { PiArrowFatLinesUpDuotone } from "react-icons/pi";
@@ -39,13 +40,15 @@ export default function AboutPanel({
 
       {/* ───────── CONTENT LAYER ───────── */}
       <div className="relative z-10">
-        <button
+        <motion.button
           type="button"
           onClick={onClose}
-          className="absolute right-0 top-0 text-xs sm:text-sm px-3 py-1 rounded-full border border-white/20 text-zinc-300 hover:text-white hover:border-cyan-300 transition"
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.95 }}
+          className="absolute right-0 top-0 text-xs sm:text-sm px-2 py-2 rounded-full border border-white/20 text-zinc-300 hover:text-white hover:border-cyan-300 transition-all duration-300 cursor-pointer"
         >
-          Close
-        </button>
+          <IoCloseSharp size={20} />
+        </motion.button>
 
         <h3 className="uppercase text-xs tracking-[0.45em] text-zinc-300 mb-10 text-center">
           About PlayCrew

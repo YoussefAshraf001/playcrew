@@ -31,7 +31,6 @@ export default function GameActionsDropdown({
 
   const [open, setOpen] = useState(false);
   const [refreshOpen, setRefreshOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [devModalOpen, setDevModalOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -59,12 +58,16 @@ export default function GameActionsDropdown({
     };
   }, []);
 
+  useEffect(() => {
+    if (refreshOpen || devModalOpen) {
+      setOpen(false);
+    }
+  }, [refreshOpen, devModalOpen]);
+
   const handleRefresh = async (fields: Record<RefreshField, boolean>) => {
     if (!user) return;
 
     try {
-      setRefreshing(true);
-
       await refreshGameData(
         user.uid,
         game,
@@ -81,8 +84,6 @@ export default function GameActionsDropdown({
       setRefreshOpen(false);
     } catch (err) {
       toast.error("Refresh failed");
-    } finally {
-      setRefreshing(false);
     }
   };
 
@@ -103,9 +104,29 @@ export default function GameActionsDropdown({
           setOpen((p) => !p);
         }}
         aria-label="Game actions"
-        className={`absolute right-2 top-2 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/70 text-zinc-100 shadow-[0_8px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm transition hover:scale-105 hover:border-cyan-300/50 hover:bg-zinc-900/90 hover:text-cyan-100 ${
-          open ? "border-cyan-300/60 text-cyan-100" : ""
-        }`}
+        className={`absolute right-2 top-2 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/70 text-zinc-100 shadow-[0_8px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm
+
+opacity-0
+scale-75
+pointer-events-none
+
+transition-all
+duration-300
+
+group-hover:opacity-100
+group-hover:scale-100
+group-hover:pointer-events-auto
+
+hover:scale-105
+hover:border-cyan-300/50
+hover:bg-zinc-900/90
+hover:text-cyan-100
+
+${
+  open
+    ? "opacity-100 scale-100 pointer-events-auto border-cyan-300/60 text-cyan-100"
+    : ""
+}`}
       >
         <MdMoreVert size={18} />
       </button>

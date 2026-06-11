@@ -12,9 +12,8 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "backblaze-b2": "^1.7.1",
+    "@tauri-apps/api": "^2.11.0",
     "firebase": "^12.4.0",
-    "firebase-admin": "^13.7.0",
     "framer-motion": "^12.23.24",
     "music-metadata-browser": "^2.5.11",
     "next": "^16.0.10",
@@ -22,13 +21,13 @@
     "react-avatar-editor": "^13.0.2",
     "react-dom": "^18.0.0",
     "react-easy-crop": "^5.5.6",
-    "react-firebase-hooks": "^5.1.1",
     "react-helmet-async": "^2.0.5",
     "react-hot-toast": "^2.6.0",
     "react-icons": "^5.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

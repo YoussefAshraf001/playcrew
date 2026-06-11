@@ -2,15 +2,6 @@ import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
 
 export type StoredRating = number | "excluded" | null;
 
-export interface CategoryRatings {
-  graphics: StoredRating;
-  gameplay: StoredRating;
-  story: StoredRating;
-  ost: StoredRating;
-  cinematics: StoredRating;
-  voiceActing: StoredRating;
-}
-
 export type PickerGame = {
   igdbId: number;
   name: string;
@@ -45,7 +36,6 @@ export interface TrackedGame {
   status?: string;
   progress?: number;
   notes?: string;
-  categoryRatings?: CategoryRatings;
   favorite?: boolean;
   favoriteOrder?: number;
   favoriteAllTime?: boolean;

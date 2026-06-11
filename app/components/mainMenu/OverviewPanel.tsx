@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { IoCloseSharp } from "react-icons/io5";
 
 interface OverviewPanelProps {
   level: number;
@@ -38,13 +39,15 @@ export default function OverviewPanel({
 
       {/* ───────── CONTENT LAYER ───────── */}
       <div className="relative z-10">
-        <button
+        <motion.button
           type="button"
           onClick={onClose}
-          className="absolute right-0 top-0 text-xs sm:text-sm px-3 py-1 rounded-full border border-white/20 text-zinc-300 hover:text-white hover:border-cyan-300 transition"
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.95 }}
+          className="absolute right-0 top-0 text-xs sm:text-sm px-2 py-2 rounded-full border border-white/20 text-zinc-300 hover:text-white hover:border-cyan-300 transition-all duration-300 cursor-pointer"
         >
-          Close
-        </button>
+          <IoCloseSharp size={20} />
+        </motion.button>
 
         <h3 className="uppercase text-sm tracking-[0.3em] text-zinc-300 mb-8 text-center">
           Account Overview

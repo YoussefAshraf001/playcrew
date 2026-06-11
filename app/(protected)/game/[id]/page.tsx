@@ -55,7 +55,7 @@ import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
-import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
+import { TrackedGame } from "@/app/types/trackedGame";
 
 const statuses = [
   { label: "Playing", icon: <FaPlay />, color: "bg-blue-500" }, // Active / ongoing â†’ blue = focus
@@ -486,7 +486,6 @@ export default function GamePage() {
       status: data.status,
       favorite: data.favorite ?? false,
 
-      categoryRatings: data.categoryRatings ?? null,
       playedSessions: data.playedSessions ?? [],
       save: data.save ?? null,
 
@@ -835,7 +834,6 @@ export default function GamePage() {
     playtime: number,
     status: string,
     favorite: boolean,
-    categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
     save?: TrackedGame["save"],
@@ -851,7 +849,6 @@ export default function GamePage() {
         playtime,
         status,
         favorite,
-        categoryRatings,
         notInterested,
         playedSessions,
         save,
@@ -868,7 +865,6 @@ export default function GamePage() {
         playtime,
         status,
         favorite,
-        categoryRatings,
         notInterested,
         playedSessions,
       }));
@@ -1797,7 +1793,6 @@ export default function GamePage() {
             game={trackingModalGame}
             initialNotes={trackingModalGame.notes ?? ""}
             initialRating={trackingModalGame.my_rating ?? null}
-            initialCategoryRatings={trackingModalGame.categoryRatings}
             initialProgress={trackingModalGame.progress ?? 0}
             initialPlaytime={trackingModalGame.playtime ?? 0}
             initialPlayedSessions={trackingModalGame.playedSessions ?? []}

@@ -26,7 +26,7 @@ import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
 import styles from "./OnlineToggle.module.css";
-import { CategoryRatings, TrackedGame } from "@/app/types/trackedGame";
+import { TrackedGame } from "@/app/types/trackedGame";
 import { useRouter } from "next/navigation";
 import { refreshGameData, type RefreshableGame } from "@/app/utils/refreshGame";
 import RefreshModal, { type RefreshField } from "@/app/components/RefreshModal";
@@ -37,6 +37,7 @@ import {
   DEFAULT_BG_OVERLAY,
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
+import { isTauri } from "@tauri-apps/api/core";
 
 const STATUSES = [
   "All",
@@ -82,6 +83,8 @@ export default function GamesPage() {
   const { games: sharedGames, gamesLoading } = useGames();
   const { navbarLayout } = useUI();
   const router = useRouter();
+  const desktop = isTauri();
+
   const uid = user?.uid as string | undefined;
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("Playing");
@@ -120,7 +123,6 @@ export default function GamesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<TrackedGame | null>(null);
   const [saving, setSaving] = useState(false);
-  const [refreshingReleaseDates, setRefreshingReleaseDates] = useState(false);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkRefreshing, setBulkRefreshing] = useState(false);
 
@@ -347,17 +349,18 @@ export default function GamesPage() {
     }
 
     if (releaseFilter !== "All") {
-      const now = new Date();
+      const now = Date.now();
 
       list = list.filter((g) => {
         const release = g.igdb?.releaseDate;
 
-        if (!release) return releaseFilter === "Unreleased";
+        if (!(release instanceof Date) || isNaN(release.getTime())) {
+          return releaseFilter === "Unreleased";
+        }
 
-        if (releaseFilter === "Released") return release <= now;
-        if (releaseFilter === "Unreleased") return release > now;
+        const isReleased = release.getTime() <= now;
 
-        return true;
+        return releaseFilter === "Released" ? isReleased : !isReleased;
       });
     }
 
@@ -599,7 +602,6 @@ export default function GamesPage() {
       progress: game.progress ?? 0,
       playtime: game.playtime ?? 0,
       notes: game.notes ?? "",
-      categoryRatings: game.categoryRatings,
     });
     setModalOpen(true);
   };
@@ -638,63 +640,6 @@ export default function GamesPage() {
     });
 
     await Promise.all(updates);
-  };
-
-  const handleRefreshUnreleasedReleaseDates = async () => {
-    if (!uid || refreshingReleaseDates) return;
-
-    const unreleasedGames = filteredGames.filter(isRefreshableGame);
-
-    if (!unreleasedGames.length) {
-      toast("No unreleased games to refresh right now.");
-      return;
-    }
-
-    setRefreshingReleaseDates(true);
-    const loadingToast = toast.loading("Refreshing release dates...");
-
-    try {
-      const results = await Promise.allSettled(
-        unreleasedGames.map((game) =>
-          refreshGameData(
-            uid,
-            game,
-            {
-              name: false,
-              cover: false,
-              genres: false,
-              rating: false,
-              platforms: false,
-              released: true,
-            },
-            game._docId ?? String(game.igdb.id),
-          ),
-        ),
-      );
-
-      const refreshedCount = results.filter(
-        (result) => result.status === "fulfilled",
-      ).length;
-      const failedCount = results.length - refreshedCount;
-
-      toast.dismiss(loadingToast);
-
-      if (failedCount > 0) {
-        toast.error(
-          `Refreshed ${refreshedCount} release date${refreshedCount === 1 ? "" : "s"}, ${failedCount} failed.`,
-        );
-      } else {
-        toast.success(
-          `Refreshed release date${refreshedCount === 1 ? "" : "s"} for ${refreshedCount} game${refreshedCount === 1 ? "" : "s"}.`,
-        );
-      }
-    } catch (error) {
-      console.error("Failed to refresh unreleased release dates", error);
-      toast.dismiss(loadingToast);
-      toast.error("Failed to refresh release dates.");
-    } finally {
-      setRefreshingReleaseDates(false);
-    }
   };
 
   const handleBulkRefreshUnreleased = async (
@@ -756,7 +701,6 @@ export default function GamesPage() {
     playtime: number,
     status: string,
     favorite: boolean,
-    categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
   ) => {
@@ -769,15 +713,26 @@ export default function GamesPage() {
 
       const prev = editingGame;
 
-      const safeCategoryRatings = {
-        graphics: categoryRatings.graphics ?? null,
-        gameplay: categoryRatings.gameplay ?? null,
-        story: categoryRatings.story ?? null,
-        ost: categoryRatings.ost ?? null,
-        cinematics: categoryRatings.cinematics ?? null,
-        voiceActing: categoryRatings.voiceActing ?? null,
-      };
       let recentActionSummary = "Game Updated";
+
+      const nothingChanged =
+        prev.my_rating === rating &&
+        (prev.progress ?? 0) === progress &&
+        (prev.playtime ?? 0) === playtime &&
+        (prev.status ?? "Want To Play") === status &&
+        (prev.favorite ?? false) === favorite &&
+        (prev.notInterested ?? false) === notInterested &&
+        (prev.notes ?? "") === notes &&
+        JSON.stringify(prev.playedSessions ?? []) ===
+          JSON.stringify(playedSessions ?? []);
+
+      if (nothingChanged) {
+        setModalOpen(false);
+        setSaving(false);
+
+        toast("No changes detected.");
+        return;
+      }
 
       if (!prev.notInterested && notInterested) {
         recentActionSummary = "Marked as Not Interested";
@@ -826,7 +781,6 @@ export default function GamesPage() {
         favorite,
         notInterested,
         notes,
-        categoryRatings: safeCategoryRatings,
         playedSessions,
         lastUpdated: new Date(),
         recentActionSummary,
@@ -929,7 +883,11 @@ export default function GamesPage() {
 
   return (
     <motion.main
-      className={`min-h-screen ${navbarLayout === "sidebar" ? "pl-10 pt-5" : "pt-14"} overflow-y-auto bg-[var(--theme-bg)] theme-text lg:h-svh lg:overflow-hidden`}
+      className={`min-h-screen ${
+        navbarLayout === "sidebar"
+          ? `pl-10 ${desktop ? "pt-15" : "pt-5"}`
+          : "pt-14"
+      } overflow-y-auto bg-[var(--theme-bg)] theme-text lg:h-svh lg:overflow-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.6, ease: "easeInOut" }}
@@ -1406,7 +1364,7 @@ export default function GamesPage() {
               </div>
             </div>
             {/* Game Grid */}
-            <div className="overflow-visible lg:h-[calc(100svh-235px)] lg:overflow-hidden">
+            <div className="overflow-visible lg:h-[calc(100svh-235px)]">
               <AnimatePresence
                 mode="wait"
                 custom={{ type: animationType, direction: pageDirection }}
@@ -1434,9 +1392,11 @@ export default function GamesPage() {
             </div>
           </div>
           {/* Right Panel (Favorites + Recently Edited) */}
-          <div className="relative z-10 w-full shrink-0 px-1 pt-3 flex flex-col gap-3 sm:px-2 md:px-3 lg:h-[calc(100svh-5.5rem)] lg:w-64 lg:px-0 xl:w-72">
+          <div className="relative z-10 w-full shrink-0 px-1 pt-3 flex flex-col gap-3 sm:px-2 md:px-3 lg:h-[calc(100svh-5.5rem)] lg:w-64 lg:px-0 xl:w-74">
             {/* Favorites */}
-            <div className="theme-panel rounded-2xl border p-4 flex flex-col gap-2.5 overflow-y-auto custom-scrollbar max-h-[45vh] min-h-[45vh]">
+            <div
+              className={`theme-panel rounded-2xl border p-4 flex flex-col gap-1 overflow-y-auto custom-scrollbar ${desktop ? "max-h-[45.5vh] min-h-[45.5vh]" : "max-h-[45vh] min-h-[45vh]"}`}
+            >
               <div className="flex items-center justify-between py-2">
                 <h3 className="theme-text font-bold text-lg">Favorite Games</h3>
                 {!showFavoritesOnly && (
@@ -1450,7 +1410,7 @@ export default function GamesPage() {
                       setSelectedStatus("All");
                       setCurrentPage(1);
                     }}
-                    className={`group flex items-center justify-center rounded-md px-3 font-bold transition-all duration-300 ease-in-out cursor-pointer ${
+                    className={`group flex items-center justify-center rounded-md px-3 py-0.5 font-bold transition-all duration-300 ease-in-out cursor-pointer ${
                       showFavoritesOnly
                         ? "bg-cyan-500 border-2 border-cyan-500 text-black"
                         : "theme-accent-soft-bg border-2 border-cyan-400 theme-text hover:bg-cyan-500 hover:text-black"
@@ -1461,7 +1421,7 @@ export default function GamesPage() {
                       className="transition-transform duration-300 group-hover:mr-[5px]"
                     />
 
-                    <span className="max-w-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-w-[60px] group-hover:opacity-100 whitespace-nowrap">
+                    <span className="text-sm max-w-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-w-[60px] group-hover:opacity-100 whitespace-nowrap">
                       View
                     </span>
                   </motion.button>
@@ -1488,7 +1448,7 @@ export default function GamesPage() {
                       setOrderedFavorites(newOrder);
                       reorderFavorites(newOrder);
                     }}
-                    className="flex flex-col gap-3"
+                    className="flex flex-col"
                   >
                     {orderedFavorites.map((g) => (
                       <Reorder.Item
@@ -1518,7 +1478,7 @@ export default function GamesPage() {
 
                             router.push(`/game/${g.igdb.id}`);
                           }}
-                          className="flex items-center gap-2 rounded-xl p-1 cursor-pointer group theme-hover-surface transition-all duration-300 shadow-sm hover:shadow-md"
+                          className="flex items-center gap-2 rounded-xl p-2 cursor-pointer group theme-hover-surface transition-all duration-300 shadow-sm hover:shadow-md"
                         >
                           <img
                             className="w-12 h-16 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
@@ -1625,7 +1585,6 @@ export default function GamesPage() {
           game={editingGame}
           initialNotes={editingGame.notes ?? ""}
           initialRating={editingGame.my_rating ?? null}
-          initialCategoryRatings={editingGame.categoryRatings}
           initialProgress={editingGame.progress ?? 0}
           initialPlaytime={editingGame.playtime ?? 0}
           initialPlayedSessions={editingGame.playedSessions}

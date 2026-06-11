@@ -739,7 +739,21 @@ export default function GamePickerModal({
       return includeUnreleased ? true : isReleased;
     });
 
-    return sortGames(filtered, sortBy);
+    return [...filtered].sort((a, b) => {
+      const yearA = a.releaseDate?.getFullYear() ?? 0;
+      const yearB = b.releaseDate?.getFullYear() ?? 0;
+
+      // Newer years first
+      if (yearA !== yearB) {
+        return yearB - yearA;
+      }
+
+      // Within the same year, newer release dates first
+      const dateA = a.releaseDate?.getTime() ?? 0;
+      const dateB = b.releaseDate?.getTime() ?? 0;
+
+      return dateB - dateA;
+    });
   }, [
     igdbGames,
     search,
@@ -799,6 +813,14 @@ export default function GamePickerModal({
     { length: maxNominees },
     (_, index) => nominees[index] ?? null,
   );
+
+  const formatRating = (rating?: number | null) => {
+    if (rating == null) return "N/A";
+
+    const value = rating / 10;
+
+    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  };
 
   if (!currentCategory) return null;
 
@@ -1037,8 +1059,7 @@ export default function GamePickerModal({
                                           size={11}
                                           className="text-amber-300"
                                         />
-                                        {Math.round(game.rating ?? 0) ||
-                                          "Unrated"}
+                                        {formatRating(game.rating) || "Unrated"}
                                       </span>
                                     </div>
                                     <div className="mt-1 text-sm text-zinc-400">
@@ -1185,7 +1206,7 @@ export default function GamePickerModal({
                             </button>
                           </div>
 
-                          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                          <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-2">
                             <div className="grid grid-cols-1 gap-2">
                               {nomineeSlots.map((game, index) => {
                                 const isWinner =
@@ -1255,9 +1276,12 @@ export default function GamePickerModal({
                                                 getNomineeEntryId(game),
                                               );
                                             }}
-                                            className="shrink-0 rounded-lg border border-white/12 bg-black/20 px-2 py-1 text-[11px] text-zinc-300 transition hover:border-red-300/40 hover:bg-red-500/10 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-45"
+                                            className="shrink-0 rounded-lg px-1 text-[11px] text-zinc-300 transition hover:text-red-300 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
                                           >
-                                            Remove
+                                            <IoCloseCircle
+                                              size={18}
+                                              className="shrink-0"
+                                            />
                                           </button>
                                         </div>
                                         {isBestPerformance &&

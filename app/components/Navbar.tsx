@@ -11,7 +11,6 @@ import {
   FaSignOutAlt,
   FaCog,
   FaSearch,
-  FaExclamation,
   FaUser,
   FaCalendarAlt,
   FaUserPlus,
@@ -43,10 +42,18 @@ import { useAuthModal } from "../context/AuthModalContext";
 import ConfirmModal from "./ConfirmModal";
 import SearchModal from "./SearchModal";
 import NotificationBell from "./NotificationBell";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isTauri } from "@tauri-apps/api/core";
+import {
+  RiCheckboxBlankLine,
+  RiCloseLine,
+  RiSubtractLine,
+} from "react-icons/ri";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
+  const desktop = isTauri();
 
   const isDashboard = pathname.includes("/dashboard");
   const { open } = useAuthModal();
@@ -895,7 +902,6 @@ export default function Navbar() {
                           </div>
                         )}
                       </button>
-
                       <AnimatePresence>
                         {enableDesktopHoverNav &&
                           hoveredIndex === utilityHoverOffset + 3 &&
@@ -1082,8 +1088,58 @@ export default function Navbar() {
                       </AnimatePresence>
                     </div>
                   )}
+                  {desktop && (
+                    <div className="ml-3 flex items-center border-l border-white/10 pl-2">
+                      <button
+                        onClick={() => getCurrentWindow().minimize()}
+                        className="flex h-8 w-10 items-center justify-center text-zinc-500 transition hover:bg-white/5 hover:text-white"
+                      >
+                        <RiSubtractLine size={18} />
+                      </button>
+
+                      <button
+                        onClick={() => getCurrentWindow().toggleMaximize()}
+                        className="flex h-8 w-10 items-center justify-center text-zinc-500 transition hover:bg-white/5 hover:text-white"
+                      >
+                        <RiCheckboxBlankLine size={10} />
+                      </button>
+
+                      <button
+                        onClick={() => getCurrentWindow().close()}
+                        className="flex h-8 w-10 items-center justify-center text-zinc-500 transition hover:bg-red-600 hover:text-white"
+                      >
+                        <RiCloseLine size={18} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </motion.nav>
+            )}
+            {navbarLayout === "sidebar" && desktop && (
+              <div className="fixed top-4 right-4 z-[100]">
+                <div className="theme-nav flex items-center gap-1 rounded-2xl border px-2 py-1 backdrop-blur-md">
+                  <button
+                    onClick={() => getCurrentWindow().minimize()}
+                    className="flex h-8 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white/10 hover:text-white"
+                  >
+                    <RiSubtractLine size={18} />
+                  </button>
+
+                  <button
+                    onClick={() => getCurrentWindow().toggleMaximize()}
+                    className="flex h-8 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white/10 hover:text-white"
+                  >
+                    <RiCheckboxBlankLine size={10} />
+                  </button>
+
+                  <button
+                    onClick={() => getCurrentWindow().close()}
+                    className="flex h-8 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-red-600 hover:text-white"
+                  >
+                    <RiCloseLine size={18} />
+                  </button>
+                </div>
+              </div>
             )}
           </AnimatePresence>
         </>

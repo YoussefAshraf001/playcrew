@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDocs, setDoc } from "firebase/firestore";
 import { AnimatePresence, motion } from "framer-motion";
 import { Helmet } from "react-helmet-async";
@@ -18,9 +18,9 @@ import {
 import { useUser } from "@/app/context/UserContext";
 import GamePickerModal from "@/app/components/GamePickerModal";
 import LoadingSpinner from "../explore/loading";
-import { IoCloseCircle } from "react-icons/io5";
 import { FaInfoCircle } from "react-icons/fa";
 import { useUI } from "@/app/context/UIContext";
+import PortalTooltip from "@/app/components/PortalTooltip";
 
 interface ShelfGame {
   igdbId: number;
@@ -324,6 +324,11 @@ export default function ShelfPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [flickerOn, setFlickerOn] = useState(false);
   const [introAwardLoaded, setIntroAwardLoaded] = useState(false);
+
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipRect, setTooltipRect] = useState<DOMRect | null>(null);
+  const [tooltipText, setTooltipText] = useState("");
+  const infoRef = useRef<HTMLButtonElement>(null);
 
   const initialShelfForYear = useMemo(
     () =>
@@ -733,9 +738,9 @@ export default function ShelfPage() {
           }}
           className={`relative h-full overflow-visible rounded-2xl border border-amber-200/25 bg-[#08090d] hover:border-amber-200/60 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_16px_36px_rgba(0,0,0,0.38)] ${isSpotlightCelebrating ? "ring-1 ring-amber-200/35" : ""}`}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.18),transparent_58%)]" />
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_26%,rgba(0,0,0,0.2)_100%)]" />
-          <div className="pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-amber-100/10 to-transparent -translate-x-[125%] transition-transform duration-700 group-hover:translate-x-[125%]" />
+          <div className="rounded-xl pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.18),transparent_58%)]" />
+          <div className="rounded-xl pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_26%,rgba(0,0,0,0.2)_100%)]" />
+          <div className="w-[300px] rounded-xl pointer-events-none absolute inset-0 bg-linear-to-r from-transparent via-amber-100/10 to-transparent -translate-x-[125%] transition-transform duration-700 group-hover:translate-x-[125%]" />
           {isSpotlightCelebrating && (
             <motion.div
               initial={{ x: "-120%", opacity: 0 }}
@@ -771,17 +776,19 @@ export default function ShelfPage() {
                   {category}
                 </p>
                 <div className="group/info relative z-30">
-                  <span
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`About ${category}`}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[12px] text-amber-100/65 transition hover:text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200/30"
+                  <button
+                    ref={infoRef}
+                    onMouseEnter={(e) => {
+                      setTooltipRect(e.currentTarget.getBoundingClientRect());
+                      setTooltipText(AWARD_CATEGORY_DESCRIPTIONS[category]);
+                      setShowTooltip(true);
+                    }}
+                    onMouseLeave={() => {
+                      setShowTooltip(false);
+                    }}
                   >
                     <FaInfoCircle />
-                  </span>
-                  <div className="pointer-events-none absolute left-0 top-7 w-52 rounded-xl border border-amber-200/18 bg-black/92 p-2.5 text-[10px] leading-relaxed text-zinc-200 opacity-0 shadow-[0_18px_38px_rgba(0,0,0,0.42)] transition duration-200 group-hover/info:opacity-100 group-focus-within/info:opacity-100">
-                    {AWARD_CATEGORY_DESCRIPTIONS[category]}
-                  </div>
+                  </button>
                 </div>
               </div>
               <p className="mt-1 text-sm font-semibold leading-snug text-white/95 wrap-break-word">
@@ -808,18 +815,6 @@ export default function ShelfPage() {
             </div>
           </div>
         </motion.div>
-        {game && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              removeGame(category);
-            }}
-            aria-label={`Remove ${category}`}
-            className="group absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center gap-0 overflow-hidden rounded-full border border-white/20 bg-black/60 px-0 text-zinc-100 opacity-0 pointer-events-none shadow-lg backdrop-blur-sm transition-all duration-300 ease-out group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto hover:w-28 hover:gap-1.5 hover:rounded-xl hover:border-red-300/60 hover:bg-red-500/25 hover:px-3 hover:text-red-100 focus-visible:w-28 focus-visible:gap-1.5 focus-visible:rounded-xl focus-visible:px-3 focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40"
-          >
-            <IoCloseCircle size={18} className="shrink-0" />
-          </button>
-        )}
       </motion.div>
     );
   };
@@ -1249,18 +1244,6 @@ export default function ShelfPage() {
                       )}
                     </div>
                   </motion.div>
-                  {bestGame && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeGame("Game of the Year");
-                      }}
-                      aria-label={`Remove ${selectedYear} Game of the Year`}
-                      className="theme-surface group absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center gap-0 overflow-hidden rounded-full border px-0 theme-text opacity-0 pointer-events-none shadow-lg backdrop-blur-sm transition-all duration-300 ease-out group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto hover:w-28 hover:gap-1.5 hover:rounded-xl hover:border-red-300/60 hover:bg-red-500/25 hover:px-3 hover:text-red-100 focus-visible:w-28 focus-visible:gap-1.5 focus-visible:rounded-xl focus-visible:px-3 focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40"
-                    >
-                      <IoCloseCircle size={18} className="shrink-0" />
-                    </button>
-                  )}
                 </div>
               </motion.section>
 
@@ -1319,6 +1302,12 @@ export default function ShelfPage() {
           />
         )}
       </main>
+
+      <PortalTooltip
+        visible={showTooltip}
+        anchorRect={tooltipRect}
+        text={tooltipText}
+      />
     </>
   );
 }

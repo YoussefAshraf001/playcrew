@@ -22,7 +22,7 @@ import { useUser } from "@/app/context/UserContext";
 import { useGames } from "@/app/context/GameContext";
 import GameTrackingModal from "./GameTrackingModal";
 import { useRouter } from "next/navigation";
-import { CategoryRatings, TrackedGame } from "../types/trackedGame";
+import { TrackedGame } from "../types/trackedGame";
 import { IoCloseCircle } from "react-icons/io5";
 
 type SearchGame = {
@@ -31,15 +31,6 @@ type SearchGame = {
   cover?: { url: string };
   first_release_date?: number;
   version_parent?: number;
-};
-
-const DEFAULT_CATEGORIES: CategoryRatings = {
-  graphics: null,
-  gameplay: null,
-  story: null,
-  ost: null,
-  cinematics: null,
-  voiceActing: null,
 };
 
 const buildCoverUrl = (game?: SearchGame | null) => {
@@ -60,7 +51,6 @@ const mapStoredGameToEditable = (stored: any): TrackedGame => ({
   status: stored.status ?? "Want To Play",
   progress: stored.progress ?? 0,
   notes: stored.notes ?? "",
-  categoryRatings: stored.categoryRatings ?? DEFAULT_CATEGORIES,
   favorite: stored.favorite ?? false,
   favoriteAllTime: stored.favoriteAllTime ?? false,
   notInterested: stored.notInterested ?? false,
@@ -88,7 +78,6 @@ const mapSearchGameToEditable = (game: SearchGame): TrackedGame => ({
   status: "Want To Play",
   progress: 0,
   notes: "",
-  categoryRatings: DEFAULT_CATEGORIES,
   favorite: false,
   favoriteAllTime: false,
   notInterested: false,
@@ -298,7 +287,6 @@ export default function SearchModal({
     playtime: number,
     status: string,
     favorite: boolean,
-    categoryRatings: CategoryRatings,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
     save?: TrackedGame["save"],
@@ -345,7 +333,6 @@ export default function SearchModal({
           status,
           favorite,
           notInterested,
-          categoryRatings,
           playedSessions,
           save: save ?? null,
           recentActionSummary,
@@ -739,9 +726,6 @@ export default function SearchModal({
             game={editingGame}
             initialNotes={editingGame.notes ?? ""}
             initialRating={editingGame.my_rating ?? null}
-            initialCategoryRatings={
-              editingGame.categoryRatings ?? DEFAULT_CATEGORIES
-            }
             initialProgress={editingGame.progress ?? 0}
             initialPlaytime={editingGame.playtime ?? 0}
             initialPlayedSessions={editingGame.playedSessions ?? []}

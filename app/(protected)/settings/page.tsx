@@ -284,7 +284,7 @@ export default function SiteSettingsPage() {
 
       <motion.main
         className={`relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 sm:px-6 ${
-          navbarLayout === "sidebar" ? "pt-22" : "pt-22"
+          navbarLayout === "sidebar" ? "pt-22" : "pt-38"
         }`}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -454,7 +454,7 @@ export default function SiteSettingsPage() {
                         id: "sidebar",
                         name: "Gaming Pill",
                         description: "Vertical pill navigation on the left.",
-                        locked: true,
+                        locked: false,
                       },
                       {
                         id: "top",
@@ -485,51 +485,11 @@ export default function SiteSettingsPage() {
                         {/* LOCK OVERLAY ONLY FOR GAMING PILL */}
                         {option.locked && (
                           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm bg-black/55">
-                            {/* particles */}
-                            <div className="absolute inset-0 overflow-hidden">
-                              {[...Array(6)].map((_, i) => (
-                                <motion.div
-                                  key={i}
-                                  className="absolute h-3 w-3 right-1/2 top-2 rounded-full bg-gray-300/50"
-                                  initial={{
-                                    y: "120%",
-                                    x: `${15 + i * 12}%`,
-                                  }}
-                                  animate={{
-                                    y: "-20%",
-                                    opacity: [0, 1, 0],
-                                  }}
-                                  transition={{
-                                    repeat: Infinity,
-                                    duration: 2 + i * 0.2,
-                                    delay: i * 0.15,
-                                    ease: "linear",
-                                  }}
-                                />
-                              ))}
-                            </div>
-
-                            {/* animated icon */}
-                            <motion.div
-                              animate={{
-                                rotate: [-6, 6, -6],
-                                scale: [1, 1.08, 1],
-                              }}
-                              transition={{
-                                repeat: Infinity,
-                                duration: 2,
-                              }}
-                              className="text-3xl mb-2"
-                            >
-                              🚧
-                            </motion.div>
-
-                            <p className="text-xs font-bold tracking-[0.2em] text-amber-300">
+                            <p className="theme-text text-xs font-bold tracking-[0.2em]">
                               COMING SOON
                             </p>
-
-                            <p className="mt-1 text-[10px] text-white/70">
-                              Builder in progress
+                            <p className="theme-text text-[10px]">
+                              Building in progress
                             </p>
                           </div>
                         )}
