@@ -36,8 +36,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import { useUI } from "@/app/context/UIContext";
 import { useUser } from "@/app/context/UserContext";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ConfirmModal from "@/app/components/ConfirmModal";
-import GamePickerModal from "@/app/components/GamePickerModal";
 import WheelLockSwitch from "@/app/components/WheelLockSwitch";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import ScreenshotsGamePickerModal from "@/app/components/ScreenshotsGamePickerModal";
@@ -110,7 +110,7 @@ const toHighQualityIgdbCover = (url?: string | null) => {
 
 function ScreenshotsPageContent() {
   const { navbarLayout } = useUI();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -972,6 +972,14 @@ function ScreenshotsPageContent() {
     setWheelScrollEnabled(next);
     localStorage.setItem(CAROUSEL_WHEEL_ENABLED_KEY, next ? "1" : "0");
   };
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-[var(--theme-bg)]">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   if (!hydrated || !featureResolved) {
     return (

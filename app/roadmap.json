@@ -1,0 +1,122 @@
+[
+  {
+    "section": "Future Plans",
+    "items": [
+      {
+        "title": "Desktop Integration",
+        "status": "in-progress",
+        "description": "Bringing PlayCrew to desktop."
+      },
+      {
+        "title": "Add Music Integration for Dashboard",
+        "status": "planned",
+        "description": "Allow users to control playcrew playlist straight from dashboard."
+      },
+      {
+        "title": "Custom Dashboard Wallpapers",
+        "status": "planned",
+        "description": "Allow users to change their dashboard wallpaper from Site Settings for a better user experience."
+      },
+      {
+        "title": "Additional Dashboard Backgrounds",
+        "status": "planned",
+        "description": "Expand the collection of dashboard backgrounds."
+      },
+      {
+        "title": "Enhance Fonts",
+        "status": "completed",
+        "description": "Add additional fonts and modify current selection."
+      },
+      {
+        "title": "More Themes (General)",
+        "status": "in-progress",
+        "description": "Add additional themes and personalization options."
+      },
+      {
+        "title": "Sesonal Themes",
+        "status": "planned",
+        "description": "Themes designed for seasonal events (Halloween, Christmas, etc...)"
+      },
+      {
+        "title": "Higher Quality Background Images/Videos",
+        "status": "in-progress",
+        "description": "Improve the quality of background images and videos for a better visual experience."
+      },
+      {
+        "title": "Early Access Games",
+        "status": "planned",
+        "description": "Allow users to mark games as Early Access with a dedicated badge displayed on covers. Unlocking games earlier than their release date."
+      },
+      {
+        "title": "About Page",
+        "status": "planned",
+        "description": "Explain what PlayCrew is, showcase the music playlist, add developer information, contact details, and IGDB credits."
+      }
+    ]
+  },
+  {
+    "section": "In Consideration",
+    "items": [
+      {
+        "title": "Custom Domain",
+        "status": "evaluating",
+        "description": "Explain what PlayCrew is, showcase the music playlist, add developer information, contact details, and IGDB credits."
+      },
+      {
+        "title": "Dedicated Music Hosting",
+        "status": "evaluating",
+        "description": "Host music files directly on faster servers instead of relying on file hosted music."
+      },
+      {
+        "title": "Improved Image Storage",
+        "status": "evaluating",
+        "description": "Improve image storage and retrieval for better performance and reliability."
+      },
+      {
+        "title": "Storage Architecture Improvements",
+        "status": "evaluating",
+        "description": "Enhance the storage architecture for better scalability and efficiency."
+      },
+      {
+        "title": "Custom Database Infrastructure",
+        "status": "evaluating",
+        "description": "Implement a custom database infrastructure for improved performance and flexibility."
+      },
+      {
+        "title": "Search Modal Redesign",
+        "status": "evaluating",
+        "description": "Allow adding games directly to Want To Play instead of opening the edit modal."
+      },
+      {
+        "title": "New Name & Branding",
+        "status": "evaluating",
+        "description": "Consider rebranding PlayCrew with a new name and visual identity."
+      }
+    ]
+  },
+  {
+    "section": "Desktop Future",
+    "items": [
+      {
+        "title": "System Tray Integration",
+        "status": "planned",
+        "description": "Integrate PlayCrew with the system tray for quick access and notifications."
+      },
+      {
+        "title": "Auto Start",
+        "status": "planned",
+        "description": "Enable PlayCrew to start automatically when the system boots up."
+      },
+      {
+        "title": "Background Notifications",
+        "status": "planned",
+        "description": "Implement background notifications for important updates and alerts."
+      },
+      {
+        "title": "Background Update Downloads",
+        "status": "planned",
+        "description": "Allow PlayCrew to download updates in the background for a seamless user experience."
+      }
+    ]
+  }
+]

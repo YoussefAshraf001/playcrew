@@ -1,0 +1,103 @@
+[
+  {
+    "version": "7.3",
+    "title": "Awards Overhaul & UI Improvements",
+    "date": "2026-06-13",
+    "featured": false,
+    "changes": [
+      {
+        "category": "User Interface",
+        "items": [
+          "Introduced a new card UI/UX design",
+          "Improved overall visual consistency and interactions"
+        ]
+      },
+      {
+        "category": "PlayCrew Awards",
+        "items": [
+          "Reworked Awards game picker",
+          "Added sorting options and release date ordering (2026 → 2024 → older releases)",
+          "Fixed awards category glow overflowing its container",
+          "Fixed awards tooltip trim and display issues"
+        ]
+      },
+      {
+        "category": "Recently Edited",
+        "items": [
+          "Improved Recently Edited tracking accuracy",
+          "Expanded change detection to recognize more game updates"
+        ]
+      },
+      {
+        "category": "Cleanup & Stability",
+        "items": [
+          "Removed legacy rating system",
+          "Removed unused save file APIs",
+          "Removed unused preset APIs",
+          "General cleanup, refactoring, and stability improvements"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "7.4",
+    "title": "Desktop Integration, Customization & Experience Update",
+    "date": "2026-06-13",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Desktop Experience",
+        "items": [
+          "Introduced Desktop Integration (Closed Beta)",
+          "Desktop builds have been distributed to a small group of selected testers",
+          "Added splash screen during startup",
+          "Improved desktop application startup experience and branding"
+        ]
+      },
+      {
+        "category": "Customization",
+        "items": [
+          "Added Themes support",
+          "Added Fonts support",
+          "Moved wallpaper customization to Site Settings for easier access and management",
+          "Fixed theme and font synchronization issues caused by layout rendering"
+        ]
+      },
+      {
+        "category": "User Interface",
+        "items": [
+          "Added the new Gaming Pill sidebar",
+          "Added a brand-new PlayCrew logo",
+          "Added dashboard fade-in animations",
+          "Added screenshot page loading animations",
+          "Improved login and signup modal transitions",
+          "Improved profile page layout and overall presentation",
+          "Restored dashboard edit button"
+        ]
+      },
+      {
+        "category": "What's New",
+        "items": [
+          "Added a dedicated What's New section",
+          "View the latest patch notes directly inside the application",
+          "Added roadmap visibility for upcoming features and updates"
+        ]
+      },
+      {
+        "category": "Profile & Settings",
+        "items": [
+          "Added smarter profile change detection",
+          "Improved profile update handling and responsiveness",
+          "Refactored profile page into standalone components for better maintainability"
+        ]
+      },
+      {
+        "category": "Fixes & Improvements",
+        "items": [
+          "Fixed sidebar padding remaining after mobile navigation transitions",
+          "Various UI polish, code cleanup, and stability improvements"
+        ]
+      }
+    ]
+  }
+]

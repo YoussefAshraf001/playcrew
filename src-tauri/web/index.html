@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PlayCrew</title>
+
+    <style>
+      :root {
+        --bg: #040816;
+        --text: #ffffff;
+        --muted: rgba(255, 255, 255, 0.7);
+        --accent: #22d3ee;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family:
+          Inter,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      body {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+      }
+
+      #app {
+        opacity: 1;
+        transition: opacity 800ms ease;
+      }
+
+      #app.closing {
+        opacity: 0;
+      }
+
+      /* Background image */
+      .background {
+        position: absolute;
+        inset: -40px;
+        background: url("./background.jpg") center center / cover no-repeat;
+        filter: blur(18px);
+        transform: scale(1.1);
+        animation: drift 40s linear infinite alternate;
+      }
+
+      .background::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            circle at center,
+            rgba(4, 8, 22, 0.25),
+            rgba(4, 8, 22, 0.85)
+          ),
+          rgba(4, 8, 22, 0.45);
+      }
+
+      @keyframes drift {
+        from {
+          transform: scale(1.1) translateX(-20px);
+        }
+        to {
+          transform: scale(1.15) translateX(20px);
+        }
+      }
+
+      .content {
+        position: relative;
+        z-index: 10;
+
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+
+        width: 100%;
+        max-width: 600px;
+        padding: 32px;
+      }
+
+      .logo {
+        width: 180px;
+        height: 180px;
+        object-fit: contain;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 3rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        color: var(--text);
+      }
+
+      .spinner {
+        width: 72px;
+        height: 72px;
+        margin: 0 0 30px 0;
+
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.15);
+        border-top-color: white;
+
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .status {
+        font-size: 1.15rem;
+        color: white;
+        margin-bottom: 10px;
+      }
+
+      .substatus {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .version {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.85rem;
+        z-index: 20;
+      }
+
+      .close {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 28px;
+        cursor: pointer;
+        z-index: 20;
+
+        transition: 0.2s ease;
+      }
+
+      .close:hover {
+        color: white;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app">
+      <div class="background"></div>
+
+      <main class="content">
+        <!-- Replace with your logo -->
+        <img src="./logo.png" alt="PlayCrew" class="logo" />
+
+        <div class="spinner"></div>
+
+        <div id="status" class="status">Loading PlayCrew...</div>
+
+        <div class="substatus">Preparing your library and local services</div>
+      </main>
+
+      <div class="version">v1.0</div>
+
+      <script>
+        (() => {
+          const appUrl = "http://127.0.0.1:3000";
+          const statusEl = document.getElementById("status");
+          const app = document.getElementById("app");
+
+          const startedAt = Date.now();
+          const timeoutMs = 45000;
+
+          const statuses = [
+            "Starting local services...",
+            "Loading your profile...",
+            "Preparing your library...",
+            "Launching PlayCrew...",
+          ];
+
+          let statusIndex = 0;
+
+          const setStatus = (text) => {
+            statusEl.textContent = text;
+          };
+
+          const rotateStatus = () => {
+            setStatus(statuses[statusIndex % statuses.length]);
+            statusIndex++;
+          };
+
+          setInterval(rotateStatus, 2500);
+
+          const probe = async () => {
+            try {
+              await fetch(appUrl, {
+                cache: "no-store",
+                mode: "no-cors",
+              });
+
+              setStatus("Launching PlayCrew...");
+
+              if (app) {
+                app.classList.add("closing");
+              }
+
+              setTimeout(() => {
+                window.location.replace(appUrl);
+              }, 800);
+
+              return;
+            } catch {
+              if (Date.now() - startedAt > timeoutMs) {
+                setStatus("PlayCrew is taking longer than expected...");
+                return;
+              }
+
+              setTimeout(probe, 700);
+            }
+          };
+
+          probe();
+        })();
+      </script>
+    </div>
+  </body>
+</html>

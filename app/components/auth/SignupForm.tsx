@@ -59,7 +59,7 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSignup} className="space-y-5">
+    <form onSubmit={handleSignup} className="space-y-5 h-100">
       <div className="space-y-2 text-center">
         <p className="text-xs uppercase tracking-[0.22em] text-cyan-300/80">
           Join PlayCrew
@@ -122,7 +122,7 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
         )}
       </button>
 
-      <p className="text-center text-sm text-zinc-400">
+      <p className="text-center text-sm text-zinc-400 mt-5">
         Already have an account?{" "}
         <button
           type="button"

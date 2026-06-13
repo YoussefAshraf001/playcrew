@@ -35,6 +35,7 @@ import {
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import { useUI } from "@/app/context/UIContext";
 
@@ -159,10 +160,14 @@ function FadeInImage({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!keepVisibleOnSrcChange) {
-      setLoaded(false);
-    }
-    setFailed(false);
+    const frame = window.requestAnimationFrame(() => {
+      if (!keepVisibleOnSrcChange) {
+        setLoaded(false);
+      }
+      setFailed(false);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [src, keepVisibleOnSrcChange]);
 
   return (
@@ -198,7 +203,7 @@ function FadeInImage({
 }
 
 export default function ScreenshotFolderPage() {
-  const { user } = useUser();
+  const { user, loading } = useUser();
   const { navbarLayout } = useUI();
   const params = useParams<{ id: string }>();
   const folderId = useMemo(() => params?.id ?? "", [params]);
@@ -1196,6 +1201,14 @@ export default function ScreenshotFolderPage() {
       </motion.article>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--theme-bg)]">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   if (!user) {
     return (

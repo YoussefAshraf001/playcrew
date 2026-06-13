@@ -25,6 +25,7 @@ import {
   RiCloseLine,
   RiSubtractLine,
 } from "react-icons/ri";
+import { GoSignIn } from "react-icons/go";
 
 /* ───────────────── Types ───────────────── */
 type Panel = "none" | "about" | "overview";
@@ -57,7 +58,19 @@ export default function Dashboard() {
   const [bgVideo, setBgVideo] = useState<string | null>(null);
   const [isLg, setIsLg] = useState(false);
   const [canContinue, setCanContinue] = useState(false);
+
   const desktop = isTauri();
+  const [pageReady, setPageReady] = useState(!desktop);
+
+  useEffect(() => {
+    if (!desktop) return;
+
+    const timer = setTimeout(() => {
+      setPageReady(true);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [desktop]);
 
   useEffect(() => {
     document.title = "Main Menu • PlayCrew";
@@ -170,6 +183,7 @@ export default function Dashboard() {
     { label: "Gallery", action: "gallery" },
     user && { label: "Overview", action: "overview" },
     { label: "About", action: "about" },
+    { label: "Exit", action: "exit" },
   ].filter(Boolean) as { label: string; action: string }[];
 
   const handleAction = async (action: string) => {
@@ -240,9 +254,18 @@ export default function Dashboard() {
       case "overview":
         setOpenPanel((p) => (p === "overview" ? "none" : "overview"));
         break;
-      case "overview":
-        setOpenPanel((p) => (p === "overview" ? "none" : "overview"));
+      case "exit":
+        if (user) {
+          setShowLogoutModal(true);
+        } else if (desktop) {
+          await getCurrentWindow().close();
+        } else if (!user) {
+          toast("You're currently using PlayCrew as a guest.", {
+            icon: "👤",
+          });
+        }
         break;
+
       case "soundtrack": {
         togglePlayerVisible();
         break;
@@ -289,11 +312,15 @@ export default function Dashboard() {
   };
 
   const pageVariants: Variants = {
-    hidden: { opacity: 0 },
+    hidden: {
+      opacity: 0,
+      scale: 1.01,
+    },
     visible: {
       opacity: 1,
+      scale: 1,
       transition: {
-        duration: 0.6,
+        duration: 0.8,
         ease: [0.22, 1, 0.36, 1],
       },
     },
@@ -304,7 +331,7 @@ export default function Dashboard() {
   return (
     <>
       <Helmet>
-        <title>Command Center • PlayCrew</title>
+        <title>Main Menu • PlayCrew</title>
         <meta
           name="description"
           content="Your PlayCrew dashboard for tracking progress, activity, and updates."
@@ -315,19 +342,25 @@ export default function Dashboard() {
         key={pathname}
         variants={pageVariants}
         initial="hidden"
-        animate="visible"
+        animate={pageReady ? "visible" : "hidden"}
         className="relative min-h-screen w-full overflow-hidden bg-black text-white"
       >
         {/* Background Video */}
         <div className="absolute inset-0 z-0">
           {bgVideo && (
-            <video
+            <motion.video
               src={bgVideo}
               autoPlay
               loop
               muted
               playsInline
-              className="w-full h-full object-cover opacity-50 scale-105"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              transition={{
+                duration: 1.2,
+                delay: 0.2,
+              }}
+              className="w-full h-full object-cover scale-105"
             />
           )}
           <div className="absolute inset-0 bg-black/10" />
@@ -424,7 +457,7 @@ export default function Dashboard() {
               scale: { duration: 0.25 },
             }}
             className={`
-              absolute top-6 right-3 sm:top-7 sm:right-6 md:top-8 md:right-10 lg:right-14 xl:right-20
+            absolute top-6 right-3 sm:top-7 sm:right-6 md:top-17 md:right-10 lg:right-14 xl:right-4
               z-20
               origin-top-right
             `}
@@ -433,7 +466,7 @@ export default function Dashboard() {
               className="
                 relative
                 flex items-center justify-between
-                w-60 sm:w-[260px] md:w-[270px]
+                w-60 sm:w-[260px] md:w-[300px] h-24 md:h-28 xl:h-32
                 px-4 sm:px-5 md:px-6 py-3 sm:py-4
                 rounded-2xl
                 bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
@@ -442,7 +475,7 @@ export default function Dashboard() {
                 shadow-[0_10px_40px_rgba(0,0,0,0.6)]
               "
             >
-              <div className="flex flex-col max-w-[140px]">
+              <div className="flex flex-col max-w-[180px]">
                 <span className="text-sm sm:text-base font-semibold text-white truncate">
                   Guest
                 </span>
@@ -453,14 +486,14 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => open("login")}
-                    className="rounded-md border border-white/20 bg-zinc-900/70 px-2 py-1 text-[10px] sm:text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
+                    className="w-16 sm:w-20 md:w-24 h-8 flex items-center justify-center rounded-md border border-white/20 bg-zinc-900/70 text-[10px] sm:text-[11px] md:text-xs font-semibold text-zinc-100 hover:bg-zinc-800"
                   >
                     Log In
                   </button>
                   <button
                     type="button"
                     onClick={() => open("signup")}
-                    className="rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[10px] sm:text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
+                    className="w-16 sm:w-20 md:w-24 h-8 flex items-center justify-center rounded-md border border-cyan-400/30 bg-cyan-500/10 text-[10px] sm:text-[11px] md:text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20"
                   >
                     Sign Up
                   </button>
@@ -507,7 +540,7 @@ export default function Dashboard() {
             <img
               src="/logo.png"
               alt="PlayCrew"
-              className="w-14 h-10 sm:w-16 sm:h-12 md:w-20 md:h-14 mr-1 sm:mr-2 md:mr-4"
+              className="w-14 h-15 sm:w-16 sm:h-12 md:w-20 md:h-22 mr-1 sm:mr-2 md:mr-4"
             />
             CREW
           </h1>
@@ -637,14 +670,25 @@ export default function Dashboard() {
           createPortal(
             <ConfirmModal
               open={showLogoutModal}
-              title="Are You Sure?"
-              message="You are about to log out and lose access to your dashboard and games. You can log back in anytime to restore everything."
-              confirmText="Logout"
+              title="Exit PlayCrew?"
+              message={
+                user
+                  ? "You are about to log out and exit PlayCrew."
+                  : "Are you sure you want to exit PlayCrew?"
+              }
+              confirmText={user ? "Logout & Exit" : "Exit"}
               cancelText="Cancel"
               onCancel={() => setShowLogoutModal(false)}
               onConfirm={async () => {
                 setShowLogoutModal(false);
-                await handleLogout();
+
+                if (user) {
+                  handleLogout();
+                }
+
+                if (desktop) {
+                  await getCurrentWindow().close();
+                }
               }}
             />,
             document.body,

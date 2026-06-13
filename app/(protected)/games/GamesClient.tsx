@@ -885,7 +885,7 @@ export default function GamesPage() {
     <motion.main
       className={`min-h-screen ${
         navbarLayout === "sidebar"
-          ? `pl-10 ${desktop ? "pt-15" : "pt-5"}`
+          ? `lg:pl-10 ${desktop ? "pt-15" : "pt-5"}`
           : "pt-14"
       } overflow-y-auto bg-[var(--theme-bg)] theme-text lg:h-svh lg:overflow-hidden`}
       initial={{ opacity: 0 }}

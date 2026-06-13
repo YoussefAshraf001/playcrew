@@ -66,7 +66,7 @@ export default function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
   };
 
   return (
-    <form onSubmit={handleLogin} className="space-y-5">
+    <form onSubmit={handleLogin} className="space-y-4 h-100">
       <div className="space-y-2 text-center">
         <p className="text-xs uppercase tracking-[0.22em] text-cyan-300/80">
           Welcome Back
@@ -118,9 +118,9 @@ export default function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
         </label>
       </div>
 
-      <div className="w-full text-right">
+      <div className="w-full text-right text-xs">
         <button
-          className="text-xs font-semibold text-zinc-400 transition hover:text-cyan-300"
+          className="font-semibold text-zinc-400 transition hover:text-cyan-300"
           type="button"
           onClick={handleReset}
         >
@@ -132,10 +132,14 @@ export default function LoginForm({ onSuccess }: { onSuccess?: () => void }) {
         disabled={loading}
         className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-3 font-semibold text-black shadow-[0_10px_25px_rgba(34,211,238,0.3)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
       >
-        {loading ? <span className="loading loading-dots loading-sm" /> : "Log In"}
+        {loading ? (
+          <span className="loading loading-dots loading-sm" />
+        ) : (
+          "Log In"
+        )}
       </button>
 
-      <p className="text-center text-sm text-zinc-400">
+      <p className="text-center text-sm text-zinc-400 mt-5">
         New here?{" "}
         <button
           type="button"

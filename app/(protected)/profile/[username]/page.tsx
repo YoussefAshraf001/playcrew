@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, ChangeEvent, useRef } from "react";
-import Cropper, { Area } from "react-easy-crop";
+import { Area } from "react-easy-crop";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -21,15 +21,6 @@ import {
   getDocs,
   deleteField,
 } from "firebase/firestore";
-import {
-  FiEdit2,
-  FiCheck,
-  FiX,
-  FiEye,
-  FiEyeOff,
-  FiCamera,
-  FiTrash2,
-} from "react-icons/fi";
 import { Helmet } from "react-helmet-async";
 
 import { useUser } from "../../../context/UserContext";
@@ -47,6 +38,11 @@ import {
 import { useRouter } from "next/navigation";
 import { useUI } from "@/app/context/UIContext";
 import { useAuthModal } from "@/app/context/AuthModalContext";
+import AnimatedPasswordField from "@/app/components/AnimatedPasswordField";
+import AnimatedField from "@/app/components/AnimatedField";
+import Textarea from "@/app/components/Textarea";
+import CropModal from "@/app/components/CropModal";
+import ImageOverlay from "@/app/components/ImageOverlay";
 
 /* ---------------- TYPES ---------------- */
 
@@ -57,8 +53,8 @@ type CropData = {
 };
 
 type MediaValue =
-  | { type: "image"; data: string }
-  | { type: "gif"; data: string; crop: CropData };
+  | { type: "image"; data: string; name?: string }
+  | { type: "gif"; data: string; crop: CropData; name?: string };
 
 type UserProfile = {
   uid: string;
@@ -89,7 +85,6 @@ export default function EditProfilePage() {
   const [changingUsername, setChangingUsername] = useState(false);
 
   /* Image States */
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<UserProfile | null>(null);
   const [original, setOriginal] = useState<UserProfile | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -103,9 +98,8 @@ export default function EditProfilePage() {
   const [gamesBgOverlay, setGamesBgOverlay] = useState(DEFAULT_BG_OVERLAY);
   const [siteSettingsHydrated, setSiteSettingsHydrated] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const accountPanelRef = useRef<HTMLDivElement>(null);
-  const currentWallpaperData = (editing ? draft : profile)?.wallpaper?.data;
+  const currentWallpaperData = (draft ?? profile)?.wallpaper?.data;
 
   /* ---------------- INIT ---------------- */
 
@@ -114,11 +108,11 @@ export default function EditProfilePage() {
   }, []);
 
   useEffect(() => {
-    if (editing && profile) {
-      setDraft(profile);
-      setOriginal(profile);
-    }
-  }, [editing, profile]);
+    if (!profile) return;
+
+    setDraft(profile);
+    setOriginal(profile);
+  }, [profile]);
 
   useEffect(() => {
     setWallpaperLoaded(false);
@@ -172,7 +166,7 @@ export default function EditProfilePage() {
       </div>
     );
 
-  const active = editing ? draft : profile;
+  const active = draft ?? profile;
 
   /* ---------------- HELPERS ---------------- */
 
@@ -187,8 +181,6 @@ export default function EditProfilePage() {
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
-    if (!editing) return;
-
     const { name, value } = e.target;
 
     if (name === "username") {
@@ -584,7 +576,6 @@ export default function EditProfilePage() {
       }
 
       /* ---------------- CLEANUP ---------------- */
-      setEditing(false);
       setDraft(null);
       setCurrentPassword("");
       setNewPassword("");
@@ -624,9 +615,8 @@ export default function EditProfilePage() {
     }
   };
 
-  const cancelEditing = () => {
+  const discardChanges = () => {
     setDraft(original);
-    setEditing(false);
     setCurrentPassword("");
     setPasswordResetRequested(false);
     setNewPassword("");
@@ -639,6 +629,11 @@ export default function EditProfilePage() {
   const passwordInvalid = Boolean(wantsPasswordChange && !currentPassword);
   const otherModalOpen =
     Boolean(cropType && selectedFile) || changingUsername || isSaving;
+
+  const hasChanges =
+    JSON.stringify(draft) !== JSON.stringify(original) ||
+    currentPassword.trim() !== "" ||
+    newPassword.trim() !== "";
 
   /* ---------------- UI ---------------- */
 
@@ -683,178 +678,155 @@ export default function EditProfilePage() {
           }}
           transition={{ duration: 0.22, ease: "easeOut" }}
         >
-          <div className="mb-5 flex flex-col gap-4 border-b border-[var(--theme-border)] pb-5 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.22em]">
-                Profile Studio
-              </p>
-              <h1 className="mt-1 text-2xl font-black tracking-tight theme-text sm:text-3xl">
-                Account Settings
-              </h1>
-              <p className="theme-text-muted mt-1 text-sm">
-                Customize your identity, security, and visuals in one place.
-              </p>
-            </div>
+          <AnimatePresence>
+            {hasChanges && (
+              <motion.div
+                initial={{ opacity: 0, y: -100 }}
+                animate={{ opacity: 1, y: 80 }}
+                exit={{ opacity: 0, y: 100 }}
+                transition={{ duration: 0.4 }}
+                className="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl theme-panel shadow-2xl"
+              >
+                <span className="theme-text-muted text-sm">
+                  You have unsaved changes
+                </span>
 
-            {editing ? (
-              <div className="flex gap-2 self-start md:self-auto">
+                <button
+                  onClick={discardChanges}
+                  className="theme-surface rounded-xl px-4 py-2 text-sm"
+                >
+                  Discard
+                </button>
+
                 <button
                   onClick={saveProfile}
                   disabled={passwordInvalid}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold ${
-                    passwordInvalid
-                      ? "cursor-not-allowed bg-zinc-700 text-zinc-400"
-                      : "theme-accent-bg"
-                  } transition-all duration-300 hover:-translate-y-0.5`}
+                  className="theme-accent-bg rounded-xl px-4 py-2 text-sm font-semibold"
                 >
-                  <FiCheck size={18} />
-                  Save
+                  Save Changes
                 </button>
-
-                <button
-                  onClick={cancelEditing}
-                  className="theme-surface theme-hover-surface inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium theme-text transition-all duration-300 hover:-translate-y-0.5"
-                >
-                  <FiX /> Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setEditing(true)}
-                className="theme-accent-bg inline-flex items-center gap-2 self-start rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-300 hover:-translate-y-0.5 md:self-auto"
-              >
-                <FiEdit2 /> Edit
-              </button>
-            )}
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr]">
-            <div className="theme-panel-strong rounded-2xl border p-4 sm:p-5">
-              <p className="theme-accent-soft-text mb-4 text-xs font-semibold uppercase tracking-[0.18em]">
-                Visual Identity
-              </p>
-              <div className="grid gap-4 sm:grid-cols-[170px_1fr] sm:items-start">
-                <ImageOverlay
-                  label="Avatar"
-                  media={active?.avatar}
-                  editing={editing}
-                  rounded
-                  onEdit={() => avatarInputRef.current?.click()}
-                  onDelete={() =>
-                    setDraft((p) => (p ? { ...p, avatar: undefined } : p))
-                  }
-                />
-
-                <ImageOverlay
-                  label="Wallpaper"
-                  media={active?.wallpaper}
-                  editing={editing}
-                  onEdit={() => wallpaperInputRef.current?.click()}
-                  onDelete={() =>
-                    setDraft((p) => (p ? { ...p, wallpaper: undefined } : p))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="theme-panel-strong rounded-2xl border p-4 sm:p-5">
-              <p className="theme-accent-soft-text mb-4 text-xs font-semibold uppercase tracking-[0.18em]">
-                Profile Details
-              </p>
-              <motion.div
-                className="grid gap-3 sm:grid-cols-2"
-                variants={fieldsContainerVariants}
-                initial="locked"
-                animate={editing ? "editable" : "locked"}
-              >
-                <AnimatedField
-                  label="Username"
-                  name="username"
-                  value={active?.username || ""}
-                  onChange={handleChange}
-                  disabled={!editing}
-                  maxLength={15}
-                />
-
-                <AnimatedField
-                  label="Email"
-                  name="email"
-                  value={user?.email}
-                  onChange={handleChange}
-                  disabled={!editing}
-                />
               </motion.div>
-              <div className="mt-3">
-                <Textarea
-                  label="Bio"
-                  name="bio"
-                  value={active?.bio || ""}
-                  onChange={handleChange}
-                  disabled={!editing}
-                />
-              </div>
-            </div>
-          </div>
+            )}
+          </AnimatePresence>
 
-          <input
-            ref={avatarInputRef}
-            type="file"
-            hidden
-            accept="image/*"
-            onChange={(e) =>
-              e.target.files && onSelectImage(e.target.files[0], "avatar")
-            }
-          />
-          <input
-            ref={wallpaperInputRef}
-            type="file"
-            hidden
-            accept="image/*"
-            onChange={(e) =>
-              e.target.files && onSelectImage(e.target.files[0], "wallpaper")
-            }
-          />
-
-          <div className="theme-panel-strong mt-5 rounded-2xl border p-4 sm:p-5">
-            <h2 className="mb-4 text-lg font-semibold theme-text">
-              Privacy & Security
-            </h2>
-
+          <motion.div
+            className="space-y-5"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            {/* PROFILE CARD */}
             <motion.div
-              className="grid gap-3 sm:grid-cols-2"
-              variants={fieldsContainerVariants}
-              initial="locked"
-              animate={editing ? "editable" : "locked"}
+              layout
+              className="theme-panel-strong rounded-3xl border p-5 sm:p-6"
             >
-              <AnimatedPasswordField
-                label="Current Password"
-                value={currentPassword}
-                show={showCurrent}
-                toggle={() => setShowCurrent((p) => !p)}
-                onChange={setCurrentPassword}
-                disabled={!editing || passwordResetRequested}
-              />
+              <p className="theme-accent-soft-text mb-5 text-xs font-semibold uppercase tracking-[0.18em]">
+                Profile
+              </p>
 
-              <AnimatedPasswordField
-                label="New Password"
-                value={newPassword}
-                show={showNew}
-                toggle={() => setShowNew((p) => !p)}
-                onChange={setNewPassword}
-                disabled={!editing || passwordResetRequested}
-              />
+              <div className="flex flex-col gap-6 lg:flex-row">
+                {/* AVATAR */}
+                <div
+                  className="flex justify-center lg:justify-start cursor-pointer"
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  <ImageOverlay
+                    label="Avatar"
+                    media={active?.avatar}
+                    rounded
+                    onEdit={() => avatarInputRef.current?.click()}
+                    onDelete={() =>
+                      setDraft((p) => (p ? { ...p, avatar: undefined } : p))
+                    }
+                  />
+
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) =>
+                      e.target.files &&
+                      onSelectImage(e.target.files[0], "avatar")
+                    }
+                  />
+                </div>
+
+                {/* DETAILS */}
+                <div className="flex-1">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <AnimatedField
+                      label="Username"
+                      name="username"
+                      value={active?.username || ""}
+                      onChange={handleChange}
+                      maxLength={15}
+                    />
+
+                    <AnimatedField
+                      label="Email"
+                      name="email"
+                      value={active?.email || ""}
+                      onChange={handleChange}
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    <Textarea
+                      label="Bio"
+                      name="bio"
+                      value={active?.bio || ""}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
+              </div>
             </motion.div>
 
-            {editing && (
+            {/* SECURITY CARD */}
+            <motion.div
+              layout
+              className="theme-panel-strong rounded-3xl border p-5 sm:p-6"
+            >
+              <div className="mb-5">
+                <h2 className="text-lg font-semibold theme-text">
+                  Privacy & Security
+                </h2>
+
+                <p className="theme-text-muted text-sm">
+                  Change your password and account credentials.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <AnimatedPasswordField
+                  label="Current Password"
+                  value={currentPassword}
+                  show={showCurrent}
+                  toggle={() => setShowCurrent((p) => !p)}
+                  onChange={setCurrentPassword}
+                  disabled={passwordResetRequested}
+                />
+
+                <AnimatedPasswordField
+                  label="New Password"
+                  value={newPassword}
+                  show={showNew}
+                  toggle={() => setShowNew((p) => !p)}
+                  onChange={setNewPassword}
+                  disabled={passwordResetRequested}
+                />
+              </div>
+
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="theme-accent-text mt-3 text-sm underline underline-offset-2 transition hover:brightness-110"
+                className="theme-accent-text mt-4 text-sm transition hover:brightness-110"
               >
                 Forgot your password?
               </button>
-            )}
-          </div>
+            </motion.div>
+          </motion.div>
         </motion.div>
 
         <AnimatePresence>
@@ -872,43 +844,6 @@ export default function EditProfilePage() {
             />
           )}
         </AnimatePresence>
-
-        {/* <AnimatePresence>
-          {!isSaving && (
-            <motion.div
-              className="fixed bottom-6 right-6 z-50 w-96 rounded-xl bg-slate-900 border border-slate-700 shadow-xl p-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-            >
-            
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 flex items-center justify-center rounded bg-slate-800">
-                  <CloudUploadAnimation progress={uploadProgress} />
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-sm theme-text truncate">Profile Images</p>
-                  <p className="text-xs text-slate-400">Uploading…</p>
-                </div>
-
-                <span className="text-xs text-slate-400">
-                  {uploadProgress}%
-                </span>
-              </div>
-
-    
-              <div className="mt-3 h-1.5 rounded bg-slate-800 overflow-hidden">
-                <motion.div
-                  className="h-full bg-cyan-400"
-                  initial={{ width: "0%" }}
-                  animate={{ width: `${uploadProgress}%` }}
-                  transition={{ ease: "easeOut", duration: 0.3 }}
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence> */}
 
         <AnimatePresence>
           {changingUsername ||
@@ -934,309 +869,5 @@ export default function EditProfilePage() {
         </AnimatePresence>
       </motion.main>
     </>
-  );
-}
-
-/* ---------------- UI COMPONENTS ---------------- */
-
-function ImageOverlay({
-  label,
-  media,
-  editing,
-  rounded,
-  onEdit,
-  onDelete,
-}: {
-  label: string;
-  media?: MediaValue;
-  editing: boolean;
-  rounded?: boolean;
-  onEdit: () => void;
-  onDelete?: () => void;
-}) {
-  const hasImage = Boolean(media);
-
-  return (
-    <div
-      className={`relative group ${
-        rounded ? "h-42 w-40 rounded-2xl" : "h-42 w-full rounded-2xl"
-      } overflow-hidden border border-cyan-300/35 bg-slate-800/70 shadow-[0_8px_30px_rgba(0,0,0,0.35)]`}
-    >
-      <span className="pointer-events-none absolute left-2 top-2 z-10 rounded-md border border-cyan-300/35 bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
-        {label}
-      </span>
-      {/* IMAGE OR PLACEHOLDER */}
-      {media ? (
-        media.type === "gif" ? (
-          <img
-            src={media.data}
-            alt=""
-            style={{
-              transform: `
-          translate(${media.crop.x}px, ${media.crop.y}px)
-          scale(${media.crop.zoom})
-        `,
-            }}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <img src={media.data} alt="" className="w-full h-full object-cover" />
-        )
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-slate-500">
-          <FiCamera size={32} />
-        </div>
-      )}
-
-      {/* HOVER ACTIONS */}
-      {editing && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileHover={{ opacity: 1 }}
-          transition={{ duration: 0.15 }}
-          className="absolute inset-0 bg-black/60 flex items-center justify-center"
-        >
-          {/* ACTION BUTTONS */}
-          <div className="flex gap-3">
-            {/* EDIT / CHANGE */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="
-                h-10 w-10
-                rounded-full
-                bg-cyan-400 hover:bg-cyan-300
-                text-black
-                flex items-center justify-center
-                cursor-pointer transition-all hover:-translate-y-0.5 duration-300
-              "
-              title={hasImage ? "Change image" : "Add image"}
-            >
-              <FiCamera />
-            </button>
-
-            {/* DELETE (ONLY IF IMAGE EXISTS) */}
-            {hasImage && onDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                className="
-                  h-10 w-10
-                  rounded-full
-                  bg-red-500 hover:bg-red-400
-                  text-black
-                  flex items-center justify-center
-                  cursor-pointer transition-all hover:-translate-y-0.5 duration-300
-                "
-                title="Delete image"
-              >
-                <FiTrash2 />
-              </button>
-            )}
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-const fieldVariants = {
-  locked: {
-    opacity: 0.6,
-    y: 0,
-  },
-  editable: {
-    opacity: 1,
-    y: -2,
-    transition: {
-      duration: 0.25,
-    },
-  },
-};
-
-const fieldsContainerVariants = {
-  locked: {},
-  editable: {
-    transition: {
-      staggerChildren: 0.06,
-    },
-  },
-};
-
-function AnimatedField(props: any) {
-  const { disabled } = props;
-
-  return (
-    <motion.div
-      variants={fieldVariants}
-      initial={false}
-      animate={disabled ? "locked" : "editable"}
-    >
-      <label className="mb-1 block text-xs font-medium uppercase tracking-widest text-zinc-400">
-        {props.label}
-      </label>
-
-      <input
-        {...props}
-        disabled={disabled}
-        className={`w-full rounded-xl px-3 py-2.5 text-sm transition-colors duration-300 ${
-          disabled
-            ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
-            : "border border-cyan-300/45 bg-slate-800 theme-text focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
-        }`}
-      />
-    </motion.div>
-  );
-}
-
-function Textarea({ label, disabled, ...props }: any) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-medium uppercase tracking-widest text-zinc-400">
-        {label}
-      </label>
-      <textarea
-        {...props}
-        disabled={disabled}
-        rows={3}
-        className={`w-full resize-none rounded-xl px-3 py-2.5 text-sm ${
-          disabled
-            ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
-            : "border border-cyan-300/45 bg-slate-800 theme-text focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
-        }`}
-      />
-    </div>
-  );
-}
-
-function AnimatedPasswordField({
-  label,
-  value,
-  show,
-  toggle,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  show: boolean;
-  toggle: () => void;
-  onChange: (v: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <motion.div
-      variants={fieldVariants}
-      initial={false}
-      animate={disabled ? "locked" : "editable"}
-    >
-      <label className="mb-1 block text-xs font-medium uppercase tracking-widest text-zinc-400">
-        {label}
-      </label>
-
-      <div className="relative">
-        <input
-          type={show ? "text" : "password"}
-          value={value}
-          disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
-          className={`w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition-colors duration-300 ${
-            disabled
-              ? "cursor-not-allowed border border-slate-800 bg-slate-900 text-gray-400"
-              : "border border-cyan-300/45 bg-slate-800 text-white focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300"
-          }`}
-        />
-
-        {/* Eye icon */}
-        {!disabled && (
-          <button
-            type="button"
-            onClick={toggle}
-            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 transition-all duration-300 ease-in-out hover:text-cyan-300"
-          >
-            {show ? <FiEyeOff /> : <FiEye />}
-          </button>
-        )}
-      </div>
-    </motion.div>
-  );
-}
-
-function CropModal({
-  file,
-  crop,
-  zoom,
-  setCrop,
-  setZoom,
-  aspect,
-  onComplete,
-  onSave,
-  onCancel,
-}: {
-  file: File;
-  crop: { x: number; y: number };
-  zoom: number;
-  setCrop: (v: { x: number; y: number }) => void;
-  setZoom: (v: number) => void;
-  aspect: number;
-  onComplete: (area: Area) => void;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
-      <motion.div
-        className="w-full max-w-2xl space-y-4 rounded-2xl border border-cyan-300/25 bg-slate-900/95 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.65)]"
-        initial={{ scale: 0.9 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.9 }}
-      >
-        <div className="relative h-80 overflow-hidden rounded-xl border border-cyan-300/20">
-          <Cropper
-            image={URL.createObjectURL(file)}
-            crop={crop}
-            zoom={zoom}
-            aspect={aspect}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={(_, area) => onComplete(area)}
-          />
-        </div>
-        <input
-          className="w-full accent-cyan-300"
-          type="range"
-          min={1}
-          max={3}
-          step={0.01}
-          value={zoom}
-          onChange={(e) => setZoom(Number(e.target.value))}
-        />
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onSave}
-            className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-cyan-300"
-          >
-            Save
-          </button>
-          <button
-            onClick={onCancel}
-            className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-600"
-          >
-            Cancel
-          </button>
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }

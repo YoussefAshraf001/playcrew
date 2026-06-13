@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "tauri:prepare": "node scripts/prepare-tauri.mjs",
+    "build:desktop": "npm run build && npm run tauri:prepare",
     "start": "next start",
     "lint": "eslint"
   },

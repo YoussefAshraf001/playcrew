@@ -426,7 +426,7 @@ export default function NotificationBell({
                   }
                 : {
                     initial: { opacity: 0, y: -8, scale: 0.985 },
-                    animate: { opacity: 1, y: 360, scale: 1 },
+                    animate: { opacity: 1, y: 320, scale: 1 },
                     exit: { opacity: 0, y: -360, scale: 0.985 },
                   })}
               transition={{

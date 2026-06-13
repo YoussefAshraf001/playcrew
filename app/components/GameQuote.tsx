@@ -15,13 +15,18 @@ const QUOTES = [
     author: "The Last of Us",
   },
   {
-    quote: "After all we've been through... everything I've done... it can't be for nothing.",
+    quote:
+      "After all we've been through... everything I've done... it can't be for nothing.",
     author: "Ellie",
   },
-  { quote: "We get dirty, and the world stays clean.", author: "Captain John Price" },
+  {
+    quote: "We get dirty, and the world stays clean.",
+    author: "Captain John Price",
+  },
   { quote: "Bravo Six, Going Dark.", author: "Captain John Price" },
   {
-    quote: "We fight not so that the world will remember us, but so there will be a world to remember.",
+    quote:
+      "We fight not so that the world will remember us, but so there will be a world to remember.",
     author: "Captain John Price",
   },
   { quote: "It's not a lake. It's an ocean.", author: "Alan Wake" },
@@ -41,13 +46,17 @@ const QUOTES = [
     quote: "You can't save the world, but you can save yourself.",
     author: "Cyberpunk 2077",
   },
-  { quote: "A happy ending? For folks like us? Wrong city.", author: "Johnny Silverhand" },
+  {
+    quote: "A happy ending? For folks like us? Wrong city.",
+    author: "Johnny Silverhand",
+  },
   {
     quote: "Evil is evil. Lesser, greater, makes no difference.",
     author: "Geralt of Rivia",
   },
   {
-    quote: "If I have to choose between one evil and another, I'd rather not choose at all.",
+    quote:
+      "If I have to choose between one evil and another, I'd rather not choose at all.",
     author: "Geralt",
   },
   { quote: "A man chooses. A slave obeys.", author: "Andrew Ryan" },
@@ -81,14 +90,16 @@ export default function GameQuote() {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="relative grid h-full min-h-[150px] w-full place-items-center overflow-hidden rounded-2xl border border-cyan-500/25 bg-zinc-950/80 p-5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+      className="theme-panel relative grid h-full min-h-[150px] w-full place-items-center overflow-hidden rounded-2xl border p-5 text-center shadow-[0_16px_40px_rgba(var(--theme-accent-rgb),0.16)]"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.14),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.16),transparent_60%),linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.15),transparent_55%)]" />
       <div className="relative flex w-full max-w-[52ch] flex-col items-center justify-center">
-        <p className="text-center text-[15px] italic leading-relaxed text-zinc-200">
+        <p className="theme-text text-center text-[15px] italic leading-relaxed">
           &quot;{quote.quote}&quot;
         </p>
-        <span className="mt-3 text-sm font-medium text-cyan-300">- {quote.author}</span>
+        <span className="theme-accent-soft-bg mt-4 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold tracking-[0.08em] theme-accent-text">
+          {quote.author}
+        </span>
       </div>
     </motion.div>
   );

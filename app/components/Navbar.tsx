@@ -33,6 +33,13 @@ import {
 } from "react-icons/md";
 import { GiTrophiesShelf } from "react-icons/gi";
 import { CiLogin } from "react-icons/ci";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isTauri } from "@tauri-apps/api/core";
+import {
+  RiCheckboxBlankLine,
+  RiCloseLine,
+  RiSubtractLine,
+} from "react-icons/ri";
 
 import { useGames } from "@/app/context/GameContext";
 import { useUser } from "../context/UserContext";
@@ -42,13 +49,7 @@ import { useAuthModal } from "../context/AuthModalContext";
 import ConfirmModal from "./ConfirmModal";
 import SearchModal from "./SearchModal";
 import NotificationBell from "./NotificationBell";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { isTauri } from "@tauri-apps/api/core";
-import {
-  RiCheckboxBlankLine,
-  RiCloseLine,
-  RiSubtractLine,
-} from "react-icons/ri";
+import WhatsNewModal from "./WhatsNewModal";
 
 export default function Navbar() {
   const router = useRouter();
@@ -81,7 +82,7 @@ export default function Navbar() {
   } = useMusic();
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [updatesModalOpen, setUpdatesModalOpen] = useState(false);
+  const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [enableDesktopHoverNav, setEnableDesktopHoverNav] = useState(false);
@@ -150,7 +151,8 @@ export default function Navbar() {
 
   useEffect(() => {
     // Clear any hovered nav label when the route changes
-    setHoveredIndex(null);
+    const frame = window.requestAnimationFrame(() => setHoveredIndex(null));
+    return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
   useEffect(() => {
@@ -174,14 +176,15 @@ export default function Navbar() {
         <>
           <motion.nav
             className="
-              fixed top-0 left-0 right-0 z-90
+              !fixed top-0 left-0 right-0 z-90
+              navbar-top-shell
               theme-nav backdrop-blur-md
               border-b-3 border-x
               px-3 py-1.5
               flex items-center justify-between
               transition-colors duration-300
               rounded-b-xl
-              lg:hidden
+              !flex lg:!hidden
             "
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -192,7 +195,7 @@ export default function Navbar() {
                 href="/dashboard"
                 className="inline-flex items-center gap-2"
               >
-                <img src="/logo.png" alt="PlayCrew" className="h-7 w-9" />
+                <img src="/logo.png" alt="PlayCrew" className="h-10 w-10" />
                 <span className="theme-text text-base font-semibold uppercase tracking-[0.08em]">
                   Play<span className="theme-accent-text font-black">Crew</span>
                 </span>
@@ -220,19 +223,20 @@ export default function Navbar() {
                   ease: "easeInOut",
                 }}
                 className="
-                  theme-nav fixed left-4 top-1/2 z-90
-                  hidden -translate-y-1/2
+                  !hidden theme-nav fixed left-4 top-1/2 z-90
+                  navbar-sidebar-shell
+                  -translate-y-1/2
                   rounded-[999px] border px-2 py-4
                   shadow-[0_24px_60px_rgba(0,0,0,0.38)]
                   backdrop-blur-md overflow-visible
-                  lg:flex lg:w-16 lg:flex-col lg:items-center
+                  lg:!flex lg:w-16 lg:flex-col lg:items-center
                 "
               >
                 <Link
                   href="/dashboard"
                   className="mb-9 inline-flex h-10 w-10 items-center justify-center"
                 >
-                  <img src="/logo.png" alt="PlayCrew" className="h-8 w-10" />
+                  <img src="/logo.png" alt="PlayCrew" className="h-10 w-10" />
                 </Link>
 
                 <div className="flex flex-1 flex-col items-center gap-3">
@@ -401,9 +405,54 @@ export default function Navbar() {
                     </AnimatePresence>
                   </div>
 
+                  <div
+                    className={`relative hidden items-center lg:flex ${
+                      enableDesktopHoverNav &&
+                      hoveredIndex === utilityHoverOffset + 4
+                        ? "z-[90]"
+                        : "z-10"
+                    }`}
+                    onMouseEnter={() => {
+                      if (enableDesktopHoverNav) {
+                        setHoveredIndex(utilityHoverOffset + 4);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (enableDesktopHoverNav) {
+                        setHoveredIndex(null);
+                      }
+                    }}
+                  >
+                    <button
+                      onClick={() => setWhatsNewOpen(true)}
+                      className="theme-surface theme-hover-surface flex h-8 w-8 items-center justify-center rounded-full border"
+                    >
+                      !
+                    </button>
+
+                    <AnimatePresence>
+                      {enableDesktopHoverNav &&
+                        hoveredIndex === utilityHoverOffset + 4 && (
+                          <motion.span
+                            initial={{ opacity: 0, x: -12 }}
+                            animate={{ opacity: 1, x: 12 }}
+                            exit={{ opacity: 0, x: -12 }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 200,
+                              damping: 25,
+                            }}
+                            className="theme-panel-strong absolute left-full top-1/2 z-[100] ml-2 block -translate-y-1/2 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-lg backdrop-blur-xl pointer-events-none"
+                          >
+                            What's New
+                          </motion.span>
+                        )}
+                    </AnimatePresence>
+                  </div>
+
                   {profile ? (
                     <div
-                      className={`relative top-0.5 ${
+                      className={`relative top-[-1] ${
                         enableDesktopHoverNav &&
                         hoveredIndex === utilityHoverOffset + 3
                           ? "z-[90]"
@@ -488,9 +537,9 @@ export default function Navbar() {
                       <AnimatePresence>
                         {accountOpen && (
                           <motion.div
-                            initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                            initial={{ opacity: 0, y: -8, x: 15, scale: 0.98 }}
+                            animate={{ opacity: 1, y: -80, x: 15, scale: 1 }}
+                            exit={{ opacity: 0, y: -0, scale: 0.98 }}
                             transition={{ duration: 0.18, ease: "easeOut" }}
                             className="theme-panel-strong absolute left-full top-1/2 z-50 ml-3 w-52 -translate-y-1/2 overflow-hidden rounded-2xl border p-2 text-sm shadow-[0_20px_48px_rgba(0,0,0,0.55)] backdrop-blur-xl"
                           >
@@ -664,11 +713,11 @@ export default function Navbar() {
                   stiffness: 260,
                   damping: 28,
                 }}
-                className="theme-nav fixed top-0 left-0 right-0 z-90 hidden items-center justify-between rounded-b-2xl border-b-3 border-x px-3 py-1.5 backdrop-blur-md transition-colors duration-300 sm:flex md:left-4 md:right-4 md:px-4 lg:left-6 lg:right-6 lg:px-6"
+                className="navbar-top-shell theme-nav fixed top-0 left-0 right-0 z-90 hidden items-center justify-between rounded-b-2xl border-b-3 border-x px-3 py-1.5 backdrop-blur-md transition-colors duration-300 sm:flex md:left-4 md:right-4 md:px-4 lg:left-6 lg:right-6 lg:px-6"
               >
                 <div className="hidden shrink-0 items-center xl:flex">
                   <Link href="/dashboard" className="flex items-center gap-2">
-                    <img src="/logo.png" alt="PlayCrew" className="h-8 w-11" />
+                    <img src="/logo.png" alt="PlayCrew" className="h-10 w-10" />
                     <span className="theme-text text-2xl font-semibold uppercase tracking-wider">
                       Play
                       <span className="theme-accent-text font-black">Crew</span>
@@ -839,9 +888,54 @@ export default function Navbar() {
                     </AnimatePresence>
                   </div>
 
+                  <div
+                    className={`relative hidden items-center lg:flex ${
+                      enableDesktopHoverNav &&
+                      hoveredIndex === utilityHoverOffset + 4
+                        ? "z-[90]"
+                        : "z-10"
+                    }`}
+                    onMouseEnter={() => {
+                      if (enableDesktopHoverNav) {
+                        setHoveredIndex(utilityHoverOffset + 4);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (enableDesktopHoverNav) {
+                        setHoveredIndex(null);
+                      }
+                    }}
+                  >
+                    <button
+                      onClick={() => setWhatsNewOpen(true)}
+                      className="theme-surface theme-hover-surface flex h-8 w-8 items-center justify-center rounded-full border"
+                    >
+                      !
+                    </button>
+
+                    <AnimatePresence>
+                      {enableDesktopHoverNav &&
+                        hoveredIndex === utilityHoverOffset + 4 && (
+                          <motion.span
+                            initial={{ opacity: 0, x: accountHoverX }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: accountHoverX }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 200,
+                              damping: 25,
+                            }}
+                            className={accountHoverSpanClass}
+                          >
+                            What's New
+                          </motion.span>
+                        )}
+                    </AnimatePresence>
+                  </div>
+
                   {profile ? (
                     <div
-                      className={`relative top-0.5 ${
+                      className={`relative top-1 ${
                         enableDesktopHoverNav &&
                         hoveredIndex === utilityHoverOffset + 3
                           ? "z-[90]"
@@ -898,10 +992,11 @@ export default function Navbar() {
                             theme-panel theme-text-muted border-2 sm:h-8 sm:w-8
                           `}
                           >
-                            <FaUser className="text-xs sm:text-sm" />
+                            <FaUser size={12} />
                           </div>
                         )}
                       </button>
+
                       <AnimatePresence>
                         {enableDesktopHoverNav &&
                           hoveredIndex === utilityHoverOffset + 3 &&
@@ -1018,7 +1113,7 @@ export default function Navbar() {
                           stiffness: 300,
                           damping: 20,
                         }}
-                        className="theme-surface theme-hover-surface flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border font-semibold select-none sm:h-8 sm:w-8"
+                        className={accountHoverSpanClass}
                       >
                         <FaUser className="text-xs sm:text-sm" />
                       </motion.button>
@@ -1435,6 +1530,16 @@ export default function Navbar() {
           <SearchModal
             isOpen={searchModalOpen}
             onClose={() => setSearchModalOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* --- WHAT'S NEW MODAL --- */}
+      <AnimatePresence>
+        {whatsNewOpen && (
+          <WhatsNewModal
+            isOpen={whatsNewOpen}
+            onClose={() => setWhatsNewOpen(false)}
           />
         )}
       </AnimatePresence>

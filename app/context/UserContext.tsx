@@ -22,8 +22,8 @@ type CropData = {
 };
 
 type MediaValue =
-  | { type: "image"; data: string }
-  | { type: "gif"; data: string; crop: CropData };
+  | { type: "image"; data: string; name?: string }
+  | { type: "gif"; data: string; crop: CropData; name?: string };
 
 interface UserProfile {
   uid: string;

@@ -1,29 +1,24 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "PlayCrew",
   "version": "0.1.0",
-  "identifier": "com.playcrew.desktop",
+  "identifier": "com.playcrew.app",
   "build": {
-    "frontendDist": "../.next",
-    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build:desktop",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "frontendDist": "../src-tauri/web",
+    "devUrl": "http://localhost:3000"
   },
   "app": {
     "windows": [
       {
         "title": "PlayCrew",
-        "decorations": false,
-        "width": 1600,
-        "height": 900,
+        "width": 1280,
+        "height": 800,
         "resizable": true,
-        "fullscreen": false,
-        "maximized": true
+        "decorations": false
       }
-    ],
-    "security": {
-      "csp": null
-    }
+    ]
   },
   "bundle": {
     "active": true,
@@ -35,8 +30,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
-    }
+    "resources": ["../src-tauri/next-server", "../src-tauri/node-runtime"]
   }
 }
