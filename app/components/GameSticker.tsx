@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { GAME_STICKERS } from "./GameStickerPicker";
+import { GAME_STICKERS } from "../lib/gameStickers";
 
 export default function GameSticker({
   stickerId,
