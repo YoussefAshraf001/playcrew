@@ -54,7 +54,11 @@ import WhatsNewModal from "./WhatsNewModal";
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const desktop = isTauri();
+  const [desktop, setDesktop] = useState(false);
+
+  useEffect(() => {
+    setDesktop(isTauri());
+  }, []);
 
   const isDashboard = pathname.includes("/dashboard");
   const { open } = useAuthModal();

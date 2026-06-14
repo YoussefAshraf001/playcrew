@@ -1,6 +1,6 @@
 import { motion, type Variants } from "framer-motion";
 import { GiAbdominalArmor } from "react-icons/gi";
-import { IoCloseCircle, IoCloseSharp } from "react-icons/io5";
+import { IoCloseSharp } from "react-icons/io5";
 import { LuCalendarClock } from "react-icons/lu";
 import { MdExplore } from "react-icons/md";
 import { PiArrowFatLinesUpDuotone } from "react-icons/pi";
