@@ -181,7 +181,7 @@ export default function Navbar() {
               theme-nav backdrop-blur-md
               border-b-3 border-x
               px-3 py-1.5
-              flex items-center justify-between
+              items-center justify-between
               transition-colors duration-300
               rounded-b-xl
               !flex lg:!hidden
@@ -1339,106 +1339,130 @@ export default function Navbar() {
                   )}
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setWhatsNewOpen(true)}
+                className="theme-surface theme-hover-surface theme-text mt-3 inline-flex h-12 w-full items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition justify-center"
+              >
+                <span className="theme-accent-soft-bg flex h-7 w-7 items-center justify-center rounded-md border">
+                  !
+                </span>
+
+                <div className="flex flex-col items-start">
+                  <span>What's New</span>
+                  <span className="theme-text-muted text-[10px] font-normal">
+                    Latest updates and changes
+                  </span>
+                </div>
+              </button>
 
               <div className="theme-surface mt-3 rounded-lg border p-2.5">
                 <NotificationBell games={games} fullWidthTrigger />
               </div>
 
               <div className="theme-surface mt-3 rounded-xl border p-3">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   {currentTrack?.cover ? (
                     <img
                       src={currentTrack.cover}
                       alt={currentTrack.title ?? "Track artwork"}
-                      className="h-20 w-20 rounded-lg object-cover"
+                      className="h-12 w-12 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="theme-surface-alt h-20 w-20 rounded-lg border" />
+                    <div className="theme-surface-alt h-12 w-12 rounded-lg border" />
                   )}
 
-                  <div className="flex-1">
-                    <p className="theme-text truncate text-lg font-semibold">
+                  <div className="min-w-0 flex-1">
+                    <p className="theme-text truncate text-sm font-semibold">
                       {currentTrack?.title ?? "No track loaded"}
                     </p>
-                    <p className="theme-text-muted truncate text-sm">
+
+                    <p className="theme-text-muted truncate text-xs">
                       {Array.isArray(currentTrack?.artist)
                         ? currentTrack.artist.join(", ")
                         : (currentTrack?.artist ?? "PlayCrew Radio")}
                     </p>
+                  </div>
 
-                    <div className="mt-3 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={playPrev}
-                        className="theme-surface theme-hover-surface theme-text inline-flex h-12 w-12 items-center justify-center rounded-lg border transition"
-                        aria-label="Previous track"
-                      >
-                        <FaStepBackward size={15} />
-                      </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={playPrev}
+                      className="theme-hover-surface flex h-8 w-8 items-center justify-center rounded-lg"
+                    >
+                      <FaStepBackward size={11} />
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={togglePlay}
-                        className="theme-accent-soft-bg inline-flex h-12 w-12 items-center justify-center rounded-lg border transition hover:bg-cyan-500/25"
-                        aria-label={isPlaying ? "Pause" : "Play"}
-                      >
-                        {isPlaying ? (
-                          <FaPause size={15} />
-                        ) : (
-                          <FaPlay size={15} />
-                        )}
-                      </button>
+                    <button
+                      type="button"
+                      onClick={togglePlay}
+                      className="theme-accent-soft-bg flex h-9 w-9 items-center justify-center rounded-lg border"
+                    >
+                      {isPlaying ? <FaPause size={12} /> : <FaPlay size={12} />}
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={playNext}
-                        className="theme-surface theme-hover-surface theme-text inline-flex h-12 w-12 items-center justify-center rounded-lg border transition"
-                        aria-label="Next track"
-                      >
-                        <FaStepForward size={15} />
-                      </button>
+                    <button
+                      type="button"
+                      onClick={playNext}
+                      className="theme-hover-surface flex h-8 w-8 items-center justify-center rounded-lg"
+                    >
+                      <FaStepForward size={11} />
+                    </button>
+                  </div>
+                </div>
+                {/* Volume */}
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (volume > 0.001) {
+                        lastVolumeRef.current = volume;
+                        setVolume(0);
+                        return;
+                      }
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (volume > 0.001) {
-                            lastVolumeRef.current = volume;
-                            setVolume(0);
-                            return;
-                          }
-                          setVolume(
-                            Math.max(
-                              0.15,
-                              Math.min(1, lastVolumeRef.current || 0.5),
-                            ),
-                          );
-                        }}
-                        className="theme-surface theme-hover-surface theme-text inline-flex h-12 w-12 items-center justify-center rounded-full border transition"
-                        aria-label={volume > 0.001 ? "Mute" : "Unmute"}
-                      >
-                        {volume > 0.001 ? (
-                          <FaVolumeUp size={16} />
-                        ) : (
-                          <FaVolumeMute size={16} />
-                        )}
-                      </button>
-                    </div>
+                      setVolume(
+                        Math.max(
+                          0.15,
+                          Math.min(1, lastVolumeRef.current || 0.5),
+                        ),
+                      );
+                    }}
+                    className="theme-surface theme-hover-surface flex h-8 w-8 items-center justify-center rounded-lg border"
+                  >
+                    {volume > 0.001 ? (
+                      <FaVolumeUp size={12} />
+                    ) : (
+                      <FaVolumeMute size={12} />
+                    )}
+                  </button>
 
-                    <div className="mt-3">
-                      <label className="text-sm text-white/70 mb-2 block">
-                        Volume
-                      </label>
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={typeof volume === "number" ? volume : 0}
-                        onChange={(e) => setVolume(Number(e.target.value))}
-                        className="w-full h-2"
-                        aria-label="Volume control"
-                      />
-                    </div>
+                  <div className="relative flex-1">
+                    <div className="h-1.5 rounded-full bg-white/10" />
+
+                    <div
+                      className="absolute inset-y-0 left-0 h-1.5 rounded-full bg-[var(--theme-accent)]"
+                      style={{ width: `${volume * 100}%` }}
+                    />
+
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={volume}
+                      onChange={(e) => setVolume(Number(e.target.value))}
+                      className="
+                        absolute inset-0 h-1.5 w-full cursor-pointer
+                        appearance-none bg-transparent
+                        [&::-webkit-slider-thumb]:appearance-none
+                        [&::-webkit-slider-thumb]:h-3
+                        [&::-webkit-slider-thumb]:w-3
+                        [&::-webkit-slider-thumb]:rounded-full
+                        [&::-webkit-slider-thumb]:bg-[var(--theme-accent)]
+                        [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(var(--theme-accent-rgb),0.7)]
+                      "
+                    />
                   </div>
                 </div>
               </div>
@@ -1525,24 +1549,17 @@ export default function Navbar() {
         )}
 
       {/* --- SEARCH MODAL --- */}
-      <AnimatePresence>
-        {searchModalOpen && (
-          <SearchModal
-            isOpen={searchModalOpen}
-            onClose={() => setSearchModalOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+
+      <SearchModal
+        isOpen={searchModalOpen}
+        onClose={() => setSearchModalOpen(false)}
+      />
 
       {/* --- WHAT'S NEW MODAL --- */}
-      <AnimatePresence>
-        {whatsNewOpen && (
-          <WhatsNewModal
-            isOpen={whatsNewOpen}
-            onClose={() => setWhatsNewOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+      <WhatsNewModal
+        isOpen={whatsNewOpen}
+        onClose={() => setWhatsNewOpen(false)}
+      />
     </>
   );
 }

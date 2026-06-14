@@ -109,7 +109,7 @@
   --color-zinc-950: #080203;
 }
 
-/* Winter is Coming */
+/* Obsidian Ember */
 :root[data-app-theme="obsidian-ember"] {
   --theme-bg: #080808;
   --theme-bg-rgb: 8, 8, 8;
@@ -162,8 +162,8 @@
   --color-zinc-950: #080808;
 }
 
-/* Ice */
-:root[data-app-theme="ice"] {
+/* Winter is Coming */
+:root[data-app-theme="winter-is-coming"] {
   --theme-bg: #171d25;
   --theme-bg-rgb: 23, 29, 37;
 

@@ -359,8 +359,6 @@ export default function SearchModal({
     }
   };
 
-  if (!isOpen || typeof window === "undefined") return null;
-
   const resultCountLabel = loading
     ? "Searching..."
     : results.length > 0
@@ -370,374 +368,382 @@ export default function SearchModal({
         : "Start typing to search";
 
   const modal = (
-    <motion.div
-      className="theme-modal-backdrop fixed inset-0 z-120"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <div className="flex min-h-dvh items-start justify-center p-2 sm:p-4 md:items-center">
+    <AnimatePresence mode="wait">
+      {isOpen && (
         <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 16, scale: 0.98 }}
-          transition={{ duration: 0.22, ease: "easeOut" }}
-          onClick={(e) => e.stopPropagation()}
-          className="theme-panel relative flex h-[min(92dvh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_120px_rgba(0,0,0,0.42)]"
+          className="theme-modal-backdrop fixed inset-0 z-120"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
         >
-          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(var(--theme-accent-rgb),0.06),transparent_28%,transparent_72%,rgba(var(--theme-accent-rgb),0.08))]" />
-          <div className="relative z-10 flex items-center gap-3 border-b border-[var(--theme-border)] px-4 py-4 sm:px-5">
-            <div className="theme-accent-soft-bg flex h-11 w-11 items-center justify-center rounded-2xl border shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.16)]">
-              <FiSearch size={18} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.28em]">
-                Search Library
-              </p>
-              <div className="theme-surface-alt mt-2 flex items-center gap-2 rounded-2xl border px-3">
-                <FiSearch className="theme-text-muted shrink-0" size={16} />
-                <input
-                  autoFocus
-                  ref={inputRef}
-                  className="theme-text h-12 w-full bg-transparent text-[15px] outline-none placeholder:text-[color:var(--theme-text-muted)]"
-                  placeholder="Search games, editions, remasters..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-                {query.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="theme-surface theme-hover-surface theme-text-muted inline-flex h-8 w-8 items-center justify-center rounded-full border transition"
-                    aria-label="Clear search"
-                  >
-                    <FiX size={14} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="theme-surface theme-hover-surface theme-text-muted mt-6 h-11 items-center justify-center rounded-full border px-5 text-xs font-semibold uppercase tracking-[0.18em] transition hover:text-red-500 cursor-pointer"
+          <div className="flex min-h-dvh items-start justify-center p-2 sm:p-4 md:items-center">
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="theme-panel relative flex h-[min(92dvh,860px)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_120px_rgba(0,0,0,0.42)]"
             >
-              <IoCloseCircle size={25} />
-            </button>
-          </div>
-
-          <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-0 md:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <section className="flex min-h-0 flex-col border-b border-[var(--theme-border)] md:border-b-0 md:border-r">
-              <div className="flex items-center justify-between gap-3 border-b border-[var(--theme-border)] px-4 py-3 sm:px-5">
-                <div>
-                  <p className="theme-text text-sm font-semibold">Results</p>
-                  <p className="theme-text-muted text-xs">{resultCountLabel}</p>
+              <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(var(--theme-accent-rgb),0.06),transparent_28%,transparent_72%,rgba(var(--theme-accent-rgb),0.08))]" />
+              <div className="relative z-10 flex items-center gap-3 border-b border-[var(--theme-border)] px-4 py-4 sm:px-5">
+                <div className="theme-accent-soft-bg flex h-11 w-11 items-center justify-center rounded-2xl border shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.16)]">
+                  <FiSearch size={18} />
                 </div>
-                <div className="theme-surface hidden rounded-full border px-3 py-1 text-[11px] theme-text-muted sm:block">
-                  Arrow keys to move
+                <div className="min-w-0 flex-1">
+                  <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.28em]">
+                    Search Library
+                  </p>
+                  <div className="theme-surface-alt mt-2 flex items-center gap-2 rounded-2xl border px-3">
+                    <FiSearch className="theme-text-muted shrink-0" size={16} />
+                    <input
+                      autoFocus
+                      ref={inputRef}
+                      className="theme-text h-12 w-full bg-transparent text-[15px] outline-none placeholder:text-[color:var(--theme-text-muted)]"
+                      placeholder="Search games, editions, remasters..."
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                    />
+                    {query.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClear}
+                        className="theme-surface theme-hover-surface theme-text-muted inline-flex h-8 w-8 items-center justify-center rounded-full border transition"
+                        aria-label="Clear search"
+                      >
+                        <FiX size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="theme-surface theme-hover-surface theme-text-muted mt-6 h-11 items-center justify-center rounded-full border px-5 text-xs font-semibold uppercase tracking-[0.18em] transition hover:text-red-500 cursor-pointer"
+                >
+                  <IoCloseCircle size={25} />
+                </button>
               </div>
 
-              <div
-                ref={resultsRef}
-                className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4"
-              >
-                {loading ? (
-                  <div className="space-y-2 animate-pulse">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="theme-surface flex items-center gap-3 rounded-2xl border p-3"
-                      >
-                        <div className="h-18 w-14 rounded-xl bg-white/10" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-4 w-3/4 rounded bg-white/10" />
-                          <div className="h-3 w-1/3 rounded bg-white/10" />
+              <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-0 md:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+                <section className="flex min-h-0 flex-col border-b border-[var(--theme-border)] md:border-b-0 md:border-r">
+                  <div className="flex items-center justify-between gap-3 border-b border-[var(--theme-border)] px-4 py-3 sm:px-5">
+                    <div>
+                      <p className="theme-text text-sm font-semibold">
+                        Results
+                      </p>
+                      <p className="theme-text-muted text-xs">
+                        {resultCountLabel}
+                      </p>
+                    </div>
+                    <div className="theme-surface hidden rounded-full border px-3 py-1 text-[11px] theme-text-muted sm:block">
+                      Arrow keys to move
+                    </div>
+                  </div>
+
+                  <div
+                    ref={resultsRef}
+                    className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4"
+                  >
+                    {loading ? (
+                      <div className="space-y-2 animate-pulse">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="theme-surface flex items-center gap-3 rounded-2xl border p-3"
+                          >
+                            <div className="h-18 w-14 rounded-xl bg-white/10" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 w-3/4 rounded bg-white/10" />
+                              <div className="h-3 w-1/3 rounded bg-white/10" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : error ? (
+                      <div className="theme-text-muted flex h-full flex-col items-center justify-center gap-2 text-center">
+                        <p className="theme-text text-base font-semibold">
+                          Search failed
+                        </p>
+                        <p className="text-sm">{error}</p>
+                      </div>
+                    ) : results.length === 0 ? (
+                      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                        <div className="theme-surface theme-text-muted flex h-16 w-16 items-center justify-center rounded-3xl border">
+                          <FiSearch size={24} />
+                        </div>
+                        <div>
+                          <p className="theme-text text-base font-semibold">
+                            {query.trim().length >= 2
+                              ? "No games found"
+                              : "Search for a game"}
+                          </p>
+                          <p className="theme-text-muted mt-1 text-sm">
+                            {query.trim().length >= 2
+                              ? "Try another name or a simpler search term."
+                              : "Results will appear here with quick add and preview actions."}
+                          </p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : error ? (
-                  <div className="theme-text-muted flex h-full flex-col items-center justify-center gap-2 text-center">
-                    <p className="theme-text text-base font-semibold">
-                      Search failed
-                    </p>
-                    <p className="text-sm">{error}</p>
-                  </div>
-                ) : results.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-                    <div className="theme-surface theme-text-muted flex h-16 w-16 items-center justify-center rounded-3xl border">
-                      <FiSearch size={24} />
-                    </div>
-                    <div>
-                      <p className="theme-text text-base font-semibold">
-                        {query.trim().length >= 2
-                          ? "No games found"
-                          : "Search for a game"}
-                      </p>
-                      <p className="theme-text-muted mt-1 text-sm">
-                        {query.trim().length >= 2
-                          ? "Try another name or a simpler search term."
-                          : "Results will appear here with quick add and preview actions."}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <motion.div
-                    className="space-y-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    {results.map((game) => {
-                      const releaseDate = getReleaseDate(game);
-                      const isSelected = selectedGame?.id === game.id;
-                      const existing = trackedById.get(game.id);
+                    ) : (
+                      <motion.div
+                        className="space-y-2"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.25 }}
+                      >
+                        {results.map((game) => {
+                          const releaseDate = getReleaseDate(game);
+                          const isSelected = selectedGame?.id === game.id;
+                          const existing = trackedById.get(game.id);
 
-                      return (
-                        <div
-                          key={game.id}
-                          data-game-id={game.id}
-                          onClick={() => setSelectedGameId(game.id)}
-                          className={`group rounded-2xl border transition ${
-                            isSelected
-                              ? "border-cyan-300/40 bg-cyan-400/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
-                              : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-                            <img
-                              src={buildCoverUrl(game)}
-                              alt={game.name}
-                              className="h-18 w-14 shrink-0 rounded-xl border border-[var(--theme-border)] object-cover shadow-lg"
-                            />
+                          return (
+                            <div
+                              key={game.id}
+                              data-game-id={game.id}
+                              onClick={() => setSelectedGameId(game.id)}
+                              className={`group rounded-2xl border transition ${
+                                isSelected
+                                  ? "border-cyan-300/40 bg-cyan-400/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
+                                  : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                                <img
+                                  src={buildCoverUrl(game)}
+                                  alt={game.name}
+                                  className="h-18 w-14 shrink-0 rounded-xl border border-[var(--theme-border)] object-cover shadow-lg"
+                                />
 
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
-                                    {game.name}
-                                  </p>
-                                  <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                                    {releaseDate && (
-                                      <span className="theme-surface inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
-                                        <FiCalendar size={11} />
-                                        {releaseDate.getFullYear()}
-                                      </span>
-                                    )}
-                                    {/* {game.version_parent && (
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
+                                        {game.name}
+                                      </p>
+                                      <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                        {releaseDate && (
+                                          <span className="theme-surface inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                                            <FiCalendar size={11} />
+                                            {releaseDate.getFullYear()}
+                                          </span>
+                                        )}
+                                        {/* {game.version_parent && (
                                       <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-amber-100/85">
                                         Variant edition
                                       </span>
                                     )} */}
-                                    {existing?.status && (
-                                      <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-emerald-100/85">
-                                        {existing.status}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {/* Mobile actions */}
-                                  <div className="mt-3 flex gap-2 md:hidden">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedGameId(game.id);
-                                      }}
-                                      className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                                    >
-                                      Preview
-                                    </button>
+                                        {existing?.status && (
+                                          <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-emerald-100/85">
+                                            {existing.status}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* Mobile actions */}
+                                      <div className="mt-3 flex gap-2 md:hidden">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedGameId(game.id);
+                                          }}
+                                          className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                                        >
+                                          Preview
+                                        </button>
 
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openTracking(game);
-                                      }}
-                                      className={`flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold ${
-                                        trackedById.has(game.id)
-                                          ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-                                          : "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-                                      }`}
-                                    >
-                                      {trackedById.has(game.id)
-                                        ? "Edit"
-                                        : "Quick Add"}
-                                    </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openTracking(game);
+                                          }}
+                                          className={`flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold ${
+                                            trackedById.has(game.id)
+                                              ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+                                              : "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                                          }`}
+                                        >
+                                          {trackedById.has(game.id)
+                                            ? "Edit"
+                                            : "Quick Add"}
+                                        </button>
 
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onClose();
-                                        router.push(`/game/${game.id}`);
-                                      }}
-                                      className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold text-center"
-                                    >
-                                      Open
-                                    </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onClose();
+                                            router.push(`/game/${game.id}`);
+                                          }}
+                                          className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold text-center"
+                                        >
+                                          Open
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </div>
-            </section>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </div>
+                </section>
 
-            <aside className="hidden min-h-0 flex-col md:flex">
-              <div className="border-b border-[var(--theme-border)] px-5 py-3">
-                <p className="theme-text text-sm font-semibold">
-                  Quick Preview
-                </p>
-                <p className="theme-text-muted text-xs">
-                  Inspect the selected game before opening its page.
-                </p>
-              </div>
+                <aside className="hidden min-h-0 flex-col md:flex">
+                  <div className="border-b border-[var(--theme-border)] px-5 py-3">
+                    <p className="theme-text text-sm font-semibold">
+                      Quick Preview
+                    </p>
+                    <p className="theme-text-muted text-xs">
+                      Inspect the selected game before opening its page.
+                    </p>
+                  </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto p-5">
-                <AnimatePresence mode="wait">
-                  {selectedGame ? (
-                    <motion.div
-                      key={selectedGame.id}
-                      className="space-y-4"
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
-                      transition={{ duration: 0.18, ease: "easeOut" }}
-                    >
-                      <div className="theme-surface overflow-hidden mx-auto rounded-[26px] lg:w-[360px] border">
-                        <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.12),transparent_48%),linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.72),rgba(var(--theme-bg-rgb),0.95))]">
-                          <motion.img
-                            className="max-h-[480px] w-full object-contain"
-                            key={selectedGame.id}
-                            src={buildCoverUrl(selectedGame)}
-                            initial={{ opacity: 0, scale: 0.96 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.2 }}
-                          />
-                          <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black via-black/45 to-transparent px-4 pb-4 pt-16">
-                            <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.24em]">
-                              Selected Result
-                            </p>
-                            <h3 className="theme-text mt-2 text-2xl font-bold">
-                              {selectedGame.name}
-                            </h3>
-                          </div>
-                        </div>
-                        <div className="grid gap-3 p-4">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="theme-surface-alt rounded-2xl border p-3">
-                              <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
-                                Release
-                              </p>
-                              <p className="theme-text mt-2 flex items-center gap-2 text-sm font-semibold">
-                                <FiClock
-                                  size={14}
-                                  className="text-cyan-200/70"
-                                />
-                                {getReleaseDate(selectedGame)
-                                  ? getReleaseDate(
-                                      selectedGame,
-                                    )?.toLocaleDateString(undefined, {
-                                      year: "numeric",
-                                      month: "short",
-                                      day: "numeric",
-                                    })
-                                  : "Unknown"}
-                              </p>
+                  <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                    <AnimatePresence mode="wait">
+                      {selectedGame ? (
+                        <motion.div
+                          key={selectedGame.id}
+                          className="space-y-4"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                        >
+                          <div className="theme-surface overflow-hidden mx-auto rounded-[26px] lg:w-[360px] border">
+                            <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.12),transparent_48%),linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.72),rgba(var(--theme-bg-rgb),0.95))]">
+                              <motion.img
+                                className="max-h-[480px] w-full object-contain"
+                                key={selectedGame.id}
+                                src={buildCoverUrl(selectedGame)}
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ duration: 0.2 }}
+                              />
+                              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black via-black/45 to-transparent px-4 pb-4 pt-16">
+                                <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.24em]">
+                                  Selected Result
+                                </p>
+                                <h3 className="theme-text mt-2 text-2xl font-bold">
+                                  {selectedGame.name}
+                                </h3>
+                              </div>
                             </div>
-                            <div className="theme-surface-alt rounded-2xl border p-3">
-                              <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
-                                Library
-                              </p>
-                              <p className="theme-text mt-2 text-sm font-semibold">
-                                {trackedById.has(selectedGame.id)
-                                  ? "Already tracked"
-                                  : "Not tracked yet"}
-                              </p>
-                            </div>
-                          </div>
+                            <div className="grid gap-3 p-4">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="theme-surface-alt rounded-2xl border p-3">
+                                  <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
+                                    Release
+                                  </p>
+                                  <p className="theme-text mt-2 flex items-center gap-2 text-sm font-semibold">
+                                    <FiClock
+                                      size={14}
+                                      className="text-cyan-200/70"
+                                    />
+                                    {getReleaseDate(selectedGame)
+                                      ? getReleaseDate(
+                                          selectedGame,
+                                        )?.toLocaleDateString(undefined, {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric",
+                                        })
+                                      : "Unknown"}
+                                  </p>
+                                </div>
+                                <div className="theme-surface-alt rounded-2xl border p-3">
+                                  <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
+                                    Library
+                                  </p>
+                                  <p className="theme-text mt-2 text-sm font-semibold">
+                                    {trackedById.has(selectedGame.id)
+                                      ? "Already tracked"
+                                      : "Not tracked yet"}
+                                  </p>
+                                </div>
+                              </div>
 
-                          {selectedGame.version_parent && (
-                            <div className="rounded-2xl border border-amber-300/15 bg-amber-400/10 p-3 text-sm text-amber-50/90">
-                              This result looks like a variant edition. If you
-                              only want original releases, compare it before
-                              adding.
-                            </div>
-                          )}
-
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openTracking(selectedGame)}
-                              disabled={!uid}
-                              className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition ${
-                                uid
-                                  ? trackedById.has(selectedGame.id)
-                                    ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
-                                    : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
-                                  : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
-                              }`}
-                            >
-                              {trackedById.has(selectedGame.id) ? (
-                                <FiEdit3 size={15} />
-                              ) : (
-                                <FiPlus size={15} />
+                              {selectedGame.version_parent && (
+                                <div className="rounded-2xl border border-amber-300/15 bg-amber-400/10 p-3 text-sm text-amber-50/90">
+                                  This result looks like a variant edition. If
+                                  you only want original releases, compare it
+                                  before adding.
+                                </div>
                               )}
-                              {trackedById.has(selectedGame.id)
-                                ? "Edit Tracking"
-                                : "Add Tracking"}
-                            </button>
-                            <Link
-                              href={`/game/${selectedGame.id}`}
-                              onClick={onClose}
-                              className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
-                            >
-                              Open Game Page
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <div className="theme-text-muted flex h-full items-center justify-center text-center">
-                      Select a result to preview it here.
-                    </div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </aside>
-          </div>
-        </motion.div>
-      </div>
 
-      {editingGame && (
-        <div className="relative">
-          <GameTrackingModal
-            key={`${editingGame._docId ?? editingGame.igdb.id}-${trackingOpen ? "open" : "closed"}`}
-            loading={trackingLoading}
-            open={trackingOpen}
-            onClose={() => setTrackingOpen(false)}
-            onHeaderClose={() => setTrackingOpen(false)}
-            onSave={handleSaveTracking}
-            game={editingGame}
-            initialNotes={editingGame.notes ?? ""}
-            initialRating={editingGame.my_rating ?? null}
-            initialProgress={editingGame.progress ?? 0}
-            initialPlaytime={editingGame.playtime ?? 0}
-            initialPlayedSessions={editingGame.playedSessions ?? []}
-            initialStatus={editingGame.status ?? "Want To Play"}
-            initialFavorite={editingGame.favorite ?? false}
-            showStatus
-            showFavorite
-            saving={trackingSaving}
-          />
-        </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openTracking(selectedGame)}
+                                  disabled={!uid}
+                                  className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition ${
+                                    uid
+                                      ? trackedById.has(selectedGame.id)
+                                        ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
+                                        : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
+                                      : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
+                                  }`}
+                                >
+                                  {trackedById.has(selectedGame.id) ? (
+                                    <FiEdit3 size={15} />
+                                  ) : (
+                                    <FiPlus size={15} />
+                                  )}
+                                  {trackedById.has(selectedGame.id)
+                                    ? "Edit Tracking"
+                                    : "Add Tracking"}
+                                </button>
+                                <Link
+                                  href={`/game/${selectedGame.id}`}
+                                  onClick={onClose}
+                                  className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
+                                >
+                                  Open Game Page
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <div className="theme-text-muted flex h-full items-center justify-center text-center">
+                          Select a result to preview it here.
+                        </div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </aside>
+              </div>
+            </motion.div>
+          </div>
+
+          {editingGame && (
+            <div className="relative">
+              <GameTrackingModal
+                key={`${editingGame._docId ?? editingGame.igdb.id}-${trackingOpen ? "open" : "closed"}`}
+                loading={trackingLoading}
+                open={trackingOpen}
+                onClose={() => setTrackingOpen(false)}
+                onHeaderClose={() => setTrackingOpen(false)}
+                onSave={handleSaveTracking}
+                game={editingGame}
+                initialNotes={editingGame.notes ?? ""}
+                initialRating={editingGame.my_rating ?? null}
+                initialProgress={editingGame.progress ?? 0}
+                initialPlaytime={editingGame.playtime ?? 0}
+                initialPlayedSessions={editingGame.playedSessions ?? []}
+                initialStatus={editingGame.status ?? "Want To Play"}
+                initialFavorite={editingGame.favorite ?? false}
+                showStatus
+                showFavorite
+                saving={trackingSaving}
+              />
+            </div>
+          )}
+        </motion.div>
       )}
-    </motion.div>
+    </AnimatePresence>
   );
 
   return createPortal(modal, document.body);

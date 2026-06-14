@@ -125,6 +125,8 @@ export default function GamesPage() {
   const [saving, setSaving] = useState(false);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [bulkRefreshing, setBulkRefreshing] = useState(false);
+  const [recentModalOpen, setRecentModalOpen] = useState(false);
+  const [recentVisibleCount, setRecentVisibleCount] = useState(15);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -445,16 +447,24 @@ export default function GamesPage() {
     setOrderedFavorites(favoriteGames);
   }, [favoriteGames]);
 
-  const recentlyEditedGames = useMemo(
+  const sortedRecentGames = useMemo(
     () =>
-      [...allGames]
-        .sort(
-          (a, b) =>
-            (b.lastUpdated?.toMillis?.() ?? 0) -
-            (a.lastUpdated?.toMillis?.() ?? 0),
-        )
-        .slice(0, 6),
+      [...allGames].sort(
+        (a, b) =>
+          (b.lastUpdated?.toMillis?.() ?? 0) -
+          (a.lastUpdated?.toMillis?.() ?? 0),
+      ),
     [allGames],
+  );
+
+  const recentlyEditedGames = useMemo(
+    () => sortedRecentGames.slice(0, 6),
+    [sortedRecentGames],
+  );
+
+  const recentGames = useMemo(
+    () => sortedRecentGames.slice(0, recentVisibleCount),
+    [sortedRecentGames, recentVisibleCount],
   );
 
   const handleTabChange = (status: string) => {
@@ -1536,9 +1546,25 @@ export default function GamesPage() {
 
             {/* Recently Edited */}
             <div className="theme-panel mb-8 rounded-2xl border p-4 flex flex-col gap-3 max-h-[45vh] min-h-[45vh] lg:mb-0">
-              <h3 className="theme-text font-bold text-lg pt-2 pl-1">
-                Recently Edited
-              </h3>
+              <div className="flex items-center justify-between py-2">
+                <h3 className="theme-text font-bold text-lg">
+                  Recently Edited
+                </h3>
+
+                <button
+                  onClick={() => setRecentModalOpen(true)}
+                  className="group flex items-center justify-center rounded-md px-3 py-0.5 font-bold transition-all duration-300 ease-in-out cursor-pointer theme-accent-soft-bg border-2 border-cyan-400 theme-text hover:bg-cyan-500 hover:text-black"
+                >
+                  <FiArrowRight
+                    size={14}
+                    className="transition-transform duration-300 group-hover:mr-[5px]"
+                  />
+
+                  <span className="text-sm max-w-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-w-[60px] group-hover:opacity-100 whitespace-nowrap">
+                    View
+                  </span>
+                </button>
+              </div>
               <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
                 {loading ? (
                   renderSkeletons(3, "recent")
@@ -1617,6 +1643,168 @@ export default function GamesPage() {
         confirmText="Confirm"
         cancelText="Cancel"
       />
+
+      <AnimatePresence>
+        {recentModalOpen && (
+          <motion.div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setRecentModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 30 }}
+              transition={{
+                type: "spring",
+                stiffness: 240,
+                damping: 26,
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="theme-panel w-full max-w-5xl h-[85vh] rounded-3xl border border-[var(--theme-border)] overflow-hidden shadow-2xl"
+            >
+              {/* Header */}
+              <div className="sticky top-0 z-20 border-b border-white/10 backdrop-blur-xl px-8 py-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">
+                      Activity Feed
+                    </p>
+                    ```
+                    <h2 className="mt-1 text-3xl font-black">
+                      Recently Edited Games
+                    </h2>
+                    <p className="theme-text-muted mt-1 text-sm">
+                      Latest changes across your game library
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => setRecentModalOpen(false)}
+                    className="h-11 w-11 rounded-xl border border-white/10 transition hover:bg-white/5"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="h-[calc(85vh-95px)] overflow-y-auto custom-scrollbar p-8">
+                <div className="relative max-w-4xl mx-auto">
+                  <div className="absolute left-[22px] top-0 bottom-0 w-px bg-cyan-500/20" />
+
+                  {recentGames.map((g, index) => (
+                    <motion.div
+                      key={`${g.igdb.id}-${index}`}
+                      initial={{ opacity: 0, x: -15 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{
+                        delay: index * 0.02,
+                      }}
+                      className="relative mb-6 pl-16"
+                    >
+                      <div className="absolute left-[10px] top-8 h-6 w-6 rounded-full border-4 border-[var(--theme-bg)] bg-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.7)]" />
+
+                      <Link
+                        href={`/game/${g.igdb.id}`}
+                        onClick={() => setRecentModalOpen(false)}
+                      >
+                        <div className="group cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md transition-all duration-300 hover:border-cyan-400/30 hover:bg-white/[0.05]">
+                          <div className="flex gap-4">
+                            <img
+                              src={g.igdb.cover}
+                              alt={g.name}
+                              className="h-28 w-20 rounded-xl object-cover shadow-lg transition-transform duration-300 group-hover:scale-105"
+                            />
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <h3 className="line-clamp-2 text-lg font-bold">
+                                    {g.name}
+                                  </h3>
+
+                                  <p className="mt-2 text-sm font-medium text-cyan-300">
+                                    {g.recentActionSummary ?? "Game Updated"}
+                                  </p>
+                                </div>
+
+                                <span className="whitespace-nowrap text-xs text-zinc-500">
+                                  {g.lastUpdated
+                                    ? new Date(
+                                        g.lastUpdated.toMillis(),
+                                      ).toLocaleString()
+                                    : "Unknown"}
+                                </span>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <span className="rounded-full bg-white/5 px-3 py-1 text-xs">
+                                  {g.status}
+                                </span>
+
+                                {typeof g.my_rating === "number" && (
+                                  <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+                                    ★ {g.my_rating}
+                                  </span>
+                                )}
+
+                                {(g.playtime ?? 0) > 0 && (
+                                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs">
+                                    {Math.floor(g.playtime ?? 0)}h
+                                  </span>
+                                )}
+                              </div>
+
+                              {g.notes && (
+                                <p className="mt-3 line-clamp-2 text-sm text-zinc-400">
+                                  {g.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  ))}
+
+                  {recentVisibleCount < sortedRecentGames.length && (
+                    <div className="relative pb-8 pl-16">
+                      <div className="absolute left-[22px] top-0 h-full w-px bg-cyan-500/20" />
+
+                      <div className="absolute left-[10px] top-4 h-6 w-6 rounded-full border-4 border-[var(--theme-bg)] bg-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.7)]" />
+
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="h-px w-full bg-white/10" />
+
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setRecentVisibleCount((prev) => prev + 15);
+                            }}
+                            className="rounded-xl border border-cyan-400/30 px-6 py-3 text-sm font-semibold transition-all duration-200 hover:border-cyan-400 hover:bg-cyan-500 hover:text-black"
+                          >
+                            Load 15 More Activities
+                          </button>
+
+                          <span className="text-xs text-zinc-500">
+                            Showing {recentGames.length} of{" "}
+                            {sortedRecentGames.length}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}{" "}
+      </AnimatePresence>
     </motion.main>
   );
 }

@@ -1,40 +1,32 @@
 [
   {
-    "version": "7.3",
-    "title": "Awards Overhaul & UI Improvements",
-    "date": "2026-06-13",
-    "featured": false,
+    "version": "7.4.1",
+    "title": "Quality of Life",
+    "date": "2026-06-14",
+    "featured": true,
     "changes": [
       {
-        "category": "User Interface",
+        "category": "*NEW*",
         "items": [
-          "Introduced a new card UI/UX design",
-          "Improved overall visual consistency and interactions"
+          "Added a new activity timeline for tracking recent game updates and library changes",
+          "Added detailed update history including status changes, ratings, playtime, and notes",
+          "Added expandable activity history with load-more support"
         ]
       },
       {
-        "category": "PlayCrew Awards",
+        "category": "Customization & UX Update",
         "items": [
-          "Reworked Awards game picker",
-          "Added sorting options and release date ordering (2026 → 2024 → older releases)",
-          "Fixed awards category glow overflowing its container",
-          "Fixed awards tooltip trim and display issues"
+          "Added a redesigned music player experience to the mobile menu",
+          "Added a What's New shortcut to the mobile menu",
+          "Added an upload progress state when saving wallpapers",
+          "Improved wallpaper save feedback and confirmation flow"
         ]
       },
       {
-        "category": "Recently Edited",
+        "category": "Bug Fixes",
         "items": [
-          "Improved Recently Edited tracking accuracy",
-          "Expanded change detection to recognize more game updates"
-        ]
-      },
-      {
-        "category": "Cleanup & Stability",
-        "items": [
-          "Removed legacy rating system",
-          "Removed unused save file APIs",
-          "Removed unused preset APIs",
-          "General cleanup, refactoring, and stability improvements"
+          "Fixed modal close animations not playing correctly when closing the What's New modal",
+          "Fixed search modal instantly disappearing instead of playing its exit animation"
         ]
       }
     ]
@@ -43,7 +35,7 @@
     "version": "7.4",
     "title": "Desktop Integration, Customization & Experience Update",
     "date": "2026-06-13",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Desktop Experience",
@@ -96,6 +88,142 @@
         "items": [
           "Fixed sidebar padding remaining after mobile navigation transitions",
           "Various UI polish, code cleanup, and stability improvements"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "7.3",
+    "title": "Awards Overhaul & UI Improvements",
+    "date": "2026-06-13",
+    "featured": false,
+    "changes": [
+      {
+        "category": "User Interface",
+        "items": [
+          "Introduced a new card UI/UX design",
+          "Improved overall visual consistency and interactions"
+        ]
+      },
+      {
+        "category": "PlayCrew Awards",
+        "items": [
+          "Reworked Awards game picker",
+          "Added sorting options and release date ordering (2026 → 2024 → older releases)",
+          "Fixed awards category glow overflowing its container",
+          "Fixed awards tooltip trim and display issues"
+        ]
+      },
+      {
+        "category": "Recently Edited",
+        "items": [
+          "Improved Recently Edited tracking accuracy",
+          "Expanded change detection to recognize more game updates"
+        ]
+      },
+      {
+        "category": "Cleanup & Stability",
+        "items": [
+          "Removed legacy rating system",
+          "Removed unused save file APIs",
+          "Removed unused preset APIs",
+          "General cleanup, refactoring, and stability improvements"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "7.2",
+    "title": "Sidebar Testing Update",
+    "date": "2026-06-13",
+    "featured": false,
+    "changes": [
+      {
+        "category": "Testing & Stability",
+        "items": [
+          "Temporarily disabled the Gaming Pill sidebar for further testing and refinement"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "7.1",
+    "title": "Navigation Refresh, Preview Mode & Major UI Overhaul",
+    "date": "2026-06-13",
+    "featured": false,
+    "changes": [
+      {
+        "category": "New Features",
+        "items": [
+          "Added Preview Mode for distraction-free background viewing",
+          "Added a new gaming-inspired pill sidebar layout",
+          "Added a refresh bulk button in the Unreleased tab",
+          "Added an MD screen menu for improved medium-screen support",
+          "Added mobile volume controls for SM and MD screen sizes"
+        ]
+      },
+      {
+        "category": "User Interface",
+        "items": [
+          "Enhanced theme colors across the application",
+          "Reworked navigation to support multiple layout styles",
+          "Improved navbar sizing, spacing, and visual consistency",
+          "Improved Manage Game button layout and presentation",
+          "Refined Game of Thrones font styling",
+          "Reworked favorite image ordering for easier access"
+        ]
+      },
+      {
+        "category": "Fixes",
+        "items": [
+          "Fixed repeated game notification issues",
+          "Fixed notification center trimming and layout problems",
+          "Fixed GameID button animation inconsistencies",
+          "Fixed sizing mismatches between navigation controls",
+          "Fixed hover labels remaining active after navigation",
+          "Fixed profile image and wallpaper placeholder handling",
+          "Fixed unreleased game messaging for titles without release dates"
+        ]
+      },
+      {
+        "category": "Collection & Activity",
+        "items": [
+          "Improved collection activity tracking and messaging",
+          "Added clearer collection status updates when adding games",
+          "Corrected collection references across GameID activity updates"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "7.0",
+    "title": "Customization & Profile Experience Update",
+    "date": "2026-06-13",
+    "featured": false,
+    "changes": [
+      {
+        "category": "Customization",
+        "items": [
+          "Added theming support improvements",
+          "Added typography customization enhancements",
+          "Improved theme and font persistence across navigation",
+          "Refined font presets with updated naming and rendering behavior"
+        ]
+      },
+      {
+        "category": "User Interface",
+        "items": [
+          "Refreshed browser tab titles with improved PlayCrew branding",
+          "Improved profile card presentation and layout consistency",
+          "Enhanced overall visual polish across profile and game pages"
+        ]
+      },
+      {
+        "category": "Fixes & Improvements",
+        "items": [
+          "Fixed settings page issues related to theme mode and browser titles",
+          "Fixed email overflow and visibility issues on profile pages",
+          "Various UI refinements and layout improvements"
         ]
       }
     ]

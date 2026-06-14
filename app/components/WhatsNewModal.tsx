@@ -78,14 +78,30 @@ export default function WhatsNewModal({ isOpen, onClose }: Props) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    console.log("isOpen:", isOpen);
+  }, [isOpen]);
+
+  useEffect(() => {
+    console.log("mounted");
+
+    return () => {
+      console.log("unmounted");
+    };
+  }, []);
+
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           className="theme-modal-backdrop fixed inset-0 z-[2000] flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{
+            duration: 0.3,
+            ease: "easeInOut",
+          }}
           onClick={onClose}
         >
           <motion.div

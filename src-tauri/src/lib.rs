@@ -55,8 +55,6 @@ fn start_next_server(resource_dir: PathBuf) -> std::io::Result<Child> {
         .env("PORT", "3000")
         .env("NODE_ENV", "production")
         .stdin(Stdio::null())
-        // .stdout(Stdio::null())
-        // .stderr(Stdio::null());
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 

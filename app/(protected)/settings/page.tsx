@@ -9,6 +9,8 @@ import toast from "react-hot-toast";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiImage, FiTrash2 } from "react-icons/fi";
 import { Area } from "react-easy-crop";
+import { FaSave } from "react-icons/fa";
+import { MdAdd } from "react-icons/md";
 
 import { useUser } from "@/app/context/UserContext";
 import { useUI } from "@/app/context/UIContext";
@@ -32,7 +34,7 @@ import {
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
 import CropModal from "@/app/components/CropModal";
-import { FaSave } from "react-icons/fa";
+import { IoIosCloudUpload } from "react-icons/io";
 
 type CropData = {
   x: number;
@@ -100,6 +102,7 @@ export default function SiteSettingsPage() {
   const [pendingWallpaper, setPendingWallpaper] = useState<MediaValue | null>(
     null,
   );
+  const [savingWallpaper, setSavingWallpaper] = useState(false);
 
   const [gamesBgBlur, setGamesBgBlur] = useState(
     () => getStoredPageSettings().bgBlur,
@@ -368,7 +371,9 @@ export default function SiteSettingsPage() {
   };
 
   const saveWallpaper = async () => {
-    if (!user || !profile || !pendingWallpaper) return;
+    if (!user || !profile || !pendingWallpaper || savingWallpaper) return;
+
+    setSavingWallpaper(true);
 
     try {
       const savedWallpaper =
@@ -388,6 +393,8 @@ export default function SiteSettingsPage() {
     } catch (error) {
       console.error(error);
       toast.error("Failed to save wallpaper");
+    } finally {
+      setSavingWallpaper(false);
     }
   };
 
@@ -533,7 +540,7 @@ export default function SiteSettingsPage() {
                         key={theme.id}
                         type="button"
                         onClick={() => handleThemePresetChange(theme.id)}
-                        className={`relative overflow-hidden rounded-2xl border p-3 text-left transition-all duration-200 ${
+                        className={`relative min-h-[115px] overflow-hidden rounded-2xl border p-3 text-left transition-all duration-200 ${
                           isSelected
                             ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
                             : "theme-surface theme-hover-surface"
@@ -770,7 +777,12 @@ export default function SiteSettingsPage() {
                     onClick={() => wallpaperInputRef.current?.click()}
                     className="theme-accent-bg flex flex-col items-center justify-center gap-2 rounded-2xl p-4 text-center transition hover:scale-[1.02]"
                   >
-                    <FiImage size={22} />
+                    {hasSavedWallpaper || hasPendingWallpaper ? (
+                      <FiImage size={22} />
+                    ) : (
+                      <MdAdd size={22} />
+                    )}
+
                     <span className="font-semibold">
                       {hasSavedWallpaper || hasPendingWallpaper
                         ? "Change"
@@ -792,20 +804,34 @@ export default function SiteSettingsPage() {
 
                   <button
                     type="button"
-                    disabled={!hasPendingWallpaper}
+                    disabled={!hasPendingWallpaper || savingWallpaper}
                     onClick={saveWallpaper}
                     className={`
-    flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center
-    transition-all duration-300 hover:scale-[1.02]
-    ${
-      hasPendingWallpaper
-        ? "theme-accent-soft-bg animate-pulse shadow-[0_0_25px_rgba(var(--theme-accent-rgb),0.45)] border-[rgba(var(--theme-accent-rgb),0.5)]"
-        : "theme-surface theme-hover-surface opacity-50"
-    }
-  `}
+                      flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center
+                      transition-all duration-300 hover:scale-[1.02]
+                      ${
+                        hasPendingWallpaper
+                          ? "theme-accent-soft-bg animate-pulse shadow-[0_0_25px_rgba(var(--theme-accent-rgb),0.45)] border-[rgba(var(--theme-accent-rgb),0.5)]"
+                          : "theme-surface theme-hover-surface opacity-20"
+                      }
+                    `}
                   >
-                    <FaSave size={22} />
-                    <span className="font-semibold">Confirm</span>
+                    <span className="font-semibold">
+                      {savingWallpaper ? (
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <IoIosCloudUpload size={22} />
+                          <div className="flex items-center">
+                            <span>Uploading</span>
+                            <span className="loading loading-dots loading-xs relative top-1 ml-1"></span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <FaSave size={22} />
+                          <span>Confirm</span>
+                        </div>
+                      )}
+                    </span>
                   </button>
                 </div>
 
