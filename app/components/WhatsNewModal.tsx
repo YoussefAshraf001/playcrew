@@ -45,7 +45,7 @@ const statusClass: Record<RoadmapStatus, string> = {
   "in-progress":
     "border-[rgba(var(--theme-accent-rgb),0.4)] bg-[rgba(var(--theme-accent-rgb),0.12)] text-[rgb(var(--theme-accent-rgb))] shadow-[0_0_14px_rgba(var(--theme-accent-rgb),0.14)]",
 
-  completed: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300",
+  completed: "border-emerald-400 bg-emerald-500/10 text-emerald-300",
 };
 
 const formatStatusLabel = (status: RoadmapStatus) =>
@@ -77,18 +77,6 @@ export default function WhatsNewModal({ isOpen, onClose }: Props) {
       document.body.style.overflow = "";
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    console.log("isOpen:", isOpen);
-  }, [isOpen]);
-
-  useEffect(() => {
-    console.log("mounted");
-
-    return () => {
-      console.log("unmounted");
-    };
-  }, []);
 
   return (
     <AnimatePresence>
@@ -262,6 +250,18 @@ export default function WhatsNewModal({ isOpen, onClose }: Props) {
                       </h3>
 
                       <div className="space-y-3">
+                        {/* {[...section.items]
+                          .sort((a, b) => {
+                            const order: Record<RoadmapStatus, number> = {
+                              completed: 0,
+                              "in-progress": 1,
+                              planned: 2,
+                              evaluating: 3,
+                            };
+
+                            return order[a.status] - order[b.status];
+                          })
+                          .map((item: RoadmapItem) => ( */}
                         {section.items.map((item: RoadmapItem) => (
                           <div
                             key={item.title}

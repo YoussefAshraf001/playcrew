@@ -27,6 +27,7 @@ type MediaValue =
 
 interface UserProfile {
   uid: string;
+  admin?: boolean;
   username?: string;
   avatar?: MediaValue;
   avatarBase64?: string;
@@ -45,6 +46,7 @@ interface UserContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  isAdmin: boolean;
   setProfile: Dispatch<SetStateAction<UserProfile | null>>;
 }
 
@@ -52,6 +54,7 @@ const UserContext = createContext<UserContextType>({
   user: null,
   profile: null,
   loading: true,
+  isAdmin: false,
   setProfile: () => {},
 });
 
@@ -63,6 +66,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const uid = user?.uid as string | undefined;
   const resolvedProfile = uid ? profile : null;
   const loading = !authResolved || (Boolean(uid) && !profileResolved);
+
+  const isAdmin = profile?.admin === true;
 
   useEffect(() => {
     // Listen to auth state changes
@@ -103,7 +108,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   return (
     <UserContext.Provider
-      value={{ user, profile: resolvedProfile, loading, setProfile }}
+      value={{ user, profile: resolvedProfile, loading, setProfile, isAdmin }}
     >
       {children}
     </UserContext.Provider>

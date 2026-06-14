@@ -58,6 +58,7 @@ type MediaValue =
 
 type UserProfile = {
   uid: string;
+  admin?: boolean;
   username?: string;
   email?: string;
   bio?: string;

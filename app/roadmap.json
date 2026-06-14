@@ -13,9 +13,9 @@
         "description": "Allow users to control playcrew playlist straight from dashboard."
       },
       {
-        "title": "Custom Dashboard Wallpapers",
-        "status": "planned",
-        "description": "Allow users to change their dashboard wallpaper from Site Settings for a better user experience."
+        "title": "Remaster Background Wallpapers",
+        "status": "completed",
+        "description": "Allow users to change their site wallpaper from Site Settings instead of profile for a better user experience."
       },
       {
         "title": "Additional Dashboard Backgrounds",
@@ -29,7 +29,7 @@
       },
       {
         "title": "More Themes (General)",
-        "status": "in-progress",
+        "status": "completed",
         "description": "Add additional themes and personalization options."
       },
       {
@@ -51,16 +51,11 @@
         "title": "About Page",
         "status": "planned",
         "description": "Explain what PlayCrew is, showcase the music playlist, add developer information, contact details, and IGDB credits."
-      }
-    ]
-  },
-  {
-    "section": "In Consideration",
-    "items": [
+      },
       {
         "title": "Custom Domain",
         "status": "evaluating",
-        "description": "Explain what PlayCrew is, showcase the music playlist, add developer information, contact details, and IGDB credits."
+        "description": "Exploring the possibility of moving PlayCrew to its own dedicated domain and brand identity."
       },
       {
         "title": "Dedicated Music Hosting",
@@ -83,14 +78,19 @@
         "description": "Implement a custom database infrastructure for improved performance and flexibility."
       },
       {
-        "title": "Search Modal Redesign",
-        "status": "evaluating",
-        "description": "Allow adding games directly to Want To Play instead of opening the edit modal."
-      },
-      {
         "title": "New Name & Branding",
         "status": "evaluating",
         "description": "Consider rebranding PlayCrew with a new name and visual identity."
+      },
+      {
+        "title": "Search Modal Redesign",
+        "status": "completed",
+        "description": "Allow adding games directly to Want To Play instead of opening the edit modal."
+      },
+      {
+        "title": "Improve Authentication Loading Experience",
+        "status": "planned",
+        "description": "Prevent protected pages from briefly displaying logged-out content while authentication is still loading by introducing proper loading states and route guards."
       }
     ]
   },

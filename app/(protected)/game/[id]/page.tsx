@@ -345,13 +345,6 @@ export default function GamePage() {
           })),
         );
 
-        const gotyFound = yearSnapshots.some(({ snap }) =>
-          snap.docs.some(
-            (entry) =>
-              getAwardCategoryFromDocId(entry.id) === "Game of the Year",
-          ),
-        );
-
         const winners: WinnerAward[] = yearSnapshots
           .flatMap(({ year, snap }) =>
             snap.docs.flatMap((entry) => {
@@ -454,14 +447,19 @@ export default function GamePage() {
       coverUrl = game.background_image;
     }
 
-    const previousTrackedGame = trackedGameData ?? {
-      favorite: isFavorited,
-      status: currentStatus,
-      progress: trackedGameData?.progress ?? 0,
-      my_rating: trackedGameData?.my_rating ?? null,
-      notes: trackedGameData?.notes ?? "",
-      playtime: trackedGameData?.playtime ?? 0,
-    };
+    const previousTrackedGame = trackedGameData ?? null;
+
+    // const previousTrackedGame = trackedGameData ?? {
+    //   favorite: isFavorited,
+    //   status: currentStatus,
+    //   progress: trackedGameData?.progress ?? 0,
+    //   my_rating: trackedGameData?.my_rating ?? null,
+    //   review: trackedGameData?.review ?? {
+    //     text: "",
+    //     sticker: null,
+    //   },
+    //   playtime: trackedGameData?.playtime ?? 0,
+    // };
 
     const shouldSkipLastUpdated = (data?.skipLastUpdated ?? false) === true;
 
@@ -482,12 +480,14 @@ export default function GamePage() {
       my_rating: data.my_rating ?? null,
       playtime: data.playtime ?? 0,
       progress: data.progress ?? 0,
-      notes: data.notes ?? "",
+      review: {
+        text: data.review?.text ?? "",
+        sticker: data.review?.sticker ?? null,
+      },
       status: data.status,
       favorite: data.favorite ?? false,
 
       playedSessions: data.playedSessions ?? [],
-      save: data.save ?? null,
 
       recentActionSummary:
         data.recentActionSummary ??
@@ -496,7 +496,10 @@ export default function GamePage() {
           status: data.status,
           progress: data.progress ?? 0,
           my_rating: data.my_rating ?? null,
-          notes: data.notes ?? "",
+          review: data.review ?? {
+            text: "",
+            sticker: null,
+          },
           playtime: data.playtime ?? 0,
         }),
     };
@@ -515,7 +518,7 @@ export default function GamePage() {
   const handleFavoriteToggle = async () => {
     if (!game) return;
     if (!user) {
-      toast.error(<>You must be logged to use this feature.</>);
+      requireLogin();
       return;
     }
     try {
@@ -560,6 +563,8 @@ export default function GamePage() {
       return;
     }
 
+    const wasTracked = hasTrackedEntry;
+
     try {
       setLoadingStatus(status);
 
@@ -585,13 +590,24 @@ export default function GamePage() {
         favorite: prev?.favorite ?? isFavorited,
         progress: status === "Completed" ? 100 : (prev?.progress ?? 0),
       }));
-      toast.success(
-        <span>
-          <span className="font-bold pr-1">{game.name ?? "Game"}</span>
-          <span className="text-black">is now added and marked as</span>
-          <span className="font-bold pr-1">{status}</span>
-        </span>,
-      );
+
+      if (!wasTracked) {
+        toast.success(
+          <span>
+            <span className="font-bold pr-1">{game.name ?? "Game"}</span>
+            <span className="text-black">is now added and marked as</span>
+            <span className="font-bold pl-1">{status}</span>
+          </span>,
+        );
+      } else {
+        toast.success(
+          <span>
+            <span className="font-bold pr-1">{game.name ?? "Game"}</span>
+            <span className="text-black">status changed to</span>
+            <span className="font-bold pl-1">{status}</span>
+          </span>,
+        );
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to update status.");
@@ -809,8 +825,10 @@ export default function GamePage() {
       my_rating: trackedGameData?.my_rating ?? null,
       status: trackedGameData?.status ?? currentStatus ?? "Playing",
       progress: trackedGameData?.progress ?? 0,
-      notes: trackedGameData?.notes ?? "",
-      categoryRatings: trackedGameData?.categoryRatings,
+      review: trackedGameData?.review ?? {
+        text: "",
+        sticker: null,
+      },
       favorite: trackedGameData?.favorite ?? isFavorited ?? false,
       playedSessions: trackedGameData?.playedSessions ?? [],
       notInterested: trackedGameData?.notInterested ?? false,
@@ -828,7 +846,10 @@ export default function GamePage() {
   const hasTrackedEntry = Boolean(trackedGameData);
 
   const handleSaveTrackingModal = async (
-    notes: string,
+    review: {
+      text: string;
+      sticker: string | null;
+    },
     rating: number | null,
     progress: number,
     playtime: number,
@@ -836,14 +857,13 @@ export default function GamePage() {
     favorite: boolean,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
-    save?: TrackedGame["save"],
   ) => {
     if (!user || !game || trackingSaving) return;
 
     try {
       setTrackingSaving(true);
       await updateTrackedGame({
-        notes,
+        review,
         my_rating: rating,
         progress,
         playtime,
@@ -851,7 +871,6 @@ export default function GamePage() {
         favorite,
         notInterested,
         playedSessions,
-        save,
         lastUpdated: serverTimestamp(),
       });
 
@@ -859,7 +878,7 @@ export default function GamePage() {
       setIsFavorited(favorite);
       setTrackedGameData((prev: any) => ({
         ...(prev ?? {}),
-        notes,
+        review,
         my_rating: rating,
         progress,
         playtime,
@@ -1791,7 +1810,12 @@ export default function GamePage() {
             onRemove={handleRemoveTrackingEntry}
             saving={trackingSaving}
             game={trackingModalGame}
-            initialNotes={trackingModalGame.notes ?? ""}
+            initialReview={
+              trackingModalGame.review ?? {
+                text: "",
+                sticker: null,
+              }
+            }
             initialRating={trackingModalGame.my_rating ?? null}
             initialProgress={trackingModalGame.progress ?? 0}
             initialPlaytime={trackingModalGame.playtime ?? 0}

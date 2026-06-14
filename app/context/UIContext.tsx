@@ -79,18 +79,6 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     async (data: Record<string, unknown>) => {
       if (!user?.uid) return;
 
-      await fetch("/api/save-delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          action: "update",
-          data,
-        }),
-      });
-
       setProfile((current) => (current ? { ...current, ...data } : current));
     },
     [setProfile, user],

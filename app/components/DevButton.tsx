@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 
 import { db } from "@/app/lib/firebase";
+import { GAME_STICKERS } from "../lib/gameStickers";
 
 interface Props {
   userId: string;
@@ -22,7 +23,6 @@ interface Props {
 }
 
 interface GameData {
-  categoryRatings?: { [key: string]: number };
   name: string;
   igdb: {
     id: number;
@@ -37,7 +37,10 @@ interface GameData {
   progress?: number;
   status?: string;
   favorite?: boolean;
-  notes?: string;
+  review?: {
+    text?: string;
+    sticker?: string | null;
+  };
   my_rating?: number;
   lastUpdated?: unknown;
 }
@@ -129,11 +132,9 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [saving, requestClose]);
 
-  const categoryKeys = useMemo(() => {
-    const currentKeys = Object.keys(gameData?.categoryRatings || {});
-    const merged = new Set([...DEFAULT_CATEGORY_KEYS, ...currentKeys]);
-    return Array.from(merged);
-  }, [gameData?.categoryRatings]);
+  const selectedSticker = GAME_STICKERS.find(
+    (s) => s.id === gameData?.review?.sticker,
+  );
 
   const handleCorrectPin = () => {
     localStorage.setItem(DEV_KEY, String(Date.now()));
@@ -156,17 +157,6 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
   const updateCategory = (key: string, value: number) => {
     const bounded = Math.min(10, Math.max(0, Math.round(value)));
-    setGameData((p) =>
-      p
-        ? {
-            ...p,
-            categoryRatings: {
-              ...(p.categoryRatings || {}),
-              [key]: bounded,
-            },
-          }
-        : p,
-    );
   };
 
   const parseNumber = (value: string, fallback = 0) => {
@@ -621,45 +611,42 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                         />
                       </label>
                     </div>
-
-                    <h5 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
-                      Category Ratings
-                    </h5>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {categoryKeys.map((key) => (
-                        <label key={key} className="flex flex-col gap-1">
-                          <span className="text-xs text-zinc-400 capitalize">
-                            {key}
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={10}
-                            step={1}
-                            className="bg-zinc-800 p-2.5 rounded border border-white/10"
-                            value={gameData.categoryRatings?.[key] ?? 0}
-                            onChange={(e) =>
-                              updateCategory(
-                                key,
-                                parseNumber(e.target.value, 0),
-                              )
-                            }
-                          />
-                        </label>
-                      ))}
-                    </div>
                   </section>
 
-                  <section className="space-y-2">
+                  <section className="space-y-4">
                     <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
-                      Notes
+                      Review
                     </h4>
-                    <textarea
-                      className="w-full bg-zinc-800 p-3 rounded border border-white/10 min-h-[150px] placeholder:text-zinc-500 focus:outline-none"
-                      value={gameData.notes || ""}
-                      onChange={(e) => updateField("notes", e.target.value)}
-                      placeholder="Developer notes..."
-                    />
+
+                    <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                      <div className="rounded-xl border border-white/10 bg-zinc-800 p-4">
+                        {gameData.review?.sticker ? (
+                          <img
+                            src={selectedSticker?.image}
+                            alt={selectedSticker?.label}
+                            className="mx-auto h-50 w-50 object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-28 items-center justify-center text-zinc-500">
+                            No Sticker
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <textarea
+                          className="w-full h-full bg-zinc-800 p-3 rounded border border-white/10 min-h-[150px] placeholder:text-zinc-500 focus:outline-none"
+                          value={gameData.review?.text ?? ""}
+                          onChange={(e) =>
+                            updateField("review", {
+                              ...(gameData.review ?? {}),
+                              text: e.target.value,
+                            })
+                          }
+                          placeholder="Write a review..."
+                        />
+                      </div>
+                    </div>
                   </section>
                 </div>
 

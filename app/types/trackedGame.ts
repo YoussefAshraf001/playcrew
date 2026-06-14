@@ -35,7 +35,11 @@ export interface TrackedGame {
   my_rating?: number | null;
   status?: string;
   progress?: number;
-  notes?: string;
+  review: {
+    text: string;
+    sticker: string | null;
+  };
+
   favorite?: boolean;
   favoriteOrder?: number;
   favoriteAllTime?: boolean;

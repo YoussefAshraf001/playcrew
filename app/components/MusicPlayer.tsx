@@ -170,7 +170,7 @@ export default function MusicPlayer() {
             exit: { y: -200, opacity: 0 },
           })}
       transition={{ duration: 0.35, ease: "easeInOut" }}
-      className={`fixed z-1000 w-[min(95vw,38rem)] rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:w-[580px] lg:right-6 ${
+      className={`fixed z-1000 w-[min(95vw,38rem)] rounded-2xl border theme-panel-strong bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:w-[580px] lg:right-6 ${
         navbarLayout === "sidebar"
           ? "left-25 origin-top-left -translate-y-[-750%]"
           : "left-1/2 -translate-x-1/2 md:left-auto md:right-4 md:translate-x-0"
@@ -210,7 +210,7 @@ export default function MusicPlayer() {
                       ? currentTrack.artist.join(", ")
                       : (currentTrack.artist ?? "")
                   }
-                  className="text-[11px] text-cyan-100/70"
+                  className="text-[11px] theme-text-muted"
                 />
               </div>
             </motion.div>
@@ -244,7 +244,7 @@ export default function MusicPlayer() {
 
           <button
             onClick={togglePlay}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-400 text-black transition-all duration-300 hover:scale-105 hover:bg-cyan-300"
+            className="flex h-9 w-9 items-center justify-center rounded-full theme-accent-bg text-white transition-all duration-300 hover:scale-105 hover:bg-cyan-300"
           >
             {isPlaying ? <FaPause size={13} /> : <FaPlay size={13} />}
           </button>
@@ -265,7 +265,7 @@ export default function MusicPlayer() {
               onClick={toggleShuffle}
               className={`flex h-7 w-9 items-center justify-center rounded-lg transition-all duration-300 ${
                 isShuffling
-                  ? "bg-cyan-400 text-black"
+                  ? "bg-[rgb(var(--theme-accent-rgb))] text-black"
                   : "border border-cyan-200/25 text-cyan-100/70 hover:text-cyan-100"
               }`}
             >
@@ -278,7 +278,7 @@ export default function MusicPlayer() {
               onClick={toggleRepeat}
               className={`flex h-7 w-9 items-center justify-center rounded-lg transition-all duration-300 ${
                 isRepeating
-                  ? "bg-cyan-400 text-black"
+                  ? "bg-[rgb(var(--theme-accent-rgb))] text-black"
                   : "border border-cyan-200/25 text-cyan-100/70 hover:text-cyan-100"
               }`}
             >
@@ -315,11 +315,11 @@ export default function MusicPlayer() {
               }}
             >
               <div
-                className="absolute left-0 top-0 h-1.5 rounded-full bg-cyan-400 transition-none"
+                className="absolute left-0 top-0 h-1.5 rounded-full bg-[rgba(var(--theme-accent-rgb),0.85)] transition-none"
                 style={{ width: `${volume * 100}%` }}
               />
               <div
-                className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-cyan-300 transition-none"
+                className="absolute top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-[rgba(var(--theme-accent-rgb),0.85)] transition-none"
                 style={{ left: `calc(${volume * 100}% - 5px)` }}
               />
             </div>
@@ -341,7 +341,7 @@ export default function MusicPlayer() {
           }}
         >
           <div
-            className="h-1.5 rounded-full bg-linear-to-r from-cyan-300 to-sky-400 transition-all"
+            className="h-1.5 rounded-full bg-[rgb(var(--theme-accent-rgb))] transition-all"
             style={{
               width: isLoadingTrack
                 ? "30%"

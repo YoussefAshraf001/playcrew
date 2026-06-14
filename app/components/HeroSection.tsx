@@ -258,12 +258,14 @@ export default function HeroSection({
       my_rating: null,
       playtime: 0,
       progress: 0,
-      notes: "",
-
+      review: {
+        text: "",
+        sticker: null,
+      },
       status: "Want To Play",
       favorite: false,
 
-      categoryRatings: null,
+      recentActionSummary: "Added to My Collection",
 
       lastUpdated: serverTimestamp(),
     };
@@ -281,7 +283,7 @@ export default function HeroSection({
 
     toast.success(
       <span>
-        <span className="font-bold pr-1">{game.name}</span>
+        <span className="font-bold pr-1">{activeGame?.name ?? "Game"}</span>
         <span className="text-black">added to my collection</span>
       </span>,
     );

@@ -242,18 +242,6 @@ export default function SiteSettingsPage() {
         THEME_PRESETS.find((theme) => theme.id === themePreset)?.mode ?? "dark",
       );
 
-      await fetch("/api/save-delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          action: "update",
-          data: { themePreset },
-        }),
-      });
-
       setProfile({
         ...profile,
         themePreset,
@@ -271,18 +259,6 @@ export default function SiteSettingsPage() {
       localStorage.setItem(FONT_STORAGE_KEY, fontPreset);
 
       setActiveFontPreset(fontPreset);
-
-      await fetch("/api/save-delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          action: "update",
-          data: { fontPreset },
-        }),
-      });
 
       setProfile({
         ...profile,

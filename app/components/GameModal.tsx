@@ -82,10 +82,6 @@ export default function GameModal({
   const exists = Boolean(saved);
 
   const text = game.storyline || game.summary || "No Description Available.";
-  const MAX_LENGTH = 220;
-
-  const isLong = text.length > MAX_LENGTH;
-  const preview = isLong ? text.slice(0, MAX_LENGTH) + "â€¦" : text;
 
   /* ---------------------------
      Actions
@@ -149,12 +145,14 @@ export default function GameModal({
       my_rating: null,
       playtime: 0,
       progress: 0,
-      notes: "",
-
+      review: {
+        text: "",
+        sticker: null,
+      },
       status: "Want To Play",
       favorite: false,
 
-      categoryRatings: null,
+      recentActionSummary: "Added to My Collection",
 
       lastUpdated: serverTimestamp(),
     };
@@ -223,11 +221,6 @@ export default function GameModal({
     }
   };
 
-  const truncate = (text: string, length = 300) => {
-    if (!text) return "";
-    return text.length > length ? text.slice(0, length) + "..." : text;
-  };
-
   if (!game) return null;
 
   /* ---------------------------
@@ -269,6 +262,18 @@ export default function GameModal({
               allow="autoplay; fullscreen"
             />
           ) : (
+            //             <iframe
+            //   className="
+            //     absolute
+            //     top-1/2 left-1/2
+            //     min-h-full min-w-full
+            //     w-[177.78vh]
+            //     h-[56.25vw]
+            //     -translate-x-1/2 -translate-y-1/2
+            //   "
+            //   src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&playsinline=1`}
+            //   allow="autoplay; fullscreen"
+            // />
             <img
               src={cover || "/placeholder-game.jpg"}
               alt={game.name}

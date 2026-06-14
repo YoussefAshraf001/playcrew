@@ -522,10 +522,7 @@ export default function ShelfPage() {
     ? gamesByCategory[currentCategory]
     : null;
 
-  const saveNominees = async (
-    nominees: ShelfGame[],
-    extras?: { performanceName?: string },
-  ) => {
+  const saveNominees = async (nominees: ShelfGame[]) => {
     if (!user || !currentCategory) return;
 
     const preparedNominees = nominees.map((nominee) =>

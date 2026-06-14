@@ -5,15 +5,7 @@ import { AnimatePresence, motion, Reorder } from "framer-motion";
 import Link from "next/link";
 import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
-
-import { db } from "@/app/lib/firebase";
-import { useUser } from "../../context/UserContext";
-import { useUI } from "@/app/context/UIContext";
-import LoadingSpinner from "@/app/components/LoadingSpinner";
-import GameTrackingModal from "@/app/components/GameTrackingModal";
-
 import toast from "react-hot-toast";
-import ConfirmModal from "@/app/components/ConfirmModal";
 import {
   FiArrowRight,
   FiChevronLeft,
@@ -22,12 +14,20 @@ import {
   FiSearch,
   FiSliders,
 } from "react-icons/fi";
+import { useRouter } from "next/navigation";
+import { isTauri } from "@tauri-apps/api/core";
+
+import { db } from "@/app/lib/firebase";
+import { useUser } from "../../context/UserContext";
+import { useUI } from "@/app/context/UIContext";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
+import GameTrackingModal from "@/app/components/GameTrackingModal";
+import ConfirmModal from "@/app/components/ConfirmModal";
 import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
-import styles from "./OnlineToggle.module.css";
 import { TrackedGame } from "@/app/types/trackedGame";
-import { useRouter } from "next/navigation";
+import styles from "./OnlineToggle.module.css";
 import { refreshGameData, type RefreshableGame } from "@/app/utils/refreshGame";
 import RefreshModal, { type RefreshField } from "@/app/components/RefreshModal";
 import {
@@ -37,7 +37,6 @@ import {
   DEFAULT_BG_OVERLAY,
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
-import { isTauri } from "@tauri-apps/api/core";
 
 const STATUSES = [
   "All",
@@ -59,6 +58,7 @@ interface UserProfile {
   email: string;
   bio?: string;
   emailVerified?: boolean;
+  admin?: boolean;
   avatar?: {
     type: "image" | "gif";
     data: string;
@@ -92,6 +92,7 @@ export default function GamesPage() {
     "All" | "Released" | "Unreleased"
   >("Released");
   const [searchQuery, setSearchQuery] = useState("");
+  const [lastStatus, setLastStatus] = useState("Playing");
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -105,6 +106,7 @@ export default function GamesPage() {
     const stored = window.localStorage.getItem("games.includeOnlineGames");
     return stored === null ? true : stored === "true";
   });
+  const STATUS_SORTS_KEY = "games.statusSorts";
 
   const [sortBy, setSortBy] = useState<
     "name" | "date" | "tier" | "release" | "playtime"
@@ -301,6 +303,10 @@ export default function GamesPage() {
       return Number.isNaN(value.getTime()) ? Infinity : value.getTime();
     }
 
+    if (typeof value === "object" && value !== null && "seconds" in value) {
+      return (value as { seconds: number }).seconds * 1000;
+    }
+
     // Firestore Timestamp
     if (
       typeof value === "object" &&
@@ -354,13 +360,13 @@ export default function GamesPage() {
       const now = Date.now();
 
       list = list.filter((g) => {
-        const release = g.igdb?.releaseDate;
+        const releaseTime = getReleaseTime(g.igdb?.releaseDate);
 
-        if (!(release instanceof Date) || isNaN(release.getTime())) {
+        if (releaseTime === Infinity) {
           return releaseFilter === "Unreleased";
         }
 
-        const isReleased = release.getTime() <= now;
+        const isReleased = releaseTime <= now;
 
         return releaseFilter === "Released" ? isReleased : !isReleased;
       });
@@ -425,6 +431,29 @@ export default function GamesPage() {
     includeOnlineGames,
   ]);
 
+  const loadStatusSorts = () => {
+    if (typeof window === "undefined") return {};
+
+    try {
+      return JSON.parse(localStorage.getItem(STATUS_SORTS_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const sorts = loadStatusSorts();
+
+    sorts[selectedStatus] = {
+      sortBy,
+      sortOrder,
+    };
+
+    localStorage.setItem(STATUS_SORTS_KEY, JSON.stringify(sorts));
+  }, [selectedStatus, sortBy, sortOrder]);
+
   //Games Pages
   const validGames = filteredGames.filter((g) => g.name);
   const totalPages = Math.ceil(validGames.length / PAGE_SIZE);
@@ -468,11 +497,32 @@ export default function GamesPage() {
   );
 
   const handleTabChange = (status: string) => {
+    setLastStatus(status);
+
     setAnimationType("status");
+
+    const sorts = loadStatusSorts();
+    const saved = sorts[status];
+
+    if (saved) {
+      setSortBy(saved.sortBy);
+      setSortOrder(saved.sortOrder);
+    }
+
     setSelectedStatus(status);
   };
 
-  const handleSearchChange = (query: string) => setSearchQuery(query);
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+
+    if (query.trim()) {
+      if (selectedStatus !== "All") {
+        setSelectedStatus("All");
+      }
+    } else {
+      setSelectedStatus(lastStatus);
+    }
+  };
 
   // Counts for left column
   const completedCount = useMemo(
@@ -601,7 +651,6 @@ export default function GamesPage() {
   useEffect(() => {
     if (selectedStatus === "Want To Play") {
       setReleaseFilter("Released");
-      setSortBy("date");
     }
   }, [selectedStatus]);
 
@@ -611,7 +660,10 @@ export default function GamesPage() {
       my_rating: game.my_rating,
       progress: game.progress ?? 0,
       playtime: game.playtime ?? 0,
-      notes: game.notes ?? "",
+      review: game.review ?? {
+        text: "",
+        sticker: null,
+      },
     });
     setModalOpen(true);
   };
@@ -705,7 +757,10 @@ export default function GamesPage() {
   };
 
   const handleSaveModal = async (
-    notes: string,
+    review: {
+      text: string;
+      sticker: string | null;
+    },
     rating: number | null,
     progress: number,
     playtime: number,
@@ -732,7 +787,8 @@ export default function GamesPage() {
         (prev.status ?? "Want To Play") === status &&
         (prev.favorite ?? false) === favorite &&
         (prev.notInterested ?? false) === notInterested &&
-        (prev.notes ?? "") === notes &&
+        (prev.review?.text ?? "") === review.text &&
+        (prev.review?.sticker ?? null) === review.sticker &&
         JSON.stringify(prev.playedSessions ?? []) ===
           JSON.stringify(playedSessions ?? []);
 
@@ -777,8 +833,21 @@ export default function GamesPage() {
         recentActionSummary = favorite
           ? "Added to Favorites"
           : "Removed from Favorites";
-      } else if (prev.notes !== notes) {
-        recentActionSummary = "Notes Updated";
+      } else if (
+        (prev.review?.text ?? "") !== review.text &&
+        (prev.review?.sticker ?? null) !== review.sticker
+      ) {
+        recentActionSummary = "Review Updated";
+      } else if ((prev.review?.text ?? "") !== review.text) {
+        recentActionSummary = "Review Updated";
+      } else if ((prev.review?.sticker ?? null) !== review.sticker) {
+        if (!prev.review?.sticker && review.sticker) {
+          recentActionSummary = "Sticker Added";
+        } else if (prev.review?.sticker && !review.sticker) {
+          recentActionSummary = "Sticker Removed";
+        } else {
+          recentActionSummary = "Sticker Changed";
+        }
       }
 
       /* ---------------- Save to Firestore ---------------- */
@@ -790,7 +859,7 @@ export default function GamesPage() {
         status,
         favorite,
         notInterested,
-        notes,
+        review,
         playedSessions,
         lastUpdated: new Date(),
         recentActionSummary,
@@ -864,6 +933,9 @@ export default function GamesPage() {
     }),
   };
 
+  if (userLoading) {
+    return null;
+  }
   if (!user) {
     return (
       <motion.main
@@ -1587,7 +1659,7 @@ export default function GamesPage() {
                               {g.name}
                             </span>
                             <p className="mt-1.5 line-clamp-2 text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
-                              {g.recentActionSummary ?? "Game Updated"}
+                              {g.recentActionSummary}
                             </p>
                           </div>
                         </div>
@@ -1609,7 +1681,12 @@ export default function GamesPage() {
           onSave={handleSaveModal}
           saving={saving}
           game={editingGame}
-          initialNotes={editingGame.notes ?? ""}
+          initialReview={
+            editingGame.review ?? {
+              text: "",
+              sticker: null,
+            }
+          }
           initialRating={editingGame.my_rating ?? null}
           initialProgress={editingGame.progress ?? 0}
           initialPlaytime={editingGame.playtime ?? 0}
@@ -1727,7 +1804,7 @@ export default function GamesPage() {
                                   </h3>
 
                                   <p className="mt-2 text-sm font-medium text-cyan-300">
-                                    {g.recentActionSummary ?? "Game Updated"}
+                                    {g.recentActionSummary}
                                   </p>
                                 </div>
 
@@ -1758,9 +1835,9 @@ export default function GamesPage() {
                                 )}
                               </div>
 
-                              {g.notes && (
+                              {g.review?.text && (
                                 <p className="mt-3 line-clamp-2 text-sm text-zinc-400">
-                                  {g.notes}
+                                  {g.review?.text}
                                 </p>
                               )}
                             </div>

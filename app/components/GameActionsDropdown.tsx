@@ -27,7 +27,7 @@ export default function GameActionsDropdown({
   openEditModal,
   openConfirmModal,
 }: Props) {
-  const { user } = useUser();
+  const { user, isAdmin } = useUser();
 
   const [open, setOpen] = useState(false);
   const [refreshOpen, setRefreshOpen] = useState(false);
@@ -105,28 +105,26 @@ export default function GameActionsDropdown({
         }}
         aria-label="Game actions"
         className={`absolute right-2 top-2 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/70 text-zinc-100 shadow-[0_8px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm
+          opacity-0
+          scale-75
+          pointer-events-none
 
-opacity-0
-scale-75
-pointer-events-none
+          transition-all
+          duration-300
 
-transition-all
-duration-300
+          group-hover:opacity-100
+          group-hover:scale-100
+          group-hover:pointer-events-auto
 
-group-hover:opacity-100
-group-hover:scale-100
-group-hover:pointer-events-auto
-
-hover:scale-105
-hover:border-cyan-300/50
-hover:bg-zinc-900/90
-hover:text-cyan-100
-
-${
-  open
-    ? "opacity-100 scale-100 pointer-events-auto border-cyan-300/60 text-cyan-100"
-    : ""
-}`}
+          hover:scale-105
+          hover:border-cyan-300/50
+          hover:bg-zinc-900/90
+          hover:text-cyan-100
+          ${
+            open
+              ? "opacity-100 scale-100 pointer-events-auto border-cyan-300/60 text-cyan-100"
+              : ""
+          }`}
       >
         <MdMoreVert size={18} />
       </button>
@@ -170,16 +168,18 @@ ${
             <span>Edit Game</span>
           </button>
 
-          <button
-            onClick={() => {
-              setDevModalOpen(true);
-              setOpen(false);
-            }}
-            className={`${actionBtnClass} text-indigo-200 hover:bg-indigo-500/15`}
-          >
-            <FaCode className="text-sm text-indigo-300" />
-            <span>Dev Mode</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setDevModalOpen(true);
+                setOpen(false);
+              }}
+              className={`${actionBtnClass} text-indigo-200 hover:bg-indigo-500/15`}
+            >
+              <FaCode className="text-sm text-indigo-300" />
+              <span>Dev Mode</span>
+            </button>
+          )}
 
           <div className="my-2 h-px bg-white/10" />
 

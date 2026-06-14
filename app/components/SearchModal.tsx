@@ -4,10 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { createPortal } from "react-dom";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
 import {
-  FiArrowRight,
   FiCalendar,
   FiClock,
   FiEdit3,
@@ -17,12 +16,9 @@ import {
 } from "react-icons/fi";
 
 import { db } from "@/app/lib/firebase";
-import { getRecentGameActionSummary } from "@/app/lib/recentGameActions";
 import { useUser } from "@/app/context/UserContext";
 import { useGames } from "@/app/context/GameContext";
-import GameTrackingModal from "./GameTrackingModal";
 import { useRouter } from "next/navigation";
-import { TrackedGame } from "../types/trackedGame";
 import { IoCloseCircle } from "react-icons/io5";
 
 type SearchGame = {
@@ -43,52 +39,6 @@ const getReleaseDate = (game?: SearchGame | null) => {
   return new Date(game.first_release_date * 1000);
 };
 
-const mapStoredGameToEditable = (stored: any): TrackedGame => ({
-  _docId: String(stored._docId ?? stored.igdb?.id ?? stored.id),
-  name: stored.name ?? stored.igdb?.name ?? "Unknown game",
-  playtime: stored.playtime ?? 0,
-  my_rating: typeof stored.my_rating === "number" ? stored.my_rating : 0,
-  status: stored.status ?? "Want To Play",
-  progress: stored.progress ?? 0,
-  notes: stored.notes ?? "",
-  favorite: stored.favorite ?? false,
-  favoriteAllTime: stored.favoriteAllTime ?? false,
-  notInterested: stored.notInterested ?? false,
-  lastUpdated: stored.lastUpdated,
-  recentActionSummary: stored.recentActionSummary,
-  igdb: {
-    id: Number(stored.igdb?.id ?? stored.id ?? 0),
-    name: stored.igdb?.name ?? stored.name ?? "Unknown game",
-    cover: stored.igdb?.cover,
-    rating: stored.igdb?.rating,
-    genres: stored.igdb?.genres,
-    releaseDate: stored.igdb?.releaseDate
-      ? typeof stored.igdb.releaseDate?.toDate === "function"
-        ? stored.igdb.releaseDate.toDate()
-        : new Date(stored.igdb.releaseDate)
-      : undefined,
-  },
-});
-
-const mapSearchGameToEditable = (game: SearchGame): TrackedGame => ({
-  _docId: String(game.id),
-  name: game.name,
-  playtime: 0,
-  my_rating: null,
-  status: "Want To Play",
-  progress: 0,
-  notes: "",
-  favorite: false,
-  favoriteAllTime: false,
-  notInterested: false,
-  igdb: {
-    id: game.id,
-    name: game.name,
-    cover: buildCoverUrl(game),
-    releaseDate: getReleaseDate(game) ?? undefined,
-  },
-});
-
 export default function SearchModal({
   isOpen,
   onClose,
@@ -104,12 +54,8 @@ export default function SearchModal({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchGame[]>([]);
   const [loading, setLoading] = useState(false);
-  const [trackingLoading, setTrackingLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
-  const [trackingOpen, setTrackingOpen] = useState(false);
-  const [editingGame, setEditingGame] = useState<TrackedGame | null>(null);
-  const [trackingSaving, setTrackingSaving] = useState(false);
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -148,13 +94,9 @@ export default function SearchModal({
   };
 
   useEffect(() => {
-    if (!isOpen || trackingOpen) return;
+    if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (trackingOpen) {
-          setTrackingOpen(false);
-          return;
-        }
         onClose();
         return;
       }
@@ -185,7 +127,7 @@ export default function SearchModal({
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [isOpen, onClose, results, selectedIndex, trackingOpen]);
+  }, [isOpen, onClose, results, selectedIndex]);
 
   useEffect(() => {
     if (!query || query.trim().length < 2) {
@@ -250,112 +192,61 @@ export default function SearchModal({
     }
   }, [selectedGameId]);
 
-  const openTracking = async (game: SearchGame) => {
+  const handleQuickAdd = async (game: SearchGame) => {
     if (!uid) {
       toast.error("You must be logged in to track games.");
       return;
     }
 
-    setEditingGame(mapSearchGameToEditable(game));
-    setTrackingOpen(true);
-    setTrackingLoading(true);
+    const existing = trackedById.get(game.id);
+
+    if (existing) {
+      onClose();
+      router.push(`/game/${game.id}`);
+      return;
+    }
 
     try {
       const gameRef = doc(db, "users", uid, "games_igdb", String(game.id));
 
-      const snap = await getDoc(gameRef);
+      await setDoc(gameRef, {
+        name: game.name,
 
-      if (snap.exists()) {
-        setEditingGame(
-          mapStoredGameToEditable({
-            ...snap.data(),
-            _docId: String(game.id),
-          }),
-        );
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTrackingLoading(false);
-    }
-  };
-
-  const handleSaveTracking = async (
-    notes: string,
-    rating: number | null,
-    progress: number,
-    playtime: number,
-    status: string,
-    favorite: boolean,
-    notInterested: boolean,
-    playedSessions: NonNullable<TrackedGame["playedSessions"]>,
-    save?: TrackedGame["save"],
-  ) => {
-    if (!uid || !editingGame || trackingSaving) return;
-
-    setTrackingSaving(true);
-
-    try {
-      const docId = String(editingGame.igdb.id);
-      const gameRef = doc(db, "users", uid, "games_igdb", docId);
-      const existing = trackedById.get(editingGame.igdb.id);
-      const releaseDate = editingGame.igdb.releaseDate ?? null;
-
-      const recentActionSummary = getRecentGameActionSummary(
-        existing,
-        {
-          my_rating: rating,
-          playtime,
-          progress,
-          notes,
-          status,
-          favorite,
+        igdb: {
+          id: game.id,
+          name: game.name,
+          cover: buildCoverUrl(game),
+          releaseDate: getReleaseDate(game),
         },
-        {
-          defaultSummary: "Updated from Search",
-        },
-      );
 
-      await setDoc(
-        gameRef,
-        {
-          name: editingGame.name,
-          igdb: {
-            id: editingGame.igdb.id,
-            name: editingGame.name,
-            cover: editingGame.igdb.cover ?? "/placeholder-game.jpg",
-            releaseDate,
-          },
-          my_rating: rating,
-          playtime,
-          progress,
-          notes,
-          status,
-          favorite,
-          notInterested,
-          playedSessions,
-          save: save ?? null,
-          recentActionSummary,
-          lastUpdated: new Date(),
+        my_rating: null,
+        playtime: 0,
+        progress: 0,
+
+        review: {
+          text: "",
+          sticker: null,
         },
-        { merge: true },
-      );
+
+        status: "Want To Play",
+        favorite: false,
+        notInterested: false,
+        playedSessions: [],
+
+        recentActionSummary: "Added to My Collection",
+
+        lastUpdated: new Date(),
+      });
 
       toast.success(
         <span>
-          <span className="font-bold pr-1">{editingGame.name}</span>
-          <span className="text-black">
-            {existing ? "updated from search" : "added to my collection"}
-          </span>
+          <span className="font-bold pr-1">{game.name}</span>
+          <span className="text-black">added to collection</span>
         </span>,
       );
-
-      setTrackingOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save game.");
-    } finally {
-      setTrackingSaving(false);
+      toast.error("Failed to add game.");
     }
   };
 
@@ -555,7 +446,7 @@ export default function SearchModal({
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            openTracking(game);
+                                            handleQuickAdd(game);
                                           }}
                                           className={`flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold ${
                                             trackedById.has(game.id)
@@ -564,8 +455,8 @@ export default function SearchModal({
                                           }`}
                                         >
                                           {trackedById.has(game.id)
-                                            ? "Edit"
-                                            : "Quick Add"}
+                                            ? "Open"
+                                            : "Add"}
                                         </button>
 
                                         <button
@@ -674,33 +565,30 @@ export default function SearchModal({
                               )}
 
                               <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openTracking(selectedGame)}
-                                  disabled={!uid}
-                                  className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition ${
-                                    uid
-                                      ? trackedById.has(selectedGame.id)
-                                        ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
-                                        : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
-                                      : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
-                                  }`}
-                                >
-                                  {trackedById.has(selectedGame.id) ? (
-                                    <FiEdit3 size={15} />
-                                  ) : (
-                                    <FiPlus size={15} />
-                                  )}
-                                  {trackedById.has(selectedGame.id)
-                                    ? "Edit Tracking"
-                                    : "Add Tracking"}
-                                </button>
+                                {!trackedById.has(selectedGame.id) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickAdd(selectedGame)}
+                                    disabled={!uid}
+                                    className={`inline-flex h-10 flex-1 items-center justify-center rounded-2xl text-sm font-semibold transition ${
+                                      uid
+                                        ? trackedById.has(selectedGame.id)
+                                          ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
+                                          : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
+                                        : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
+                                    }`}
+                                  >
+                                    {trackedById.has(selectedGame.id)
+                                      ? "Open Game"
+                                      : "Add to Collection"}
+                                  </button>
+                                )}
                                 <Link
                                   href={`/game/${selectedGame.id}`}
                                   onClick={onClose}
                                   className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
                                 >
-                                  Open Game Page
+                                  Go To Game Page
                                 </Link>
                               </div>
                             </div>
@@ -717,30 +605,6 @@ export default function SearchModal({
               </div>
             </motion.div>
           </div>
-
-          {editingGame && (
-            <div className="relative">
-              <GameTrackingModal
-                key={`${editingGame._docId ?? editingGame.igdb.id}-${trackingOpen ? "open" : "closed"}`}
-                loading={trackingLoading}
-                open={trackingOpen}
-                onClose={() => setTrackingOpen(false)}
-                onHeaderClose={() => setTrackingOpen(false)}
-                onSave={handleSaveTracking}
-                game={editingGame}
-                initialNotes={editingGame.notes ?? ""}
-                initialRating={editingGame.my_rating ?? null}
-                initialProgress={editingGame.progress ?? 0}
-                initialPlaytime={editingGame.playtime ?? 0}
-                initialPlayedSessions={editingGame.playedSessions ?? []}
-                initialStatus={editingGame.status ?? "Want To Play"}
-                initialFavorite={editingGame.favorite ?? false}
-                showStatus
-                showFavorite
-                saving={trackingSaving}
-              />
-            </div>
-          )}
         </motion.div>
       )}
     </AnimatePresence>

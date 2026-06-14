@@ -6,27 +6,51 @@
     "featured": true,
     "changes": [
       {
-        "category": "*NEW*",
+        "category": "Reviews & Expression",
         "items": [
-          "Added a new activity timeline for tracking recent game updates and library changes",
-          "Added detailed update history including status changes, ratings, playtime, and notes",
-          "Added expandable activity history with load-more support"
+          "Renamed Notes to Reviews across the application for improved clarity and consistency",
+          "Added sticker support for reviews",
+          "Added sticker support to activity history and review displays"
+        ]
+      },
+      {
+        "category": "Music Player",
+        "items": [
+          "Added a redesigned music player experience to the mobile menu",
+          "Added theme-aware music player controls and accents",
+          "Improved music player accessibility and overall usability"
         ]
       },
       {
         "category": "Customization & UX Update",
         "items": [
-          "Added a redesigned music player experience to the mobile menu",
+          "Added a new activity timeline for tracking recent game updates and library changes",
+          "Added detailed update history including status changes, ratings, playtime, reviews, and favorites",
+          "Added expandable activity history with load-more support",
           "Added a What's New shortcut to the mobile menu",
           "Added an upload progress state when saving wallpapers",
-          "Improved wallpaper save feedback and confirmation flow"
+          "Improved wallpaper save feedback and confirmation flow",
+          "Improved game tracking and library management flows",
+          "Added one-click game tracking from search results"
+        ]
+      },
+      {
+        "category": "Activity & Tracking Improvements",
+        "items": [
+          "Added activity summaries for newly added games",
+          "Improved recent activity messages for status changes, ratings, reviews, playtime, favorites, and save backups",
+          "Improved consistency of activity tracking across the site",
+          "Improved tracking status updates and collection management"
         ]
       },
       {
         "category": "Bug Fixes",
         "items": [
           "Fixed modal close animations not playing correctly when closing the What's New modal",
-          "Fixed search modal instantly disappearing instead of playing its exit animation"
+          "Fixed search modal instantly disappearing instead of playing its exit animation",
+          "Fixed newly added games not always appearing correctly in the activity feed",
+          "Fixed inconsistencies between different game tracking flows",
+          "Fixed several edge cases related to activity summaries and library updates"
         ]
       }
     ]

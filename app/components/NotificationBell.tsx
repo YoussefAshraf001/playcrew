@@ -370,7 +370,7 @@ export default function NotificationBell({
             : `theme-surface theme-hover-surface relative z-50 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border transition-all duration-300
         ${
           open &&
-          "bg-white/10 text-white border-cyan-300/60 shadow-[0_0_18px_rgba(125,211,252,0.35)]"
+          "bg-white/10 text-white border-[rgba(var(--theme-accent-rgb),0.5)] shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.35)]"
         }`
         }
       >
@@ -403,10 +403,10 @@ export default function NotificationBell({
                 absolute -top-2 -right-2
                 min-w-5 h-5 px-1.5
                 rounded-full
-                bg-cyan-500
-                border border-cyan-200/70
+                bg-[rgb(var(--theme-accent-rgb))]
+                border-[rgba(var(--theme-accent-rgb),0.7)]
+                shadow-[0_0_14px_rgba(var(--theme-accent-rgb),0.65)]
                 text-[11px] text-white font-bold leading-[18px] text-center
-                shadow-[0_0_14px_rgba(34,211,238,0.65)]
                 ring-1 ring-white
               "
             >
@@ -440,8 +440,7 @@ export default function NotificationBell({
                   ? `
         fixed left-20 ${isDashboard ? "top-6 md:top-6" : "top-18 md:top-8"} w-100 max-w-[calc(100vw-1rem)]
         rounded-2xl overflow-hidden
-        bg-zinc-950
-        border border-cyan-300/25
+        theme-panel-strong border
         shadow-[0_18px_44px_rgba(0,0,0,0.55)]
         z-50
       `
@@ -489,7 +488,11 @@ export default function NotificationBell({
                       e.stopPropagation();
                       markAllRead();
                     }}
-                    className="text-xs px-2.5 py-[5px] rounded-full border border-cyan-300/35 text-cyan-200 hover:bg-cyan-400/10 transition whitespace-nowrap"
+                    className="text-xs px-2.5 py-[5px] rounded-full border
+                    border-[rgba(var(--theme-accent-rgb),0.35)]
+                    text-[rgb(var(--theme-accent-rgb))]
+                    hover:bg-[rgba(var(--theme-accent-rgb),0.1)]
+                    transition whitespace-nowrap"
                     title="Mark all as read"
                     aria-label="Mark all as read"
                   >
@@ -500,7 +503,16 @@ export default function NotificationBell({
                       e.stopPropagation();
                       clearAllNotifications();
                     }}
-                    className="rounded-full border border-red-300/35 px-2.5 py-[5px] text-[11px] text-red-200 transition hover:bg-red-500/15"
+                    className="
+                      rounded-full
+                      border
+                      px-2.5 py-[5px]
+                      text-[11px]
+                      transition
+                      border-[rgba(var(--theme-accent-rgb),0.35)]
+                      text-[rgb(var(--theme-accent-rgb))]
+                      hover:bg-[rgba(var(--theme-accent-rgb),0.12)]
+                    "
                     title="Clear all notifications"
                   >
                     Clear all
@@ -570,7 +582,7 @@ export default function NotificationBell({
                             className={`relative w-full ${
                               item.read
                                 ? "bg-[#10161f] hover:bg-[#141d2a] opacity-85"
-                                : "bg-[#162434] hover:bg-[#1b2b3c] shadow-[inset_0_0_0_1px_rgba(125,211,252,0.35)]"
+                                : "bg-[#162434] hover:bg-[#1b2b3c] shadow-[inset_0_0_0_1px_rgba(var(--theme-accent-rgb),0.35)]"
                             }`}
                           >
                             <Link
