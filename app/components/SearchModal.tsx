@@ -6,14 +6,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { doc, setDoc } from "firebase/firestore";
 import toast from "react-hot-toast";
-import {
-  FiCalendar,
-  FiClock,
-  FiEdit3,
-  FiPlus,
-  FiSearch,
-  FiX,
-} from "react-icons/fi";
+import { FiCalendar, FiClock, FiSearch, FiX } from "react-icons/fi";
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "@/app/context/UserContext";
@@ -609,6 +602,10 @@ export default function SearchModal({
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === "undefined") {
+    return null;
+  }
 
   return createPortal(modal, document.body);
 }
