@@ -131,11 +131,6 @@ export const GAME_STICKERS = [
     label: "Who Cares",
     image: "/stickers/who-cares.webp",
   },
-  {
-    id: "backlogged",
-    label: "Backlogged",
-    image: "/stickers/backlogged.webp",
-  },
 
   // 😭 Reactions / Memes
   {
@@ -181,11 +176,6 @@ export const GAME_STICKERS = [
     image: "/stickers/homelander-disgust.webp",
   },
   {
-    id: "absolute_cringe",
-    label: "Absolute Cringe",
-    image: "/stickers/absolute-cringe.webp",
-  },
-  {
     id: "ass_game",
     label: "Ass Game",
     image: "/stickers/ass-game.webp",
@@ -193,7 +183,7 @@ export const GAME_STICKERS = [
   {
     id: "this_shit_so_peak_bro",
     label: "This Shit So Peak Bro",
-    image: "/stickers/this-shit-so-ass-bro.webp",
+    image: "/stickers/this-shit-so-peak-bro.webp",
   },
   {
     id: "absolute-slop",

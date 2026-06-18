@@ -1098,10 +1098,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                 setSticker(s.id);
                                 setStickerDrawerOpen(false);
                               }}
-                              className={`rounded-2xl border p-3 transition cursor-pointer ${
-                                sticker === s.id
-                                  ? "border-orange-400 bg-orange-500/10"
-                                  : "border-white/10 bg-white/5 hover:bg-white/10"
+                              className={`rounded-2xl transition cursor-pointer ${
+                                sticker === s.id &&
+                                "border border-zinc-500 bg-zinc-500/10"
                               }`}
                             >
                               <div className="relative mx-auto h-30 w-30 flex items-center justify-center">
@@ -1118,16 +1117,16 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                       [s.id]: true,
                                     }))
                                   }
-                                  className={`h-30 w-30 object-contain transition-opacity duration-300 ${
+                                  className={`h-30 w-30 rounded-2xl object-contain transition-opacity duration-300 ${
                                     loadedStickers[s.id]
                                       ? "opacity-100"
                                       : "opacity-0 absolute"
                                   }`}
                                 />
                               </div>
-                              <p className="mt-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm">
+                              {/* <p className="mt-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm">
                                 {s?.label}
-                              </p>
+                              </p> */}
                             </button>
                           ))}
                         </div>
