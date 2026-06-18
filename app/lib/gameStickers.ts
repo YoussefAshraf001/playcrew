@@ -191,8 +191,8 @@ export const GAME_STICKERS = [
     image: "/stickers/ass-game.webp",
   },
   {
-    id: "this_shit_so_ass_bro",
-    label: "This Shit So Ass Bro",
+    id: "this_shit_so_peak_bro",
+    label: "This Shit So Peak Bro",
     image: "/stickers/this-shit-so-ass-bro.webp",
   },
   {
