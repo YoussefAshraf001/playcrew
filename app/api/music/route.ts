@@ -16,8 +16,8 @@ export async function GET() {
       const cover = fs.existsSync(coverPathJpg)
         ? `/music/${name}.jpg`
         : fs.existsSync(coverPathPng)
-        ? `/music/${name}.png`
-        : undefined;
+          ? `/music/${name}.png`
+          : undefined;
 
       return { src: `/music/${file}`, title: name, cover };
     });
@@ -27,7 +27,7 @@ export async function GET() {
     console.error(err);
     return NextResponse.json(
       { error: "Failed to read music folder" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

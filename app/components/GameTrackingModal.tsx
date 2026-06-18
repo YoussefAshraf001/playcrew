@@ -123,11 +123,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const [sticker, setSticker] = useState<string | null>(
     initialReview.sticker ?? null,
   );
-
-  useEffect(() => {
-    setNotes(initialReview.text ?? "");
-    setSticker(initialReview.sticker ?? null);
-  }, [initialReview]);
+  const [loadedStickers, setLoadedStickers] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const [rating, setRating] = useState<number | null>(
     getInitialRatingValue(initialRating),
@@ -171,6 +169,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       document.body.style.paddingRight = previousPaddingRight;
     };
   }, [open]);
+
+  useEffect(() => {
+    setNotes(initialReview.text ?? "");
+    setSticker(initialReview.sticker ?? null);
+  }, [initialReview]);
 
   const sessionHistory = useMemo(() => {
     return normalizePlaySessions(playedSessions);
@@ -306,7 +309,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             animate={{ opacity: 1, scale: 1, y: -10 }}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             transition={{ duration: 0.28, ease: "easeOut" }}
-            className={`relative my-2 h-[calc(100dvh-1rem)]  md:h-[min(97dvh,860px)] w-full max-w-6xl overflow-hidden rounded-[28px] border sm:my-0 sm:rounded-[32px] ${MODAL_THEME.border} shadow-[0_30px_80px_rgba(0,0,0,0.72)]`}
+            className={`relative my-2 h-[calc(100dvh-1rem)]  md:h-[min(97dvh,880px)] w-full max-w-6xl overflow-hidden rounded-[28px] border sm:my-0 sm:rounded-[32px] ${MODAL_THEME.border} shadow-[0_30px_80px_rgba(0,0,0,0.72)]`}
           >
             <div
               className="absolute inset-0"
@@ -698,7 +701,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             max={100}
                             step={1}
                             value={progress}
-                            disabled={!gameIsReleased}
                             onChange={(e) =>
                               setProgress(Number(e.target.value))
                             }
@@ -718,7 +720,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               onChange={(e) =>
                                 setHours(Math.max(0, Number(e.target.value)))
                               }
-                              disabled={!gameIsReleased}
                               className="w-full bg-transparent text-xl font-semibold text-white outline-none lg:text-2xl"
                             />
                           </label>
@@ -739,7 +740,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   ),
                                 )
                               }
-                              disabled={!gameIsReleased}
                               className="w-full bg-transparent text-xl font-semibold text-white outline-none lg:text-2xl"
                             />
                           </label>
@@ -1104,11 +1104,27 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   : "border-white/10 bg-white/5 hover:bg-white/10"
                               }`}
                             >
-                              <img
-                                src={s.image}
-                                alt={s.label}
-                                className="mx-auto h-30 w-30 object-contain"
-                              />
+                              <div className="relative mx-auto h-30 w-30 flex items-center justify-center">
+                                {!loadedStickers[s.id] && (
+                                  <span className="loading loading-spinner loading-md text-white" />
+                                )}
+
+                                <img
+                                  src={s.image}
+                                  alt=""
+                                  onLoad={() =>
+                                    setLoadedStickers((prev) => ({
+                                      ...prev,
+                                      [s.id]: true,
+                                    }))
+                                  }
+                                  className={`h-30 w-30 object-contain transition-opacity duration-300 ${
+                                    loadedStickers[s.id]
+                                      ? "opacity-100"
+                                      : "opacity-0 absolute"
+                                  }`}
+                                />
+                              </div>
                               <p className="mt-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm">
                                 {s?.label}
                               </p>

@@ -25,7 +25,6 @@ import {
   RiCloseLine,
   RiSubtractLine,
 } from "react-icons/ri";
-import { GoSignIn } from "react-icons/go";
 
 /* ───────────────── Types ───────────────── */
 type Panel = "none" | "about" | "overview";

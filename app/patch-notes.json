@@ -1,9 +1,47 @@
 [
   {
+    "version": "7.4.3",
+    "title": "Quality of Life III",
+    "date": "2026-06-18",
+    "featured": true,
+    "changes": [
+      {
+        "category": "About Page",
+        "items": [
+          "Added a dedicated soundtrack section",
+          "Added album artwork and artist information for tracks",
+          "Added developer profile section",
+          "Added information about PlayCrew and its features"
+        ]
+      },
+      {
+        "category": "Review Stickers",
+        "items": [
+          "Added more stickers to the sticker collection",
+          "Added loading states to the sticker drawer for a smoother browsing experience"
+        ]
+      },
+      {
+        "category": "Music",
+        "items": [
+          "Added new songs to the PlayCrew soundtrack",
+          "Improved soundtrack loading"
+        ]
+      },
+      {
+        "category": "Bug Fixes",
+        "items": [
+          "Fixed unreleased games being incorrectly hidden outside of Want To Play status on initial page load",
+          "Fixed a bug where some games could remain locked even after the recent update"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.4.2",
     "title": "Quality of Life II",
     "date": "2026-06-13",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Games",
@@ -24,6 +62,7 @@
     "version": "7.4.1",
     "title": "Quality of Life",
     "date": "2026-06-14",
+    "featured": false,
     "changes": [
       {
         "category": "Reviews & Expression",

@@ -10,7 +10,7 @@ export default function AppServices() {
     <>
       <ThemeSync />
       <RouteTransitionLoader />
-      <ReleaseDateAutoSync />
+      {/* <ReleaseDateAutoSync /> */}
       <ReleaseNotificationSync />
     </>
   );

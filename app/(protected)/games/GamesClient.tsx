@@ -90,7 +90,7 @@ export default function GamesPage() {
   const [selectedStatus, setSelectedStatus] = useState("Playing");
   const [releaseFilter, setReleaseFilter] = useState<
     "All" | "Released" | "Unreleased"
-  >("Released");
+  >(selectedStatus === "Want To Play" ? "Released" : "All");
   const [searchQuery, setSearchQuery] = useState("");
   const [lastStatus, setLastStatus] = useState("Playing");
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
@@ -529,6 +529,15 @@ export default function GamesPage() {
       setSelectedStatus(lastStatus);
     }
   };
+
+  useEffect(() => {
+    const mistfall = allGames.find((g) => g.igdb?.id === 320141);
+
+    console.log("releaseFilter", releaseFilter);
+    console.log("releaseDate", mistfall?.igdb?.releaseDate);
+    console.log("releaseTime", getReleaseTime(mistfall?.igdb?.releaseDate));
+    console.log("now", Date.now());
+  });
 
   // Counts for left column
   const completedCount = useMemo(
@@ -1116,7 +1125,7 @@ export default function GamesPage() {
 
                           setCurrentPage(1);
                         }}
-                        className="group gap-2 theme-accent-soft-bg inline-flex h-7 shrink-0 items-center justify-center rounded-xl border px-2 text-xs font-semibold transition-all ease-in-out duration-500 hover:px-4 hover:shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.25)]"
+                        className="group gap-2 theme-accent-soft-bg inline-flex h-7 shrink-0 items-center justify-center rounded-xl border px-2 text-xs font-semibold transition-all ease-in-out duration-500 hover:shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.25)]"
                       >
                         <FiList size={14} />
                         Back to Library
