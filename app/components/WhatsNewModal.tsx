@@ -110,7 +110,7 @@ export default function WhatsNewModal({ isOpen, onClose }: Props) {
               rounded-3xl
               border
               shadow-[0_24px_60px_rgba(0,0,0,0.55)]
-              max-h-[85vh]
+              h-[85vh]
               flex
               flex-col
             "
@@ -214,26 +214,35 @@ export default function WhatsNewModal({ isOpen, onClose }: Props) {
                       </p>
                     </div>
 
-                    <div className="space-y-5">
-                      {selectedPatch.changes.map((section) => (
-                        <div key={section.category}>
-                          <h4 className="mb-2 font-semibold theme-text">
-                            {section.category}
-                          </h4>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={selectedVersion}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-5"
+                      >
+                        {selectedPatch.changes.map((section) => (
+                          <div key={section.category}>
+                            <h4 className="mb-2 font-semibold theme-text">
+                              {section.category}
+                            </h4>
 
-                          <ul className="space-y-1">
-                            {section.items.map((item) => (
-                              <li
-                                key={item}
-                                className="theme-text-muted text-sm"
-                              >
-                                • {item}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
-                    </div>
+                            <ul className="space-y-1">
+                              {section.items.map((item) => (
+                                <li
+                                  key={item}
+                                  className="theme-text-muted text-sm"
+                                >
+                                  • {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
                 </div>
               )}

@@ -101,6 +101,12 @@ export default function GamesPage() {
   //Sorting
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [orderedFavorites, setOrderedFavorites] = useState<TrackedGame[]>([]);
+  const [previousStatus, setPreviousStatus] = useState("Playing");
+
+  const [previousReleaseFilter, setPreviousReleaseFilter] = useState<
+    "All" | "Released" | "Unreleased"
+  >("All");
+
   const [includeOnlineGames, setIncludeOnlineGames] = useState(() => {
     if (typeof window === "undefined") return true;
     const stored = window.localStorage.getItem("games.includeOnlineGames");
@@ -329,7 +335,7 @@ export default function GamesPage() {
   // Filter and sort safely
   const filteredGames = useMemo(() => {
     let list = showFavoritesOnly
-      ? allGames
+      ? allGames.filter((g) => g.favorite)
       : selectedStatus === "All"
         ? gamesByStatus.All
         : gamesByStatus[selectedStatus] || [];
@@ -647,12 +653,6 @@ export default function GamesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, selectedStatus, releaseFilter]);
-
-  useEffect(() => {
-    if (selectedStatus === "Want To Play") {
-      setReleaseFilter("Released");
-    }
-  }, [selectedStatus]);
 
   const openEditModal = (game: TrackedGame) => {
     setEditingGame({
@@ -1110,10 +1110,13 @@ export default function GamesPage() {
                         type="button"
                         onClick={() => {
                           setShowFavoritesOnly(false);
-                          setSelectedStatus("All");
+
+                          setSelectedStatus(previousStatus);
+                          setReleaseFilter(previousReleaseFilter);
+
                           setCurrentPage(1);
                         }}
-                        className="theme-accent-soft-bg inline-flex h-7 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition hover:bg-[rgba(var(--theme-accent-rgb),0.18)]"
+                        className="group gap-2 theme-accent-soft-bg inline-flex h-7 shrink-0 items-center justify-center rounded-xl border px-2 text-xs font-semibold transition-all ease-in-out duration-500 hover:px-4 hover:shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.25)]"
                       >
                         <FiList size={14} />
                         Back to Library
@@ -1150,8 +1153,12 @@ export default function GamesPage() {
                           }`}
                           onClick={() => {
                             handleTabChange(status);
-                            if (status !== "Want To Play")
+
+                            if (status === "Want To Play") {
+                              setReleaseFilter("Released");
+                            } else {
                               setReleaseFilter("All");
+                            }
                           }}
                           disabled={selectedStatus === status}
                         >
@@ -1467,6 +1474,8 @@ export default function GamesPage() {
                       game={game}
                       openEditModal={openEditModal}
                       openConfirmModal={openConfirmModal}
+                      selectedStatus={selectedStatus}
+                      releaseFilter={releaseFilter}
                     />
                   ))}
                 </motion.div>
@@ -1488,8 +1497,13 @@ export default function GamesPage() {
                     exit={{ scale: 0.6, opacity: 0 }}
                     transition={{ duration: 0, ease: "easeOut" }}
                     onClick={() => {
-                      setShowFavoritesOnly((prev) => !prev);
+                      setPreviousStatus(selectedStatus);
+                      setPreviousReleaseFilter(releaseFilter);
+
+                      setShowFavoritesOnly(true);
                       setSelectedStatus("All");
+                      setReleaseFilter("All");
+
                       setCurrentPage(1);
                     }}
                     className={`group flex items-center justify-center rounded-md px-3 py-0.5 font-bold transition-all duration-300 ease-in-out cursor-pointer ${

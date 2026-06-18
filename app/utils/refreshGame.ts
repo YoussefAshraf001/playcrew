@@ -158,10 +158,17 @@ export async function refreshGameData(
     "igdb.releaseDate": "Release Date",
   };
 
-  const summary =
-    changedFields.length === 1
-      ? `${labels[changedFields[0]] ?? changedFields[0]} Updated`
-      : `${changedFields.length} Fields Updated`;
+  let summary: string;
+
+  if (changedFields.length === 1) {
+    summary = `${labels[changedFields[0]] ?? changedFields[0]} Updated`;
+  } else if (changedFields.length === 2) {
+    summary = `${labels[changedFields[0]] ?? changedFields[0]} & ${
+      labels[changedFields[1]] ?? changedFields[1]
+    } Updated`;
+  } else {
+    summary = `${changedFields.length} Fields Updated`;
+  }
 
   update.lastUpdated = serverTimestamp();
   update.recentActionSummary = summary;

@@ -70,9 +70,9 @@ const MODAL_THEME = {
 
 const RATING_PRESETS = [
   { label: "Awful", value: 1 },
-  { label: "Okay", value: 5 },
-  { label: "Great", value: 7.5 },
-  { label: "Excellent", value: 9 },
+  { label: "Okay", value: 3 },
+  { label: "Great", value: 5 },
+  { label: "Excellent", value: 7.5 },
   { label: "Masterpiece", value: 10 },
 ] as const;
 
@@ -252,14 +252,6 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const releaseDate = normalizeDate(game?.igdb.releaseDate);
   const gameIsReleased = !!releaseDate && releaseDate <= new Date();
 
-  const blockIfUnreleased = () => {
-    if (!gameIsReleased) {
-      toast.error("Game is unreleased.");
-      return true;
-    }
-    return false;
-  };
-
   const progressRadius = 40;
   const progressStroke = 8;
   const progressCircumference = 2 * Math.PI * progressRadius;
@@ -326,7 +318,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_28%),linear-gradient(135deg,rgba(0,0,0,0.3),rgba(0,0,0,0.72))] backdrop-blur-md" />
 
-            <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_1fr_auto] gap-3 p-3 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch] touch-pan-y sm:gap-4 sm:p-4">
+            <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_1fr_auto] gap-3 p-3 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch] touch-pan-y sm:gap-4 sm:p-6">
               <div className="pointer-events-none absolute inset-x-6 top-0 h-32 rounded-full bg-amber-200/10 blur-3xl" />
 
               <header className="grid gap-3 rounded-[24px] border border-white/12 bg-white/8 px-4 py-3 backdrop-blur-xl sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -350,6 +342,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       )}
                     </p>
                   </div>
+                  {!gameIsReleased && (
+                    <div className="rounded-full border border-amber-400/20 bg-red-500/30 px-3 py-1 text-xs text-white">
+                      Unreleased Game
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex max-w-[500px] flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
@@ -411,10 +408,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr] md:items-stretch">
                   <section className="grid gap-3 sm:min-h-0">
                     <div
-                      className={`relative overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 backdrop-blur-xl ${!gameIsReleased ? "opacity-45" : ""}`}
+                      className={`relative overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 backdrop-blur-xl`}
                     >
                       <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-amber-100/35 to-transparent" />
-                      <div className="grid gap-4">
+                      <div className="grid mt-6 gap-4">
                         <div className="rounded-[24px] border border-white/12 bg-black/20 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                           <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-center">
                             <div className="flex-col justify-center mx-auto w-full max-w-[260px]">
@@ -471,7 +468,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                     Rating
                                   </p>
                                   <motion.div
-                                    className="mt-2 flex items-end justify-center gap-1 leading-none"
+                                    className="mt-1 flex items-end justify-center gap-1 leading-none"
                                     animate={{
                                       scale: rating === 10 ? 1.05 : 1,
                                     }}
@@ -532,14 +529,13 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                 <button
                                   type="button"
                                   onClick={handleNotInterested}
-                                  disabled={!gameIsReleased}
                                   className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-medium whitespace-nowrap transition ${
                                     isNotInterested
                                       ? "border-cyan-300/45 bg-cyan-500/18 text-cyan-100 hover:bg-cyan-500/26"
                                       : "border-red-300/35 bg-red-500/12 text-red-100 hover:bg-red-500/22"
                                   } ${
-                                    !gameIsReleased || isNotInterested
-                                      ? "cursor-not-allowed opacity-45"
+                                    isNotInterested
+                                      ? "opacity-45"
                                       : "cursor-pointer"
                                   }`}
                                 >
@@ -548,7 +544,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   />
                                   <span>
                                     {isNotInterested
-                                      ? "Interested"
+                                      ? "Restore"
                                       : "Not Interested"}
                                   </span>
                                 </button>
@@ -561,13 +557,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   max={10}
                                   step={0.1}
                                   value={rating ?? 0}
-                                  disabled={!gameIsReleased || isNotInterested}
+                                  disabled={isNotInterested}
                                   onChange={(e) => {
-                                    if (blockIfUnreleased()) return;
                                     if (isNotInterested) return;
                                     setRating(Number(e.target.value));
                                   }}
-                                  className="h-2.5 w-full cursor-not-allowed accent-[#ffd77a]"
+                                  className="h-2.5 w-full accent-[#ffd77a]"
                                 />
                               </div>
 
@@ -581,11 +576,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                     <button
                                       key={preset.label}
                                       type="button"
-                                      disabled={
-                                        !gameIsReleased || isNotInterested
-                                      }
+                                      disabled={isNotInterested}
                                       onClick={() => {
-                                        if (blockIfUnreleased()) return;
                                         if (isNotInterested) return;
                                         setRating(preset.value);
                                       }}
@@ -594,8 +586,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                           ? "text-amber-200"
                                           : "text-zinc-400 hover:text-zinc-200"
                                       } ${
-                                        !gameIsReleased || isNotInterested
-                                          ? "cursor-not-allowed opacity-45"
+                                        isNotInterested
+                                          ? "opacity-45"
                                           : "cursor-pointer"
                                       }`}
                                     >
@@ -615,7 +607,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                   <aside className="grid gap-2 sm:grid-cols-2 md:grid-cols-1 md:min-h-0">
                     <div
-                      className={`flex h-full min-h-[300px] flex-col rounded-[28px] border border-white/12 bg-[linear-gradient(165deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04))] p-4 backdrop-blur-xl lg:min-h-[360px] lg:p-5 ${!gameIsReleased ? "opacity-45" : ""}`}
+                      className={`flex h-full min-h-[300px] flex-col rounded-[28px] border border-white/12 bg-[linear-gradient(165deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04))] p-4 backdrop-blur-xl lg:min-h-[360px] lg:p-5`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -710,7 +702,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             onChange={(e) =>
                               setProgress(Number(e.target.value))
                             }
-                            className="h-2.5 w-full cursor-not-allowed accent-emerald-400"
+                            className="h-2.5 w-full accent-emerald-400"
                           />
                         </div>
 
@@ -848,12 +840,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               </div>
 
               <footer className="flex flex-col gap-2 rounded-[24px] border border-white/12 bg-white/8 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs text-zinc-300">
-                  {!gameIsReleased
-                    ? "Unreleased game: progress and ratings are disabled."
-                    : isNotInterested
-                      ? "Marked as Not Interested: ratings are disabled until you unmark."
-                      : "All changes are saved when you press Save."}
+                <p className="text-sm text-zinc-300">
+                  {isNotInterested
+                    ? "Unmark as Not Interested to rate this game."
+                    : "Your library, your rules."}
                 </p>
                 <div className="flex items-center gap-2">
                   <button

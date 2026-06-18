@@ -14,6 +14,8 @@ export default function GameCard({
   game,
   openEditModal,
   openConfirmModal,
+  selectedStatus,
+  releaseFilter,
 }: any) {
   const [loaded, setLoaded] = useState(false);
 
@@ -23,6 +25,11 @@ export default function GameCard({
     releaseDate instanceof Date &&
     !isNaN(releaseDate.getTime()) &&
     releaseDate.getTime() <= Date.now();
+
+  const showComingSoonOverlay =
+    selectedStatus === "Want To Play" &&
+    releaseFilter === "Unreleased" &&
+    !isReleased;
 
   const formattedReleaseDate = formatReleaseDate(
     game?.igdb?.releaseDate,
@@ -132,7 +139,7 @@ hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.45),0_0_32px_rgba(var(--t
                 ${
                   isNotInterested
                     ? "bg-black/85"
-                    : !isReleased
+                    : showComingSoonOverlay
                       ? "bg-cyan-950/80"
                       : "bg-black/75"
                 }
@@ -171,7 +178,7 @@ hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.45),0_0_32px_rgba(var(--t
                     You've dismissed this game.
                   </p>
                 </div>
-              ) : !isReleased ? (
+              ) : showComingSoonOverlay ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                   <div
                     className="

@@ -1,9 +1,29 @@
 [
   {
+    "version": "7.4.2",
+    "title": "Quality of Life II",
+    "date": "2026-06-13",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Games",
+        "items": [
+          "Removed restrictions on unreleased games",
+          "Users can now manage and customize unreleased games just like any other title"
+        ]
+      },
+      {
+        "category": "User Interface",
+        "items": [
+          "What's New modal now has a fixed height and its content have their own animation"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.4.1",
     "title": "Quality of Life",
     "date": "2026-06-14",
-    "featured": true,
     "changes": [
       {
         "category": "Reviews & Expression",
