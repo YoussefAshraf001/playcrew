@@ -1,9 +1,54 @@
 [
   {
+    "version": "7.4.4",
+    "title": "Playlist Update",
+    "date": "2026-06-20",
+    "featured": true,
+    "changes": [
+      {
+        "category": "➕ Added",
+        "items": [
+          "A Soulmate Who Wasn't Meant to Be — Jess Benko",
+          "Back To Black — Amy Winehouse",
+          "black & white — Jeremy Zucker & Chelsea Cutler",
+          "Chasing (Demo) — NF",
+          "FACE MYSELF — Elley Duhé & Teddy Swims",
+          "First Heartbreak — Lauv",
+          "First Light — Lana Del Rey",
+          "I'm Still Your Boy — Luke Hemmings",
+          "Let Me Love You (Until You Learn To Love Yourself) — Glee Cast",
+          "Lose It — Oh Wonder",
+          "No Machine — Adrianne Lenker",
+          "Refuge — Dermot Kennedy",
+          "Second Chances — Gregory Alan Isakov",
+          "Sign of the Times — Harry Styles",
+          "This Is How It Feels — d4vd & Laufey",
+          "Through the Darkness — Colin & Caroline",
+          "Us Three — Charlotte Lawrence",
+          "We Hug Now — Sydney Rose",
+          "While You Were Sleeping — Laufey"
+        ]
+      },
+      {
+        "category": "✖️ Removed",
+        "items": [
+          "War Chant — Hans Zimmer",
+          "HOES DEPRESSED - Thot Squad",
+          "POUND CAKE - Thot Squad",
+          "Animal Soul - AURORA",
+          "Sir Galahad - Jason Graves",
+          "Bergmál - lúpína",
+          "Dark, Twisted and Cruel - Alan Wake",
+          "Music from The Game Awards 2024 - Twenty One Pilots"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.4.3",
     "title": "Quality of Life III",
     "date": "2026-06-18",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "About Page",
@@ -40,7 +85,7 @@
   {
     "version": "7.4.2",
     "title": "Quality of Life II",
-    "date": "2026-06-13",
+    "date": "2026-06-17",
     "featured": false,
     "changes": [
       {
@@ -61,7 +106,7 @@
   {
     "version": "7.4.1",
     "title": "Quality of Life",
-    "date": "2026-06-14",
+    "date": "2026-06-16",
     "featured": false,
     "changes": [
       {
@@ -117,7 +162,7 @@
   {
     "version": "7.4",
     "title": "Desktop Integration, Customization & Experience Update",
-    "date": "2026-06-13",
+    "date": "2026-06-15",
     "featured": false,
     "changes": [
       {
@@ -178,7 +223,7 @@
   {
     "version": "7.3",
     "title": "Awards Overhaul & UI Improvements",
-    "date": "2026-06-13",
+    "date": "2026-06-14",
     "featured": false,
     "changes": [
       {
