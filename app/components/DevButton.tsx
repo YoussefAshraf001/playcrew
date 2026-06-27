@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -12,6 +11,7 @@ import { createPortal } from "react-dom";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { RiShieldKeyholeFill } from "react-icons/ri";
 
 import { db } from "@/app/lib/firebase";
 import { GAME_STICKERS } from "../lib/gameStickers";
@@ -47,27 +47,19 @@ interface GameData {
 
 const DEV_KEY = "dev_unlock";
 const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD!;
-const DEFAULT_CATEGORY_KEYS = [
-  "graphics",
-  "gameplay",
-  "story",
-  "ost",
-  "cinematics",
-  "voiceActing",
-];
 const STATUS_OPTIONS = [
   "Playing",
   "Completed",
   "On Hold",
   "Dropped",
   "Online",
-  "Try Again?",
   "Want To Play",
 ];
 
 export default function DevGameEditor({ userId, game, onClose }: Props) {
-  const [unlocked, setUnlocked] = useState(false);
   const [pin, setPin] = useState<string[]>(Array(4).fill(""));
+  const [unlocked, setUnlocked] = useState(false);
+  const [wrongPin, setWrongPin] = useState(false);
   const inputsRef = useRef<HTMLInputElement[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -289,59 +281,120 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
             transition={{ duration: 0.22 }}
           >
             {!unlocked && (
-              <div className="relative h-full w-full flex flex-col items-center justify-center gap-6 p-6">
-                <button
-                  onClick={requestClose}
-                  className="absolute right-4 top-4 text-zinc-400 hover:text-white text-2xl transition"
-                >
-                  x
-                </button>
-                <h2 className="text-xl font-bold text-white">
-                  Enter Developer PIN
-                </h2>
-                <div className="flex gap-3">
-                  {pin.map((_, i) => (
-                    <input
-                      key={i}
-                      ref={(el) => {
-                        inputsRef.current[i] = el!;
-                      }}
-                      type="text"
-                      inputMode="text"
-                      autoComplete="new-password"
-                      name={`pin-${i}`}
-                      maxLength={1}
-                      className="w-12 h-12 text-center bg-zinc-800 text-white text-xl rounded tracking-widest border border-white/10"
-                      style={pinStyle}
-                      value={pin[i]}
-                      onChange={(e) => {
-                        const v = e.target.value.replace(/\D/g, "");
-                        if (!v) return;
-
-                        const next = [...pin];
-                        next[i] = v;
-                        setPin(next);
-                        if (i < 3) inputsRef.current[i + 1]?.focus();
-                        if (next.join("") === DEV_PASSWORD) handleCorrectPin();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Backspace") {
-                          e.preventDefault();
-                          const next = [...pin];
-
-                          if (next[i]) {
-                            next[i] = "";
-                            setPin(next);
-                          } else if (i > 0) {
-                            next[i - 1] = "";
-                            setPin(next);
-                            inputsRef.current[i - 1]?.focus();
-                          }
-                        }
-                      }}
-                    />
-                  ))}
+              <div className="relative h-full w-full flex flex-col items-center justify-center gap-8 p-6">
+                <div className="absolute right-6 top-6">
+                  <button
+                    onClick={requestClose}
+                    className="mt-2 text-sm font-medium text-zinc-400 transition hover:text-white"
+                  >
+                    Close
+                  </button>
                 </div>
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-cyan-500/20 bg-cyan-500/10 shadow-[0_0_40px_rgba(6,182,212,0.15)]">
+                  <RiShieldKeyholeFill className="text-5xl text-cyan-400" />
+                </div>
+                <h2 className="text-2xl font-bold text-white">
+                  Developer Access
+                </h2>
+
+                <p className="max-w-sm text-center text-sm text-zinc-400">
+                  Enter your 4-digit developer PIN to unlock the editor.
+                </p>
+                <div className="flex gap-3">
+                  <motion.div
+                    className="flex gap-3"
+                    animate={wrongPin ? { x: [-8, 8, -8, 8, 0] } : {}}
+                    transition={{ duration: 0.35 }}
+                  >
+                    {pin.map((_, i) => (
+                      <input
+                        key={i}
+                        ref={(el) => {
+                          inputsRef.current[i] = el!;
+                        }}
+                        type="text"
+                        inputMode="text"
+                        autoComplete="new-password"
+                        name={`pin-${i}`}
+                        maxLength={1}
+                        className="
+                        w-14
+                        h-14
+                        rounded-xl
+                        bg-zinc-800/80
+                        border
+                        border-white/10
+                        text-center
+                        text-2xl
+                        font-bold
+                        text-white
+                        transition-all
+                        duration-200
+
+                        focus:border-cyan-400
+                        focus:ring-4
+                        focus:ring-cyan-500/20
+                        focus:scale-105
+                      "
+                        style={pinStyle}
+                        value={pin[i]}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "");
+                          if (!v) return;
+
+                          const next = [...pin];
+                          next[i] = v;
+                          setPin(next);
+                          if (i < 3) inputsRef.current[i + 1]?.focus();
+                          if (next.every((d) => d !== "")) {
+                            if (next.join("") === DEV_PASSWORD) {
+                              handleCorrectPin();
+                            } else {
+                              setWrongPin(true);
+
+                              setTimeout(() => {
+                                setWrongPin(false);
+                              }, 500);
+
+                              setPin(Array(4).fill(""));
+
+                              setTimeout(() => {
+                                inputsRef.current[0]?.focus();
+                              }, 50);
+                            }
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Backspace") {
+                            e.preventDefault();
+                            const next = [...pin];
+
+                            if (next[i]) {
+                              next[i] = "";
+                              setPin(next);
+                            } else if (i > 0) {
+                              next[i - 1] = "";
+                              setPin(next);
+                              inputsRef.current[i - 1]?.focus();
+                            }
+                          }
+                        }}
+                      />
+                    ))}
+                  </motion.div>
+                </div>
+                <AnimatePresence>
+                  {wrongPin && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-sm font-medium text-red-400"
+                    >
+                      Incorrect PIN
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 

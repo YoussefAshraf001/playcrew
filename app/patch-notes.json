@@ -1,9 +1,86 @@
 [
   {
+    "version": "7.4.6",
+    "title": "Quality of Life V",
+    "date": "2026-06-27",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Want To Play",
+        "items": [
+          "Added drag & drop reordering for released games using a new, smoother interaction system",
+          "Your custom play order is now saved automatically and synced to the cloud",
+          "Added visual play order badges, including 'Up Next' for your next game and numbered queue positions"
+        ]
+      },
+      {
+        "category": "User Interface",
+        "items": [
+          "Added a dedicated reorder mode with drag overlays for clearer game organization",
+          "Added contextual sort badges for Playtime, Release Date, and Play Order",
+          "Improved hover animations and transitions for a smoother browsing experience"
+        ]
+      },
+      {
+        "category": "Quality of Life",
+        "items": [
+          "Added save protection to prevent unnecessary play order updates when nothing has changed",
+          "Improved sorting behavior across Want To Play filters",
+          "Various UI refinements, polish, and bug fixes",
+          "6 more reaction stickers are added"
+        ]
+      },
+      {
+        "category": "Bug Fixes",
+        "items": [
+          "Fixed duplicate navigation bars appearing when resizing the application window",
+          "Fixed play order not updating correctly after reordering",
+          "Fixed sorting inconsistencies across Want To Play filters",
+          "Fixed various drag & drop and interface edge cases"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "7.4.5",
+    "title": "Quality of Life IV",
+    "date": "2026-06-21",
+    "featured": false,
+    "changes": [
+      {
+        "category": "Release Dates",
+        "items": [
+          "Added automatic release date synchronization for upcoming games",
+          "Release dates are now checked and refreshed in the background",
+          "Improved handling of unreleased and recently updated games"
+        ]
+      },
+      {
+        "category": "User Interface",
+        "items": [
+          "Added a release date sync indicator to the navigation bar",
+          "The sync indicator now displays progress while release dates are being updated",
+          "Added detailed sync status including the game currently being checked"
+        ]
+      },
+      {
+        "category": "Performance",
+        "items": [
+          "Improved background data refresh reliability",
+          "Reduced unnecessary release date update requests"
+        ]
+      },
+      {
+        "category": "✖️ Removed",
+        "items": ["A Soulmate Who Wasn't Meant to Be — Jess Benko"]
+      }
+    ]
+  },
+  {
     "version": "7.4.4",
     "title": "Playlist Update",
     "date": "2026-06-20",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "➕ Added",

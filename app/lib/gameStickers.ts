@@ -200,4 +200,34 @@ export const GAME_STICKERS = [
     label: "so bad, its fun.",
     image: "/stickers/thukuna.webp",
   },
+  {
+    id: "gojover",
+    label: "Gojover",
+    image: "/stickers/gojover.webp",
+  },
+  {
+    id: "it-was-perfect",
+    label: "It was perfect",
+    image: "/stickers/it-was-perfect.webp",
+  },
+  {
+    id: "destroyed",
+    label: "Destroyed",
+    image: "/stickers/destroyed.webp",
+  },
+  {
+    id: "flop",
+    label: "Flop",
+    image: "/stickers/flop.webp",
+  },
+  {
+    id: "peak",
+    label: "Peak",
+    image: "/stickers/peak.webp",
+  },
+  {
+    id: "high",
+    label: "High",
+    image: "/stickers/high.webp",
+  },
 ];

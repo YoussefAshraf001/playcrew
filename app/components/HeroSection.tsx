@@ -52,7 +52,6 @@ const STATUS_CONFIG = [
     icon: <MdOutlineOnlinePrediction />,
     color: "bg-purple-500",
   },
-  { label: "Try Again?", icon: <FaRedoAlt />, color: "bg-orange-500" },
   { label: "Want To Play", icon: <GiMouthWatering />, color: "bg-teal-500" },
 ];
 const HERO_TRAILER_VOLUME_KEY = "hero-trailer-volume";

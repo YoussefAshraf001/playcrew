@@ -168,12 +168,6 @@ export default function CalendarPage() {
           icon: <MdOutlineOnlinePrediction size={12} />,
           className: "border-purple-300/35 bg-purple-500/15 text-purple-100",
         };
-      case "Try Again?":
-        return {
-          label: "Try Again?",
-          icon: <FaRedoAlt size={10} />,
-          className: "border-orange-300/35 bg-orange-500/15 text-orange-100",
-        };
       case "Want To Play":
         return {
           label: "Want To Play",

@@ -50,6 +50,8 @@ import ConfirmModal from "./ConfirmModal";
 import SearchModal from "./SearchModal";
 import NotificationBell from "./NotificationBell";
 import WhatsNewModal from "./WhatsNewModal";
+import { useSync } from "../context/SyncContext";
+import { FiRefreshCw } from "react-icons/fi";
 
 export default function Navbar() {
   const router = useRouter();
@@ -64,7 +66,8 @@ export default function Navbar() {
   const { open } = useAuthModal();
   const { startRouteLoading, navbarLayout } = useUI();
   const { profile, user, loading } = useUser();
-
+  const { isSyncingReleaseDates, syncCurrent, syncTotal, currentGameName } =
+    useSync();
   const { games } = useGames();
 
   const newUserImage = user?.photoURL;
@@ -306,6 +309,12 @@ export default function Navbar() {
                 </div>
 
                 <div className="mt-9 flex flex-col items-center gap-3">
+                  {isSyncingReleaseDates && (
+                    <FiRefreshCw
+                      className="h-4 w-4 animate-spin text-zinc-400"
+                      title="Syncing release dates..."
+                    />
+                  )}
                   <div className="hidden flex-col items-center gap-2 lg:flex">
                     <div
                       className={`relative flex items-center ${
@@ -717,7 +726,33 @@ export default function Navbar() {
                   stiffness: 260,
                   damping: 28,
                 }}
-                className="navbar-top-shell theme-nav fixed top-0 left-0 right-0 z-90 hidden items-center justify-between rounded-b-2xl border-b-3 border-x px-3 py-1.5 backdrop-blur-md transition-colors duration-300 sm:flex md:left-4 md:right-4 md:px-4 lg:left-6 lg:right-6 lg:px-6"
+                className="
+                  navbar-top-shell
+                  theme-nav
+                  fixed
+                  top-0
+                  left-0
+                  right-0
+                  z-90
+                  hidden
+                  lg:flex
+                  items-center
+                  justify-between
+                  rounded-b-2xl
+                  border-b-3
+                  border-x
+                  px-3
+                  py-1.5
+                  backdrop-blur-md
+                  transition-colors
+                  duration-300
+                  md:left-4
+                  md:right-4
+                  md:px-4
+                  lg:left-6
+                  lg:right-6
+                  lg:px-6
+                "
               >
                 <div className="hidden shrink-0 items-center xl:flex">
                   <Link href="/dashboard" className="flex items-center gap-2">
@@ -792,6 +827,38 @@ export default function Navbar() {
                 </div>
 
                 <div className="relative ml-1 flex shrink-0 items-center gap-1.5 sm:ml-2 sm:gap-2 lg:ml-4 lg:gap-4">
+                  {isSyncingReleaseDates && !isDashboard && (
+                    <div className="group relative">
+                      <button className="theme-surface theme-hover-surface flex h-8 w-8 items-center justify-center rounded-full border">
+                        <FiRefreshCw className="h-4 w-4 animate-spin text-zinc-400" />
+                      </button>
+
+                      <div
+                        className="
+                          theme-panel-strong
+                          invisible absolute right-0 top-10 z-[999]
+                          w-64 rounded-xl border p-3
+                          opacity-0 shadow-xl
+                          transition-all
+                          group-hover:visible
+                          group-hover:opacity-100
+                        "
+                      >
+                        <p className="text-sm font-medium">
+                          Checking for new release dates
+                        </p>
+
+                        <p className="theme-text-muted mt-1 text-xs">
+                          {syncCurrent} / {syncTotal} complete
+                        </p>
+
+                        <p className="theme-accent-text mt-2 truncate text-xs">
+                          {currentGameName}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="hidden items-center gap-2 lg:flex">
                     <div
                       className={`relative flex items-center ${
@@ -1359,7 +1426,6 @@ export default function Navbar() {
                   </span>
                 </div>
               </button>
-
               <div className="theme-surface mt-3 rounded-lg border p-2.5">
                 <NotificationBell games={games} fullWidthTrigger />
               </div>
@@ -1564,6 +1630,39 @@ export default function Navbar() {
         isOpen={whatsNewOpen}
         onClose={() => setWhatsNewOpen(false)}
       />
+
+      {/* The Updating modal */}
+      {isSyncingReleaseDates && !isDashboard && (
+        <div className="group relative">
+          <button className="theme-surface theme-hover-surface flex h-8 w-8 items-center justify-center rounded-full border">
+            <FiRefreshCw className="h-4 w-4 animate-spin text-zinc-400" />
+          </button>
+
+          <div
+            className="
+              theme-panel-strong
+              invisible absolute right-0 top-10 z-50
+              w-64 rounded-xl border p-3
+              opacity-0 shadow-xl
+              transition-all
+              group-hover:visible
+              group-hover:opacity-100
+            "
+          >
+            <p className="text-sm font-medium">
+              Checking for new release dates
+            </p>
+
+            <p className="theme-text-muted mt-1 text-xs">
+              {syncCurrent} / {syncTotal} complete
+            </p>
+
+            <p className="theme-accent-text mt-2 truncate text-xs">
+              {currentGameName}
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

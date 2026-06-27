@@ -72,11 +72,6 @@ const statuses = [
     color: "bg-purple-500",
   }, // Neutral / discovery â†’ purple
   {
-    label: "Try Again?",
-    icon: <FaRedoAlt size={18} />,
-    color: "bg-orange-500",
-  },
-  {
     label: "Want To Play",
     icon: <GiMouthWatering size={20} />,
     color: "bg-teal-500",

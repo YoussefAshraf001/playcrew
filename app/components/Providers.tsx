@@ -4,6 +4,7 @@ import { UserProvider } from "../context/UserContext";
 import { GameProvider } from "../context/GameContext";
 import { MusicProvider } from "../context/MusicContext";
 import { UIProvider } from "../context/UIContext";
+import { SyncProvider } from "../context/SyncContext";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -12,7 +13,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <UserProvider>
           <GameProvider>
             <MusicProvider>
-              <UIProvider>{children}</UIProvider>
+              <UIProvider>
+                <SyncProvider>{children}</SyncProvider>
+              </UIProvider>
             </MusicProvider>
           </GameProvider>
         </UserProvider>

@@ -2,12 +2,25 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  closestCenter,
+} from "@dnd-kit/core";
+
+import {
+  arrayMove,
+  rectSortingStrategy,
+  SortableContext,
+} from "@dnd-kit/sortable";
 import Link from "next/link";
 import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
 import toast from "react-hot-toast";
 import {
   FiArrowRight,
+  FiCheck,
   FiChevronLeft,
   FiChevronRight,
   FiList,
@@ -28,8 +41,6 @@ import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
 import { TrackedGame } from "@/app/types/trackedGame";
 import styles from "./OnlineToggle.module.css";
-import { refreshGameData, type RefreshableGame } from "@/app/utils/refreshGame";
-import RefreshModal, { type RefreshField } from "@/app/components/RefreshModal";
 import {
   clampGamesBgBlur,
   clampGamesBgOverlay,
@@ -37,6 +48,19 @@ import {
   DEFAULT_BG_OVERLAY,
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
+import SortableGameCard from "@/app/components/SortableGameCard";
+import { RiDraggable } from "react-icons/ri";
+
+type SortBy =
+  | "name"
+  | "date"
+  | "tier"
+  | "release"
+  | "playtime"
+  | "priority"
+  | "progress";
+
+type SortOrder = "asc" | "desc";
 
 const STATUSES = [
   "All",
@@ -45,7 +69,6 @@ const STATUSES = [
   "On Hold",
   "Dropped",
   "Online",
-  "Try Again?",
   "Want To Play",
 ];
 
@@ -114,10 +137,11 @@ export default function GamesPage() {
   });
   const STATUS_SORTS_KEY = "games.statusSorts";
 
-  const [sortBy, setSortBy] = useState<
-    "name" | "date" | "tier" | "release" | "playtime"
-  >("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [orderedWantGames, setOrderedWantGames] = useState<TrackedGame[]>([]);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [originalWantOrder, setOriginalWantOrder] = useState<TrackedGame[]>([]);
+  const [activeGame, setActiveGame] = useState<TrackedGame | null>(null);
+
   const [bgBlur, setBgBlur] = useState(DEFAULT_BG_BLUR);
   const [bgOverlay, setBgOverlay] = useState(DEFAULT_BG_OVERLAY);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -131,8 +155,6 @@ export default function GamesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGame, setEditingGame] = useState<TrackedGame | null>(null);
   const [saving, setSaving] = useState(false);
-  const [bulkModalOpen, setBulkModalOpen] = useState(false);
-  const [bulkRefreshing, setBulkRefreshing] = useState(false);
   const [recentModalOpen, setRecentModalOpen] = useState(false);
   const [recentVisibleCount, setRecentVisibleCount] = useState(15);
 
@@ -143,6 +165,8 @@ export default function GamesPage() {
   >(() => {});
 
   const isDraggingRef = useRef(false);
+  const canReorder =
+    selectedStatus === "Want To Play" && releaseFilter === "Released";
   const includeOnlineLocked = selectedStatus !== "All";
   const compactStatusTabs =
     !showFavoritesOnly && selectedStatus === "Want To Play";
@@ -191,7 +215,7 @@ export default function GamesPage() {
       }
       return {
         ...prev,
-        trackedGames: updatedGames, // 🔥 THIS LINE
+        trackedGames: updatedGames,
       };
     });
 
@@ -229,7 +253,11 @@ export default function GamesPage() {
         setBgOverlay(clampGamesBgOverlay(parsed.bgOverlay));
       }
     } catch (error) {
-      console.error("Failed to parse games page settings", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to parse games page settings",
+      );
     } finally {
       setSettingsHydrated(true);
     }
@@ -283,7 +311,6 @@ export default function GamesPage() {
       "On Hold": [],
       Dropped: [],
       Online: [],
-      "Try Again?": [],
       "Want To Play": [],
     };
 
@@ -332,6 +359,57 @@ export default function GamesPage() {
     return Infinity;
   };
 
+  const [includeUnreleasedGames, setIncludeUnreleasedGames] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const stored = window.localStorage.getItem("games.includeUnreleasedGames");
+    return stored === null ? true : stored === "true";
+  });
+
+  const includeUnreleasedLocked = selectedStatus !== "All";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    window.localStorage.setItem(
+      "games.includeUnreleasedGames",
+      String(includeUnreleasedGames),
+    );
+  }, [includeUnreleasedGames]);
+
+  const loadStatusSorts = () => {
+    if (typeof window === "undefined") return {};
+
+    try {
+      return JSON.parse(localStorage.getItem(STATUS_SORTS_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
+  };
+
+  const saveStatusSort = (
+    status: string,
+    sortBy: SortBy,
+    sortOrder: SortOrder,
+  ) => {
+    const sorts = loadStatusSorts();
+
+    sorts[status] = {
+      sortBy,
+      sortOrder,
+    };
+
+    localStorage.setItem(STATUS_SORTS_KEY, JSON.stringify(sorts));
+  };
+
+  const playingSort =
+    typeof window === "undefined" ? null : loadStatusSorts()["Playing"];
+
+  const [sortBy, setSortBy] = useState<SortBy>(playingSort?.sortBy ?? "date");
+
+  const [sortOrder, setSortOrder] = useState<SortOrder>(
+    playingSort?.sortOrder ?? "desc",
+  );
+
   // Filter and sort safely
   const filteredGames = useMemo(() => {
     let list = showFavoritesOnly
@@ -343,7 +421,7 @@ export default function GamesPage() {
     // Clone before mutation
     list = [...list];
 
-    if (!includeOnlineGames && selectedStatus !== "Online") {
+    if (!includeOnlineGames && selectedStatus === "All") {
       list = list.filter((g) => g.status !== "Online");
     }
 
@@ -354,6 +432,7 @@ export default function GamesPage() {
         .replace(/\s+/g, " ")
         .trim();
 
+    // Search
     if (debouncedSearch) {
       const normalizedQuery = normalize(debouncedSearch);
 
@@ -361,6 +440,8 @@ export default function GamesPage() {
         (g) => g.name && normalize(g.name).includes(normalizedQuery),
       );
     }
+
+    // Release filter
 
     if (releaseFilter !== "All") {
       const now = Date.now();
@@ -377,6 +458,20 @@ export default function GamesPage() {
         return releaseFilter === "Released" ? isReleased : !isReleased;
       });
     }
+
+    if (selectedStatus === "All" && !includeUnreleasedGames) {
+      const now = Date.now();
+
+      list = list.filter((g) => {
+        const releaseTime = getReleaseTime(g.igdb?.releaseDate);
+
+        if (releaseTime === Infinity) return false;
+
+        return releaseTime <= now;
+      });
+    }
+
+    // Favorites
 
     if (showFavoritesOnly) {
       list = list.filter((g) => g.favorite);
@@ -410,6 +505,20 @@ export default function GamesPage() {
           return sortOrder === "asc" ? aTime - bTime : bTime - aTime;
         }
 
+        case "progress": {
+          const aValue = a.progress ?? 0;
+          const bValue = b.progress ?? 0;
+
+          return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
+        }
+
+        case "priority": {
+          const aOrder = a.wantToPlayOrder ?? Number.MAX_SAFE_INTEGER;
+          const bOrder = b.wantToPlayOrder ?? Number.MAX_SAFE_INTEGER;
+
+          return sortOrder === "asc" ? aOrder - bOrder : bOrder - aOrder;
+        }
+
         case "release": {
           const aVal = getReleaseTime(a.igdb?.releaseDate);
           const bVal = getReleaseTime(b.igdb?.releaseDate);
@@ -435,30 +544,8 @@ export default function GamesPage() {
     sortBy,
     sortOrder,
     includeOnlineGames,
+    includeUnreleasedGames,
   ]);
-
-  const loadStatusSorts = () => {
-    if (typeof window === "undefined") return {};
-
-    try {
-      return JSON.parse(localStorage.getItem(STATUS_SORTS_KEY) ?? "{}");
-    } catch {
-      return {};
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const sorts = loadStatusSorts();
-
-    sorts[selectedStatus] = {
-      sortBy,
-      sortOrder,
-    };
-
-    localStorage.setItem(STATUS_SORTS_KEY, JSON.stringify(sorts));
-  }, [selectedStatus, sortBy, sortOrder]);
 
   //Games Pages
   const validGames = filteredGames.filter((g) => g.name);
@@ -482,6 +569,14 @@ export default function GamesPage() {
     setOrderedFavorites(favoriteGames);
   }, [favoriteGames]);
 
+  useEffect(() => {
+    if (selectedStatus !== "Want To Play" || releaseFilter !== "Released") {
+      return;
+    }
+
+    setOrderedWantGames(filteredGames);
+  }, [filteredGames, selectedStatus, releaseFilter]);
+
   const sortedRecentGames = useMemo(
     () =>
       [...allGames].sort(
@@ -504,15 +599,22 @@ export default function GamesPage() {
 
   const handleTabChange = (status: string) => {
     setLastStatus(status);
-
     setAnimationType("status");
 
-    const sorts = loadStatusSorts();
-    const saved = sorts[status];
+    if (status === "Want To Play") {
+      setReleaseFilter("Released");
+      setSortBy("priority");
+      setSortOrder("asc");
+    } else {
+      setReleaseFilter("All");
 
-    if (saved) {
-      setSortBy(saved.sortBy);
-      setSortOrder(saved.sortOrder);
+      const sorts = loadStatusSorts();
+      const saved = sorts[status];
+
+      if (saved) {
+        setSortBy(saved.sortBy);
+        setSortOrder(saved.sortOrder);
+      }
     }
 
     setSelectedStatus(status);
@@ -529,15 +631,6 @@ export default function GamesPage() {
       setSelectedStatus(lastStatus);
     }
   };
-
-  useEffect(() => {
-    const mistfall = allGames.find((g) => g.igdb?.id === 320141);
-
-    console.log("releaseFilter", releaseFilter);
-    console.log("releaseDate", mistfall?.igdb?.releaseDate);
-    console.log("releaseTime", getReleaseTime(mistfall?.igdb?.releaseDate));
-    console.log("now", Date.now());
-  });
 
   // Counts for left column
   const completedCount = useMemo(
@@ -562,11 +655,6 @@ export default function GamesPage() {
 
   const onlineCount = useMemo(
     () => allGames.filter((g) => g.status === "Online").length,
-    [allGames],
-  );
-
-  const tryAgainCount = useMemo(
-    () => allGames.filter((g) => g.status === "Try Again?").length,
     [allGames],
   );
 
@@ -651,10 +739,6 @@ export default function GamesPage() {
     localProfile?.username || userProfile?.username || "profile";
   const wallpaperMedia = localProfile?.wallpaper || userProfile?.wallpaper;
 
-  const isRefreshableGame = (
-    game: TrackedGame,
-  ): game is TrackedGame & RefreshableGame => typeof game.igdb?.id === "number";
-
   useEffect(() => {
     setWallpaperLoaded(false);
   }, [wallpaperMedia?.data]);
@@ -713,57 +797,52 @@ export default function GamesPage() {
     await Promise.all(updates);
   };
 
-  const handleBulkRefreshUnreleased = async (
-    fields: Record<RefreshField, boolean>,
-  ) => {
-    if (!uid || bulkRefreshing) return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
 
-    const unreleasedGames = filteredGames.filter(isRefreshableGame);
-    if (!unreleasedGames.length) {
-      toast("No unreleased games to refresh right now.");
-      return;
-    }
+    if (!over || active.id === over.id) return;
 
-    setBulkRefreshing(true);
-    const loadingToast = toast.loading("Bulk refreshing games...");
+    const oldIndex = orderedWantGames.findIndex((g) => g.igdb.id === active.id);
 
-    try {
-      const results = await Promise.allSettled(
-        unreleasedGames.map((game) =>
-          refreshGameData(
-            uid,
-            game,
-            fields,
-            game._docId ?? String(game.igdb.id),
-          ),
-        ),
-      );
+    const newIndex = orderedWantGames.findIndex((g) => g.igdb.id === over.id);
 
-      const refreshedCount = results.filter(
-        (r) => r.status === "fulfilled",
-      ).length;
-      const failedCount = results.length - refreshedCount;
+    const newOrder = arrayMove(orderedWantGames, oldIndex, newIndex);
 
-      toast.dismiss(loadingToast);
-
-      if (failedCount > 0) {
-        toast.error(
-          `Refreshed ${refreshedCount} game${refreshedCount === 1 ? "" : "s"}, ${failedCount} failed.`,
-        );
-      } else {
-        toast.success(
-          `Refreshed ${refreshedCount} game${refreshedCount === 1 ? "" : "s"}.`,
-        );
-      }
-    } catch (error) {
-      console.error("Bulk refresh failed", error);
-      toast.dismiss(loadingToast);
-      toast.error("Bulk refresh failed.");
-    } finally {
-      setBulkRefreshing(false);
-      setBulkModalOpen(false);
-    }
+    setOrderedWantGames(newOrder);
   };
+
+  const orderChanged = () => {
+    return orderedWantGames.some(
+      (game, index) => game.igdb.id !== originalWantOrder[index]?.igdb.id,
+    );
+  };
+
+  const saveWantToPlayOrder = async () => {
+    if (!user) return;
+
+    await Promise.all(
+      orderedWantGames.map((game, index) => {
+        const ref = doc(
+          db,
+          "users",
+          user.uid,
+          "games_igdb",
+          game._docId ?? String(game.igdb.id),
+        );
+
+        return setDoc(ref, { wantToPlayOrder: index }, { merge: true });
+      }),
+    );
+  };
+
+  useEffect(() => {
+    const canReorder =
+      selectedStatus === "Want To Play" && releaseFilter === "Released";
+
+    if (!canReorder && reorderMode) {
+      setReorderMode(false);
+    }
+  }, [selectedStatus, releaseFilter, reorderMode]);
 
   const handleSaveModal = async (
     review: {
@@ -906,7 +985,6 @@ export default function GamesPage() {
 
       setModalOpen(false);
     } catch (err) {
-      console.error(err);
       toast.error("Failed to save game.");
     } finally {
       setSaving(false);
@@ -1064,7 +1142,6 @@ export default function GamesPage() {
                     ["Playing", playingCount],
                     ["Dropped", droppedCount],
                     ["Online", onlineCount],
-                    ["Try Again?", tryAgainCount],
                     ["Not Interested", notInterestedCount],
                     ["Want To Play", wantCount],
                   ].map(([label, value]) => (
@@ -1193,8 +1270,6 @@ export default function GamesPage() {
                           }}
                           transition={{ duration: 0.22, ease: "easeInOut" }}
                         >
-                          {/* bulk refresh icon moved to toolbar before Include Online */}
-
                           {["All", "Released", "Unreleased"].map((filter) => (
                             <button
                               key={filter}
@@ -1211,10 +1286,28 @@ export default function GamesPage() {
 
                                 setReleaseFilter(nextFilter);
 
-                                if (nextFilter === "Unreleased") {
+                                if (nextFilter === "Released") {
+                                  setSortBy("priority");
+                                  setSortOrder("asc");
+                                } else if (nextFilter === "Unreleased") {
                                   setSortBy("release");
                                   setSortOrder("asc");
+                                } else {
+                                  // All
+                                  const saved =
+                                    loadStatusSorts()["Want To Play"];
+
+                                  if (saved && saved.sortBy !== "priority") {
+                                    setSortBy(saved.sortBy);
+                                    setSortOrder(saved.sortOrder);
+                                  } else {
+                                    // Fallback if priority was accidentally saved
+                                    setSortBy("date");
+                                    setSortOrder("desc");
+                                  }
                                 }
+
+                                setCurrentPage(1);
                               }}
                             >
                               {filter}
@@ -1294,19 +1387,34 @@ export default function GamesPage() {
                   </div>
                   <div className="relative">
                     <select
-                      value={sortBy}
+                      value={canReorder ? "priority" : sortBy}
+                      disabled={canReorder}
                       onChange={(e) => {
-                        setSortBy(
-                          e.target.value as
-                            | "name"
-                            | "date"
-                            | "tier"
-                            | "release"
-                            | "playtime",
-                        );
+                        const value = e.target.value as SortBy;
+
+                        setSortBy(value);
+                        saveStatusSort(selectedStatus, value, sortOrder);
+
                         setCurrentPage(1);
                       }}
-                      className="theme-surface-alt h-8 min-w-[158px] appearance-none rounded-xl border pl-3 pr-9 text-sm font-medium theme-text outline-none transition focus:border-cyan-300/65 focus:bg-white/[0.07]"
+                      className={`
+                        theme-surface-alt
+                        h-8
+                        min-w-[158px]
+                        appearance-none
+                        rounded-xl
+                        border
+                        pl-3
+                        pr-9
+                        text-sm
+                        font-medium
+                        theme-text
+                        outline-none
+                        transition
+                        focus:border-cyan-300/65
+                        focus:bg-white/[0.07]
+                        ${canReorder ? "cursor-not-allowed opacity-70" : ""}
+                      `}
                     >
                       <option
                         className="bg-[var(--theme-panel-alt)] theme-text"
@@ -1319,6 +1427,20 @@ export default function GamesPage() {
                         value="playtime"
                       >
                         Playtime
+                      </option>
+                      {canReorder && (
+                        <option
+                          className="bg-[var(--theme-panel-alt)] theme-text"
+                          value="priority"
+                        >
+                          My Play Order
+                        </option>
+                      )}
+                      <option
+                        className="bg-[var(--theme-panel-alt)] theme-text"
+                        value="progress"
+                      >
+                        Progress
                       </option>
                       <option
                         className="bg-[var(--theme-panel-alt)] theme-text"
@@ -1345,120 +1467,217 @@ export default function GamesPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {releaseFilter === "Unreleased" && (
-                    <div className="flex items-center mr-2">
-                      <button
-                        type="button"
-                        onClick={() => setBulkModalOpen(true)}
-                        disabled={bulkRefreshing || !filteredGames.length}
-                        title="Bulk refresh unreleased"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-[var(--theme-panel-alt)] text-zinc-300 hover:border-cyan-300/30 hover:bg-zinc-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M23 4v6h-6" />
-                          <path d="M1 20v-6h6" />
-                          <path d="M3.51 9a9 9 0 0114.13-3.36L23 10" />
-                          <path d="M20.49 15a9 9 0 01-14.13 3.36L1 14" />
-                        </svg>
-                      </button>
-                      <span className="text-xs theme-text-muted ml-2">
-                        {filteredGames.filter(isRefreshableGame).length}
-                      </span>
-                    </div>
-                  )}
-                  <div
-                    className={`theme-surface group relative flex h-9 items-center gap-3 rounded-xl border px-3 transition ${includeOnlineLocked ? "pointer-events-none opacity-50" : ""}`}
-                  >
-                    <span className={styles.toggleLabel}>Include Online</span>
-                    <label
-                      className={styles.switch}
-                      aria-label="Include online games"
-                      title={
-                        includeOnlineLocked
-                          ? "Only available in the All tab"
-                          : includeOnlineGames
-                            ? "Online games visible"
-                            : "Online games hidden"
+                {canReorder ? (
+                  <button
+                    onClick={async () => {
+                      if (!reorderMode) {
+                        // Entering reorder mode
+                        setOrderedWantGames(filteredGames);
+                        setOriginalWantOrder(filteredGames);
+                        setReorderMode(true);
+                        return;
                       }
-                    >
-                      <input
-                        className={styles.checkbox}
-                        type="checkbox"
-                        checked={includeOnlineGames}
-                        disabled={includeOnlineLocked}
-                        onChange={(e) => {
-                          setIncludeOnlineGames(e.target.checked);
-                          setCurrentPage(1);
-                        }}
-                      />
-                      <div className={styles.container}>
-                        <div className={styles.button}>
-                          <div className={styles.circles}>
-                            {Array.from({ length: 12 }).map((_, index) => (
-                              <div key={index} className={styles.circle} />
-                            ))}
+
+                      // Leaving reorder mode
+                      if (!orderChanged()) {
+                        toast("Nothing changed.");
+                      } else {
+                        await saveWantToPlayOrder();
+                        toast.success("Play order updated.");
+                      }
+
+                      setReorderMode(false);
+                    }}
+                    className={`
+                        theme-surface
+                        theme-hover-surface
+                        inline-flex
+                        h-9
+                        items-center
+                        gap-2
+                        rounded-xl
+                        border
+                        px-4
+                        text-sm
+                        font-semibold
+                        transition
+                        ${reorderMode ? "border-cyan-500 bg-cyan-500 text-black" : ""}
+                      `}
+                  >
+                    {reorderMode ? (
+                      <>
+                        <FiCheck size={16} />
+                        Done
+                      </>
+                    ) : (
+                      <>
+                        <RiDraggable size={16} />
+                        Reorder Games
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <AnimatePresence mode="wait">
+                      {selectedStatus === "All" && (
+                        <motion.div
+                          key="all-toggles"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 6 }}
+                          transition={{ duration: 0.2 }}
+                          className="flex flex-wrap items-center gap-2"
+                        >
+                          <div
+                            className={`theme-surface group relative flex h-9 items-center gap-3 rounded-xl border px-3 transition ${
+                              includeUnreleasedLocked
+                                ? "pointer-events-none opacity-50"
+                                : ""
+                            }`}
+                          >
+                            <span className={styles.toggleLabel}>
+                              Include Unreleased
+                            </span>
+
+                            <label
+                              className={styles.switch}
+                              aria-label="Include unreleased games"
+                              title={
+                                includeUnreleasedLocked
+                                  ? "Only available in the All tab"
+                                  : includeUnreleasedGames
+                                    ? "Unreleased games visible"
+                                    : "Unreleased games hidden"
+                              }
+                            >
+                              <input
+                                className={styles.checkbox}
+                                type="checkbox"
+                                checked={includeUnreleasedGames}
+                                disabled={includeUnreleasedLocked}
+                                onChange={(e) => {
+                                  setIncludeUnreleasedGames(e.target.checked);
+                                  setCurrentPage(1);
+                                }}
+                              />
+
+                              <div className={styles.container}>
+                                <div className={styles.button}>
+                                  <div className={styles.circles}>
+                                    {Array.from({ length: 12 }).map(
+                                      (_, index) => (
+                                        <div
+                                          key={index}
+                                          className={styles.circle}
+                                        />
+                                      ),
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </label>
                           </div>
+                          <div
+                            className={`theme-surface group relative flex h-9 items-center gap-3 rounded-xl border px-3 transition ${includeOnlineLocked ? "pointer-events-none opacity-50" : ""}`}
+                          >
+                            <span className={styles.toggleLabel}>
+                              Include Online
+                            </span>
+                            <label
+                              className={styles.switch}
+                              aria-label="Include online games"
+                              title={
+                                includeOnlineLocked
+                                  ? "Only available in the All tab"
+                                  : includeOnlineGames
+                                    ? "Online games visible"
+                                    : "Online games hidden"
+                              }
+                            >
+                              <input
+                                className={styles.checkbox}
+                                type="checkbox"
+                                checked={includeOnlineGames}
+                                disabled={includeOnlineLocked}
+                                onChange={(e) => {
+                                  setIncludeOnlineGames(e.target.checked);
+                                  setCurrentPage(1);
+                                }}
+                              />
+                              <div className={styles.container}>
+                                <div className={styles.button}>
+                                  <div className={styles.circles}>
+                                    {Array.from({ length: 12 }).map(
+                                      (_, index) => (
+                                        <div
+                                          key={index}
+                                          className={styles.circle}
+                                        />
+                                      ),
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </label>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    <button
+                      onClick={() => {
+                        const nextOrder = sortOrder === "asc" ? "desc" : "asc";
+
+                        setSortOrder(nextOrder);
+                        saveStatusSort(selectedStatus, sortBy, nextOrder);
+                      }}
+                      className="theme-surface theme-hover-surface h-9 rounded-xl border px-4 text-xs font-semibold tracking-wide theme-text transition"
+                    >
+                      {sortBy === "name"
+                        ? sortOrder === "asc"
+                          ? "A to Z"
+                          : "Z to A"
+                        : sortBy === "date"
+                          ? sortOrder === "asc"
+                            ? "Oldest to Newest"
+                            : "Newest to Oldest"
+                          : sortBy === "release"
+                            ? releaseFilter === "Unreleased"
+                              ? sortOrder === "asc"
+                                ? "Closest to Furthest"
+                                : "Furthest to Closest"
+                              : sortOrder === "asc"
+                                ? "Oldest to Newest"
+                                : "Newest to Oldest"
+                            : sortBy === "playtime"
+                              ? sortOrder === "asc"
+                                ? "Least Played"
+                                : "Most Played"
+                              : sortBy === "progress"
+                                ? sortOrder === "asc"
+                                  ? "Lowest to Highest"
+                                  : "Highest to Lowest"
+                                : sortBy === "tier"
+                                  ? sortOrder === "asc"
+                                    ? "Lowest to Highest"
+                                    : "Highest to Lowest"
+                                  : "Sort"}
+                    </button>
+
+                    {(sortBy === "tier" || sortBy === "playtime") && (
+                      <div className="relative group">
+                        <span className="theme-surface inline-flex h-8 w-8 cursor-help select-none items-center justify-center rounded-full border text-xs theme-text-muted">
+                          i
+                        </span>
+
+                        <div className="theme-panel pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden whitespace-nowrap rounded-lg border px-3 py-1 text-xs theme-text shadow-lg group-hover:block">
+                          {sortBy === "tier"
+                            ? "Only rated games are shown (Want To Play excluded)"
+                            : "Only played games are shown (Want To Play excluded)"}
                         </div>
                       </div>
-                    </label>
+                    )}
                   </div>
-
-                  <button
-                    onClick={() =>
-                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                    }
-                    className="theme-surface theme-hover-surface h-9 rounded-xl border px-4 text-xs font-semibold tracking-wide theme-text transition"
-                  >
-                    {sortBy === "name"
-                      ? sortOrder === "asc"
-                        ? "A to Z"
-                        : "Z to A"
-                      : sortBy === "date"
-                        ? sortOrder === "asc"
-                          ? "Oldest to Newest"
-                          : "Newest to Oldest"
-                        : sortBy === "release"
-                          ? releaseFilter === "Unreleased"
-                            ? sortOrder === "asc"
-                              ? "Closest to Furthest"
-                              : "Furthest to Closest"
-                            : sortOrder === "asc"
-                              ? "Oldest to Newest"
-                              : "Newest to Oldest"
-                          : sortBy === "playtime"
-                            ? sortOrder === "asc"
-                              ? "Least Played"
-                              : "Most Played"
-                            : sortBy === "tier"
-                              ? sortOrder === "asc"
-                                ? "Lowest to Highest"
-                                : "Highest to Lowest"
-                              : "Sort"}
-                  </button>
-
-                  {(sortBy === "tier" || sortBy === "playtime") && (
-                    <div className="relative group">
-                      <span className="theme-surface inline-flex h-8 w-8 cursor-help select-none items-center justify-center rounded-full border text-xs theme-text-muted">
-                        i
-                      </span>
-
-                      <div className="theme-panel pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden whitespace-nowrap rounded-lg border px-3 py-1 text-xs theme-text shadow-lg group-hover:block">
-                        {sortBy === "tier"
-                          ? "Only rated games are shown (Want To Play excluded)"
-                          : "Only played games are shown (Want To Play excluded)"}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
             </div>
             {/* Game Grid */}
@@ -1468,25 +1687,79 @@ export default function GamesPage() {
                 custom={{ type: animationType, direction: pageDirection }}
               >
                 <motion.div
-                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}-${includeOnlineGames}`}
+                  key={`${selectedStatus}-${currentPage}-${sortBy}-${sortOrder}-${releaseFilter}-${debouncedSearch}-${showFavoritesOnly}-${includeOnlineGames}-${includeUnreleasedGames}`}
                   custom={{ type: animationType, direction: pageDirection }}
                   variants={pageVariants}
                   initial="enter"
                   animate="center"
                   exit="exit"
                   transition={{ duration: 0.35, ease: "easeOut" }}
-                  className="mx-auto grid w-fit grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"
+                  className="relative mx-auto grid w-fit grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5"
                 >
-                  {visibleGames.map((game) => (
-                    <GameCard
-                      key={game.igdb.id}
-                      game={game}
-                      openEditModal={openEditModal}
-                      openConfirmModal={openConfirmModal}
-                      selectedStatus={selectedStatus}
-                      releaseFilter={releaseFilter}
-                    />
-                  ))}
+                  {reorderMode && canReorder ? (
+                    <DndContext
+                      collisionDetection={closestCenter}
+                      onDragStart={({ active }) => {
+                        const game = orderedWantGames.find(
+                          (g) => g.igdb.id === active.id,
+                        );
+
+                        setActiveGame(game ?? null);
+                      }}
+                      onDragEnd={(event) => {
+                        handleDragEnd(event);
+
+                        setActiveGame(null);
+                      }}
+                      onDragCancel={() => setActiveGame(null)}
+                    >
+                      <SortableContext
+                        items={orderedWantGames.map((g) => g.igdb.id)}
+                        strategy={rectSortingStrategy}
+                      >
+                        <>
+                          {orderedWantGames.map((game) => (
+                            <SortableGameCard
+                              key={game.igdb.id}
+                              game={game}
+                              reorderMode={reorderMode}
+                              selectedStatus={selectedStatus}
+                              releaseFilter={releaseFilter}
+                              openEditModal={openEditModal}
+                              openConfirmModal={openConfirmModal}
+                            />
+                          ))}
+                        </>
+                      </SortableContext>
+
+                      <DragOverlay>
+                        {activeGame ? (
+                          <GameCard
+                            game={activeGame}
+                            sortable={false}
+                            reorderMode
+                            selectedStatus={selectedStatus}
+                            releaseFilter={releaseFilter}
+                            openEditModal={openEditModal}
+                            openConfirmModal={openConfirmModal}
+                            sortBy={sortBy}
+                          />
+                        ) : null}
+                      </DragOverlay>
+                    </DndContext>
+                  ) : (
+                    visibleGames.map((game) => (
+                      <GameCard
+                        game={game}
+                        openEditModal={openEditModal}
+                        openConfirmModal={openConfirmModal}
+                        selectedStatus={selectedStatus}
+                        releaseFilter={releaseFilter}
+                        reorderMode={reorderMode}
+                        sortBy={sortBy}
+                      />
+                    ))
+                  )}
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -1718,16 +1991,6 @@ export default function GamesPage() {
           initialFavorite={editingGame.favorite ?? false}
           showStatus={true}
           showFavorite={true}
-        />
-      )}
-
-      {bulkModalOpen && (
-        <RefreshModal
-          open={bulkModalOpen}
-          title="Bulk Refresh Unreleased"
-          count={filteredGames.filter(isRefreshableGame).length}
-          onClose={() => setBulkModalOpen(false)}
-          onConfirm={handleBulkRefreshUnreleased}
         />
       )}
 

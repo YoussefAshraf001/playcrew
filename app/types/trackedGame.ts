@@ -43,6 +43,7 @@ export interface TrackedGame {
   favorite?: boolean;
   favoriteOrder?: number;
   favoriteAllTime?: boolean;
+  wantToPlayOrder?: number;
   notInterested?: boolean;
   playedSessions?: PlaySession[];
   saveUploads?: SaveUpload[];
