@@ -306,7 +306,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
           <motion.div
             key={bgUrl}
             initial={{ opacity: 0, scale: 0.98, y: 8 }}
-            animate={{ opacity: 1, scale: 1, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 25 }}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             transition={{ duration: 0.28, ease: "easeOut" }}
             className={`relative my-2 h-[calc(100dvh-1rem)]  md:h-[min(97dvh,880px)] w-full max-w-6xl overflow-hidden rounded-[28px] border sm:my-0 sm:rounded-[32px] ${MODAL_THEME.border} shadow-[0_30px_80px_rgba(0,0,0,0.72)]`}

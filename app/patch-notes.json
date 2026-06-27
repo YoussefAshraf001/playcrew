@@ -1,9 +1,24 @@
 [
   {
+    "version": "7.4.6.1",
+    "title": "Bug fixes",
+    "date": "2026-06-17",
+    "featured": false,
+    "changes": [
+      {
+        "category": "User Interface",
+        "items": [
+          "Removed the extra refresh modal",
+          "Lowered the GameTracking modal to be better aligned"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.4.6",
     "title": "Quality of Life V",
     "date": "2026-06-27",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Want To Play",
