@@ -3,7 +3,7 @@
     "version": "7.4.6.1",
     "title": "Bug fixes",
     "date": "2026-06-17",
-    "featured": false,
+    "featured": true,
     "changes": [
       {
         "category": "User Interface",
