@@ -1632,7 +1632,7 @@ export default function Navbar() {
       />
 
       {/* The Updating modal */}
-      {isSyncingReleaseDates && !isDashboard && (
+      {/* {isSyncingReleaseDates && !isDashboard && (
         <div className="group relative">
           <button className="theme-surface theme-hover-surface flex h-8 w-8 items-center justify-center rounded-full border">
             <FiRefreshCw className="h-4 w-4 animate-spin text-zinc-400" />
@@ -1662,7 +1662,7 @@ export default function Navbar() {
             </p>
           </div>
         </div>
-      )}
+      )} */}
     </>
   );
 }
