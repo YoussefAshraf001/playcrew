@@ -4,7 +4,7 @@ import FriendButton from "./social/FriendButton";
 
 type ProfileCardProps = {
   profile: {
-    uid?: string;
+    uid: string;
     username?: string;
     displayName?: string;
     bio?: string;
@@ -19,9 +19,7 @@ type ProfileCardProps = {
   };
 };
 
-const hasToDate = (
-  value: unknown,
-): value is { toDate: () => Date } => {
+const hasToDate = (value: unknown): value is { toDate: () => Date } => {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -64,7 +62,9 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
               Member profile
             </p>
             <h2 className="text-3xl font-black tracking-tight">
-              {profile?.displayName || profile?.username ? `@${profile.displayName || profile.username}` : "@"}
+              {profile?.displayName || profile?.username
+                ? `@${profile.displayName || profile.username}`
+                : "@"}
             </h2>
           </div>
 
