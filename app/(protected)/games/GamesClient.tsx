@@ -28,7 +28,6 @@ import {
   FiSliders,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
-import { isTauri } from "@tauri-apps/api/core";
 
 import { db } from "@/app/lib/firebase";
 import { useUser } from "../../context/UserContext";
@@ -50,17 +49,18 @@ import {
 } from "@/app/lib/gamesPageSettings";
 import SortableGameCard from "@/app/components/SortableGameCard";
 import { RiDraggable } from "react-icons/ri";
-
-type SortBy =
-  | "name"
-  | "date"
-  | "tier"
-  | "release"
-  | "playtime"
-  | "priority"
-  | "progress";
-
-type SortOrder = "asc" | "desc";
+import {
+  filterGames,
+  getStatusCounts,
+  sortGames,
+  type ReleaseFilter,
+  type SortBy,
+  type SortOrder,
+} from "./gamesPageUtils";
+import {
+  appendRecentGameActionSummary,
+  getRecentGameActionSummary,
+} from "@/app/lib/recentGameActions";
 
 const STATUSES = [
   "All",
@@ -106,14 +106,13 @@ export default function GamesPage() {
   const { games: sharedGames, gamesLoading } = useGames();
   const { navbarLayout } = useUI();
   const router = useRouter();
-  const desktop = isTauri();
 
   const uid = user?.uid as string | undefined;
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null);
   const [selectedStatus, setSelectedStatus] = useState("Playing");
-  const [releaseFilter, setReleaseFilter] = useState<
-    "All" | "Released" | "Unreleased"
-  >(selectedStatus === "Want To Play" ? "Released" : "All");
+  const [releaseFilter, setReleaseFilter] = useState<ReleaseFilter>(
+    selectedStatus === "Want To Play" ? "Released" : "All",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [lastStatus, setLastStatus] = useState("Playing");
   const [debouncedSearch, setDebouncedSearch] = useState(searchQuery);
@@ -127,8 +126,11 @@ export default function GamesPage() {
   const [previousStatus, setPreviousStatus] = useState("Playing");
 
   const [previousReleaseFilter, setPreviousReleaseFilter] = useState<
-    "All" | "Released" | "Unreleased"
+    ReleaseFilter
   >("All");
+
+  const previousIncludeOnlineGames = useRef<boolean | null>(null);
+  const previousIncludeUnreleasedGames = useRef<boolean | null>(null);
 
   const [includeOnlineGames, setIncludeOnlineGames] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -157,6 +159,10 @@ export default function GamesPage() {
   const [saving, setSaving] = useState(false);
   const [recentModalOpen, setRecentModalOpen] = useState(false);
   const [recentVisibleCount, setRecentVisibleCount] = useState(15);
+  const [coverPreview, setCoverPreview] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -170,6 +176,14 @@ export default function GamesPage() {
   const includeOnlineLocked = selectedStatus !== "All";
   const compactStatusTabs =
     !showFavoritesOnly && selectedStatus === "Want To Play";
+
+  const openCoverPreview = (src: string, alt: string) => {
+    setCoverPreview({ src, alt });
+  };
+
+  const closeCoverPreview = () => {
+    setCoverPreview(null);
+  };
 
   useEffect(() => {
     if (!uid) {
@@ -329,36 +343,6 @@ export default function GamesPage() {
     return () => clearTimeout(handler);
   }, [searchQuery]);
 
-  const getReleaseTime = (value: unknown): number => {
-    if (!value) return Infinity;
-
-    if (value instanceof Date) {
-      return Number.isNaN(value.getTime()) ? Infinity : value.getTime();
-    }
-
-    if (typeof value === "object" && value !== null && "seconds" in value) {
-      return (value as { seconds: number }).seconds * 1000;
-    }
-
-    // Firestore Timestamp
-    if (
-      typeof value === "object" &&
-      value !== null &&
-      "toDate" in value &&
-      typeof (value as { toDate: unknown }).toDate === "function"
-    ) {
-      return (value as { toDate: () => Date }).toDate().getTime();
-    }
-
-    // ISO string or number fallback
-    if (typeof value === "string" || typeof value === "number") {
-      const date = new Date(value);
-      return isNaN(date.getTime()) ? Infinity : date.getTime();
-    }
-
-    return Infinity;
-  };
-
   const [includeUnreleasedGames, setIncludeUnreleasedGames] = useState(() => {
     if (typeof window === "undefined") return true;
     const stored = window.localStorage.getItem("games.includeUnreleasedGames");
@@ -375,6 +359,33 @@ export default function GamesPage() {
       String(includeUnreleasedGames),
     );
   }, [includeUnreleasedGames]);
+
+  useEffect(() => {
+    if (showFavoritesOnly) {
+      if (previousIncludeOnlineGames.current === null) {
+        previousIncludeOnlineGames.current = includeOnlineGames;
+      }
+
+      if (previousIncludeUnreleasedGames.current === null) {
+        previousIncludeUnreleasedGames.current = includeUnreleasedGames;
+      }
+
+      setIncludeOnlineGames(true);
+      setIncludeUnreleasedGames(true);
+      setCurrentPage(1);
+      return;
+    }
+
+    if (previousIncludeOnlineGames.current !== null) {
+      setIncludeOnlineGames(previousIncludeOnlineGames.current);
+      previousIncludeOnlineGames.current = null;
+    }
+
+    if (previousIncludeUnreleasedGames.current !== null) {
+      setIncludeUnreleasedGames(previousIncludeUnreleasedGames.current);
+      previousIncludeUnreleasedGames.current = null;
+    }
+  }, [showFavoritesOnly, includeOnlineGames, includeUnreleasedGames]);
 
   const loadStatusSorts = () => {
     if (typeof window === "undefined") return {};
@@ -411,141 +422,35 @@ export default function GamesPage() {
   );
 
   // Filter and sort safely
-  const filteredGames = useMemo(() => {
-    let list = showFavoritesOnly
-      ? allGames.filter((g) => g.favorite)
-      : selectedStatus === "All"
-        ? gamesByStatus.All
-        : gamesByStatus[selectedStatus] || [];
-
-    // Clone before mutation
-    list = [...list];
-
-    if (!includeOnlineGames && selectedStatus === "All") {
-      list = list.filter((g) => g.status !== "Online");
-    }
-
-    const normalize = (str: string) =>
-      str
-        .toLowerCase()
-        .replace(/[^\w\s]/g, " ") // removes :, -, etc
-        .replace(/\s+/g, " ")
-        .trim();
-
-    // Search
-    if (debouncedSearch) {
-      const normalizedQuery = normalize(debouncedSearch);
-
-      list = list.filter(
-        (g) => g.name && normalize(g.name).includes(normalizedQuery),
-      );
-    }
-
-    // Release filter
-
-    if (releaseFilter !== "All") {
-      const now = Date.now();
-
-      list = list.filter((g) => {
-        const releaseTime = getReleaseTime(g.igdb?.releaseDate);
-
-        if (releaseTime === Infinity) {
-          return releaseFilter === "Unreleased";
-        }
-
-        const isReleased = releaseTime <= now;
-
-        return releaseFilter === "Released" ? isReleased : !isReleased;
-      });
-    }
-
-    if (selectedStatus === "All" && !includeUnreleasedGames) {
-      const now = Date.now();
-
-      list = list.filter((g) => {
-        const releaseTime = getReleaseTime(g.igdb?.releaseDate);
-
-        if (releaseTime === Infinity) return false;
-
-        return releaseTime <= now;
-      });
-    }
-
-    // Favorites
-
-    if (showFavoritesOnly) {
-      list = list.filter((g) => g.favorite);
-    }
-
-    list.sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return sortOrder === "asc"
-            ? a.name.localeCompare(b.name)
-            : b.name.localeCompare(a.name);
-
-        case "tier": {
-          const aRating =
-            typeof a.my_rating === "number" && Number.isFinite(a.my_rating)
-              ? a.my_rating
-              : Number.NEGATIVE_INFINITY;
-
-          const bRating =
-            typeof b.my_rating === "number" && Number.isFinite(b.my_rating)
-              ? b.my_rating
-              : Number.NEGATIVE_INFINITY;
-
-          return sortOrder === "asc" ? aRating - bRating : bRating - aRating;
-        }
-
-        case "playtime": {
-          const aTime = a.playtime ?? 0;
-          const bTime = b.playtime ?? 0;
-
-          return sortOrder === "asc" ? aTime - bTime : bTime - aTime;
-        }
-
-        case "progress": {
-          const aValue = a.progress ?? 0;
-          const bValue = b.progress ?? 0;
-
-          return sortOrder === "asc" ? aValue - bValue : bValue - aValue;
-        }
-
-        case "priority": {
-          const aOrder = a.wantToPlayOrder ?? Number.MAX_SAFE_INTEGER;
-          const bOrder = b.wantToPlayOrder ?? Number.MAX_SAFE_INTEGER;
-
-          return sortOrder === "asc" ? aOrder - bOrder : bOrder - aOrder;
-        }
-
-        case "release": {
-          const aVal = getReleaseTime(a.igdb?.releaseDate);
-          const bVal = getReleaseTime(b.igdb?.releaseDate);
-          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-        }
-
-        case "date":
-        default: {
-          const aVal = a.lastUpdated?.toMillis?.() ?? 0;
-          const bVal = b.lastUpdated?.toMillis?.() ?? 0;
-          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-        }
-      }
-    });
-
-    return list;
-  }, [
-    gamesByStatus,
-    selectedStatus,
-    debouncedSearch,
-    releaseFilter,
-    showFavoritesOnly,
-    sortBy,
-    sortOrder,
-    includeOnlineGames,
-    includeUnreleasedGames,
-  ]);
+  const filteredGames = useMemo(
+    () =>
+      sortGames({
+        games: filterGames({
+          allGames,
+          gamesByStatus,
+          selectedStatus,
+          showFavoritesOnly,
+          includeOnlineGames,
+          includeUnreleasedGames,
+          releaseFilter,
+          searchQuery: debouncedSearch,
+        }),
+        sortBy,
+        sortOrder,
+      }),
+    [
+      allGames,
+      gamesByStatus,
+      selectedStatus,
+      showFavoritesOnly,
+      includeOnlineGames,
+      includeUnreleasedGames,
+      releaseFilter,
+      debouncedSearch,
+      sortBy,
+      sortOrder,
+    ],
+  );
 
   //Games Pages
   const validGames = filteredGames.filter((g) => g.name);
@@ -633,40 +538,15 @@ export default function GamesPage() {
   };
 
   // Counts for left column
-  const completedCount = useMemo(
-    () => allGames.filter((g) => g.status === "Completed").length,
-    [allGames],
-  );
-
-  const onHoldCount = useMemo(
-    () => allGames.filter((g) => g.status === "On Hold").length,
-    [allGames],
-  );
-
-  const playingCount = useMemo(
-    () => allGames.filter((g) => g.status === "Playing").length,
-    [allGames],
-  );
-
-  const droppedCount = useMemo(
-    () => allGames.filter((g) => g.status === "Dropped").length,
-    [allGames],
-  );
-
-  const onlineCount = useMemo(
-    () => allGames.filter((g) => g.status === "Online").length,
-    [allGames],
-  );
-
-  const notInterestedCount = useMemo(
-    () => allGames.filter((g) => g.notInterested).length,
-    [allGames],
-  );
-
-  const wantCount = useMemo(
-    () => allGames.filter((g) => g.status === "Want To Play").length,
-    [allGames],
-  );
+  const {
+    completedCount,
+    onHoldCount,
+    playingCount,
+    droppedCount,
+    onlineCount,
+    notInterestedCount,
+    wantCount,
+  } = useMemo(() => getStatusCounts(allGames), [allGames]);
 
   type SkeletonVariant = "favorite" | "recent" | "grid";
 
@@ -866,8 +746,6 @@ export default function GamesPage() {
 
       const prev = editingGame;
 
-      let recentActionSummary = "Game Updated";
-
       const nothingChanged =
         prev.my_rating === rating &&
         (prev.progress ?? 0) === progress &&
@@ -888,55 +766,19 @@ export default function GamesPage() {
         return;
       }
 
-      if (!prev.notInterested && notInterested) {
-        recentActionSummary = "Marked as Not Interested";
-      } else if (prev.notInterested && !notInterested) {
-        recentActionSummary = "Removed from Not Interested";
-      } else if (prev.status !== status) {
-        recentActionSummary = `Status changed to ${status}`;
-      }
-      if (prev.my_rating !== rating) {
-        recentActionSummary =
-          rating === null
-            ? "Rating cleared"
-            : prev.my_rating === null
-              ? `Rating set to ${rating}`
-              : `Rating changed ${prev.my_rating} -> ${rating}`;
-      } else if (prev.progress !== progress) {
-        recentActionSummary = `Progress updated ${prev.progress ?? 0}% -> ${progress}%`;
-      } else if (prev.playtime !== playtime) {
-        const diff = playtime - (prev.playtime ?? 0);
-
-        const hours = Math.floor(Math.abs(diff));
-        const minutes = Math.round((Math.abs(diff) % 1) * 60);
-
-        const formatted = `${hours}h ${minutes}m`;
-
-        if (diff > 0) {
-          recentActionSummary = `Playtime increased by ${formatted}`;
-        } else {
-          recentActionSummary = `Playtime decreased by ${formatted}`;
-        }
-      } else if (prev.favorite !== favorite) {
-        recentActionSummary = favorite
-          ? "Added to Favorites"
-          : "Removed from Favorites";
-      } else if (
-        (prev.review?.text ?? "") !== review.text &&
-        (prev.review?.sticker ?? null) !== review.sticker
-      ) {
-        recentActionSummary = "Review Updated";
-      } else if ((prev.review?.text ?? "") !== review.text) {
-        recentActionSummary = "Review Updated";
-      } else if ((prev.review?.sticker ?? null) !== review.sticker) {
-        if (!prev.review?.sticker && review.sticker) {
-          recentActionSummary = "Sticker Added";
-        } else if (prev.review?.sticker && !review.sticker) {
-          recentActionSummary = "Sticker Removed";
-        } else {
-          recentActionSummary = "Sticker Changed";
-        }
-      }
+      const recentActionSummary = appendRecentGameActionSummary(
+        prev.recentActionSummary,
+        getRecentGameActionSummary(prev, {
+          favorite,
+          notInterested,
+          status,
+          progress,
+          my_rating: typeof rating === "number" ? rating : null,
+          review,
+          playtime,
+          playedSessions,
+        }),
+      );
 
       /* ---------------- Save to Firestore ---------------- */
 
@@ -984,7 +826,7 @@ export default function GamesPage() {
       );
 
       setModalOpen(false);
-    } catch (err) {
+    } catch {
       toast.error("Failed to save game.");
     } finally {
       setSaving(false);
@@ -1053,9 +895,7 @@ export default function GamesPage() {
   return (
     <motion.main
       className={`min-h-screen ${
-        navbarLayout === "sidebar"
-          ? `lg:pl-10 ${desktop ? "pt-15" : "pt-5"}`
-          : "pt-14"
+        navbarLayout === "sidebar" ? `lg:pl-10 pt-14 lg:pt-5` : "pt-14"
       } overflow-y-auto bg-[var(--theme-bg)] theme-text lg:h-svh lg:overflow-hidden`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -1097,24 +937,45 @@ export default function GamesPage() {
           {/* Left Panel (Stats) */}
           <div className="w-full lg:w-72 lg:h-[calc(100svh-4.5rem)] shrink-0 px-4 relative z-10 pt-3">
             <div className="theme-panel border border-[var(--theme-border)] rounded-2xl p-3 sm:p-4 flex flex-col items-center shadow-xl max-w-[330px] mx-auto lg:mx-0 lg:h-full">
-              <Link href={`/profile/${profileUsername}`} className="group">
+              <div className="group">
                 {localProfile?.avatar || userProfile?.avatar ? (
-                  <img
-                    src={getMediaSrc(
-                      localProfile?.avatar || userProfile?.avatar,
-                    )}
-                    style={getMediaStyle(
-                      localProfile?.avatar || userProfile?.avatar,
-                    )}
-                    alt={localProfile?.username ?? "User"}
-                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCoverPreview(
+                        getMediaSrc(
+                          localProfile?.avatar || userProfile?.avatar,
+                        ) ?? "",
+                        localProfile?.username ?? "User",
+                      )
+                    }
+                    className="block rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                    aria-label={`Preview avatar for ${
+                      localProfile?.username ?? "User"
+                    }`}
+                  >
+                    <img
+                      src={getMediaSrc(
+                        localProfile?.avatar || userProfile?.avatar,
+                      )}
+                      style={getMediaStyle(
+                        localProfile?.avatar || userProfile?.avatar,
+                      )}
+                      alt={localProfile?.username ?? "User"}
+                      className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
+                    />
+                  </button>
                 ) : (
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full theme-panel flex items-center justify-center text-4xl sm:text-5xl theme-text-muted border-4 border-[var(--theme-border)] shadow-lg">
-                    {localProfile?.username?.[0]?.toUpperCase()}
-                  </div>
+                  <Link
+                    href={`/profile/${profileUsername}`}
+                    className="block rounded-full"
+                  >
+                    <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full theme-panel flex items-center justify-center text-4xl sm:text-5xl theme-text-muted border-4 border-[var(--theme-border)] shadow-lg">
+                      {localProfile?.username?.[0]?.toUpperCase()}
+                    </div>
+                  </Link>
                 )}
-              </Link>
+              </div>
 
               <div className="text-center mt-3.5 w-full">
                 <h3 className="font-extrabold text-2xl sm:text-3xl theme-text capitalize truncate px-2">
@@ -1519,7 +1380,7 @@ export default function GamesPage() {
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
                     <AnimatePresence mode="wait">
-                      {selectedStatus === "All" && (
+                      {selectedStatus === "All" && !showFavoritesOnly && (
                         <motion.div
                           key="all-toggles"
                           initial={{ opacity: 0, y: 6 }}
@@ -1750,6 +1611,7 @@ export default function GamesPage() {
                   ) : (
                     visibleGames.map((game) => (
                       <GameCard
+                        key={game.igdb.id}
                         game={game}
                         openEditModal={openEditModal}
                         openConfirmModal={openConfirmModal}
@@ -1768,7 +1630,7 @@ export default function GamesPage() {
           <div className="relative z-10 w-full shrink-0 px-1 pt-3 flex flex-col gap-3 sm:px-2 md:px-3 lg:h-[calc(100svh-5.5rem)] lg:w-64 lg:px-0 xl:w-74">
             {/* Favorites */}
             <div
-              className={`theme-panel rounded-2xl border p-4 flex flex-col gap-1 overflow-y-auto custom-scrollbar ${desktop ? "max-h-[45.5vh] min-h-[45.5vh]" : "max-h-[45vh] min-h-[45vh]"}`}
+              className="theme-panel rounded-2xl border p-4 flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[45vh] min-h-[45vh]"
             >
               <div className="flex items-center justify-between py-2">
                 <h3 className="theme-text font-bold text-lg">Favorite Games</h3>
@@ -1856,15 +1718,15 @@ export default function GamesPage() {
 
                             router.push(`/game/${g.igdb.id}`);
                           }}
-                          className="flex items-center gap-2 rounded-xl p-2 cursor-pointer group theme-hover-surface transition-all duration-300 shadow-sm hover:shadow-md"
+                          className="flex items-center gap-2 rounded-xl py-2 cursor-pointer group theme-hover-surface transition-all duration-300 shadow-sm hover:shadow-md"
                         >
                           <img
                             className="w-12 h-16 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
                             src={g.igdb.cover}
                             alt={g.name}
                           />
-                          <div className="flex-1 flex flex-col justify-center">
-                            <span className="theme-text font-medium text-[13px] transition-colors duration-300  truncate max-w-[200px]">
+                          <div className="min-w-0 flex-1 flex flex-col justify-center">
+                            <span className="block max-w-full truncate theme-text font-medium text-[13px] transition-colors duration-300">
                               {g.name}
                             </span>
 
@@ -1914,7 +1776,7 @@ export default function GamesPage() {
 
             {/* Recently Edited */}
             <div className="theme-panel mb-8 rounded-2xl border p-4 flex flex-col gap-3 max-h-[45vh] min-h-[45vh] lg:mb-0">
-              <div className="flex items-center justify-between py-2">
+              <div className="flex items-center justify-between py-1">
                 <h3 className="theme-text font-bold text-lg">
                   Recently Edited
                 </h3>
@@ -1943,18 +1805,18 @@ export default function GamesPage() {
                 ) : (
                   recentlyEditedGames.map((g) => (
                     <Link key={g.igdb.id} href={`/game/${g.igdb?.id}`}>
-                      <div className="theme-hover-surface flex flex-col gap-1.5 rounded-xl p-2 cursor-pointer group transition-all duration-200">
+                      <div className="theme-hover-surface flex flex-col gap-1.5 rounded-xl py-2 cursor-pointer group transition-all duration-200">
                         <div className="flex items-center gap-2">
                           <img
                             className="w-12 h-16 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
                             src={g.igdb.cover}
                             alt={g.name}
                           />
-                          <div className="flex-1 flex flex-col justify-center">
-                            <span className="theme-text font-bold text-[12px] transition max-w-[200px] line-clamp-2">
+                          <div className="min-w-0 flex-1 flex flex-col justify-center">
+                            <span className="block max-w-full truncate theme-text font-bold text-[12px] transition">
                               {g.name}
                             </span>
-                            <p className="mt-1.5 line-clamp-2 text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
+                            <p className="mt-1.5 break-words text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
                               {g.recentActionSummary}
                             </p>
                           </div>
@@ -2167,6 +2029,44 @@ export default function GamesPage() {
             </motion.div>
           </motion.div>
         )}{" "}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {coverPreview && (
+          <motion.div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 px-4 py-6 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeCoverPreview}
+          >
+            <motion.button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                closeCoverPreview();
+              }}
+              className="absolute right-4 top-4 rounded-full border border-white/15 bg-black/45 px-4 py-2 text-sm text-white/80 backdrop-blur-sm transition hover:bg-black/60 hover:text-white"
+            >
+              Close
+            </motion.button>
+
+            <motion.div
+              initial={{ scale: 0.82, opacity: 0, y: 18 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.82, opacity: 0, y: 18 }}
+              transition={{ type: "spring", stiffness: 220, damping: 26 }}
+              className="max-h-[88vh] max-w-[92vw] overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950 shadow-[0_30px_120px_rgba(0,0,0,0.65)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={coverPreview.src}
+                alt={coverPreview.alt}
+                className="max-h-[88vh] max-w-[92vw] object-contain"
+              />
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </motion.main>
   );

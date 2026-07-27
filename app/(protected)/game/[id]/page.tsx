@@ -32,12 +32,16 @@ import { SiEpicgames, SiStadia, SiWii } from "react-icons/si";
 import { IoCloseCircle } from "react-icons/io5";
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
+  where,
 } from "firebase/firestore";
 import { Helmet } from "react-helmet-async";
 
@@ -47,7 +51,10 @@ import {
   hasConfirmedReleaseDay,
 } from "@/app/lib/releaseDates";
 import { db } from "@/app/lib/firebase";
-import { getRecentGameActionSummary } from "@/app/lib/recentGameActions";
+import {
+  appendRecentGameActionSummary,
+  getRecentGameActionSummary,
+} from "@/app/lib/recentGameActions";
 import { useUser } from "@/app/context/UserContext";
 import { useUI } from "@/app/context/UIContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
@@ -93,6 +100,14 @@ interface SimilarGame {
   released?: number | null;
 }
 
+interface GameReview {
+  id: string;
+  username: string;
+  text: string;
+  sticker: string | null;
+  rating: number | null;
+}
+
 export default function GamePage() {
   const { id } = useParams();
   const { user } = useUser();
@@ -111,6 +126,8 @@ export default function GamePage() {
   const [trackingRemoving, setTrackingRemoving] = useState(false);
   const [winnerAwards, setWinnerAwards] = useState<WinnerAward[]>([]);
   const [loadingWinnerAwards, setLoadingWinnerAwards] = useState(true);
+  const [gameReviews, setGameReviews] = useState<GameReview[]>([]);
+  const [loadingGameReviews, setLoadingGameReviews] = useState(false);
 
   const gotyAwards = useMemo(
     () => winnerAwards.filter((award) => award.category === "Game of the Year"),
@@ -130,7 +147,7 @@ export default function GamePage() {
   const genreTrackRef = useRef<HTMLDivElement>(null);
   const [genreShouldScroll, setGenreShouldScroll] = useState(false);
   const [genreScrollDistance, setGenreScrollDistance] = useState(0);
-  const [posterLoaded, setPosterLoaded] = useState(false);
+  const [loadedBackground, setLoadedBackground] = useState<string | null>(null);
   const [screenshotsReady, setScreenshotsReady] = useState(false);
 
   useEffect(() => {
@@ -217,6 +234,15 @@ export default function GamePage() {
   const posterImage = useMemo(() => {
     if (!game) return "/placeholder-game.jpg";
 
+    const trackedCover = trackedGameData?.igdb?.cover;
+    if (
+      typeof trackedCover === "string" &&
+      trackedCover.trim() &&
+      !trackedCover.toLowerCase().includes("igdb")
+    ) {
+      return trackedCover;
+    }
+
     if (game.cover) {
       if (typeof game.cover === "string") {
         const rawCover = game.cover.startsWith("//")
@@ -240,16 +266,7 @@ export default function GamePage() {
       return rawBg.replace(/t_[^/]+/, "t_1080p");
     }
     return "/placeholder-game.jpg";
-  }, [game]);
-
-  useEffect(() => {
-    if (!screenshots?.length) return;
-    setBgImage(screenshots[0].bg);
-  }, [screenshots]);
-
-  useEffect(() => {
-    setPosterLoaded(false);
-  }, [posterImage]);
+  }, [game, trackedGameData]);
 
   useEffect(() => {
     if (!screenshots?.length) {
@@ -275,15 +292,18 @@ export default function GamePage() {
   }, [screenshots]);
 
   useEffect(() => {
-    if (!screenshots || screenshots.length === 0) return;
+    if (!screenshots || screenshots.length === 0) {
+      setBgImage(null);
+      return;
+    }
 
-    // Pick initial image
-    setBgImage(screenshots[Math.floor(Math.random() * screenshots.length)].bg);
+    const pickBackground = () =>
+      screenshots[Math.floor(Math.random() * screenshots.length)].bg;
+
+    setBgImage(pickBackground());
 
     const interval = setInterval(() => {
-      const random =
-        screenshots[Math.floor(Math.random() * screenshots.length)];
-      setBgImage(random.bg);
+      setBgImage(pickBackground());
     }, 10000);
 
     return () => clearInterval(interval);
@@ -310,6 +330,66 @@ export default function GamePage() {
 
     return () => unsubscribe();
   }, [user, game]);
+
+  useEffect(() => {
+    if (!game?.id) {
+      setGameReviews([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingGameReviews(true);
+
+    const loadGameReviews = async () => {
+      try {
+        const reviewsQuery = query(
+          collectionGroup(db, "games_igdb"),
+          where("igdb.id", "==", Number(game.id)),
+        );
+        const reviewsSnapshot = await getDocs(reviewsQuery);
+
+        const reviews = await Promise.all(
+          reviewsSnapshot.docs.map(async (reviewDoc) => {
+            const data = reviewDoc.data();
+            const text = data.review?.text?.trim();
+            const userId = reviewDoc.ref.parent.parent?.id;
+
+            if (!text || !userId) return null;
+
+            const userSnapshot = await getDoc(doc(db, "users", userId));
+            const userData = userSnapshot.exists() ? userSnapshot.data() : {};
+
+            return {
+              id: reviewDoc.id,
+              username:
+                userData.username ?? userData.displayName ?? "PlayCrew User",
+              text,
+              sticker: data.review?.sticker ?? null,
+              rating:
+                typeof data.my_rating === "number" ? data.my_rating : null,
+            } satisfies GameReview;
+          }),
+        );
+
+        if (!cancelled) {
+          setGameReviews(
+            reviews.filter((review): review is GameReview => review !== null),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to load game reviews", error);
+        if (!cancelled) setGameReviews([]);
+      } finally {
+        if (!cancelled) setLoadingGameReviews(false);
+      }
+    };
+
+    void loadGameReviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [game?.id]);
 
   useEffect(() => {
     if (!user || !game?.id) {
@@ -486,17 +566,22 @@ export default function GamePage() {
 
       recentActionSummary:
         data.recentActionSummary ??
-        getRecentGameActionSummary(previousTrackedGame, {
-          favorite: data.favorite ?? false,
-          status: data.status,
-          progress: data.progress ?? 0,
-          my_rating: data.my_rating ?? null,
-          review: data.review ?? {
-            text: "",
-            sticker: null,
-          },
-          playtime: data.playtime ?? 0,
-        }),
+        appendRecentGameActionSummary(
+          previousTrackedGame?.recentActionSummary,
+          getRecentGameActionSummary(previousTrackedGame, {
+            favorite: data.favorite ?? false,
+            notInterested: data.notInterested ?? false,
+            status: data.status,
+            progress: data.progress ?? 0,
+            my_rating: data.my_rating ?? null,
+            review: data.review ?? {
+              text: "",
+              sticker: null,
+            },
+            playtime: data.playtime ?? 0,
+            playedSessions: data.playedSessions ?? [],
+          }),
+        ),
     };
 
     if (!shouldSkipLastUpdated) {
@@ -963,24 +1048,18 @@ export default function GamePage() {
         }`}
       >
         {/* HERO BACKGROUND */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6 }}
-          className="absolute inset-0 z-0 pointer-events-none"
-        >
-          <AnimatePresence mode="wait">
-            <motion.img
-              key={bgImage}
-              src={bgImage!}
-              className="absolute inset-0 w-full h-full object-cover blur-xl brightness-75"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.8, ease: "easeInOut" }}
+        <div className="pointer-events-none absolute inset-0 z-0">
+          {bgImage && (
+            <img
+              src={bgImage}
+              alt=""
+              onLoad={() => setLoadedBackground(bgImage)}
+              className={`absolute inset-0 h-full w-full object-cover blur-xl brightness-75 transition-opacity duration-700 ease-out ${
+                loadedBackground === bgImage ? "opacity-100" : "opacity-0"
+              }`}
             />
-          </AnimatePresence>
-        </motion.div>
+          )}
+        </div>
 
         {/* MAIN CONTENT */}
 
@@ -996,19 +1075,12 @@ export default function GamePage() {
                 <aside className="flex flex-col items-center gap-4 xl:sticky xl:top-24 xl:self-start">
                   {/* Poster */}
                   <div className="relative h-60 w-44 sm:h-72 sm:w-48 lg:h-104 lg:w-70">
-                    {!posterLoaded && (
-                      <div className="absolute inset-0 rounded-[26px] bg-zinc-800/80 shadow-xl animate-pulse" />
-                    )}
-
-                    <motion.img
+                    <img
                       src={posterImage}
-                      onLoad={() => setPosterLoaded(true)}
-                      onError={() => setPosterLoaded(true)}
-                      className={`h-full w-full rounded-[26px] object-cover shadow-[0_18px_60px_rgba(0,0,0,0.48)] transition-opacity duration-500 ${
-                        posterLoaded ? "opacity-100" : "opacity-0"
-                      }`}
-                      initial={{ y: 20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
+                      alt={game.name || "Game poster"}
+                      loading="eager"
+                      fetchPriority="high"
+                      className="h-full w-full rounded-[26px] object-cover shadow-[0_18px_60px_rgba(0,0,0,0.48)]"
                     />
                   </div>
 
@@ -1760,6 +1832,72 @@ export default function GamePage() {
             </div>
           </aside>
         </motion.main>
+
+        {/* <section className="relative z-10 mx-auto mt-5 w-full max-w-[1780px] px-3 pb-6 sm:px-4 lg:px-6">
+          <div className="rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] sm:p-5 xl:p-6">
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-200/65">
+                  Community
+                </p>
+                <h2 className="mt-1 text-2xl font-bold text-white">
+                  User Reviews
+                </h2>
+              </div>
+              <span className="text-sm text-white/50">
+                {gameReviews.length} {gameReviews.length === 1 ? "review" : "reviews"}
+              </span>
+            </div>
+
+            {loadingGameReviews ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {[0, 1].map((item) => (
+                  <div
+                    key={item}
+                    className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/5"
+                  />
+                ))}
+              </div>
+            ) : gameReviews.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {gameReviews.map((review) => (
+                  <article
+                    key={review.id}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">
+                          {review.username}
+                        </p>
+                        {review.rating !== null && (
+                          <p className="mt-1 text-xs text-amber-200">
+                            {review.rating}/10
+                          </p>
+                        )}
+                      </div>
+                      {review.sticker && (
+                        <img
+                          src={review.sticker}
+                          alt="Review sticker"
+                          className="h-12 w-12 rounded-lg object-contain"
+                        />
+                      )}
+                    </div>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/75">
+                      {review.text}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/50">
+                No user reviews yet. Be the first to review this game.
+              </p>
+            )}
+          </div>
+        </section> */}
+
         <AnimatePresence>
           {aboutOpen && (
             <>

@@ -10,6 +10,7 @@ import {
   FaHeart,
   FaRegHeart,
   FaStar,
+  FaEraser,
   FaTrash,
 } from "react-icons/fa";
 
@@ -143,6 +144,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const [confirmNotInterestedOpen, setConfirmNotInterestedOpen] =
     useState(false);
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
+  const [confirmCleanOpen, setConfirmCleanOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [playedSessions, setPlayedSessions] = useState<PlaySession[]>(
     normalizePlaySessions(initialPlayedSessions),
@@ -214,6 +216,24 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       notInterested,
       nextPlayedSessions,
     );
+  };
+
+  const handleClean = async () => {
+    await onSave(
+      {
+        text: "",
+        sticker: null,
+      },
+      null,
+      0,
+      0,
+      "Want To Play",
+      false,
+      false,
+      [],
+    );
+    setConfirmCleanOpen(false);
+    onClose();
   };
 
   const getProgressText = (value: number) => {
@@ -386,6 +406,20 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     </motion.button>
                   )}
 
+                  <motion.button
+                    onClick={() => setConfirmCleanOpen(true)}
+                    whileHover={{ y: -2, scale: 1.03 }}
+                    whileTap={{ scale: 0.95 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.25, ease: "easeOut" }}
+                    className="relative inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-amber-300/35 bg-amber-500/12 px-3 text-[11px] font-medium text-amber-100 transition hover:bg-amber-500/22 disabled:opacity-60"
+                    disabled={saving || removing}
+                    type="button"
+                  >
+                    <FaEraser />
+                    <span>Clean Game</span>
+                  </motion.button>
+
                   {onRemove && (
                     <motion.button
                       onClick={() => setConfirmRemoveOpen(true)}
@@ -469,47 +503,18 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">
                                     Rating
                                   </p>
-                                  <motion.div
-                                    className="mt-1 flex items-end justify-center gap-1 leading-none"
-                                    animate={{
-                                      scale: rating === 10 ? 1.05 : 1,
-                                    }}
-                                    transition={{
-                                      type: "spring",
-                                      stiffness: 180,
-                                      damping: 18,
-                                    }}
-                                  >
-                                    <motion.span
-                                      key={rating}
-                                      initial={{ y: 8, opacity: 0 }}
-                                      animate={{ y: 0, opacity: 1 }}
-                                      transition={{
-                                        duration: 0.18,
-                                        ease: "easeOut",
-                                      }}
-                                      className="text-5xl font-bold tracking-tight text-[#ffd77a] flex items-center justify-center"
-                                    >
+                                  <div className="mt-1 flex items-end justify-center gap-1 leading-none">
+                                    <span className="text-5xl font-bold tracking-tight text-[#ffd77a] flex items-center justify-center">
                                       {rating === 10 ? (
-                                        <motion.div
-                                          initial={{ scale: 0.7, rotate: -15 }}
-                                          animate={{ scale: 1, rotate: 0 }}
-                                          transition={{
-                                            type: "spring",
-                                            stiffness: 250,
-                                            damping: 14,
-                                          }}
-                                        >
-                                          <FaCrown className="text-6xl text-yellow-300 drop-shadow-[0_0_18px_rgba(255,215,122,0.7)]" />
-                                        </motion.div>
+                                        <FaCrown className="text-6xl text-yellow-300 drop-shadow-[0_0_18px_rgba(255,215,122,0.7)]" />
                                       ) : (
                                         formatRating(rating ?? 0)
                                       )}
-                                    </motion.span>
+                                    </span>
                                     <span className="pb-1 text-sm text-zinc-400">
                                       /10
                                     </span>
-                                  </motion.div>
+                                  </div>
                                 </div>
                               </div>
                               <div className="w-38 mx-auto flex items-center justify-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-400/12 px-3 py-1.5 text-[11px] font-medium text-amber-100">
@@ -560,7 +565,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   step={0.1}
                                   value={rating ?? 0}
                                   disabled={isNotInterested}
-                                  onChange={(e) => {
+                                  onInput={(e) => {
                                     if (isNotInterested) return;
                                     setRating(Number(e.target.value));
                                   }}
@@ -1007,6 +1012,19 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
             {/* DELETE GAME ENTRY */}
             <ConfirmModal
+              open={confirmCleanOpen}
+              title="Clean game?"
+              message="This will clear the review, sticker, rating, progress, playtime, play sessions, favorite, and not-interested status. The game will remain in your collection."
+              confirmText={saving ? "Cleaning..." : "Yes, Clean"}
+              cancelText="Cancel"
+              onCancel={() => {
+                if (!saving && !removing) setConfirmCleanOpen(false);
+              }}
+              onConfirm={handleClean}
+            />
+
+            {/* DELETE GAME ENTRY */}
+            <ConfirmModal
               open={confirmRemoveOpen}
               title="Remove entry?"
               message="This will remove the game from your library entry, including tracking data saved for it."
@@ -1074,17 +1092,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     <div className="flex h-full flex-col">
                       {/* Header */}
 
-                      <div className="flex items-center justify-between border-b border-white/10 p-4">
+                      <div className="flex items-center justify-center border-b border-white/10 p-4">
                         <h3 className="text-lg font-semibold text-white">
-                          What are you feeling?
+                          PlayCrew Stickers
                         </h3>
-
+                        {/* 
                         <button
                           onClick={() => setStickerDrawerOpen(false)}
                           className="text-zinc-400 hover:text-white"
                         >
                           ✕
-                        </button>
+                        </button> */}
                       </div>
 
                       {/* Stickers */}
@@ -1133,12 +1151,18 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                       {/* Footer */}
 
-                      <div className="border-t border-white/10 p-4">
+                      <div className="flex gap-2 border-t border-white/10 p-4">
                         <button
                           onClick={() => setSticker(null)}
                           className="w-full rounded-xl border border-red-500/20 bg-red-500/10 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
                         >
                           Clear Sticker
+                        </button>
+                        <button
+                          onClick={() => setStickerDrawerOpen(false)}
+                          className="w-full rounded-xl border border-red-500/20 bg-red-500/10 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+                        >
+                          Close
                         </button>
                       </div>
                     </div>

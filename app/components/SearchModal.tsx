@@ -9,6 +9,8 @@ import toast from "react-hot-toast";
 import { FiCalendar, FiClock, FiSearch, FiX } from "react-icons/fi";
 
 import { db } from "@/app/lib/firebase";
+import { searchUsersByUsername } from "@/app/lib/social";
+import ProfileCard from "@/app/components/ProfileCard";
 import { useUser } from "@/app/context/UserContext";
 import { useGames } from "@/app/context/GameContext";
 import { useRouter } from "next/navigation";
@@ -39,7 +41,7 @@ export default function SearchModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { user } = useUser();
+  const { user, profile } = useUser();
   const { games: trackedGames } = useGames();
   const uid = user?.uid;
   const router = useRouter();
@@ -49,6 +51,9 @@ export default function SearchModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
+  const [userResults, setUserResults] = useState<any[]>([]);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const [loadedUserImages, setLoadedUserImages] = useState<Record<string, boolean>>({});
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -65,10 +70,33 @@ export default function SearchModal({
     return map;
   }, [trackedGames]);
 
+  const mixedResults = useMemo(() => {
+    const users = userResults.map((u) => ({
+      type: "user",
+      id: `u_${u.id}`,
+      data: u,
+    }));
+    const games = results.map((g) => ({
+      type: "game",
+      id: `g_${g.id}`,
+      data: g,
+    }));
+    return [...users, ...games];
+  }, [userResults, results]);
+
   const selectedIndex = useMemo(
-    () => results.findIndex((game) => game.id === selectedGameId),
-    [results, selectedGameId],
+    () => mixedResults.findIndex((r) => r.id === selectedResultId),
+    [mixedResults, selectedResultId],
   );
+
+  const selectedMixed = useMemo(() => {
+    if (!mixedResults.length) return null;
+    return (
+      mixedResults.find((r) => r.id === selectedResultId) ??
+      mixedResults[0] ??
+      null
+    );
+  }, [mixedResults, selectedResultId]);
 
   const selectedGame = useMemo(() => {
     if (!results.length) return null;
@@ -80,9 +108,12 @@ export default function SearchModal({
   const handleClear = () => {
     setQuery("");
     setResults([]);
+    setUserResults([]);
     setError(null);
     setLoading(false);
     setSelectedGameId(null);
+    setSelectedResultId(null);
+    setLoadedUserImages({});
     inputRef.current?.focus();
   };
 
@@ -94,20 +125,26 @@ export default function SearchModal({
         return;
       }
 
-      if (!results.length) return;
+      if (!mixedResults.length) return;
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
         const nextIndex =
-          selectedIndex < results.length - 1 ? selectedIndex + 1 : 0;
-        setSelectedGameId(results[nextIndex].id);
+          selectedIndex < mixedResults.length - 1 ? selectedIndex + 1 : 0;
+        const next = mixedResults[nextIndex];
+        setSelectedResultId(next?.id ?? null);
+        if (next?.type === "game") setSelectedGameId((next.data as any).id);
+        else setSelectedGameId(null);
       }
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
         const nextIndex =
-          selectedIndex > 0 ? selectedIndex - 1 : results.length - 1;
-        setSelectedGameId(results[nextIndex].id);
+          selectedIndex > 0 ? selectedIndex - 1 : mixedResults.length - 1;
+        const next = mixedResults[nextIndex];
+        setSelectedResultId(next?.id ?? null);
+        if (next?.type === "game") setSelectedGameId((next.data as any).id);
+        else setSelectedGameId(null);
       }
     };
 
@@ -120,14 +157,16 @@ export default function SearchModal({
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [isOpen, onClose, results, selectedIndex]);
+  }, [isOpen, onClose, mixedResults, selectedIndex]);
 
   useEffect(() => {
     if (!query || query.trim().length < 2) {
       setResults([]);
+      setUserResults([]);
       setLoading(false);
       setError(null);
       setSelectedGameId(null);
+      setSelectedResultId(null);
       return;
     }
 
@@ -138,27 +177,39 @@ export default function SearchModal({
       setError(null);
 
       try {
-        const res = await fetch("/api/igdb/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: query.trim() }),
-        });
+        const [igdbRes, users] = await Promise.all([
+          fetch("/api/igdb/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: query.trim() }),
+          }),
+          searchUsersByUsername(query.trim(), 20, profile?.username),
+        ]);
 
-        if (!res.ok) {
-          throw new Error("Search request failed");
-        }
+        if (!igdbRes.ok) throw new Error("Search request failed");
 
-        const data = await res.json();
+        const data = await igdbRes.json();
         const withCovers = (data as SearchGame[]).filter(
           (game) => game.cover && game.cover.url,
         );
 
         setResults(withCovers);
+        setUserResults(users || []);
+
         setSelectedGameId(withCovers[0]?.id ?? null);
+        setSelectedResultId(
+          users?.[0]
+            ? `u_${users[0].id}`
+            : withCovers[0]
+              ? `g_${withCovers[0].id}`
+              : null,
+        );
       } catch (err) {
         console.error(err);
         setResults([]);
+        setUserResults([]);
         setSelectedGameId(null);
+        setSelectedResultId(null);
         setError("Search failed. Try again.");
       } finally {
         setLoading(false);
@@ -168,13 +219,17 @@ export default function SearchModal({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [profile?.username, query]);
 
   useEffect(() => {
-    if (!resultsRef.current || selectedGameId === null) return;
+    setLoadedUserImages({});
+  }, [userResults]);
+
+  useEffect(() => {
+    if (!resultsRef.current || !selectedResultId) return;
 
     const el = resultsRef.current.querySelector(
-      `[data-game-id="${selectedGameId}"]`,
+      `[data-mixed-id="${selectedResultId}"]`,
     ) as HTMLElement | null;
 
     if (el) {
@@ -183,7 +238,7 @@ export default function SearchModal({
         behavior: "smooth",
       });
     }
-  }, [selectedGameId]);
+  }, [selectedResultId]);
 
   const handleQuickAdd = async (game: SearchGame) => {
     if (!uid) {
@@ -243,10 +298,11 @@ export default function SearchModal({
     }
   };
 
+  const activeCount = mixedResults.length;
   const resultCountLabel = loading
     ? "Searching..."
-    : results.length > 0
-      ? `${results.length} result${results.length === 1 ? "" : "s"}`
+    : activeCount > 0
+      ? `${activeCount} result${activeCount === 1 ? "" : "s"}`
       : query.trim().length >= 2
         ? "No matches"
         : "Start typing to search";
@@ -352,7 +408,7 @@ export default function SearchModal({
                         </p>
                         <p className="text-sm">{error}</p>
                       </div>
-                    ) : results.length === 0 ? (
+                    ) : mixedResults.length === 0 ? (
                       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
                         <div className="theme-surface theme-text-muted flex h-16 w-16 items-center justify-center rounded-3xl border">
                           <FiSearch size={24} />
@@ -360,8 +416,8 @@ export default function SearchModal({
                         <div>
                           <p className="theme-text text-base font-semibold">
                             {query.trim().length >= 2
-                              ? "No games found"
-                              : "Search for a game"}
+                              ? "No results found"
+                              : "Search for users or games"}
                           </p>
                           <p className="theme-text-muted mt-1 text-sm">
                             {query.trim().length >= 2
@@ -377,99 +433,196 @@ export default function SearchModal({
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.25 }}
                       >
-                        {results.map((game) => {
-                          const releaseDate = getReleaseDate(game);
-                          const isSelected = selectedGame?.id === game.id;
-                          const existing = trackedById.get(game.id);
+                        {mixedResults.map((item) => {
+                          if (item.type === "game") {
+                            const game: SearchGame = item.data;
+                            const releaseDate = getReleaseDate(game);
+                            const isSelected =
+                              selectedResultId === `g_${game.id}`;
+                            const existing = trackedById.get(game.id);
 
-                          return (
-                            <div
-                              key={game.id}
-                              data-game-id={game.id}
-                              onClick={() => setSelectedGameId(game.id)}
-                              className={`group rounded-2xl border transition ${
-                                isSelected
-                                  ? "border-cyan-300/40 bg-cyan-400/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
-                                  : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-                                <img
-                                  src={buildCoverUrl(game)}
-                                  alt={game.name}
-                                  className="h-18 w-14 shrink-0 rounded-xl border border-[var(--theme-border)] object-cover shadow-lg"
-                                />
+                            return (
+                              <div
+                                key={`g_${game.id}`}
+                                data-mixed-id={`g_${game.id}`}
+                                onClick={() => {
+                                  setSelectedResultId(`g_${game.id}`);
+                                  setSelectedGameId(game.id);
+                                }}
+                                className={`group rounded-2xl border transition ${
+                                  isSelected
+                                    ? "border-cyan-300/40 bg-cyan-400/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
+                                    : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                                  <img
+                                    src={buildCoverUrl(game)}
+                                    alt={game.name}
+                                    className="h-18 w-14 shrink-0 rounded-xl border border-[var(--theme-border)] object-cover shadow-lg"
+                                  />
 
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
-                                        {game.name}
-                                      </p>
-                                      <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                                        {releaseDate && (
-                                          <span className="theme-surface inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
-                                            <FiCalendar size={11} />
-                                            {releaseDate.getFullYear()}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
+                                          {game.name}
+                                          <span className="ml-2 inline-block rounded-full bg-cyan-600/8 px-2 py-0.5 text-[11px] text-cyan-200">
+                                            Game
                                           </span>
-                                        )}
-                                        {/* {game.version_parent && (
-                                      <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-0.5 text-amber-100/85">
-                                        Variant edition
-                                      </span>
-                                    )} */}
-                                        {existing?.status && (
-                                          <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-emerald-100/85">
-                                            {existing.status}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {/* Mobile actions */}
-                                      <div className="mt-3 flex gap-2 md:hidden">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedGameId(game.id);
-                                          }}
-                                          className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                                        >
-                                          Preview
-                                        </button>
+                                        </p>
+                                        <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                          {releaseDate && (
+                                            <span className="theme-surface inline-flex items-center gap-1 rounded-full border px-2 py-0.5">
+                                              <FiCalendar size={11} />
+                                              {releaseDate.getFullYear()}
+                                            </span>
+                                          )}
+                                          {existing?.status && (
+                                            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2 py-0.5 text-emerald-100/85">
+                                              {existing.status}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="mt-3 flex gap-2 md:hidden">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSelectedResultId(
+                                                `g_${game.id}`,
+                                              );
+                                              setSelectedGameId(game.id);
+                                            }}
+                                            className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                                          >
+                                            Preview
+                                          </button>
 
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleQuickAdd(game);
-                                          }}
-                                          className={`flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold ${
-                                            trackedById.has(game.id)
-                                              ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
-                                              : "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-                                          }`}
-                                        >
-                                          {trackedById.has(game.id)
-                                            ? "Open"
-                                            : "Add"}
-                                        </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleQuickAdd(game);
+                                            }}
+                                            className={`flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold ${
+                                              trackedById.has(game.id)
+                                                ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
+                                                : "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                                            }`}
+                                          >
+                                            {trackedById.has(game.id)
+                                              ? "Open"
+                                              : "Add"}
+                                          </button>
 
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onClose();
-                                            router.push(`/game/${game.id}`);
-                                          }}
-                                          className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold text-center"
-                                        >
-                                          Open
-                                        </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onClose();
+                                              router.push(`/game/${game.id}`);
+                                            }}
+                                            className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold text-center"
+                                          >
+                                            Open
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
+                            );
+                          }
+
+                          // user item
+                          const u = item.data;
+                          const isSelectedUser =
+                            selectedResultId === `u_${u.id}`;
+
+                          return (
+                            <div
+                              key={`u_${u.id}`}
+                              data-mixed-id={`u_${u.id}`}
+                              onClick={() => setSelectedResultId(`u_${u.id}`)}
+                              className={`group rounded-2xl border transition ${
+                                isSelectedUser
+                                  ? "border-rose-300/30 bg-rose-400/6 shadow-[0_0_18px_rgba(244,63,94,0.06)]"
+                                  : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
+                                <div className="h-14 w-14 shrink-0 rounded-xl overflow-hidden">
+                                  {u.avatar?.data ? (
+                                    <div className="relative h-14 w-14">
+                                      {!loadedUserImages[u.id] && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
+                                          <span className="loading loading-spinner loading-sm text-cyan-300" />
+                                        </div>
+                                      )}
+                                      <img
+                                        src={u.avatar.data}
+                                        alt=""
+                                        aria-hidden="true"
+                                        className={`h-14 w-14 object-cover transition-opacity duration-300 ${
+                                          loadedUserImages[u.id]
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        }`}
+                                        onLoad={() =>
+                                          setLoadedUserImages((prev) => ({
+                                            ...prev,
+                                            [u.id]: true,
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="h-14 w-14 rounded-xl bg-zinc-800 flex items-center justify-center text-lg">
+                                      {u.username?.[0]?.toUpperCase()}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
+                                        {u.displayName || u.username}
+                                        <span className="ml-2 inline-block rounded-full bg-rose-600/12 px-2 py-0.5 text-[11px] text-rose-300">
+                                          User
+                                        </span>
+                                      </p>
+                                      <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                                        <span className="text-xs text-zinc-400">
+                                          {u.bio}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-3 flex gap-2 md:hidden">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedResultId(`u_${u.id}`);
+                                      }}
+                                      className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
+                                    >
+                                      Preview
+                                    </button>
+
+                                    <Link
+                                      href={`/users/${u.username}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                                    >
+                                      View Profile
+                                    </Link>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           );
-                        })}
+                        })}{" "}
                       </motion.div>
                     )}
                   </div>
@@ -487,106 +640,146 @@ export default function SearchModal({
 
                   <div className="min-h-0 flex-1 overflow-y-auto p-5">
                     <AnimatePresence mode="wait">
-                      {selectedGame ? (
-                        <motion.div
-                          key={selectedGame.id}
-                          className="space-y-4"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.18, ease: "easeOut" }}
-                        >
-                          <div className="theme-surface overflow-hidden mx-auto rounded-[26px] lg:w-[360px] border">
-                            <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.12),transparent_48%),linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.72),rgba(var(--theme-bg-rgb),0.95))]">
-                              <motion.img
-                                className="max-h-[480px] w-full object-contain"
-                                key={selectedGame.id}
-                                src={buildCoverUrl(selectedGame)}
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ duration: 0.2 }}
-                              />
-                              <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black via-black/45 to-transparent px-4 pb-4 pt-16">
-                                <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.24em]">
-                                  Selected Result
-                                </p>
-                                <h3 className="theme-text mt-2 text-2xl font-bold">
-                                  {selectedGame.name}
-                                </h3>
-                              </div>
-                            </div>
-                            <div className="grid gap-3 p-4">
-                              <div className="grid grid-cols-2 gap-3">
-                                <div className="theme-surface-alt rounded-2xl border p-3">
-                                  <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
-                                    Release
-                                  </p>
-                                  <p className="theme-text mt-2 flex items-center gap-2 text-sm font-semibold">
-                                    <FiClock
-                                      size={14}
-                                      className="text-cyan-200/70"
+                      {selectedMixed ? (
+                        selectedMixed.type === "game" ? (
+                          <motion.div
+                            key={(selectedMixed.data as SearchGame).id}
+                            className="space-y-4"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                          >
+                            {(() => {
+                              const selectedGameObj =
+                                selectedMixed.data as SearchGame;
+                              return (
+                                <div className="theme-surface overflow-hidden mx-auto rounded-[26px] lg:w-[360px] border">
+                                  <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.12),transparent_48%),linear-gradient(180deg,rgba(var(--theme-bg-rgb),0.72),rgba(var(--theme-bg-rgb),0.95))]">
+                                    <motion.img
+                                      className="max-h-[480px] w-full object-contain"
+                                      key={selectedGameObj.id}
+                                      src={buildCoverUrl(selectedGameObj)}
+                                      initial={{ opacity: 0, scale: 0.96 }}
+                                      animate={{ opacity: 1, scale: 1 }}
+                                      transition={{ duration: 0.2 }}
                                     />
-                                    {getReleaseDate(selectedGame)
-                                      ? getReleaseDate(
-                                          selectedGame,
-                                        )?.toLocaleDateString(undefined, {
-                                          year: "numeric",
-                                          month: "short",
-                                          day: "numeric",
-                                        })
-                                      : "Unknown"}
-                                  </p>
-                                </div>
-                                <div className="theme-surface-alt rounded-2xl border p-3">
-                                  <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
-                                    Library
-                                  </p>
-                                  <p className="theme-text mt-2 text-sm font-semibold">
-                                    {trackedById.has(selectedGame.id)
-                                      ? "Already tracked"
-                                      : "Not tracked yet"}
-                                  </p>
-                                </div>
-                              </div>
+                                    <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black via-black/45 to-transparent px-4 pb-4 pt-16">
+                                      <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.24em]">
+                                        Selected Result
+                                      </p>
+                                      <h3 className="theme-text mt-2 text-2xl font-bold">
+                                        {selectedGameObj.name}
+                                      </h3>
+                                    </div>
+                                  </div>
+                                  <div className="grid gap-3 p-4">
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="theme-surface-alt rounded-2xl border p-3">
+                                        <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
+                                          Release
+                                        </p>
+                                        <p className="theme-text mt-2 flex items-center gap-2 text-sm font-semibold">
+                                          <FiClock
+                                            size={14}
+                                            className="text-cyan-200/70"
+                                          />
+                                          {getReleaseDate(selectedGameObj)
+                                            ? getReleaseDate(
+                                                selectedGameObj,
+                                              )?.toLocaleDateString(undefined, {
+                                                year: "numeric",
+                                                month: "short",
+                                                day: "numeric",
+                                              })
+                                            : "Unknown"}
+                                        </p>
+                                      </div>
+                                      <div className="theme-surface-alt rounded-2xl border p-3">
+                                        <p className="theme-text-muted text-[11px] uppercase tracking-[0.18em]">
+                                          Library
+                                        </p>
+                                        <p className="theme-text mt-2 text-sm font-semibold">
+                                          {trackedById.has(selectedGameObj.id)
+                                            ? "Already tracked"
+                                            : "Not tracked yet"}
+                                        </p>
+                                      </div>
+                                    </div>
 
-                              {selectedGame.version_parent && (
-                                <div className="rounded-2xl border border-amber-300/15 bg-amber-400/10 p-3 text-sm text-amber-50/90">
-                                  This result looks like a variant edition. If
-                                  you only want original releases, compare it
-                                  before adding.
-                                </div>
-                              )}
+                                    {selectedGameObj.version_parent && (
+                                      <div className="rounded-2xl border border-amber-300/15 bg-amber-400/10 p-3 text-sm text-amber-50/90">
+                                        This result looks like a variant
+                                        edition. If you only want original
+                                        releases, compare it before adding.
+                                      </div>
+                                    )}
 
-                              <div className="flex gap-2">
-                                {!trackedById.has(selectedGame.id) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleQuickAdd(selectedGame)}
-                                    disabled={!uid}
-                                    className={`inline-flex h-10 flex-1 items-center justify-center rounded-2xl text-sm font-semibold transition ${
-                                      uid
-                                        ? trackedById.has(selectedGame.id)
-                                          ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
-                                          : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
-                                        : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
-                                    }`}
-                                  >
-                                    {trackedById.has(selectedGame.id)
-                                      ? "Open Game"
-                                      : "Add to Collection"}
-                                  </button>
-                                )}
+                                    <div className="flex gap-2">
+                                      {!trackedById.has(selectedGameObj.id) && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleQuickAdd(selectedGameObj)
+                                          }
+                                          disabled={!uid}
+                                          className={`inline-flex h-10 flex-1 items-center justify-center rounded-2xl text-sm font-semibold transition ${
+                                            uid
+                                              ? trackedById.has(
+                                                  selectedGameObj.id,
+                                                )
+                                                ? "border border-amber-300/20 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15"
+                                                : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100 hover:bg-cyan-400/15"
+                                              : "cursor-not-allowed border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] text-[color:var(--theme-text-muted)] opacity-60"
+                                          }`}
+                                        >
+                                          {trackedById.has(selectedGameObj.id)
+                                            ? "Open Game"
+                                            : "Add to Collection"}
+                                        </button>
+                                      )}
+                                      <Link
+                                        href={`/game/${selectedGameObj.id}`}
+                                        onClick={onClose}
+                                        className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
+                                      >
+                                        Go To Game Page
+                                      </Link>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key={`user-${selectedMixed.data.id}`}
+                            className="space-y-4"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                          >
+                            <div className="mx-auto lg:w-[360px]">
+                              <ProfileCard
+                                profile={{
+                                  uid: selectedMixed.data.id,
+                                  ...(selectedMixed.data as any),
+                                }}
+                              />
+
+                              <div className="mt-3 flex gap-2">
                                 <Link
-                                  href={`/game/${selectedGame.id}`}
+                                  href={`/users/${(selectedMixed.data as any).username}`}
                                   onClick={onClose}
                                   className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
                                 >
-                                  Go To Game Page
+                                  View Profile
                                 </Link>
                               </div>
                             </div>
-                          </div>
-                        </motion.div>
+                          </motion.div>
+                        )
                       ) : (
                         <div className="theme-text-muted flex h-full items-center justify-center text-center">
                           Select a result to preview it here.

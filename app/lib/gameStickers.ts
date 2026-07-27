@@ -30,11 +30,11 @@ export const GAME_STICKERS = [
     label: "Bravo",
     image: "/stickers/bravo.webp",
   },
-  {
-    id: "hidden-gem",
-    label: "Hidden Gem",
-    image: "/stickers/hidden-gem-found.webp",
-  },
+  // {
+  //   id: "hidden-gem",
+  //   label: "Hidden Gem",
+  //   image: "/stickers/hidden-gem-found.webp",
+  // },
   {
     id: "underrated",
     label: "Underrated",
@@ -216,6 +216,11 @@ export const GAME_STICKERS = [
     image: "/stickers/destroyed.webp",
   },
   {
+    id: "sticker_3",
+    label: "10/10",
+    image: "/stickers/sticker_3.webp",
+  },
+  {
     id: "flop",
     label: "Flop",
     image: "/stickers/flop.webp",
@@ -229,5 +234,67 @@ export const GAME_STICKERS = [
     id: "high",
     label: "High",
     image: "/stickers/high.webp",
+  },
+
+  // NEW
+  {
+    id: "sticker_4",
+    label: "What?",
+    image: "/stickers/sticker_4.webp",
+  },
+  {
+    id: "sticker_5",
+    label: "Try Me Again",
+    image: "/stickers/sticker_5.webp",
+  },
+  {
+    id: "sticker_6",
+    label: "Take My Money",
+    image: "/stickers/sticker_6.webp",
+  },
+  {
+    id: "sticker_7",
+    label: "Ew",
+    image: "/stickers/sticker_7.webp",
+  },
+  {
+    id: "sticker_9",
+    label: "Entertained",
+    image: "/stickers/sticker_9.webp",
+  },
+  {
+    id: "sticker_10",
+    label: "Seriously?",
+    image: "/stickers/sticker_10.webp",
+  },
+  {
+    id: "sticker_14",
+    label: "Losing It",
+    image: "/stickers/sticker_14.webp",
+  },
+  {
+    id: "sticker_17",
+    label: "oh, We for real",
+    image: "/stickers/sticker_17.webp",
+  },
+  {
+    id: "sticker_27",
+    label: "I Need a Break",
+    image: "/stickers/sticker_27.webp",
+  },
+  {
+    id: "sticker_28",
+    label: "Umm...",
+    image: "/stickers/sticker_28.webp",
+  },
+  {
+    id: "sticker_30",
+    label: "Finally",
+    image: "/stickers/sticker_30.webp",
+  },
+  {
+    id: "sticker_30_1",
+    label: "I'm Out",
+    image: "/stickers/sticker_30_1.webp",
   },
 ];

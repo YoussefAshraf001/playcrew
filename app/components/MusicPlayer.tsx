@@ -1,3 +1,5 @@
+"use client";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { useMusic } from "../context/MusicContext";
 import { MdSkipNext, MdSkipPrevious } from "react-icons/md";

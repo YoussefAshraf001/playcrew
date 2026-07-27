@@ -171,13 +171,16 @@ export default function EditProfilePage() {
 
   /* ---------------- HELPERS ---------------- */
 
-  const USERNAME_REGEX = /^[a-z0-9_-]{3,15}$/;
+  const MAX_USERNAME_LENGTH = 32;
+  const HAS_LETTER_REGEX = /[a-z]/;
 
   const normalizeUsername = (value: string) =>
     value
+      .trim()
       .toLowerCase()
-      .replace(/\s+/g, "_") // replace spaces
-      .replace(/[^a-z0-9_-]/g, ""); // strip invalid chars
+      .replace(/\s+/g, "_") // replace spaces with underscores
+      .replace(/_+/g, "_") // collapse repeated underscores
+      .replace(/^-+|-+$/g, ""); // trim edge dashes
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -185,7 +188,7 @@ export default function EditProfilePage() {
     const { name, value } = e.target;
 
     if (name === "username") {
-      const normalized = normalizeUsername(value).slice(0, 15);
+      const normalized = normalizeUsername(value).slice(0, MAX_USERNAME_LENGTH);
 
       setDraft((prev) => ({
         ...(prev ?? profile),
@@ -408,15 +411,23 @@ export default function EditProfilePage() {
         if (draft.username.length < 3) {
           abortSave(
             "Username is too short",
-            "Use at least 3 characters (max 15)",
+            `Use at least 3 characters (max ${MAX_USERNAME_LENGTH})`,
           );
           return;
         }
 
-        if (!USERNAME_REGEX.test(draft.username)) {
+        if (draft.username.length > MAX_USERNAME_LENGTH) {
           abortSave(
-            "Username format not allowed",
-            "Only letters, numbers, underscores (_) and dashes (-)",
+            "Username is too long",
+            `Keep it under ${MAX_USERNAME_LENGTH} characters`,
+          );
+          return;
+        }
+
+        if (!HAS_LETTER_REGEX.test(draft.username)) {
+          abortSave(
+            "Username needs a letter",
+            "Use at least one letter so it is not just numbers",
           );
           return;
         }
@@ -530,8 +541,8 @@ export default function EditProfilePage() {
 
         if (await isUsernameTaken(draft.username)) {
           abortSave(
-            "Username unavailable",
-            "Try adding numbers or underscores",
+            "Username is already taken",
+            "Try a different name, or add numbers or underscores",
           );
 
           return;

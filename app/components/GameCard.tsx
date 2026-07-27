@@ -19,6 +19,7 @@ export default function GameCard({
   releaseFilter,
   reorderMode,
   sortBy,
+  showActions = true,
 }: any) {
   const [loaded, setLoaded] = useState(false);
 
@@ -122,7 +123,7 @@ export default function GameCard({
 
           <span className="text-lg font-bold text-white">Drag To Reorder</span>
         </div>
-      ) : (
+      ) : showActions ? (
         <div
           className="
             absolute
@@ -145,7 +146,7 @@ export default function GameCard({
             openConfirmModal={openConfirmModal}
           />
         </div>
-      )}
+      ) : null}
       <div
         className="
           relative
@@ -202,7 +203,7 @@ export default function GameCard({
                 `}
               />
 
-              {sortBadge && !reorderMode && (
+              {/* {sortBadge && !reorderMode && (
                 <div
                   className={`
                     absolute
@@ -232,7 +233,7 @@ export default function GameCard({
                     {sortBadge}
                   </span>
                 </div>
-              )}
+              )} */}
 
               {/* Dark Overlay */}
               <div

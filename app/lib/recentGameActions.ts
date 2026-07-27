@@ -1,6 +1,7 @@
 export interface RecentActionTrackedGame {
   name?: string;
   favorite?: boolean;
+  notInterested?: boolean;
   status?: string;
   progress?: number | null;
   my_rating?: number | null;
@@ -9,6 +10,7 @@ export interface RecentActionTrackedGame {
     sticker?: string | null;
   };
   playtime?: number | null;
+  playedSessions?: unknown[] | null;
   saveUploads?: Array<{ id?: string }> | null;
 }
 const normalizeNumber = (value: unknown) => {
@@ -21,6 +23,51 @@ const normalizeNumber = (value: unknown) => {
 
 const normalizeText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const getSessionKey = (session: unknown) => {
+  if (!session || typeof session !== "object") return "";
+
+  const item = session as {
+    playedAt?: unknown;
+    durationHours?: unknown;
+  };
+  const playedAt = item.playedAt;
+  let timestamp = "";
+
+  if (
+    playedAt &&
+    typeof playedAt === "object" &&
+    "toDate" in playedAt &&
+    typeof (playedAt as { toDate?: unknown }).toDate === "function"
+  ) {
+    timestamp = String(
+      (playedAt as { toDate: () => Date }).toDate().getTime(),
+    );
+  } else if (
+    playedAt &&
+    typeof playedAt === "object" &&
+    "seconds" in playedAt
+  ) {
+    timestamp = String(
+      Number((playedAt as { seconds: number }).seconds) * 1000,
+    );
+  } else {
+    const parsed = new Date(playedAt as string | number | Date).getTime();
+    timestamp = Number.isNaN(parsed) ? "" : String(parsed);
+  }
+
+  return `${timestamp}:${Number(item.durationHours) || 0}`;
+};
+
+const playedSessionsChanged = (
+  previous: unknown[] | null | undefined,
+  next: unknown[] | null | undefined,
+) => {
+  const previousKeys = (previous ?? []).map(getSessionKey).sort();
+  const nextKeys = (next ?? []).map(getSessionKey).sort();
+
+  return JSON.stringify(previousKeys) !== JSON.stringify(nextKeys);
+};
 
 const formatDuration = (hoursValue: number) => {
   const totalMinutes = Math.max(0, Math.round(hoursValue * 60));
@@ -39,6 +86,37 @@ const formatDuration = (hoursValue: number) => {
   return `${minutes}m`;
 };
 
+const RECENT_ACTION_LIMIT = 8;
+
+export function appendRecentGameActionSummary(
+  previousSummary: string | null | undefined,
+  currentSummary: string,
+) {
+  const previous = normalizeText(previousSummary)
+    .replace(/Logged ([^•]+) play session/g, "Logged $1")
+    .replace(/Playtime Decreased by ([^•]+)/g, "Deducted $1");
+
+  if (currentSummary === "Game Cleared") {
+    return currentSummary;
+  }
+
+  if (
+    !previous ||
+    previous === "Added to My Collection" ||
+    previous === "Game Updated"
+  ) {
+    return currentSummary;
+  }
+
+  if (!currentSummary || currentSummary === previous) {
+    return previous;
+  }
+
+  return [...previous.split(" • "), currentSummary]
+    .slice(-RECENT_ACTION_LIMIT)
+    .join(" • ");
+}
+
 export function getRecentGameActionSummary(
   previous: RecentActionTrackedGame | null | undefined,
   next: RecentActionTrackedGame,
@@ -56,6 +134,8 @@ export function getRecentGameActionSummary(
       normalizeNumber(previous.playtime) !== null ||
       normalizeText(previous.review?.text) ||
       (previous.favorite ?? false) ||
+      (previous.notInterested ?? false) ||
+      (previous.playedSessions?.length ?? 0) > 0 ||
       (previous.saveUploads?.length ?? 0) > 0),
   );
 
@@ -66,10 +146,46 @@ export function getRecentGameActionSummary(
   const prev = previous!;
   const changes: string[] = [];
 
+  const previousHasTrackedData = Boolean(
+    normalizeNumber(prev.my_rating) !== null ||
+      (normalizeNumber(prev.progress) ?? 0) > 0 ||
+      (normalizeNumber(prev.playtime) ?? 0) > 0 ||
+      normalizeText(prev.review?.text) ||
+      normalizeText(prev.review?.sticker) ||
+      (prev.favorite ?? false) ||
+      (prev.notInterested ?? false) ||
+      (prev.playedSessions?.length ?? 0) > 0 ||
+      normalizeText(prev.status) !== "Want To Play",
+  );
+
+  const nextIsCleared =
+    normalizeNumber(next.my_rating) === null &&
+    (normalizeNumber(next.progress) ?? 0) === 0 &&
+    (normalizeNumber(next.playtime) ?? 0) === 0 &&
+    !normalizeText(next.review?.text) &&
+    !normalizeText(next.review?.sticker) &&
+    !(next.favorite ?? false) &&
+    !(next.notInterested ?? false) &&
+    (next.playedSessions?.length ?? 0) === 0 &&
+    normalizeText(next.status) === "Want To Play";
+
+  if (previousHasTrackedData && nextIsCleared) {
+    return "Game Cleared";
+  }
+
   // Favorites
   if ((prev.favorite ?? false) !== (next.favorite ?? false)) {
     changes.push(
       next.favorite ? "Added to Favorites" : "Removed from Favorites",
+    );
+  }
+
+  // Not interested
+  if ((prev.notInterested ?? false) !== (next.notInterested ?? false)) {
+    changes.push(
+      next.notInterested
+        ? "Marked as Not Interested"
+        : "Removed from Not Interested",
     );
   }
 
@@ -146,8 +262,8 @@ export function getRecentGameActionSummary(
 
     changes.push(
       nextPlaytime > (previousPlaytime ?? 0)
-        ? `Logged ${formatted} play session`
-        : `Playtime Decreased by ${formatted}`,
+        ? `Logged ${formatted}`
+        : `Deducted ${formatted}`,
     );
   }
 
@@ -161,6 +277,15 @@ export function getRecentGameActionSummary(
         ? "Save Backup Uploaded"
         : "Save Backup Removed",
     );
+  }
+
+  // Played sessions are already represented by the playtime message when
+  // playtime changes, so only show this separately for session-only edits.
+  if (
+    playedSessionsChanged(prev.playedSessions, next.playedSessions) &&
+    previousPlaytime === nextPlaytime
+  ) {
+    changes.push("Play Sessions Updated");
   }
 
   if (changes.length === 0) {

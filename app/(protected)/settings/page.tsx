@@ -91,7 +91,7 @@ const getStoredPageSettings = () => {
 /* ---------------- COMPONENT ---------------- */
 
 export default function SiteSettingsPage() {
-  const { user, profile, setProfile, loading } = useUser();
+  const { user, profile, setProfile, loading, isAdmin } = useUser();
   const { navbarLayout, setNavbarLayout } = useUI();
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -428,7 +428,7 @@ export default function SiteSettingsPage() {
 
       <motion.main
         className={`relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 sm:px-6 ${
-          navbarLayout === "sidebar" ? "pt-5" : "pt-20"
+          navbarLayout === "sidebar" ? "pt-5" : "pt-16"
           // navbarLayout === "sidebar" ? "pt-14" : "pt-20"
         }`}
         initial={{ opacity: 0, y: 10 }}
@@ -636,7 +636,7 @@ export default function SiteSettingsPage() {
                           id: "sidebar",
                           name: "Gaming Pill",
                           description: "Vertical pill navigation on the left.",
-                          locked: false,
+                          locked: !isAdmin,
                         },
                         {
                           id: "top",
@@ -666,12 +666,9 @@ export default function SiteSettingsPage() {
                         >
                           {/* LOCK OVERLAY ONLY FOR GAMING PILL */}
                           {option.locked && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl backdrop-blur-sm bg-black/55">
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-xl border border-white/10 bg-black/70 backdrop-blur-sm">
                               <p className="theme-text text-xs font-bold tracking-[0.2em]">
                                 COMING SOON
-                              </p>
-                              <p className="theme-text text-[10px]">
-                                Building in progress
                               </p>
                             </div>
                           )}
@@ -696,7 +693,7 @@ export default function SiteSettingsPage() {
                 </motion.section>
               </div>
 
-              <section className="theme-panel-strong mt-2 rounded-2xl border p-6">
+              <section className="theme-panel-strong mt-2 rounded-2xl border p-6 w-120 max-w-120">
                 <div className="mb-6">
                   <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
                     Appearance
@@ -713,23 +710,23 @@ export default function SiteSettingsPage() {
 
                 {/* STATUS */}
                 <div className="theme-surface mb-5 rounded-2xl border p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
                       <h3 className="theme-text font-semibold">
                         Wallpaper Status
                       </h3>
 
-                      <p className="theme-text-muted text-sm">
+                      <p className="theme-text-muted mt-1 text-sm">
                         {hasPendingWallpaper
-                          ? `${activeWallpaperName} is staged and ready to save`
+                          ? "A new wallpaper is ready to be saved."
                           : hasSavedWallpaper
-                            ? activeWallpaperName
-                            : "No wallpaper selected"}
+                            ? "Your wallpaper is active."
+                            : "No wallpaper selected."}
                       </p>
                     </div>
 
                     <span
-                      className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold ${
                         hasPendingWallpaper
                           ? "theme-accent-soft-bg"
                           : hasSavedWallpaper

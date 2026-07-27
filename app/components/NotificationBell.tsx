@@ -8,6 +8,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -23,6 +24,7 @@ import { useUI } from "../context/UIContext";
 import { IoMailOpen } from "react-icons/io5";
 import { MdDelete } from "react-icons/md";
 import { ReleaseDatePrecision } from "../lib/releaseDates";
+import { acceptFriendRequest, declineFriendRequest } from "../lib/social";
 
 type Game = {
   id: string;
@@ -36,27 +38,69 @@ type Game = {
 
 type Notification = {
   id: string;
-  type: "game_release" | "game_release_change";
-  gameId: string;
-  gameName: string;
+  type:
+    | "game_release"
+    | "game_release_change"
+    | "friend_request"
+    | "friend_accept";
+
+  // Game notifications
+  gameId?: string;
+  gameName?: string;
   gameCover?: string;
+  releaseDate?: Date | null;
+
+  // Friend requests
+  senderId?: string;
+  fromUid?: string;
+  toUid?: string;
+  senderUsername?: string;
+  senderAvatar?: string;
+
+  // Shared
   message: string;
-  releaseDate: Date | null;
   read: boolean;
   createdAt: Date | null;
   archived?: boolean;
 };
 
 type FireNotificationDoc = {
-  type?: "game_release" | "game_release_change";
+  type?:
+    | "game_release"
+    | "game_release_change"
+    | "friend_request"
+    | "friend_accept";
   gameId?: string;
   gameName?: string;
   gameCover?: string;
+
+  senderId?: string;
+  fromUid?: string;
+  toUid?: string;
+  senderUsername?: string;
+  senderAvatar?: string;
+  title?: string;
+  image?: string;
+
   message?: string;
   read?: boolean;
   createdAt?: unknown;
   releaseDate?: unknown;
   archived?: boolean;
+};
+
+const inferNotificationType = (data: FireNotificationDoc) => {
+  if (data.type) return data.type;
+  if (
+    data.senderId ||
+    data.fromUid ||
+    data.senderUsername ||
+    data.senderAvatar ||
+    data.message?.toLowerCase().includes("friend request")
+  ) {
+    return "friend_request";
+  }
+  return "game_release";
 };
 
 const toDate = (value: unknown): Date | null => {
@@ -134,6 +178,9 @@ export default function NotificationBell({
   const [items, setItems] = useState<Notification[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [swipedId, setSwipedId] = useState<string | null>(null);
+  const [busyNotificationId, setBusyNotificationId] = useState<string | null>(
+    null,
+  );
   const ref = useRef<HTMLDivElement>(null);
   const { navbarLayout } = useUI();
   const pathname = usePathname();
@@ -176,26 +223,63 @@ export default function NotificationBell({
         .filter((d) => !d.data().archived)
         .map((docSnap) => {
           const data = docSnap.data() as FireNotificationDoc;
-          const createdAt = toDate(data.createdAt);
-          const releaseDate = toDate(data.releaseDate);
-
           return {
             id: docSnap.id,
-            type:
-              data.type === "game_release_change"
-                ? "game_release_change"
-                : "game_release",
-            gameId: String(data.gameId ?? ""),
-            gameName: data.gameName ?? "Unknown game",
-            gameCover: data.gameCover,
-            message: data.message ?? "A game in your list just released.",
-            releaseDate,
-            createdAt,
+            type: inferNotificationType(data),
+
+            gameId: data.gameId,
+            gameName: data.gameName ?? data.title,
+            gameCover: data.gameCover ?? data.image,
+            releaseDate: toDate(data.releaseDate),
+
+            senderId: data.senderId,
+            fromUid: data.fromUid,
+            toUid: data.toUid,
+            senderUsername: data.senderUsername,
+            senderAvatar: data.senderAvatar,
+
+            message: data.message ?? "",
             read: !!data.read,
+            createdAt: toDate(data.createdAt),
           };
         });
 
-      setItems(next);
+      void (async () => {
+        const resolved = await Promise.all(
+          next.map(async (item) => {
+            if (item.type !== "friend_request") return item;
+
+            const senderUid = item.senderId ?? item.fromUid;
+            if (!senderUid) return item;
+
+            if (item.senderUsername && item.senderAvatar) return item;
+
+            try {
+              const senderSnap = await getDoc(doc(db, "users", senderUid));
+              if (!senderSnap.exists()) return item;
+
+              const sender = senderSnap.data() as {
+                username?: string;
+                avatar?: string;
+                photoURL?: string;
+              };
+
+              return {
+                ...item,
+                senderId: senderUid,
+                senderUsername: item.senderUsername ?? sender.username,
+                senderAvatar:
+                  item.senderAvatar ?? sender.avatar ?? sender.photoURL ?? "",
+              };
+            } catch (err) {
+              console.error("Failed to resolve friend request sender", err);
+              return item;
+            }
+          }),
+        );
+
+        setItems(resolved);
+      })();
     });
 
     return () => unsub();
@@ -358,6 +442,29 @@ export default function NotificationBell({
       notificationId,
     );
     await deleteDoc(notificationRef);
+  };
+
+  const handleFriendRequest = async (
+    item: Notification,
+    action: "accept" | "decline",
+  ) => {
+    if (!uid || !item.senderId) return;
+    setBusyNotificationId(item.id);
+
+    try {
+      if (action === "accept") {
+        await acceptFriendRequest(item.senderId, uid);
+      } else {
+        await declineFriendRequest(item.senderId, uid);
+      }
+
+      await deleteNotification(item.id);
+      setItems((prev) => prev.filter((n) => n.id !== item.id));
+    } catch (err) {
+      console.error(`Failed to ${action} friend request`, err);
+    } finally {
+      setBusyNotificationId((current) => (current === item.id ? null : current));
+    }
   };
 
   return (
@@ -535,7 +642,6 @@ export default function NotificationBell({
                     {currentItems.map((item) => {
                       const timeLabel = formatTimeAgo(item.createdAt, nowMs);
                       const showAgo = /[0-9](m|h|d)$/.test(timeLabel);
-
                       return (
                         <div
                           key={item.id}
@@ -585,61 +691,90 @@ export default function NotificationBell({
                                 : "bg-[#162434] hover:bg-[#1b2b3c] shadow-[inset_0_0_0_1px_rgba(var(--theme-accent-rgb),0.35)]"
                             }`}
                           >
-                            <Link
-                              href={item.gameId ? `/game/${item.gameId}` : "#"}
-                              onClick={(e) => {
-                                if (swipedId === item.id) {
-                                  e.preventDefault();
-                                  setSwipedId(null);
-                                  return;
-                                }
-
-                                if (!item.read) {
-                                  void markNotificationRead(item.id);
-                                }
-                              }}
-                              className="block p-3.5 md:pr-12"
-                            >
+                            <div className="block p-3.5 md:pr-12">
                               <div className="flex items-center gap-3">
-                                <img
-                                  src={
-                                    item.gameCover || "/placeholder-game.jpg"
+                                <Link
+                                  href={
+                                    item.type === "friend_request"
+                                      ? item.senderUsername
+                                        ? `/users/${item.senderUsername}`
+                                        : "#"
+                                      : item.gameId
+                                        ? `/game/${item.gameId}`
+                                        : "#"
                                   }
-                                  alt={item.gameName}
-                                  className={`h-10 w-10 shrink-0 rounded-lg object-cover ${
-                                    item.read ? "opacity-80" : ""
-                                  }`}
-                                />
+                                  onClick={(e) => {
+                                    if (swipedId === item.id) {
+                                      e.preventDefault();
+                                      setSwipedId(null);
+                                      return;
+                                    }
+
+                                    if (!item.read) {
+                                      void markNotificationRead(item.id);
+                                    }
+                                  }}
+                                  className="shrink-0"
+                                  >
+                                    <img
+                                      src={
+                                        item.type === "friend_request"
+                                          ? item.senderAvatar ||
+                                            "/default-avatar.png"
+                                          : item.gameCover ||
+                                            "/placeholder-game.jpg"
+                                      }
+                                      alt={
+                                        item.type === "friend_request"
+                                          ? item.senderUsername || "User"
+                                          : item.gameName || "Game"
+                                      }
+                                      className={`h-10 w-10 rounded-lg object-cover ${
+                                        item.read ? "opacity-80" : ""
+                                      }`}
+                                    />
+                                </Link>
 
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p
-                                      className={`text-[13px] leading-none ${
-                                        item.read
-                                          ? "text-white/70"
-                                          : "max-w-[190px] truncate font-semibold text-white"
+                                  <div className="flex items-start justify-between gap-2">
+                                    <Link
+                                      href={
+                                        item.type === "friend_request"
+                                          ? item.senderUsername
+                                            ? `/users/${item.senderUsername}`
+                                            : "#"
+                                          : item.gameId
+                                            ? `/game/${item.gameId}`
+                                            : "#"
+                                      }
+                                      onClick={(e) => {
+                                        if (swipedId === item.id) {
+                                          e.preventDefault();
+                                          setSwipedId(null);
+                                          return;
+                                        }
+
+                                        if (!item.read) {
+                                          void markNotificationRead(item.id);
+                                        }
+                                      }}
+                                      className={`min-w-0 ${
+                                        item.read ? "text-white/70" : ""
                                       }`}
                                     >
-                                      {item.gameName}
-                                    </p>
+                                      <p
+                                        className={`text-[13px] leading-none ${
+                                          item.read
+                                            ? ""
+                                            : "max-w-[190px] truncate font-semibold text-white"
+                                        }`}
+                                      >
+                                        {item.type === "friend_request"
+                                          ? "Friend Request"
+                                          : item.gameName || "Unknown game"}
+                                      </p>
+                                    </Link>
                                     <div className="flex items-center gap-2 text-[11px] text-white/45">
-                                      {/* {item.releaseDate && (
-                                        <>
-                                          <span className="uppercase tracking-wide text-white/40">
-                                            {item.releaseDate.toLocaleDateString(
-                                              undefined,
-                                              {
-                                                month: "short",
-                                                day: "numeric",
-                                              },
-                                            )}
-                                          </span>
-                                          <span className="text-white/25">
-                                            -
-                                          </span>
-                                        </>
-                                      )} */}
-
                                       <span className="shrink-0 text-white/50">
                                         {timeLabel}
                                         {showAgo ? " ago" : ""}
@@ -651,11 +786,39 @@ export default function NotificationBell({
                                       item.read ? "text-white/55" : "text-white"
                                     }`}
                                   >
-                                    {item.message}
+                                    {item.type === "friend_request"
+                                      ? `${item.senderUsername || "A user"} sent you a friend request.`
+                                      : item.message}
                                   </p>
+                                  {item.type === "friend_request" && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        disabled={busyNotificationId === item.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void handleFriendRequest(item, "accept");
+                                        }}
+                                        className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        Accept
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={busyNotificationId === item.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void handleFriendRequest(item, "decline");
+                                        }}
+                                        className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        Decline
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            </Link>
+                            </div>
 
                             <button
                               type="button"

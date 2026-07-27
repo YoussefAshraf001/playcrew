@@ -13,14 +13,14 @@ import AppShell from "./components/AppShell";
 import AppServices from "./components/AppServices";
 
 import { uiBootstrapScript } from "./lib/uiBootstrapScript";
-import { usePersistLastPage } from "./hooks/usePersistLastPage";
+import ClientOnlyHooks from "./components/ClientOnlyHooks";
 
 interface RootLayoutProps {
   children: ReactNode;
 }
 
 export default function RootLayout({ children }: RootLayoutProps) {
-  usePersistLastPage();
+  // `usePersistLastPage` is a client-only hook; run it in a tiny client wrapper.
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -36,6 +36,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <GlobalToaster />
 
         <Providers>
+          <ClientOnlyHooks />
           <AppServices />
 
           <AppShell>{children}</AppShell>

@@ -109,57 +109,57 @@
   --color-zinc-950: #080203;
 }
 
-/* Obsidian Ember */
+/* Black Mode */
 :root[data-app-theme="obsidian-ember"] {
-  --theme-bg: #080808;
-  --theme-bg-rgb: 8, 8, 8;
+  --theme-bg: #020202;
+  --theme-bg-rgb: 2, 2, 2;
 
-  --theme-bg-elevated: rgba(16, 16, 16, 0.94);
+  --theme-bg-elevated: rgba(10, 10, 10, 0.96);
 
-  --theme-surface: rgba(24, 24, 24, 0.78);
-  --theme-surface-strong: rgba(14, 14, 14, 0.96);
+  --theme-surface: rgba(14, 14, 14, 0.82);
+  --theme-surface-strong: rgba(8, 8, 8, 0.98);
 
-  --theme-panel: rgba(12, 12, 12, 0.88);
-  --theme-panel-alt: rgba(20, 20, 20, 0.96);
+  --theme-panel: rgba(7, 7, 7, 0.9);
+  --theme-panel-alt: rgba(16, 16, 16, 0.98);
 
-  --theme-border: rgba(255, 107, 53, 0.18);
-  --theme-border-strong: rgba(255, 176, 136, 0.52);
+  --theme-border: rgba(255, 255, 255, 0.08);
+  --theme-border-strong: rgba(255, 255, 255, 0.18);
 
-  --theme-text: #fff4ed;
-  --theme-text-muted: rgba(255, 209, 189, 0.72);
+  --theme-text: #fdf8f4;
+  --theme-text-muted: rgba(236, 216, 205, 0.7);
 
-  --theme-accent: #ff6b35;
-  --theme-accent-strong: #ffb088;
-  --theme-accent-contrast: #0a0a0a;
-  --theme-accent-rgb: 255, 107, 53;
+  --theme-accent: #f5f5f5;
+  --theme-accent-strong: #ffffff;
+  --theme-accent-contrast: #050505;
+  --theme-accent-rgb: 245, 245, 245;
 
-  --theme-shadow: 0 40px 140px rgba(0, 0, 0, 0.8);
+  --theme-shadow: 0 42px 150px rgba(0, 0, 0, 0.88);
 
-  --theme-tint-a: rgba(255, 107, 53, 0.22);
-  --theme-tint-b: rgba(255, 176, 136, 0.12);
+  --theme-tint-a: rgba(255, 255, 255, 0.06);
+  --theme-tint-b: rgba(255, 255, 255, 0.03);
 
-  --color-cyan-50: #fff4ed;
-  --color-cyan-100: #ffe7da;
-  --color-cyan-200: #ffd1bd;
-  --color-cyan-300: #ffb088;
-  --color-cyan-400: #ff8b5a;
-  --color-cyan-500: #ff6b35;
-  --color-cyan-600: #e55623;
-  --color-cyan-700: #b84217;
-  --color-cyan-800: #7f2d10;
-  --color-cyan-900: #4d1909;
-  --color-cyan-950: #220b04;
+  --color-cyan-50: #fafafa;
+  --color-cyan-100: #f5f5f5;
+  --color-cyan-200: #e5e5e5;
+  --color-cyan-300: #d4d4d4;
+  --color-cyan-400: #a3a3a3;
+  --color-cyan-500: #737373;
+  --color-cyan-600: #525252;
+  --color-cyan-700: #404040;
+  --color-cyan-800: #262626;
+  --color-cyan-900: #171717;
+  --color-cyan-950: #0a0a0a;
 
-  --color-zinc-100: #fff4ed;
-  --color-zinc-200: #ffd1bd;
-  --color-zinc-300: #ffb088;
-  --color-zinc-400: #ff8b5a;
-  --color-zinc-500: #ff6b35;
-  --color-zinc-600: #b84217;
-  --color-zinc-700: #7f2d10;
-  --color-zinc-800: #3a1b12;
-  --color-zinc-900: #1a1a1a;
-  --color-zinc-950: #080808;
+  --color-zinc-100: #fafafa;
+  --color-zinc-200: #f5f5f5;
+  --color-zinc-300: #e5e5e5;
+  --color-zinc-400: #d4d4d4;
+  --color-zinc-500: #a3a3a3;
+  --color-zinc-600: #737373;
+  --color-zinc-700: #525252;
+  --color-zinc-800: #262626;
+  --color-zinc-900: #171717;
+  --color-zinc-950: #0a0a0a;
 }
 
 /* Winter is Coming */

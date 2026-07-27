@@ -32,7 +32,7 @@ interface UIContextType {
 const UIContext = createContext<UIContextType | null>(null);
 
 export function UIProvider({ children }: { children: React.ReactNode }) {
-  const { user, profile, setProfile } = useUser();
+  const { user, profile, setProfile, isAdmin } = useUser();
   const [panelOpen, setPanelOpen] = useState(false);
   const [routeLoading, setRouteLoading] = useState(false);
   const [layoutTransitioning, setLayoutTransitioning] = useState(false);
@@ -56,6 +56,8 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
     (isNavbarLayout(profile?.navbarLayout)
       ? profile.navbarLayout
       : DEFAULT_NAVBAR_LAYOUT);
+  const effectiveNavbarLayout =
+    navbarLayout === "sidebar" && !isAdmin ? "top" : navbarLayout;
   const hasSeenWhatsNew =
     hasSeenWhatsNewOverride ??
     (typeof profile?.hasSeenWhatsNew === "boolean"
@@ -67,13 +69,19 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    document.documentElement.dataset.navbarLayout = navbarLayout;
-    window.localStorage.setItem(NAVBAR_LAYOUT_STORAGE_KEY, navbarLayout);
+    const effectiveNavbarLayout =
+      navbarLayout === "sidebar" && !isAdmin ? "top" : navbarLayout;
+
+    document.documentElement.dataset.navbarLayout = effectiveNavbarLayout;
+    window.localStorage.setItem(
+      NAVBAR_LAYOUT_STORAGE_KEY,
+      effectiveNavbarLayout,
+    );
     window.localStorage.setItem(
       WHATS_NEW_SEEN_STORAGE_KEY,
       hasSeenWhatsNew ? "true" : "false",
     );
-  }, [hasSeenWhatsNew, navbarLayout]);
+  }, [effectiveNavbarLayout, hasSeenWhatsNew, isAdmin, navbarLayout]);
 
   const persistProfile = useCallback(
     async (data: Record<string, unknown>) => {
@@ -86,6 +94,16 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const setNavbarLayout = useCallback(
     async (layout: NavbarLayout) => {
+      if (layout === "sidebar" && !isAdmin) {
+        setNavbarLayoutOverride("top");
+        try {
+          await persistProfile({ navbarLayout: "top" });
+        } catch (error) {
+          console.error("Failed to persist navbar layout:", error);
+        }
+        return;
+      }
+
       if (layout === navbarLayout) return;
 
       setLayoutTransitioning(true);
@@ -102,7 +120,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
       await new Promise((resolve) => window.setTimeout(resolve, 300));
       setLayoutTransitioning(false);
     },
-    [navbarLayout, persistProfile],
+    [isAdmin, navbarLayout, persistProfile],
   );
 
   const markWhatsNewSeen = useCallback(async () => {
@@ -126,7 +144,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         startRouteLoading,
         stopRouteLoading,
         layoutTransitioning,
-        navbarLayout,
+        navbarLayout: effectiveNavbarLayout,
         setNavbarLayout,
         hasSeenWhatsNew,
         markWhatsNewSeen,

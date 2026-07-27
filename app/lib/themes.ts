@@ -17,9 +17,9 @@ export const THEME_PRESETS = [
   {
     id: "obsidian-ember",
     mode: "dark",
-    name: "Obsidian Ember",
-    description: "Smoldering embers beneath volcanic glass.",
-    swatches: ["#0a0a0a", "#1a1a1a", "#ff6b35", "#ffb088"],
+    name: "Smoke",
+    description: "Pure grayscale black mode with steel shadows and no color accents.",
+    swatches: ["#020202", "#0b0b0b", "#171717", "#f5f5f5"],
   },
   {
     id: "void-signal",
@@ -38,7 +38,7 @@ export const THEME_PRESETS = [
   {
     id: "winter-is-coming",
     mode: "dark",
-    name: "Winter is Coming",
+    name: "Steam",
     description: "Cold stone walls, northern winds, and endless snowfall.",
     swatches: ["#171d25", "#1b2838", "#2a475e", "#66c0f4"],
   },
@@ -133,7 +133,7 @@ export const THEME_PRESETS = [
 
 export type ThemePreset = (typeof THEME_PRESETS)[number]["id"];
 
-export const DEFAULT_THEME_PRESET: ThemePreset = "neo-cyan";
+export const DEFAULT_THEME_PRESET: ThemePreset = "obsidian-ember";
 
 export const isThemePreset = (value: unknown): value is ThemePreset =>
   typeof value === "string" &&

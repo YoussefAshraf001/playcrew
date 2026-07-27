@@ -49,26 +49,44 @@ export async function POST(req: Request) {
 
     const [game] = await gameRes.json();
 
-    const [releaseDateInfo] = await igdbReleaseDateQuery(`
-      fields date, human, y, m;
-      where game = ${id};
-      sort date asc;
-      limit 1;
-    `);
+    const similarResPromise = game.similar_games?.length
+      ? fetch("https://api.igdb.com/v4/games", {
+          method: "POST",
+          headers: {
+            "Client-ID": process.env.IGDB_CLIENT_ID!,
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "text/plain",
+          },
+          body: `
+            fields id, name, cover.url, aggregated_rating, first_release_date;
+            where id = (${game.similar_games.join(",")});
+            limit ${SIMILAR_TARGET};
+          `,
+        })
+      : Promise.resolve(null);
 
-    // 2) Fetch time to beat
-    const timeRes = await fetch("https://api.igdb.com/v4/game_time_to_beats", {
-      method: "POST",
-      headers: {
-        "Client-ID": process.env.IGDB_CLIENT_ID!,
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "text/plain",
-      },
-      body: `
-        fields completely, normally, hastily, count;
-        where game_id = ${id};
-      `,
-    });
+    // These requests do not depend on one another, so run them together.
+    const [[releaseDateInfo], timeRes, similarRes] = await Promise.all([
+      igdbReleaseDateQuery(`
+        fields date, human, y, m;
+        where game = ${id};
+        sort date asc;
+        limit 1;
+      `),
+      fetch("https://api.igdb.com/v4/game_time_to_beats", {
+        method: "POST",
+        headers: {
+          "Client-ID": process.env.IGDB_CLIENT_ID!,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "text/plain",
+        },
+        body: `
+          fields completely, normally, hastily, count;
+          where game_id = ${id};
+        `,
+      }),
+      similarResPromise,
+    ]);
 
     if (!timeRes.ok) {
       const errText = await timeRes.text();
@@ -77,34 +95,18 @@ export async function POST(req: Request) {
 
     const [timeToBeat] = await timeRes.json();
 
-    // 3) Fetch similar games
+    // 3) Map similar games
     let similarGames: any[] = [];
-    if (game.similar_games?.length) {
-      const similarRes = await fetch("https://api.igdb.com/v4/games", {
-        method: "POST",
-        headers: {
-          "Client-ID": process.env.IGDB_CLIENT_ID!,
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "text/plain",
-        },
-        body: `
-          fields id, name, cover.url, aggregated_rating, first_release_date;
-          where id = (${game.similar_games.join(",")});
-          limit ${SIMILAR_TARGET};
-        `,
-      });
+    if (similarRes?.ok) {
+      const similarData = await similarRes.json();
+      const byId = new Map<number, any>(
+        similarData.map((entry: any) => [entry.id, entry]),
+      );
 
-      if (similarRes.ok) {
-        const similarData = await similarRes.json();
-        const byId = new Map<number, any>(
-          similarData.map((entry: any) => [entry.id, entry]),
-        );
-
-        similarGames = game.similar_games
-          .map((similarId: number) => byId.get(similarId))
-          .filter(Boolean)
-          .map((entry: any) => mapSimilarEntry(entry));
-      }
+      similarGames = game.similar_games
+        .map((similarId: number) => byId.get(similarId))
+        .filter(Boolean)
+        .map((entry: any) => mapSimilarEntry(entry));
     }
 
     // Backfill if similar_games returns fewer than requested.
@@ -141,48 +143,50 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4) Fetch genre names if any
-    const genreMap: Record<number, string> = {};
-    if (game.genres?.length) {
-      const genreRes = await fetch("https://api.igdb.com/v4/genres", {
-        method: "POST",
-        headers: {
-          "Client-ID": process.env.IGDB_CLIENT_ID!,
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "text/plain",
-        },
-        body: `
-          fields id, name;
-          where id = (${game.genres.join(",")});
-        `,
-      });
+    // These lookups are independent too, so fetch them concurrently.
+    const [genreRes, tagRes] = await Promise.all([
+      game.genres?.length
+        ? fetch("https://api.igdb.com/v4/genres", {
+            method: "POST",
+            headers: {
+              "Client-ID": process.env.IGDB_CLIENT_ID!,
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "text/plain",
+            },
+            body: `
+              fields id, name;
+              where id = (${game.genres.join(",")});
+            `,
+          })
+        : Promise.resolve(null),
+      game.tags?.length
+        ? fetch("https://api.igdb.com/v4/tags", {
+            method: "POST",
+            headers: {
+              "Client-ID": process.env.IGDB_CLIENT_ID!,
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "text/plain",
+            },
+            body: `
+              fields id, name;
+              where id = (${game.tags.join(",")});
+            `,
+          })
+        : Promise.resolve(null),
+    ]);
 
-      if (genreRes.ok) {
-        const genresData = await genreRes.json();
-        genresData.forEach((g: any) => (genreMap[g.id] = g.name));
-      }
+    // 4) Map genre names
+    const genreMap: Record<number, string> = {};
+    if (genreRes?.ok) {
+      const genresData = await genreRes.json();
+      genresData.forEach((g: any) => (genreMap[g.id] = g.name));
     }
 
-    // 5) Fetch tag names if any
+    // 5) Map tag names
     const tagMap: Record<number, string> = {};
-    if (game.tags?.length) {
-      const tagRes = await fetch("https://api.igdb.com/v4/tags", {
-        method: "POST",
-        headers: {
-          "Client-ID": process.env.IGDB_CLIENT_ID!,
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "text/plain",
-        },
-        body: `
-          fields id, name;
-          where id = (${game.tags.join(",")});
-        `,
-      });
-
-      if (tagRes.ok) {
-        const tagsData = await tagRes.json();
-        tagsData.forEach((t: any) => (tagMap[t.id] = t.name));
-      }
+    if (tagRes?.ok) {
+      const tagsData = await tagRes.json();
+      tagsData.forEach((t: any) => (tagMap[t.id] = t.name));
     }
 
     // 6) Map game data

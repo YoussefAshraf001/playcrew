@@ -1,9 +1,48 @@
 [
   {
+    "version": "7.5",
+    "title": "Game Tracking & Detail Page Update",
+    "date": "2026-07-27",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Game Tracking",
+        "items": [
+          "Added a Clean Game action to clear tracking details while keeping the game in your collection",
+          "Recently Edited now preserves multiple changes across separate saves",
+          "Added clear activity summaries for game cleanup, including 'Game Cleared'"
+        ]
+      },
+      {
+        "category": "Activity History",
+        "items": [
+          "Improved playtime activity messages with 'Logged' and 'Deducted' summaries",
+          "Removed redundant Play Sessions Updated messages when playtime already explains the change",
+          "Improved session comparisons to avoid false activity updates"
+        ]
+      },
+      {
+        "category": "Game Detail Page",
+        "items": [
+          "Added support for custom game covers saved directly to tracked game data",
+          "Custom covers now take priority over the default IGDB poster",
+          "Reduced initial poster and wallpaper flicker by removing unnecessary load animations"
+        ]
+      },
+      {
+        "category": "Performance",
+        "items": [
+          "Optimized IGDB game loading by fetching independent data requests concurrently",
+          "Improved poster loading priority and reduced duplicate wallpaper updates"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.4.6.1",
     "title": "Bug fixes",
     "date": "2026-06-17",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "User Interface",

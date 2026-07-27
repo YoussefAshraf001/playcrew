@@ -18,13 +18,6 @@ import AboutPanel from "@/app/components/mainMenu/AboutPanel";
 import LoadingSpinner from "../explore/loading";
 import { useMusic } from "@/app/context/MusicContext";
 import { useUI } from "@/app/context/UIContext";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { isTauri } from "@tauri-apps/api/core";
-import {
-  RiCheckboxBlankLine,
-  RiCloseLine,
-  RiSubtractLine,
-} from "react-icons/ri";
 
 /* ───────────────── Types ───────────────── */
 type Panel = "none" | "about" | "overview";
@@ -58,18 +51,7 @@ export default function Dashboard() {
   const [isLg, setIsLg] = useState(false);
   const [canContinue, setCanContinue] = useState(false);
 
-  const desktop = isTauri();
-  const [pageReady, setPageReady] = useState(!desktop);
-
-  useEffect(() => {
-    if (!desktop) return;
-
-    const timer = setTimeout(() => {
-      setPageReady(true);
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [desktop]);
+  const [pageReady, setPageReady] = useState(true);
 
   useEffect(() => {
     document.title = "Main Menu • PlayCrew";
@@ -256,8 +238,6 @@ export default function Dashboard() {
       case "exit":
         if (user) {
           setShowLogoutModal(true);
-        } else if (desktop) {
-          await getCurrentWindow().close();
         } else if (!user) {
           toast("You're currently using PlayCrew as a guest.", {
             icon: "👤",
@@ -684,41 +664,10 @@ export default function Dashboard() {
                 if (user) {
                   handleLogout();
                 }
-
-                if (desktop) {
-                  await getCurrentWindow().close();
-                }
               }}
             />,
             document.body,
           )}
-
-        {desktop && (
-          <div className="fixed top-4 right-4 z-[100]">
-            <div className="theme-nav flex items-center gap-1 rounded-2xl border px-2 py-1 backdrop-blur-md">
-              <button
-                onClick={() => getCurrentWindow().minimize()}
-                className="flex h-8 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white/10 hover:text-white"
-              >
-                <RiSubtractLine size={18} />
-              </button>
-
-              <button
-                onClick={() => getCurrentWindow().toggleMaximize()}
-                className="flex h-8 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-white/10 hover:text-white"
-              >
-                <RiCheckboxBlankLine size={10} />
-              </button>
-
-              <button
-                onClick={() => getCurrentWindow().close()}
-                className="flex h-8 w-10 items-center justify-center rounded-xl text-zinc-500 transition-all duration-200 hover:bg-red-600 hover:text-white"
-              >
-                <RiCloseLine size={18} />
-              </button>
-            </div>
-          </div>
-        )}
       </motion.div>
     </>
   );
