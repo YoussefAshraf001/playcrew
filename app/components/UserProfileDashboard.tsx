@@ -78,14 +78,15 @@ const TAB_ORDER = [
 const toTime = (
   value: FirestoreTimestampLike | string | Date | null | undefined,
 ) => {
-  const date =
-    value?.toDate?.() ??
-    (typeof value === "string"
+  const date = hasToDate(value)
+    ? value.toDate()
+    : typeof value === "string"
       ? new Date(value)
       : value instanceof Date
         ? value
-        : null);
-  return date?.getTime?.() ?? 0;
+        : null;
+
+  return date?.getTime() ?? 0;
 };
 
 const formatDate = (
@@ -227,23 +228,50 @@ export default function UserProfileDashboard({
   const completedCount = library.filter((g) => g.status === "Completed").length;
   const playingCount = library.filter((g) => g.status === "Playing").length;
   const favoriteCount = library.filter((g) => g.favorite).length;
+  // const activeThisYear = library.filter((g) => {
+  //   const playedSessions = g.playedSessions ?? g.playSessions;
+  //   const hasSessionsInYear = Array.isArray(playedSessions)
+  //     ? playedSessions.some((session) => {
+  //         const sessionDate = hasToDate(session?.playedAt)
+  //           ? session.playedAt.toDate()
+  //           : session?.playedAt;
+  //         return sessionDate
+  //           ? new Date(sessionDate).getFullYear() === currentYear
+  //           : false;
+  //       })
+  //     : false;
+  //   const activeStatus = ["Playing", "Completed", "On Hold"];
+  //   const statusMatch =
+  //     activeStatus.includes(g.status ?? "") &&
+  //     (hasToDate(g.lastUpdated)
+  //       ? g.lastUpdated.toDate().getFullYear()
+  //       : new Date(g.lastUpdated ?? 0).getFullYear()) === currentYear;
+  //   return hasSessionsInYear || statusMatch;
+  // }).length;
   const activeThisYear = library.filter((g) => {
     const playedSessions = g.playedSessions ?? g.playSessions;
+
     const hasSessionsInYear = Array.isArray(playedSessions)
       ? playedSessions.some((session) => {
-          const sessionDate =
-            session?.playedAt?.toDate?.() ?? session?.playedAt ?? null;
-          return sessionDate
-            ? new Date(sessionDate).getFullYear() === currentYear
-            : false;
+          const playedAt =
+            session && typeof session === "object" && "playedAt" in session
+              ? (
+                  session as {
+                    playedAt?: FirestoreTimestampLike | string | Date | null;
+                  }
+                ).playedAt
+              : null;
+
+          return new Date(toTime(playedAt)).getFullYear() === currentYear;
         })
       : false;
+
     const activeStatus = ["Playing", "Completed", "On Hold"];
+
     const statusMatch =
       activeStatus.includes(g.status ?? "") &&
-      (hasToDate(g.lastUpdated)
-        ? g.lastUpdated.toDate().getFullYear()
-        : new Date(g.lastUpdated ?? 0).getFullYear()) === currentYear;
+      new Date(toTime(g.lastUpdated)).getFullYear() === currentYear;
+
     return hasSessionsInYear || statusMatch;
   }).length;
   const completionRate = gamesPlayed
@@ -282,7 +310,9 @@ export default function UserProfileDashboard({
   }
 
   const wallpaper =
-    profile?.wallpaper?.data ?? profile?.wallpaper?.url ?? profile?.wallpaper;
+    typeof profile?.wallpaper === "string"
+      ? profile.wallpaper
+      : (profile?.wallpaper?.data ?? profile?.wallpaper?.url ?? null);
 
   return (
     <main className="relative min-h-screen overflow-hidden theme-bg">

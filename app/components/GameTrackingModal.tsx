@@ -565,7 +565,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   step={0.1}
                                   value={rating ?? 0}
                                   disabled={isNotInterested}
-                                  onInput={(e) => {
+                                  onChange={(e) => {
                                     if (isNotInterested) return;
                                     setRating(Number(e.target.value));
                                   }}
