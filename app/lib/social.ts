@@ -25,7 +25,16 @@ type UserDoc = {
 
 type FirestoreDocData = Record<string, unknown>;
 
-export async function getUserByUsername(username: string) {
+type UserData = {
+  id: string;
+  username?: string;
+  avatar?: string;
+  photoURL?: string;
+} & FirestoreDocData;
+
+export async function getUserByUsername(
+  username: string,
+): Promise<UserData | null> {
   const q = query(
     collection(db, "users"),
     where("username", "==", username),
@@ -35,7 +44,10 @@ export async function getUserByUsername(username: string) {
   const snap = await getDocs(q);
   if (snap.empty) return null;
   const docSnap = snap.docs[0];
-  return { id: docSnap.id, ...(docSnap.data() as FirestoreDocData) };
+  return {
+    id: docSnap.id,
+    ...(docSnap.data() as FirestoreDocData),
+  } as UserData;
 }
 
 export function friendRequestDocId(fromUid: string, toUid: string) {
@@ -170,7 +182,10 @@ export async function getFriendRequestsFor(uid: string) {
     limit(50),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as FirestoreDocData) }));
+  return snap.docs.map((d) => ({
+    id: d.id,
+    ...(d.data() as FirestoreDocData),
+  }));
 }
 
 export async function searchUsersByUsername(
@@ -190,8 +205,18 @@ export async function searchUsersByUsername(
   const snap = await getDocs(q);
   const excluded = excludeUsername?.trim().toLowerCase() ?? null;
   return snap.docs
-    .map((d) => ({ id: d.id, ...(d.data() as FirestoreDocData) }))
+    .map(
+      (d) =>
+        ({
+          id: d.id,
+          ...(d.data() as FirestoreDocData),
+        }) as UserData,
+    )
     .filter((user) =>
-      excluded ? String(user.username ?? "").trim().toLowerCase() !== excluded : true,
+      excluded
+        ? String(user.username ?? "")
+            .trim()
+            .toLowerCase() !== excluded
+        : true,
     );
 }
