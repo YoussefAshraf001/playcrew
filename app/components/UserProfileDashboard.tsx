@@ -29,7 +29,7 @@ type UserProfile = {
   bio?: string;
   createdAt?: FirestoreTimestampLike | string | Date | null;
   wallpaper?: { data?: string; url?: string } | string | null;
-  avatar?: { data?: string } | null;
+  avatar?: string | { data?: string } | null;
 };
 
 type LibraryGame = {

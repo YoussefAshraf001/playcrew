@@ -8,7 +8,7 @@ type ProfileCardProps = {
     username?: string;
     displayName?: string;
     bio?: string;
-    avatar?: { data?: string } | null;
+    avatar?: string | { data?: string } | null;
     createdAt?:
       | {
           toDate?: () => Date;
@@ -37,14 +37,17 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
         ? profile.createdAt
         : null;
 
+  const avatar =
+    typeof profile.avatar === "string" ? profile.avatar : profile.avatar?.data;
+
   return (
     <div className="theme-panel rounded-[28px] border border-[var(--theme-border)] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.25)] sm:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
         <div className="relative mx-auto lg:mx-0">
           <div className="absolute inset-0 rounded-full bg-cyan-400/15 blur-2xl" />
-          {profile?.avatar?.data ? (
+          {avatar ? (
             <img
-              src={profile.avatar.data}
+              src={avatar}
               alt=""
               aria-hidden="true"
               className="relative h-28 w-28 rounded-full object-cover ring-2 ring-cyan-300/20 sm:h-32 sm:w-32"
