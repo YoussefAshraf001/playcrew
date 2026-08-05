@@ -15,7 +15,14 @@ import {
   SortableContext,
 } from "@dnd-kit/sortable";
 import Link from "next/link";
-import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
+import {
+  doc,
+  deleteField,
+  getDoc,
+  setDoc,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
 import toast from "react-hot-toast";
 import {
@@ -26,6 +33,7 @@ import {
   FiList,
   FiSearch,
   FiSliders,
+  FiTrash,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 
@@ -68,12 +76,16 @@ const STATUSES = [
   "Completed",
   "On Hold",
   "Dropped",
+  "Not Interested",
   "Online",
   "Want To Play",
 ];
 
 const formatRating = (rating: number) =>
   Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
+
+const getLastRecentAction = (summary: string | null | undefined) =>
+  summary?.split(" • ").slice(-1)[0] ?? "";
 
 interface UserProfile {
   uid: string;
@@ -125,9 +137,8 @@ export default function GamesPage() {
   const [orderedFavorites, setOrderedFavorites] = useState<TrackedGame[]>([]);
   const [previousStatus, setPreviousStatus] = useState("Playing");
 
-  const [previousReleaseFilter, setPreviousReleaseFilter] = useState<
-    ReleaseFilter
-  >("All");
+  const [previousReleaseFilter, setPreviousReleaseFilter] =
+    useState<ReleaseFilter>("All");
 
   const previousIncludeOnlineGames = useRef<boolean | null>(null);
   const previousIncludeUnreleasedGames = useRef<boolean | null>(null);
@@ -324,12 +335,18 @@ export default function GamesPage() {
       Completed: [],
       "On Hold": [],
       Dropped: [],
+      "Not Interested": [],
       Online: [],
       "Want To Play": [],
     };
 
     allGames.forEach((g) => {
-      const status = g.status && map[g.status] ? g.status : "Want To Play";
+      const status =
+        g.notInterested || g.status === "Not Interested"
+          ? "Not Interested"
+          : g.status && map[g.status]
+            ? g.status
+            : "Want To Play";
       map[status].push(g);
       map.All.push(g);
     });
@@ -492,19 +509,29 @@ export default function GamesPage() {
     [allGames],
   );
 
-  const recentlyEditedGames = useMemo(
-    () => sortedRecentGames.slice(0, 6),
+  const recentGamesWithSummary = useMemo(
+    () =>
+      sortedRecentGames.filter((game) =>
+        Boolean(game.recentActionSummary?.trim()),
+      ),
     [sortedRecentGames],
   );
 
+  const recentlyEditedGames = useMemo(
+    () => recentGamesWithSummary.slice(0, 6),
+    [recentGamesWithSummary],
+  );
+
   const recentGames = useMemo(
-    () => sortedRecentGames.slice(0, recentVisibleCount),
-    [sortedRecentGames, recentVisibleCount],
+    () => recentGamesWithSummary.slice(0, recentVisibleCount),
+    [recentGamesWithSummary, recentVisibleCount],
   );
 
   const handleTabChange = (status: string) => {
     setLastStatus(status);
     setAnimationType("status");
+    setSearchQuery("");
+    setDebouncedSearch("");
 
     if (status === "Want To Play") {
       setReleaseFilter("Released");
@@ -530,6 +557,12 @@ export default function GamesPage() {
 
     if (query.trim()) {
       if (selectedStatus !== "All") {
+        if (
+          selectedStatus === "Want To Play" &&
+          releaseFilter === "Unreleased"
+        ) {
+          setIncludeUnreleasedGames(true);
+        }
         setSelectedStatus("All");
       }
     } else {
@@ -659,6 +692,53 @@ export default function GamesPage() {
     return updated as TrackedGame;
   };
 
+  const isAdmin = Boolean(localProfile?.admin ?? userProfile?.admin);
+
+  const deleteRecentEditNote = async (game: TrackedGame) => {
+    if (!user || !isAdmin) return;
+
+    const docId =
+      game._docId ||
+      Object.keys(localProfile?.trackedGames ?? {}).find(
+        (key) => localProfile?.trackedGames[key]?.igdb?.id === game.igdb.id,
+      );
+
+    if (!docId) {
+      toast.error("Unable to find game to delete note.");
+      return;
+    }
+
+    try {
+      const gameRef = doc(db, "users", user.uid, "games_igdb", docId);
+
+      await updateDoc(gameRef, {
+        recentActionSummary: deleteField(),
+      });
+
+      setLocalProfile((prev) => {
+        if (!prev) return prev;
+
+        const existingGame = prev.trackedGames[docId];
+        if (!existingGame) return prev;
+
+        return {
+          ...prev,
+          trackedGames: {
+            ...prev.trackedGames,
+            [docId]: {
+              ...existingGame,
+              recentActionSummary: undefined,
+            },
+          },
+        };
+      });
+
+      toast.success("Deleted recently edited note.");
+    } catch {
+      toast.error("Failed to delete note.");
+    }
+  };
+
   const reorderFavorites = async (reordered: TrackedGame[]) => {
     if (!user) return;
 
@@ -761,8 +841,6 @@ export default function GamesPage() {
       if (nothingChanged) {
         setModalOpen(false);
         setSaving(false);
-
-        toast("No changes detected.");
         return;
       }
 
@@ -1629,9 +1707,7 @@ export default function GamesPage() {
           {/* Right Panel (Favorites + Recently Edited) */}
           <div className="relative z-10 w-full shrink-0 px-1 pt-3 flex flex-col gap-3 sm:px-2 md:px-3 lg:h-[calc(100svh-5.5rem)] lg:w-64 lg:px-0 xl:w-74">
             {/* Favorites */}
-            <div
-              className="theme-panel rounded-2xl border p-4 flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[45vh] min-h-[45vh]"
-            >
+            <div className="theme-panel rounded-2xl border p-4 flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[45vh] min-h-[45vh]">
               <div className="flex items-center justify-between py-2">
                 <h3 className="theme-text font-bold text-lg">Favorite Games</h3>
                 {!showFavoritesOnly && (
@@ -1817,7 +1893,7 @@ export default function GamesPage() {
                               {g.name}
                             </span>
                             <p className="mt-1.5 break-words text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
-                              {g.recentActionSummary}
+                              {getLastRecentAction(g.recentActionSummary)}
                             </p>
                           </div>
                         </div>
@@ -1932,12 +2008,13 @@ export default function GamesPage() {
                     >
                       <div className="absolute left-[10px] top-8 h-6 w-6 rounded-full border-4 border-[var(--theme-bg)] bg-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.7)]" />
 
-                      <Link
-                        href={`/game/${g.igdb.id}`}
-                        onClick={() => setRecentModalOpen(false)}
-                      >
-                        <div className="group cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md transition-all duration-300 hover:border-cyan-400/30 hover:bg-white/[0.05]">
-                          <div className="flex gap-4">
+                      <div className="group relative flex cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md transition-all duration-300 hover:border-cyan-400/30 hover:bg-white/[0.05]">
+                        <Link
+                          href={`/game/${g.igdb.id}`}
+                          onClick={() => setRecentModalOpen(false)}
+                          className="flex flex-1"
+                        >
+                          <div className="flex gap-4 w-full">
                             <img
                               src={g.igdb.cover}
                               alt={g.name}
@@ -1990,8 +2067,25 @@ export default function GamesPage() {
                               )}
                             </div>
                           </div>
-                        </div>
-                      </Link>
+                        </Link>
+
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openConfirmModal(
+                                `Delete recently edited note for ${g.name}?`,
+                                () => deleteRecentEditNote(g),
+                              );
+                            }}
+                            className="ml-4 self-start rounded-full border border-red-500/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/15 hover:text-red-100"
+                          >
+                            <FiTrash size={16} />
+                          </button>
+                        )}
+                      </div>
                     </motion.div>
                   ))}
 

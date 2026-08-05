@@ -81,7 +81,9 @@ export const filterGames = ({
 
   if (searchQuery) {
     const normalizedQuery = normalizeGameName(searchQuery);
-    list = list.filter((g) => g.name && normalizeGameName(g.name).includes(normalizedQuery));
+    list = list.filter(
+      (g) => g.name && normalizeGameName(g.name).includes(normalizedQuery),
+    );
   }
 
   if (releaseFilter !== "All") {
@@ -175,7 +177,9 @@ export const getStatusCounts = (allGames: TrackedGame[]) => ({
   onHoldCount: allGames.filter((g) => g.status === "On Hold").length,
   playingCount: allGames.filter((g) => g.status === "Playing").length,
   droppedCount: allGames.filter((g) => g.status === "Dropped").length,
+  notInterestedCount: allGames.filter(
+    (g) => g.status === "Not Interested" || g.notInterested,
+  ).length,
   onlineCount: allGames.filter((g) => g.status === "Online").length,
-  notInterestedCount: allGames.filter((g) => g.notInterested).length,
   wantCount: allGames.filter((g) => g.status === "Want To Play").length,
 });

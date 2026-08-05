@@ -285,85 +285,6 @@ export default function NotificationBell({
     return () => unsub();
   }, [uid]);
 
-  useEffect(() => {
-    if (!uid || !currentItems.length) return;
-
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const trackedGameIds = new Set(games.map((g) => String(g.id)));
-
-    const toDelete = new Set<string>();
-    const byGameRelease = new Map<string, Notification[]>();
-
-    for (const item of currentItems) {
-      const isReleaseNotif =
-        item.type === "game_release" &&
-        (item.id.startsWith("release-") || item.id.startsWith("release-soon-"));
-
-      if (!isReleaseNotif) continue;
-
-      if (!trackedGameIds.has(String(item.gameId))) {
-        toDelete.add(item.id);
-        continue;
-      }
-
-      const release = item.releaseDate ? new Date(item.releaseDate) : null;
-      if (!release || Number.isNaN(release.getTime())) continue;
-      release.setHours(0, 0, 0, 0);
-
-      const diffDays = Math.floor(
-        (release.getTime() - today.getTime()) / DAY_MS,
-      );
-
-      if (item.id.startsWith("release-soon-") && diffDays !== 1) {
-        toDelete.add(item.id);
-        continue;
-      }
-
-      const key = `${item.gameId}-${dateKey(release)}`;
-      const bucket = byGameRelease.get(key) ?? [];
-      bucket.push(item);
-      byGameRelease.set(key, bucket);
-    }
-
-    for (const bucket of byGameRelease.values()) {
-      if (bucket.length <= 1) continue;
-
-      bucket.sort((a, b) => {
-        const aPriority = a.id.startsWith("release-soon-") ? 0 : 1;
-        const bPriority = b.id.startsWith("release-soon-") ? 0 : 1;
-        if (aPriority !== bPriority) return bPriority - aPriority;
-
-        const aTime = a.createdAt?.getTime() ?? 0;
-        const bTime = b.createdAt?.getTime() ?? 0;
-        return bTime - aTime;
-      });
-
-      const [, ...rest] = bucket;
-      for (const item of rest) toDelete.add(item.id);
-    }
-
-    if (!toDelete.size) return;
-
-    const batch = writeBatch(db);
-    for (const notificationId of toDelete) {
-      const notificationRef = doc(
-        db,
-        "users",
-        uid,
-        "notifications",
-        notificationId,
-      );
-      batch.update(notificationRef, {
-        archived: true,
-      });
-    }
-    batch.commit().catch((err) => {
-      console.error("Failed to cleanup stale notifications", err);
-    });
-  }, [currentItems, games, uid]);
-
   const markNotificationRead = async (notificationId: string) => {
     if (!uid) return;
 
@@ -463,7 +384,9 @@ export default function NotificationBell({
     } catch (err) {
       console.error(`Failed to ${action} friend request`, err);
     } finally {
-      setBusyNotificationId((current) => (current === item.id ? null : current));
+      setBusyNotificationId((current) =>
+        current === item.id ? null : current,
+      );
     }
   };
 
@@ -715,24 +638,24 @@ export default function NotificationBell({
                                     }
                                   }}
                                   className="shrink-0"
-                                  >
-                                    <img
-                                      src={
-                                        item.type === "friend_request"
-                                          ? item.senderAvatar ||
-                                            "/default-avatar.png"
-                                          : item.gameCover ||
-                                            "/placeholder-game.jpg"
-                                      }
-                                      alt={
-                                        item.type === "friend_request"
-                                          ? item.senderUsername || "User"
-                                          : item.gameName || "Game"
-                                      }
-                                      className={`h-10 w-10 rounded-lg object-cover ${
-                                        item.read ? "opacity-80" : ""
-                                      }`}
-                                    />
+                                >
+                                  <img
+                                    src={
+                                      item.type === "friend_request"
+                                        ? item.senderAvatar ||
+                                          "/default-avatar.png"
+                                        : item.gameCover ||
+                                          "/placeholder-game.jpg"
+                                    }
+                                    alt={
+                                      item.type === "friend_request"
+                                        ? item.senderUsername || "User"
+                                        : item.gameName || "Game"
+                                    }
+                                    className={`h-10 w-10 rounded-lg object-cover ${
+                                      item.read ? "opacity-80" : ""
+                                    }`}
+                                  />
                                 </Link>
 
                                 <div className="min-w-0 flex-1">
@@ -794,10 +717,15 @@ export default function NotificationBell({
                                     <div className="mt-3 flex flex-wrap gap-2">
                                       <button
                                         type="button"
-                                        disabled={busyNotificationId === item.id}
+                                        disabled={
+                                          busyNotificationId === item.id
+                                        }
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          void handleFriendRequest(item, "accept");
+                                          void handleFriendRequest(
+                                            item,
+                                            "accept",
+                                          );
                                         }}
                                         className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
                                       >
@@ -805,10 +733,15 @@ export default function NotificationBell({
                                       </button>
                                       <button
                                         type="button"
-                                        disabled={busyNotificationId === item.id}
+                                        disabled={
+                                          busyNotificationId === item.id
+                                        }
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          void handleFriendRequest(item, "decline");
+                                          void handleFriendRequest(
+                                            item,
+                                            "decline",
+                                          );
                                         }}
                                         className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                                       >

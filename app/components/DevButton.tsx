@@ -52,6 +52,7 @@ const STATUS_OPTIONS = [
   "Completed",
   "On Hold",
   "Dropped",
+  "Not Interested",
   "Online",
   "Want To Play",
 ];

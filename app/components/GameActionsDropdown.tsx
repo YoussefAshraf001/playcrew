@@ -20,12 +20,14 @@ interface Props {
     message: string,
     action: () => void | Promise<void>,
   ) => void;
+  isHovered?: boolean;
 }
 
 export default function GameActionsDropdown({
   game,
   openEditModal,
   openConfirmModal,
+  isHovered,
 }: Props) {
   const { user, isAdmin } = useUser();
 
@@ -63,6 +65,12 @@ export default function GameActionsDropdown({
       setOpen(false);
     }
   }, [refreshOpen, devModalOpen]);
+
+  useEffect(() => {
+    if (isHovered === false) {
+      setOpen(false);
+    }
+  }, [isHovered]);
 
   const handleRefresh = async (fields: Record<RefreshField, boolean>) => {
     if (!user) return;

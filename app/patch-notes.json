@@ -1,9 +1,47 @@
 [
   {
+    "version": "7.5.1",
+    "title": "Not Interested Status & Release Date Sync Improvements",
+    "date": "2026-08-05",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Game Tracking",
+        "items": [
+          "Moved Not Interested out of the status picker and into a dedicated review state",
+          "Updated library grouping so Not Interested games appear in the correct tab",
+          "Kept the special Not Interested overlay only in the All tab for clearer browsing"
+        ]
+      },
+      {
+        "category": "Release Dates",
+        "items": [
+          "Defaulted release date auto-sync to 48 hours",
+          "Added release sync interval controls in Site Settings: 8h, 12h, 24h, 48h",
+          "Persisted release sync interval in localStorage for consistent behavior"
+        ]
+      },
+      {
+        "category": "Navigation & UI",
+        "items": [
+          "Moved release sync controls into their own dashboard-style settings section",
+          "Improved settings layout so controls fit cleanly on a single page"
+        ]
+      },
+      {
+        "category": "Bug Fixes",
+        "items": [
+          "Fixed a rendering error caused by the Not Interested card overlay logic",
+          "Resolved stale Not Interested grouping so games no longer appear incorrectly as Dropped"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.5",
     "title": "Game Tracking & Detail Page Update",
     "date": "2026-07-27",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Game Tracking",

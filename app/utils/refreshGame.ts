@@ -148,6 +148,12 @@ export async function refreshGameData(
     };
   }
 
+  const normalizedChangedFields =
+    changedFields.includes("igdb.releaseDate") &&
+    changedFields.includes("igdb.releaseDatePrecision")
+      ? changedFields.filter((key) => key !== "igdb.releaseDatePrecision")
+      : changedFields;
+
   const labels: Record<string, string> = {
     name: "Display Name",
     "igdb.name": "Title",
@@ -156,18 +162,19 @@ export async function refreshGameData(
     "igdb.aggregated_rating": "Rating",
     "igdb.platforms": "Platforms",
     "igdb.releaseDate": "Release Date",
+    "igdb.releaseDatePrecision": "Release Date",
   };
 
   let summary: string;
 
-  if (changedFields.length === 1) {
-    summary = `${labels[changedFields[0]] ?? changedFields[0]} Updated`;
-  } else if (changedFields.length === 2) {
-    summary = `${labels[changedFields[0]] ?? changedFields[0]} & ${
-      labels[changedFields[1]] ?? changedFields[1]
+  if (normalizedChangedFields.length === 1) {
+    summary = `${labels[normalizedChangedFields[0]] ?? normalizedChangedFields[0]} Updated`;
+  } else if (normalizedChangedFields.length === 2) {
+    summary = `${labels[normalizedChangedFields[0]] ?? normalizedChangedFields[0]} & ${
+      labels[normalizedChangedFields[1]] ?? normalizedChangedFields[1]
     } Updated`;
   } else {
-    summary = `${changedFields.length} Fields Updated`;
+    summary = `${normalizedChangedFields.length} Fields Updated`;
   }
 
   update.lastUpdated = serverTimestamp();

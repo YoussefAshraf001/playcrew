@@ -201,13 +201,12 @@ export default function ReleaseNotificationSync() {
         let nextLastNotifiedTransitionKey =
           persistedState.lastNotifiedTransitionKey;
 
-        if (previousReleaseKey !== releaseKey && hasKnownPrevious) {
+        if (previousReleaseKey !== releaseKey) {
           const previousReleaseDate = dateFromKey(previousReleaseKey);
           const transitionKey = `${previousReleaseKey ?? "tba"}->${releaseKey ?? "tba"}`;
           let message: string | null = null;
-          const hasConfirmedPreviousDay = hasConfirmedReleaseDay(
-            previousReleaseDate,
-          );
+          const hasConfirmedPreviousDay =
+            hasConfirmedReleaseDay(previousReleaseDate);
           const hasConfirmedCurrentDay = hasConfirmedReleaseDay(
             normalizedRelease,
             game.igdb?.releaseDatePrecision,

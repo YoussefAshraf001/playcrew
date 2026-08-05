@@ -64,7 +64,20 @@ const toDate = (value: unknown): Date | null => {
   return null;
 };
 
-const SYNC_INTERVAL_HOURS = 12;
+const RELEASE_SYNC_INTERVAL_KEY = "playcrew-release-sync-interval-hours";
+const DEFAULT_SYNC_INTERVAL_HOURS = 48;
+const RELEASE_SYNC_INTERVAL_OPTIONS = [8, 12, 24, 48] as const;
+
+const readReleaseSyncInterval = () => {
+  if (typeof window === "undefined") return DEFAULT_SYNC_INTERVAL_HOURS;
+  const stored = window.localStorage.getItem(RELEASE_SYNC_INTERVAL_KEY);
+  const parsed = Number(stored);
+  return RELEASE_SYNC_INTERVAL_OPTIONS.includes(
+    parsed as (typeof RELEASE_SYNC_INTERVAL_OPTIONS)[number],
+  )
+    ? parsed
+    : DEFAULT_SYNC_INTERVAL_HOURS;
+};
 
 export default function ReleaseDateAutoSync() {
   const { user } = useUser();
@@ -104,11 +117,12 @@ export default function ReleaseDateAutoSync() {
 
     const LAST_SYNC_KEY = `release-date-sync-${uid}`;
     const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+    const syncIntervalHours = readReleaseSyncInterval();
 
     if (lastSync) {
       const hoursSinceSync = (Date.now() - Number(lastSync)) / (1000 * 60 * 60);
 
-      if (hoursSinceSync < SYNC_INTERVAL_HOURS) {
+      if (hoursSinceSync < syncIntervalHours) {
         runningForUidRef.current = uid;
         return;
       }

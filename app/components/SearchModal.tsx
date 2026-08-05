@@ -53,7 +53,9 @@ export default function SearchModal({
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
   const [userResults, setUserResults] = useState<any[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
-  const [loadedUserImages, setLoadedUserImages] = useState<Record<string, boolean>>({});
+  const [loadedUserImages, setLoadedUserImages] = useState<
+    Record<string, boolean>
+  >({});
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -117,11 +119,16 @@ export default function SearchModal({
     inputRef.current?.focus();
   };
 
+  const handleCloseModal = () => {
+    handleClear();
+    onClose();
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        handleCloseModal();
         return;
       }
 
@@ -249,7 +256,7 @@ export default function SearchModal({
     const existing = trackedById.get(game.id);
 
     if (existing) {
-      onClose();
+      handleClear();
       router.push(`/game/${game.id}`);
       return;
     }
@@ -315,7 +322,7 @@ export default function SearchModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          onClick={handleCloseModal}
         >
           <div className="flex min-h-dvh items-start justify-center p-2 sm:p-4 md:items-center">
             <motion.div
@@ -359,7 +366,7 @@ export default function SearchModal({
                 </div>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleCloseModal}
                   className="theme-surface theme-hover-surface theme-text-muted mt-6 h-11 items-center justify-center rounded-full border px-5 text-xs font-semibold uppercase tracking-[0.18em] transition hover:text-red-500 cursor-pointer"
                 >
                   <IoCloseCircle size={25} />
@@ -501,6 +508,7 @@ export default function SearchModal({
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
+                                              handleClear();
                                               handleQuickAdd(game);
                                             }}
                                             className={`flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold ${

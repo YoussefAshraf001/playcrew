@@ -50,6 +50,20 @@ type MediaValue =
 
 const THEME_STORAGE_KEY = "playcrew-theme-preset";
 const FONT_STORAGE_KEY = "playcrew-font-preset";
+const RELEASE_SYNC_INTERVAL_KEY = "playcrew-release-sync-interval-hours";
+const RELEASE_SYNC_INTERVAL_OPTIONS = [8, 12, 24, 48] as const;
+const DEFAULT_RELEASE_SYNC_HOURS = 48;
+
+const getStoredReleaseSyncInterval = () => {
+  if (typeof window === "undefined") return DEFAULT_RELEASE_SYNC_HOURS;
+  const stored = window.localStorage.getItem(RELEASE_SYNC_INTERVAL_KEY);
+  const parsed = Number(stored);
+  return RELEASE_SYNC_INTERVAL_OPTIONS.includes(
+    parsed as (typeof RELEASE_SYNC_INTERVAL_OPTIONS)[number],
+  )
+    ? parsed
+    : DEFAULT_RELEASE_SYNC_HOURS;
+};
 
 const getStoredPageSettings = () => {
   if (typeof window === "undefined") {
@@ -110,6 +124,10 @@ export default function SiteSettingsPage() {
 
   const [gamesBgOverlay, setGamesBgOverlay] = useState(
     () => getStoredPageSettings().bgOverlay,
+  );
+
+  const [releaseSyncInterval, setReleaseSyncInterval] = useState(() =>
+    getStoredReleaseSyncInterval(),
   );
 
   const [wallpaperPreview, setWallpaperPreview] = useState(false);
@@ -272,6 +290,13 @@ export default function SiteSettingsPage() {
   const resetGamesPageSettings = () => {
     setGamesBgBlur(DEFAULT_BG_BLUR);
     setGamesBgOverlay(DEFAULT_BG_OVERLAY);
+  };
+
+  const handleReleaseSyncIntervalChange = (hours: number) => {
+    setReleaseSyncInterval(hours);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(RELEASE_SYNC_INTERVAL_KEY, String(hours));
+    }
   };
 
   const activeWallpaper = pendingWallpaper ?? profile?.wallpaper ?? null;
@@ -691,6 +716,42 @@ export default function SiteSettingsPage() {
                     })}
                   </div>
                 </motion.section>
+              </div>
+
+              <div className="theme-panel-strong rounded-2xl border p-4 mt-4">
+                <div className="mb-4">
+                  <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                    Navigation
+                  </p>
+
+                  <h2 className="theme-text text-lg font-semibold">
+                    Release Sync Interval
+                  </h2>
+
+                  <p className="theme-text-muted mt-1 text-sm">
+                    Choose how often PlayCrew rechecks release dates.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {RELEASE_SYNC_INTERVAL_OPTIONS.map((hours) => {
+                    const isSelected = releaseSyncInterval === hours;
+                    return (
+                      <button
+                        key={hours}
+                        type="button"
+                        onClick={() => handleReleaseSyncIntervalChange(hours)}
+                        className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-all duration-200 ${
+                          isSelected
+                            ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
+                            : "theme-surface theme-hover-surface"
+                        }`}
+                      >
+                        {hours}h
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <section className="theme-panel-strong mt-2 rounded-2xl border p-6 w-120 max-w-120">

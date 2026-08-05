@@ -22,6 +22,7 @@ export default function GameCard({
   showActions = true,
 }: any) {
   const [loaded, setLoaded] = useState(false);
+  const [isCardHovered, setIsCardHovered] = useState(false);
 
   const releaseDate = parseReleaseDate(game?.igdb?.releaseDate);
 
@@ -53,7 +54,10 @@ export default function GameCard({
     return `${hours}h ${minutes}m`;
   };
 
-  const isNotInterested = game?.notInterested === true;
+  const isNotInterested =
+    game?.notInterested === true || game?.status === "Not Interested";
+
+  const showNotInterestedOverlay = isNotInterested && selectedStatus === "All";
 
   const hasRating =
     game?.my_rating !== null &&
@@ -93,6 +97,8 @@ export default function GameCard({
 
   return (
     <div
+      onMouseEnter={() => setIsCardHovered(true)}
+      onMouseLeave={() => setIsCardHovered(false)}
       className={`
         group
         relative
@@ -144,6 +150,7 @@ export default function GameCard({
             game={game}
             openEditModal={openEditModal}
             openConfirmModal={openConfirmModal}
+            isHovered={isCardHovered}
           />
         </div>
       ) : null}
@@ -242,7 +249,7 @@ export default function GameCard({
                   transition-opacity duration-300
                   opacity-0 group-hover:opacity-100
                   ${
-                    isNotInterested
+                    showNotInterestedOverlay
                       ? "bg-black/85"
                       : showComingSoonOverlay
                         ? "bg-cyan-950/80"
@@ -260,7 +267,7 @@ export default function GameCard({
                 group-hover:opacity-100
               "
               >
-                {isNotInterested ? (
+                {showNotInterestedOverlay ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                     <div
                       className="

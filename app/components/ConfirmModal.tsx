@@ -31,7 +31,7 @@ export default function ConfirmModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.65 }}
             exit={{ opacity: 0 }}
-            className="theme-modal-backdrop fixed inset-0 z-999"
+            className="theme-modal-backdrop fixed inset-0 z-[10000]"
             onClick={onCancel}
           />
 
@@ -43,7 +43,7 @@ export default function ConfirmModal({
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             className="
               fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-              z-1000
+              z-[10001]
               w-[640px] max-w-[92vw]
               theme-panel-strong backdrop-blur-lg
               border

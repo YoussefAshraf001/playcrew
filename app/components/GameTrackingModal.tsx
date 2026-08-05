@@ -139,7 +139,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const [status, setStatus] = useState(initialStatus ?? "Playing");
   const [favorite, setFavorite] = useState(initialFavorite ?? false);
   const [notInterested, setNotInterested] = useState(
-    game?.notInterested === true,
+    game?.notInterested === true || initialStatus === "Not Interested",
   );
   const [confirmNotInterestedOpen, setConfirmNotInterestedOpen] =
     useState(false);
@@ -251,7 +251,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setRating(null);
   };
 
-  const clearNotInterested = () => setNotInterested(false);
+  const clearNotInterested = () => {
+    setNotInterested(false);
+    if (status === "Not Interested") {
+      setStatus("Want To Play");
+    }
+  };
 
   const isNotInterested = notInterested;
 
@@ -352,24 +357,29 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     className="h-16 w-12 shrink-0 rounded-xl border border-white/20 object-cover shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
                   />
                   <div className="min-w-0">
-                    <p className="mb-1 text-[10px] uppercase tracking-[0.26em] text-amber-100/70">
-                      Edit Game
-                    </p>
                     <h3 className="truncate text-lg font-bold text-white sm:text-[1.35rem]">
                       {game?.name}
                     </h3>
-                    <p className="truncate text-xs text-zinc-200/85 sm:text-sm">
-                      {formatReleaseDate(
-                        game?.igdb.releaseDate,
-                        game?.igdb.releaseDatePrecision,
-                      )}
-                    </p>
-                  </div>
-                  {!gameIsReleased && (
-                    <div className="rounded-full border border-amber-400/20 bg-red-500/30 px-3 py-1 text-xs text-white">
-                      Unreleased Game
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold text-white ${
+                          gameIsReleased
+                            ? "border-emerald-300 bg-emerald-500/25"
+                            : "border-red-400 bg-red-500/25"
+                        }`}
+                      >
+                        {gameIsReleased
+                          ? `Released in: ${formatReleaseDate(
+                              game?.igdb.releaseDate,
+                              game?.igdb.releaseDatePrecision,
+                            )}`
+                          : `Releasing in: ${formatReleaseDate(
+                              game?.igdb.releaseDate,
+                              game?.igdb.releaseDatePrecision,
+                            )}`}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 <div className="flex max-w-[500px] flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
