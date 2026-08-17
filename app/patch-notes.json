@@ -1,9 +1,27 @@
 [
   {
+    "version": "7.5.3",
+    "title": "Release Sync & Notification Fixes",
+    "date": "2026-08-17",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Game Data",
+        "items": [
+          "Release date sync now respects the selected sync interval",
+          "Release date sync now only checks unreleased games in the Want To Play section",
+          "Games releasing today are no longer overwritten during automatic release date sync",
+          "Release date precision changes are no longer shown as recently edited"
+        ]
+      }
+    ]
+  },
+
+  {
     "version": "7.5.2",
     "title": "Notification, Sticker, Rating & Progress Improvements",
     "date": "2026-08-17",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Notifications",

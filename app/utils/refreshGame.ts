@@ -179,11 +179,24 @@ export async function refreshGameData(
     };
   }
 
-  const normalizedChangedFields =
-    changedFields.includes("igdb.releaseDate") &&
-    changedFields.includes("igdb.releaseDatePrecision")
-      ? changedFields.filter((field) => field !== "igdb.releaseDatePrecision")
-      : changedFields;
+  const normalizedChangedFields = changedFields.filter(
+    (field) => field !== "igdb.releaseDatePrecision",
+  );
+
+  if (!normalizedChangedFields.length) {
+    update.lastUpdated = serverTimestamp();
+
+    await updateDoc(
+      doc(db, "users", userId, "games_igdb", firestoreDocId),
+      update,
+    );
+
+    return {
+      update,
+      diff,
+      summary: null,
+    };
+  }
 
   const labels: Record<string, string> = {
     name: "Display Name",
@@ -193,7 +206,6 @@ export async function refreshGameData(
     "igdb.aggregated_rating": "Rating",
     "igdb.platforms": "Platforms",
     "igdb.releaseDate": "Release Date",
-    "igdb.releaseDatePrecision": "Release Date",
   };
 
   let summary: string;
@@ -268,12 +280,12 @@ export async function refreshGameData(
 // import { db } from "@/app/lib/firebase";
 // import {
 //   formatReleaseDate,
+//   parseReleaseDate,
 //   type ReleaseDatePrecision,
 // } from "@/app/lib/releaseDates";
 
 // export type RefreshableGame = {
 //   name?: string;
-//   status?: string;
 //   igdb: {
 //     id: number;
 //     name?: string;
@@ -333,27 +345,25 @@ export async function refreshGameData(
 //   return nextValue !== previousValue;
 // };
 
-// const toDate = (value: unknown): Date | null => {
-//   const timestamp = toComparableDate(value);
-//   return timestamp === null ? null : new Date(timestamp);
-// };
-
-// const releaseChangeMessage = (
-//   previous: Date | null,
-//   next: Date | null,
+// const getReleaseChangeMessage = (
+//   previousValue: unknown,
+//   nextValue: unknown,
 //   previousPrecision?: ReleaseDatePrecision | null,
 //   nextPrecision?: ReleaseDatePrecision | null,
 // ) => {
-//   if (!previous || !next || previous.getTime() === next.getTime()) return null;
+//   const previous = parseReleaseDate(previousValue);
+//   const next = parseReleaseDate(nextValue);
 
-//   const previousLabel = formatReleaseDate(previous, previousPrecision);
-//   const nextLabel = formatReleaseDate(next, nextPrecision);
-
-//   if (next.getTime() < previous.getTime()) {
-//     return `Release date was pushed up from ${previousLabel} to ${nextLabel}.`;
+//   if (!previous || !next || previous.getTime() === next.getTime()) {
+//     return null;
 //   }
 
-//   return `Release date was pushed down from ${previousLabel} to ${nextLabel}.`;
+//   const from = formatReleaseDate(previous, previousPrecision);
+//   const to = formatReleaseDate(next, nextPrecision);
+
+//   return next.getTime() < previous.getTime()
+//     ? `Release date was pushed up from ${from} to ${to}.`
+//     : `Release date was pushed down from ${from} to ${to}.`;
 // };
 
 // export async function refreshGameData(
@@ -444,7 +454,7 @@ export async function refreshGameData(
 //   const normalizedChangedFields =
 //     changedFields.includes("igdb.releaseDate") &&
 //     changedFields.includes("igdb.releaseDatePrecision")
-//       ? changedFields.filter((key) => key !== "igdb.releaseDatePrecision")
+//       ? changedFields.filter((field) => field !== "igdb.releaseDatePrecision")
 //       : changedFields;
 
 //   const labels: Record<string, string> = {
@@ -470,57 +480,41 @@ export async function refreshGameData(
 //     summary = `${normalizedChangedFields.length} Fields Updated`;
 //   }
 
-//   const releaseChangeSummary =
+//   const releaseChangeMessage =
 //     "igdb.releaseDate" in diff
-//       ? releaseChangeMessage(
-//           toDate(game.igdb.releaseDate),
-//           toDate(igdb.releaseDate ?? null),
+//       ? getReleaseChangeMessage(
+//           game.igdb.releaseDate,
+//           igdb.releaseDate ?? null,
 //           game.igdb.releaseDatePrecision,
 //           igdb.releaseDatePrecision ?? null,
 //         )
 //       : null;
 
-//   if (releaseChangeSummary) {
-//     summary = releaseChangeSummary;
+//   if (releaseChangeMessage) {
+//     summary = releaseChangeMessage;
 //   }
 
 //   update.lastUpdated = serverTimestamp();
 //   update.recentActionSummary = summary;
-
-//   const releaseChangeNotification =
-//     fields.released && "igdb.releaseDate" in diff
-//       ? releaseChangeMessage(
-//           toDate(game.igdb.releaseDate),
-//           toDate(igdb.releaseDate ?? null),
-//           game.igdb.releaseDatePrecision,
-//           igdb.releaseDatePrecision ?? null,
-//         )
-//       : null;
 
 //   await updateDoc(
 //     doc(db, "users", userId, "games_igdb", firestoreDocId),
 //     update,
 //   );
 
-//   if (releaseChangeNotification) {
-//     const notificationRef = doc(
-//       collection(db, "users", userId, "notifications"),
-//     );
-
+//   if (releaseChangeMessage) {
 //     try {
-//       await setDoc(notificationRef, {
+//       await setDoc(doc(collection(db, "users", userId, "notifications")), {
 //         type: "game_release_change",
 //         gameId: firestoreDocId,
 //         gameName: game.name ?? game.igdb.name ?? "Unknown game",
 //         gameCover: game.igdb.cover ?? null,
-//         message: releaseChangeNotification,
-//         releaseDate: toDate(igdb.releaseDate ?? null),
+//         message: releaseChangeMessage,
+//         releaseDate: parseReleaseDate(igdb.releaseDate ?? null),
 //         read: false,
 //         createdAt: serverTimestamp(),
 //       });
 //     } catch (err) {
-//       // A notification permission issue must not prevent the game refresh.
-//       // This error identifies the Firestore rule failure in development.
 //       console.error("Failed to create release-change notification", {
 //         gameId: firestoreDocId,
 //         gameName: game.name ?? game.igdb.name,

@@ -64,6 +64,46 @@ const toDate = (value: unknown): Date | null => {
   return null;
 };
 
+const RELEASE_SYNC_INTERVAL_KEY = "playcrew-release-sync-interval-hours";
+const RELEASE_SYNC_LAST_RUN_KEY = "playcrew-release-sync-last-run";
+const RELEASE_SYNC_INTERVAL_OPTIONS = [8, 12, 24, 48] as const;
+const DEFAULT_RELEASE_SYNC_HOURS = 48;
+
+const getReleaseSyncInterval = () => {
+  if (typeof window === "undefined") {
+    return DEFAULT_RELEASE_SYNC_HOURS;
+  }
+
+  const stored = Number(window.localStorage.getItem(RELEASE_SYNC_INTERVAL_KEY));
+
+  return RELEASE_SYNC_INTERVAL_OPTIONS.includes(
+    stored as (typeof RELEASE_SYNC_INTERVAL_OPTIONS)[number],
+  )
+    ? stored
+    : DEFAULT_RELEASE_SYNC_HOURS;
+};
+
+const shouldRunReleaseSync = () => {
+  if (typeof window === "undefined") return false;
+
+  const intervalHours = getReleaseSyncInterval();
+  const lastRun = Number(
+    window.localStorage.getItem(RELEASE_SYNC_LAST_RUN_KEY),
+  );
+
+  if (!lastRun || Number.isNaN(lastRun)) {
+    return true;
+  }
+
+  const intervalMs = intervalHours * 60 * 60 * 1000;
+
+  return Date.now() - lastRun >= intervalMs;
+};
+
+const markReleaseSyncCompleted = () => {
+  localStorage.setItem(RELEASE_SYNC_LAST_RUN_KEY, String(Date.now()));
+};
+
 export default function ReleaseDateAutoSync() {
   const { user } = useUser();
   const {
@@ -79,26 +119,33 @@ export default function ReleaseDateAutoSync() {
   useEffect(() => {
     if (!uid || gamesLoading || !games.length) return;
     if (runningForUidRef.current === uid) return;
+    if (!shouldRunReleaseSync()) return;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
     const candidates = (games as SyncGame[]).filter(
       (game): game is SyncGame & RefreshableGame => {
+        if (game.status !== "Want To Play") return false;
         if (!isRefreshableGame(game)) return false;
 
         const releaseDate = toDate(game.igdb.releaseDate);
+
+        // TBA / unknown release date = Unreleased
         if (!releaseDate) return true;
 
         releaseDate.setHours(0, 0, 0, 0);
-        return releaseDate.getTime() >= today.getTime();
+
+        // Only future releases are still Unreleased.
+        return releaseDate.getTime() > today.getTime();
       },
     );
 
     if (!candidates.length) {
+      markReleaseSyncCompleted();
       runningForUidRef.current = uid;
       return;
     }
-
     runningForUidRef.current = uid;
 
     const sync = async () => {
@@ -136,6 +183,8 @@ export default function ReleaseDateAutoSync() {
             });
           }
         }
+
+        markReleaseSyncCompleted();
       } finally {
         setIsSyncingReleaseDates(false);
         setCurrentGameName("");
