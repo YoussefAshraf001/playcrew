@@ -40,9 +40,7 @@ const getSessionKey = (session: unknown) => {
     "toDate" in playedAt &&
     typeof (playedAt as { toDate?: unknown }).toDate === "function"
   ) {
-    timestamp = String(
-      (playedAt as { toDate: () => Date }).toDate().getTime(),
-    );
+    timestamp = String((playedAt as { toDate: () => Date }).toDate().getTime());
   } else if (
     playedAt &&
     typeof playedAt === "object" &&
@@ -148,14 +146,14 @@ export function getRecentGameActionSummary(
 
   const previousHasTrackedData = Boolean(
     normalizeNumber(prev.my_rating) !== null ||
-      (normalizeNumber(prev.progress) ?? 0) > 0 ||
-      (normalizeNumber(prev.playtime) ?? 0) > 0 ||
-      normalizeText(prev.review?.text) ||
-      normalizeText(prev.review?.sticker) ||
-      (prev.favorite ?? false) ||
-      (prev.notInterested ?? false) ||
-      (prev.playedSessions?.length ?? 0) > 0 ||
-      normalizeText(prev.status) !== "Want To Play",
+    (normalizeNumber(prev.progress) ?? 0) > 0 ||
+    (normalizeNumber(prev.playtime) ?? 0) > 0 ||
+    normalizeText(prev.review?.text) ||
+    normalizeText(prev.review?.sticker) ||
+    (prev.favorite ?? false) ||
+    (prev.notInterested ?? false) ||
+    (prev.playedSessions?.length ?? 0) > 0 ||
+    normalizeText(prev.status) !== "Want To Play",
   );
 
   const nextIsCleared =
@@ -169,10 +167,13 @@ export function getRecentGameActionSummary(
     (next.playedSessions?.length ?? 0) === 0 &&
     normalizeText(next.status) === "Want To Play";
 
-  if (previousHasTrackedData && nextIsCleared) {
+  if (
+    previousHasTrackedData &&
+    nextIsCleared &&
+    !(next.notInterested ?? false)
+  ) {
     return "Game Cleared";
   }
-
   // Favorites
   if ((prev.favorite ?? false) !== (next.favorite ?? false)) {
     changes.push(
@@ -240,8 +241,12 @@ export function getRecentGameActionSummary(
   const nextRating = normalizeNumber(next.my_rating);
 
   if (previousRating !== nextRating) {
+    // Clearing the rating is part of marking the game as Not Interested,
+    // so don't report it as a separate action.
     if (nextRating === null) {
-      changes.push("Rating Cleared");
+      if (!next.notInterested) {
+        changes.push("Rating Cleared");
+      }
     } else {
       changes.push(
         previousRating === null

@@ -322,10 +322,10 @@ export default function Navbar() {
                         }
                       }}
                     >
-                      <NotificationBell
+                      {/* <NotificationBell
                         games={games}
                         compactPanelAnchor="right-center"
-                      />
+                      /> */}
                       <AnimatePresence>
                         {enableDesktopHoverNav &&
                           hoveredIndex === utilityHoverOffset + 1 && (
@@ -866,7 +866,7 @@ export default function Navbar() {
                         }
                       }}
                     >
-                      <NotificationBell games={games} />
+                      {/* <NotificationBell games={games} /> */}
                       <AnimatePresence>
                         {enableDesktopHoverNav &&
                           hoveredIndex === utilityHoverOffset + 1 && (
@@ -1365,7 +1365,7 @@ export default function Navbar() {
                 </div>
               </button>
               <div className="theme-surface mt-3 rounded-lg border p-2.5">
-                <NotificationBell games={games} fullWidthTrigger />
+                {/* <NotificationBell games={games} fullWidthTrigger /> */}
               </div>
 
               <div className="theme-surface mt-3 rounded-xl border p-3">

@@ -57,7 +57,7 @@ export default function GameCard({
   const isNotInterested =
     game?.notInterested === true || game?.status === "Not Interested";
 
-  const showNotInterestedOverlay = isNotInterested && selectedStatus === "All";
+  const showNotInterestedOverlay = isNotInterested;
 
   const hasRating =
     game?.my_rating !== null &&
@@ -260,12 +260,11 @@ export default function GameCard({
 
               {/* Hover Content */}
               <div
-                className="
+                className={`
                 absolute inset-0
-                opacity-0
                 transition-all duration-300
-                group-hover:opacity-100
-              "
+                opacity-0 group-hover:opacity-100
+              `}
               >
                 {showNotInterestedOverlay ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">

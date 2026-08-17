@@ -76,7 +76,6 @@ const STATUSES = [
   "Completed",
   "On Hold",
   "Dropped",
-  "Not Interested",
   "Online",
   "Want To Play",
 ];
@@ -335,18 +334,15 @@ export default function GamesPage() {
       Completed: [],
       "On Hold": [],
       Dropped: [],
-      "Not Interested": [],
       Online: [],
       "Want To Play": [],
     };
 
     allGames.forEach((g) => {
       const status =
-        g.notInterested || g.status === "Not Interested"
-          ? "Not Interested"
-          : g.status && map[g.status]
-            ? g.status
-            : "Want To Play";
+        g.status && g.status !== "Not Interested" && map[g.status]
+          ? g.status
+          : "Want To Play";
       map[status].push(g);
       map.All.push(g);
     });
@@ -577,7 +573,6 @@ export default function GamesPage() {
     playingCount,
     droppedCount,
     onlineCount,
-    notInterestedCount,
     wantCount,
   } = useMemo(() => getStatusCounts(allGames), [allGames]);
 
@@ -1081,7 +1076,6 @@ export default function GamesPage() {
                     ["Playing", playingCount],
                     ["Dropped", droppedCount],
                     ["Online", onlineCount],
-                    ["Not Interested", notInterestedCount],
                     ["Want To Play", wantCount],
                   ].map(([label, value]) => (
                     <div
@@ -1854,7 +1848,7 @@ export default function GamesPage() {
             <div className="theme-panel mb-8 rounded-2xl border p-4 flex flex-col gap-3 max-h-[45vh] min-h-[45vh] lg:mb-0">
               <div className="flex items-center justify-between py-1">
                 <h3 className="theme-text font-bold text-lg">
-                  Recently Edited
+                  Notifications Box
                 </h3>
 
                 <button
@@ -1881,7 +1875,7 @@ export default function GamesPage() {
                 ) : (
                   recentlyEditedGames.map((g) => (
                     <Link key={g.igdb.id} href={`/game/${g.igdb?.id}`}>
-                      <div className="theme-hover-surface flex flex-col gap-1.5 rounded-xl py-2 cursor-pointer group transition-all duration-200">
+                      <div className="theme-hover-surface flex flex-col gap-1.5 rounded-xl p-2 cursor-pointer group transition-all duration-200">
                         <div className="flex items-center gap-2">
                           <img
                             className="w-12 h-16 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
@@ -1973,9 +1967,8 @@ export default function GamesPage() {
                     <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">
                       Activity Feed
                     </p>
-                    ```
                     <h2 className="mt-1 text-3xl font-black">
-                      Recently Edited Games
+                      Notification Box
                     </h2>
                     <p className="theme-text-muted mt-1 text-sm">
                       Latest changes across your game library

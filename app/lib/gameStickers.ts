@@ -6,6 +6,11 @@ export const GAME_STICKERS = [
     image: "/stickers/absolute-cinema.webp",
   },
   {
+    id: "absolute-slop",
+    label: "Absolute Slop",
+    image: "/stickers/absolute-slop.webp",
+  },
+  {
     id: "peak_story",
     label: "Peak Story",
     image: "/stickers/peak-story.webp",
@@ -14,11 +19,6 @@ export const GAME_STICKERS = [
     id: "fire",
     label: "Fire",
     image: "/stickers/fire.webp",
-  },
-  {
-    id: "soundtrack-fire",
-    label: "Masterpiece Soundtrack",
-    image: "/stickers/soundtrack-fire.webp",
   },
   {
     id: "soundtrack_onrepeat",
@@ -30,25 +30,31 @@ export const GAME_STICKERS = [
     label: "Bravo",
     image: "/stickers/bravo.webp",
   },
-  // {
-  //   id: "hidden-gem",
-  //   label: "Hidden Gem",
-  //   image: "/stickers/hidden-gem-found.webp",
-  // },
+  {
+    id: "hidden-gem",
+    label: "Hidden Gem",
+    image: "/stickers/hidden-gem-found.webp",
+  },
   {
     id: "underrated",
     label: "Underrated",
     image: "/stickers/underrated-me.webp",
   },
-  {
-    id: "bonita",
-    label: "Bonita",
-    image: "/stickers/bonita.webp",
-  },
+
   {
     id: "like",
     label: "I Like It",
     image: "/stickers/like.webp",
+  },
+  {
+    id: "dislike-Ron-Swanson",
+    label: "Dislike",
+    image: "/stickers/dislike-Ron-Swanson.webp",
+  },
+  {
+    id: "bonita",
+    label: "Bonita",
+    image: "/stickers/bonita.webp",
   },
 
   // 😌 Good / Chill
@@ -57,6 +63,12 @@ export const GAME_STICKERS = [
     label: "Vibez",
     image: "/stickers/jon-hamm.webp",
   },
+  {
+    id: "happy-Ron-Swanson",
+    label: "Happy",
+    image: "/stickers/Happy-Ron-Swanson.webp",
+  },
+
   {
     id: "its-alright",
     label: "It's Alright",
@@ -78,11 +90,6 @@ export const GAME_STICKERS = [
     id: "dont_end",
     label: "Don't End",
     image: "/stickers/dont-end.webp",
-  },
-  {
-    id: "dont-leave-me",
-    label: "Don't Leave Me",
-    image: "/stickers/dont-leave-me.webp",
   },
   {
     id: "destroyed-me",
@@ -112,11 +119,6 @@ export const GAME_STICKERS = [
 
   // 🤔 Mixed / Unsure
   {
-    id: "i-dont-know-how-i-feel",
-    label: "I Don't Know How I Feel",
-    image: "/stickers/i-dont-know-how-i-feel.webp",
-  },
-  {
     id: "anakin-i-want-more",
     label: "Anakin Wants More",
     image: "/stickers/anakin-i-want-more.webp",
@@ -125,6 +127,11 @@ export const GAME_STICKERS = [
     id: "overrated",
     label: "Overrated",
     image: "/stickers/overrated.webp",
+  },
+  {
+    id: "",
+    label: "Pass",
+    image: "/stickers/pass-Ron-Swanson.webp",
   },
   {
     id: "who_cares",
@@ -142,6 +149,11 @@ export const GAME_STICKERS = [
     id: "wtf",
     label: "WTF",
     image: "/stickers/wtf.webp",
+  },
+  {
+    id: "respect",
+    label: "Respect",
+    image: "/stickers/Respect-Ron-Swanson.webp",
   },
   {
     id: "are_we_deadass",
@@ -163,11 +175,6 @@ export const GAME_STICKERS = [
     label: "Torn Apart",
     image: "/stickers/torn-apart.webp",
   },
-  {
-    id: "gojo-twerk",
-    label: "Gojo Twerk",
-    image: "/stickers/gojo-twerk-dance-fast.webp",
-  },
 
   // 💀 Negative
   {
@@ -185,20 +192,11 @@ export const GAME_STICKERS = [
     label: "This Shit So Peak Bro",
     image: "/stickers/this-shit-so-peak-bro.webp",
   },
-  {
-    id: "absolute-slop",
-    label: "Absolute Slop",
-    image: "/stickers/absolute-slop.webp",
-  },
+
   {
     id: "regret",
     label: "Regret",
     image: "/stickers/regret.webp",
-  },
-  {
-    id: "thukuna",
-    label: "so bad, its fun.",
-    image: "/stickers/thukuna.webp",
   },
   {
     id: "gojover",
@@ -243,11 +241,6 @@ export const GAME_STICKERS = [
     image: "/stickers/sticker_4.webp",
   },
   {
-    id: "sticker_5",
-    label: "Try Me Again",
-    image: "/stickers/sticker_5.webp",
-  },
-  {
     id: "sticker_6",
     label: "Take My Money",
     image: "/stickers/sticker_6.webp",
@@ -271,11 +264,6 @@ export const GAME_STICKERS = [
     id: "sticker_14",
     label: "Losing It",
     image: "/stickers/sticker_14.webp",
-  },
-  {
-    id: "sticker_17",
-    label: "oh, We for real",
-    image: "/stickers/sticker_17.webp",
   },
   {
     id: "sticker_27",

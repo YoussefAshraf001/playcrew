@@ -1,9 +1,52 @@
 [
   {
+    "version": "7.5.2",
+    "title": "Notification, Sticker, Rating & Progress Improvements",
+    "date": "2026-08-17",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Notifications",
+        "items": [
+          "Merged the detailed notification box with Recently Edited for better UX/UI",
+          "Improved Recently Edited messages"
+        ]
+      },
+      {
+        "category": "Stickers",
+        "items": [
+          "Cleaned up PlayCrew stickers",
+          "Added GIPHY integration for more sticker freedom"
+        ]
+      },
+      {
+        "category": "Ratings & Progress",
+        "items": [
+          "Adjusted rating and progress input on Chromium browsers",
+          "Added a trail for inputs",
+          "Added a new progress wheel based on the logo getting filled with liquid until 100% completion"
+        ]
+      },
+      {
+        "category": "Not Interested",
+        "items": [
+          "Removed the status for Not Interested",
+          "Brought back the OG Not Interested overlay"
+        ]
+      },
+      {
+        "category": "Fixes",
+        "items": [
+          "Fixed release date sync stopping after one success when finding one game with a new release date"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.5.1",
     "title": "Not Interested Status & Release Date Sync Improvements",
     "date": "2026-08-05",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Game Tracking",

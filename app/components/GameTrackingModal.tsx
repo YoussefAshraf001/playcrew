@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { MdBookmarkRemove } from "react-icons/md";
 import {
@@ -9,7 +9,9 @@ import {
   FaCrown,
   FaHeart,
   FaRegHeart,
+  FaSearch,
   FaStar,
+  FaTimes,
   FaEraser,
   FaTrash,
 } from "react-icons/fa";
@@ -25,6 +27,7 @@ import {
 import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
 import { GAME_STICKERS } from "../lib/gameStickers";
 import { IoMdAdd } from "react-icons/io";
+import { useUser } from "../context/UserContext";
 
 interface GameTrackingModalProps {
   open: boolean;
@@ -70,12 +73,22 @@ const MODAL_THEME = {
 } as const;
 
 const RATING_PRESETS = [
-  { label: "Awful", value: 1 },
-  { label: "Okay", value: 3 },
-  { label: "Great", value: 5 },
-  { label: "Excellent", value: 7.5 },
+  { label: "Poor", value: 2 },
+  { label: "Fair", value: 4 },
+  { label: "Good", value: 6 },
+  { label: "Excellent", value: 8 },
   { label: "Masterpiece", value: 10 },
 ] as const;
+
+const GIPHY_PAGE_SIZE = 12;
+const MAX_GIPHY_RESULTS = 36;
+
+type GiphySticker = {
+  id: string;
+  title: string;
+  previewUrl: string;
+  imageUrl: string;
+};
 
 const formatRating = (rating: number) =>
   Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
@@ -119,14 +132,22 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     onRemove,
   } = props;
 
+  const { profile: userProfile } = useUser();
+  const isAdmin = Boolean(userProfile?.admin);
+
   const [notes, setNotes] = useState(initialReview.text ?? "");
   const [stickerDrawerOpen, setStickerDrawerOpen] = useState(false);
   const [sticker, setSticker] = useState<string | null>(
     initialReview.sticker ?? null,
   );
-  const [loadedStickers, setLoadedStickers] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [giphyQuery, setGiphyQuery] = useState("");
+  const [debouncedGiphyQuery, setDebouncedGiphyQuery] = useState("");
+  const [giphyStickers, setGiphyStickers] = useState<GiphySticker[]>([]);
+  const [giphyLoading, setGiphyLoading] = useState(false);
+  const [giphyLoadingMore, setGiphyLoadingMore] = useState(false);
+  const [giphyError, setGiphyError] = useState<string | null>(null);
+  const [giphyOffset, setGiphyOffset] = useState(0);
+  const [giphyHasMore, setGiphyHasMore] = useState(false);
 
   const [rating, setRating] = useState<number | null>(
     getInitialRatingValue(initialRating),
@@ -176,6 +197,65 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setNotes(initialReview.text ?? "");
     setSticker(initialReview.sticker ?? null);
   }, [initialReview]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedGiphyQuery(giphyQuery.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [giphyQuery]);
+
+  useEffect(() => {
+    if (!stickerDrawerOpen || !debouncedGiphyQuery) return;
+
+    const controller = new AbortController();
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        if (giphyOffset === 0) setGiphyLoading(true);
+        else setGiphyLoadingMore(true);
+        setGiphyError(null);
+      }
+    });
+
+    fetch(
+      `/api/giphy/stickers?q=${encodeURIComponent(debouncedGiphyQuery)}&offset=${giphyOffset}`,
+      {
+        signal: controller.signal,
+      },
+    )
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          stickers?: GiphySticker[];
+          hasMore?: boolean;
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(data.error ?? "Unable to load stickers.");
+        setGiphyStickers((previous) =>
+          giphyOffset === 0
+            ? (data.stickers ?? [])
+            : [...previous, ...(data.stickers ?? [])].slice(
+                0,
+                MAX_GIPHY_RESULTS,
+              ),
+        );
+        setGiphyHasMore(data.hasMore ?? false);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+        setGiphyError("Unable to load GIPHY stickers.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          if (giphyOffset === 0) setGiphyLoading(false);
+          else setGiphyLoadingMore(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [debouncedGiphyQuery, giphyOffset, stickerDrawerOpen]);
 
   const sessionHistory = useMemo(() => {
     return normalizePlaySessions(playedSessions);
@@ -274,6 +354,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     applyNotInterested();
   };
 
+  const handleClearRating = () => {
+    setRating(null);
+  };
+
   const normalizeDate = (value?: unknown) => parseReleaseDate(value);
 
   const bgUrl = game?.igdb.cover || "/placeholder-game.jpg";
@@ -315,6 +399,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   };
 
   const selectedSticker = GAME_STICKERS.find((s) => s.id === sticker);
+  const selectedStickerImage = selectedSticker?.image ?? sticker;
+  const selectedStickerLabel = selectedSticker?.label ?? "Selected sticker";
 
   if (!game) return null;
 
@@ -567,6 +653,18 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                 </button>
                               </div>
 
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  onClick={handleClearRating}
+                                  disabled={rating === null || isNotInterested}
+                                  className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-1.5 text-[11px] font-medium text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  <FaEraser className="text-xs" />
+                                  <span>Clear Rating</span>
+                                </button>
+                              )}
+
                               <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-4">
                                 <input
                                   type="range"
@@ -579,7 +677,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                     if (isNotInterested) return;
                                     setRating(Number(e.target.value));
                                   }}
-                                  className="h-2.5 w-full accent-[#ffd77a]"
+                                  style={
+                                    {
+                                      "--slider-progress": `${((rating ?? 0) / 10) * 100}%`,
+                                    } as CSSProperties
+                                  }
+                                  className="rating-slider h-2.5 w-full accent-[#ffd77a]"
                                 />
                               </div>
 
@@ -587,7 +690,14 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                 {RATING_PRESETS.map((preset) => {
                                   const isActive =
                                     rating !== null &&
-                                    Math.abs(rating - preset.value) < 0.001;
+                                    preset.value ===
+                                      RATING_PRESETS.reduce(
+                                        (closest, current) =>
+                                          Math.abs(rating - current.value) <
+                                          Math.abs(rating - closest.value)
+                                            ? current
+                                            : closest,
+                                      ).value;
 
                                   return (
                                     <button
@@ -647,53 +757,51 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         </div>
 
                         <div className="flex shrink-0 flex-col items-center rounded-[22px] border border-white/10 bg-black/20 px-3 py-2.5 text-center lg:px-4 lg:py-3">
-                          <span className="mb-2 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
-                            Progress
-                          </span>
                           <div className="relative h-14 w-14 lg:h-16 lg:w-16">
-                            <svg
-                              className="h-14 w-14 -rotate-90 lg:h-16 lg:w-16"
-                              viewBox="0 0 100 100"
+                            {/* Logo outline */}
+                            <img
+                              src="/logo.svg"
+                              alt=""
+                              className="absolute inset-0 h-full w-full object-contain"
+                            />
+
+                            {/* Liquid clipped to logo */}
+                            <div
+                              className="absolute inset-0 overflow-hidden"
+                              style={{
+                                WebkitMaskImage: "url('/logo.svg')",
+                                maskImage: "url('/logo.svg')",
+                                WebkitMaskRepeat: "no-repeat",
+                                maskRepeat: "no-repeat",
+                                WebkitMaskPosition: "center",
+                                maskPosition: "center",
+                                WebkitMaskSize: "contain",
+                                maskSize: "contain",
+                              }}
                             >
-                              <circle
-                                cx="50"
-                                cy="50"
-                                r={progressRadius}
-                                fill="none"
-                                stroke="rgba(255,255,255,0.12)"
-                                strokeWidth={progressStroke}
-                              />
-                              <circle
-                                cx="50"
-                                cy="50"
-                                r={progressRadius}
-                                fill="none"
-                                stroke="url(#progressGradient)"
-                                strokeWidth={progressStroke}
-                                strokeLinecap="round"
-                                strokeDasharray={progressCircumference}
-                                strokeDashoffset={progressOffset}
-                                style={{
-                                  transition: "stroke-dashoffset 200ms ease",
+                              <motion.div
+                                className="absolute inset-x-0 bottom-0 h-full bg-blue-500"
+                                animate={{
+                                  height: `${progress}%`,
                                 }}
-                              />
-                              <defs>
-                                <linearGradient
-                                  id="progressGradient"
-                                  x1="0%"
-                                  y1="0%"
-                                  x2="100%"
-                                  y2="100%"
-                                >
-                                  <stop offset="0%" stopColor="#6ee7b7" />
-                                  <stop offset="100%" stopColor="#10b981" />
-                                </linearGradient>
-                              </defs>
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <span className="text-xs font-semibold text-white lg:text-sm">
-                                {progress}%
-                              </span>
+                                transition={{
+                                  duration: 0.35,
+                                  ease: "easeOut",
+                                }}
+                              >
+                                {/* Water surface */}
+                                <motion.div
+                                  className="absolute -top-2 left-[-20%] h-4 w-[140%] rounded-[50%] bg-blue-200/60"
+                                  animate={{
+                                    x: ["-8%", "8%", "-8%"],
+                                  }}
+                                  transition={{
+                                    duration: 2.5,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                  }}
+                                />
+                              </motion.div>
                             </div>
                           </div>
                         </div>
@@ -718,7 +826,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             onChange={(e) =>
                               setProgress(Number(e.target.value))
                             }
-                            className="h-2.5 w-full accent-emerald-400"
+                            style={
+                              {
+                                "--slider-progress": `${progress}%`,
+                              } as CSSProperties
+                            }
+                            className="completion-slider h-2.5 w-full accent-emerald-400"
                           />
                         </div>
 
@@ -804,10 +917,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                         hover:border-white/20
                       "
                     >
-                      {selectedSticker ? (
+                      {selectedStickerImage ? (
                         <img
-                          src={selectedSticker.image}
-                          alt={selectedSticker.label}
+                          src={selectedStickerImage}
+                          alt={selectedStickerLabel}
                           className="h-50 w-50 object-contain rounded-lg"
                         />
                       ) : (
@@ -1097,15 +1210,45 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       damping: 30,
                       stiffness: 300,
                     }}
-                    className="absolute right-0 top-0 z-40 h-full w-[360px] border-l border-white/10 bg-zinc-950/95 backdrop-blur-xl"
+                    className="absolute right-0 top-0 z-40 h-full w-full max-w-[400px] border-l border-white/10 bg-[#101012]/98 shadow-2xl shadow-black/40 backdrop-blur-md"
                   >
                     <div className="flex h-full flex-col">
                       {/* Header */}
 
-                      <div className="flex items-center justify-center border-b border-white/10 p-4">
-                        <h3 className="text-lg font-semibold text-white">
-                          PlayCrew Stickers
-                        </h3>
+                      <div className="border-b border-white/10 px-5 pb-4 pt-5">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300">
+                              Sticker picker
+                            </p>
+                            <h3 className="mt-1 text-xl font-semibold tracking-tight text-white">
+                              Find your vibe
+                            </h3>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setStickerDrawerOpen(false)}
+                            aria-label="Close sticker picker"
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-400 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
+                          >
+                            <FaTimes className="text-sm" />
+                          </button>
+                        </div>
+                        <label className="relative mt-5 block">
+                          <FaSearch className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-zinc-500" />
+                          <input
+                            type="search"
+                            value={giphyQuery}
+                            onChange={(event) => {
+                              setGiphyQuery(event.target.value);
+                              setGiphyOffset(0);
+                              setGiphyHasMore(false);
+                              setGiphyStickers([]);
+                            }}
+                            placeholder="Search GIPHY stickers"
+                            className="w-full rounded-2xl border border-white/10 bg-black/30 py-3 pl-10 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-violet-400/60 focus:bg-black/45 focus:ring-4 focus:ring-violet-400/10"
+                          />
+                        </label>
                         {/* 
                         <button
                           onClick={() => setStickerDrawerOpen(false)}
@@ -1116,63 +1259,128 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       </div>
 
                       {/* Stickers */}
-                      <div className="flex-1 overflow-y-auto p-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          {GAME_STICKERS.map((s) => (
-                            <button
-                              key={s.id}
-                              onClick={() => {
-                                setSticker(s.id);
-                                setStickerDrawerOpen(false);
-                              }}
-                              className={`rounded-2xl transition cursor-pointer ${
-                                sticker === s.id &&
-                                "border border-zinc-500 bg-zinc-500/10"
-                              }`}
-                            >
-                              <div className="relative mx-auto h-30 w-30 flex items-center justify-center">
-                                {!loadedStickers[s.id] && (
-                                  <span className="loading loading-spinner loading-md text-white" />
-                                )}
-
-                                <img
-                                  src={s.image}
-                                  alt=""
-                                  onLoad={() =>
-                                    setLoadedStickers((prev) => ({
-                                      ...prev,
-                                      [s.id]: true,
-                                    }))
-                                  }
-                                  className={`h-30 w-30 rounded-2xl object-contain transition-opacity duration-300 ${
-                                    loadedStickers[s.id]
-                                      ? "opacity-100"
-                                      : "opacity-0 absolute"
-                                  }`}
-                                />
+                      <div className="flex-1 overflow-y-auto px-5 py-5">
+                        {giphyQuery && (
+                          <>
+                            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                              Search results
+                            </p>
+                            {giphyError ? (
+                              <p className="rounded-2xl border border-red-400/15 bg-red-400/10 px-4 py-3 text-sm text-red-200">
+                                {giphyError}
+                              </p>
+                            ) : giphyLoading ? (
+                              <div className="flex justify-center py-12">
+                                <span className="loading loading-spinner loading-md text-white" />
                               </div>
-                              {/* <p className="mt-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm">
+                            ) : (
+                              <div className="mb-5 grid grid-cols-2 gap-3">
+                                {giphyStickers.map((giphySticker) => (
+                                  <button
+                                    key={giphySticker.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSticker(giphySticker.imageUrl);
+                                      setStickerDrawerOpen(false);
+                                    }}
+                                    className={`group relative aspect-square overflow-hidden rounded-xl transition duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98] ${
+                                      sticker === giphySticker.imageUrl &&
+                                      "bg-violet-300/10 ring-2 ring-violet-300/30"
+                                    }`}
+                                  >
+                                    <div className="relative flex h-full w-full items-center justify-center bg-white/[0.03]">
+                                      <img
+                                        src={giphySticker.previewUrl}
+                                        alt={giphySticker.title}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="h-full w-full rounded-lg object-contain p-1.5 transition duration-300 group-hover:scale-110"
+                                      />
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {giphyHasMore &&
+                              giphyStickers.length < MAX_GIPHY_RESULTS && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setGiphyOffset(
+                                      (offset) => offset + GIPHY_PAGE_SIZE,
+                                    )
+                                  }
+                                  disabled={giphyLoadingMore}
+                                  className="mb-5 w-full rounded-2xl border border-white/10 bg-white/5 py-3 text-sm font-medium text-white transition hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {giphyLoadingMore ? "Loading…" : "Load more"}
+                                </button>
+                              )}
+
+                            <a
+                              href="https://giphy.com"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mb-5 block text-center text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 transition hover:text-zinc-300"
+                            >
+                              Powered by GIPHY
+                            </a>
+                          </>
+                        )}
+
+                        {!giphyQuery && (
+                          <>
+                            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                              PlayCrew originals
+                            </p>
+                            <div className="grid grid-cols-2 gap-3">
+                              {GAME_STICKERS.map((s) => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => {
+                                    setSticker(s.id);
+                                    setStickerDrawerOpen(false);
+                                  }}
+                                  className={`group relative aspect-square overflow-hidden rounded-xl transition duration-200 cursor-pointer hover:scale-[1.03] active:scale-[0.98] ${
+                                    sticker === s.id &&
+                                    "bg-violet-300/10 ring-2 ring-violet-300/30"
+                                  }`}
+                                >
+                                  <div className="relative flex h-full w-full items-center justify-center bg-white/[0.03]">
+                                    <img
+                                      src={s.image}
+                                      alt=""
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="h-full w-full rounded-lg object-contain p-1.5 transition duration-300 group-hover:scale-110"
+                                    />
+                                  </div>
+                                  {/* <p className="mt-2 rounded-full border border-white/10 bg-black/30 px-2 py-1 text-[11px] font-medium text-white/90 backdrop-blur-sm">
                                 {s?.label}
                               </p> */}
-                            </button>
-                          ))}
-                        </div>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {/* Footer */}
 
-                      <div className="flex gap-2 border-t border-white/10 p-4">
+                      <div className="flex gap-3 border-t border-white/10 bg-black/10 px-5 py-4">
                         <button
                           onClick={() => setSticker(null)}
-                          className="w-full rounded-xl border border-red-500/20 bg-red-500/10 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+                          disabled={!sticker}
+                          className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                         >
-                          Clear Sticker
+                          Clear
                         </button>
                         <button
                           onClick={() => setStickerDrawerOpen(false)}
-                          className="w-full rounded-xl border border-red-500/20 bg-red-500/10 py-2 text-sm text-red-300 transition hover:bg-red-500/20"
+                          className="flex-1 rounded-xl bg-violet-500 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400"
                         >
-                          Close
+                          Done
                         </button>
                       </div>
                     </div>

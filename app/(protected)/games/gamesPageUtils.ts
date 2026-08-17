@@ -177,9 +177,6 @@ export const getStatusCounts = (allGames: TrackedGame[]) => ({
   onHoldCount: allGames.filter((g) => g.status === "On Hold").length,
   playingCount: allGames.filter((g) => g.status === "Playing").length,
   droppedCount: allGames.filter((g) => g.status === "Dropped").length,
-  notInterestedCount: allGames.filter(
-    (g) => g.status === "Not Interested" || g.notInterested,
-  ).length,
   onlineCount: allGames.filter((g) => g.status === "Online").length,
   wantCount: allGames.filter((g) => g.status === "Want To Play").length,
 });
