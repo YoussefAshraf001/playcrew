@@ -152,12 +152,22 @@ export default function Navbar() {
 
   useEffect(() => {
     const onOutside = (e: MouseEvent) => {
-      if (!accountMenuRef.current?.contains(e.target as Node)) {
+      const menu = accountMenuRef.current;
+
+      if (!menu) return;
+
+      const path = e.composedPath();
+
+      if (!path.includes(menu)) {
         setAccountOpen(false);
       }
     };
+
     document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+    };
   }, []);
 
   useEffect(() => {
@@ -538,6 +548,7 @@ export default function Navbar() {
                       <AnimatePresence>
                         {accountOpen && (
                           <motion.div
+                            onMouseDown={(e) => e.stopPropagation()}
                             initial={{ opacity: 0, y: -8, x: 15, scale: 0.98 }}
                             animate={{ opacity: 1, y: -80, x: 15, scale: 1 }}
                             exit={{ opacity: 0, y: -0, scale: 0.98 }}
@@ -659,6 +670,7 @@ export default function Navbar() {
                       <AnimatePresence>
                         {accountOpen && (
                           <motion.div
+                            onMouseDown={(e) => e.stopPropagation()}
                             initial={{ opacity: 0, y: -8, scale: 0.98 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -6, scale: 0.98 }}

@@ -1,9 +1,24 @@
 [
   {
+    "version": "7.5.4",
+    "title": "Hotfix",
+    "date": "2026-08-20",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Fixes",
+        "items": [
+          "Fixed official links not working properely on the game page",
+          "Fixed Sidebar account dropdown not working on switching between the two layouts."
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.5.3",
     "title": "Release Sync & Notification Fixes",
     "date": "2026-08-17",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Game Data",

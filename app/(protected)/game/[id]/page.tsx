@@ -727,6 +727,25 @@ export default function GamePage() {
     return Array.from(result);
   };
 
+  const getParentPlatform = (platformName: string) => {
+    const name = platformName.toLowerCase();
+
+    if (name.includes("pc")) return "steam";
+    if (name.includes("playstation")) return "playstation";
+    if (name.includes("xbox")) return "xbox";
+    if (name.includes("nintendo")) return "nintendo";
+    if (name.includes("mac")) return "mac";
+    if (name.includes("ios")) return "ios";
+    if (name.includes("android")) return "android";
+    if (name.includes("linux")) return "linux";
+    if (name.includes("web")) return "google";
+    if (name.includes("stadia")) return "stadia";
+    if (name.includes("wii")) return "wii";
+    if (name.includes("windows")) return "windows";
+
+    return null;
+  };
+
   // Icon mapping
   const getPlatformIcon = (name?: string) => {
     if (!name) return <IoLogoGameControllerA />;
@@ -1617,53 +1636,52 @@ export default function GamePage() {
                               if (!p?.platform?.name) return [];
 
                               const name = p.platform.name;
+                              const lowerName = name.toLowerCase();
 
-                              if (name.toLowerCase().includes("pc")) {
+                              // PC gets both Steam + Epic
+                              if (lowerName.includes("pc")) {
                                 return [
                                   {
                                     key: "steam",
                                     platform: "steam",
-                                    label: name,
+                                    label: "Steam",
                                   },
                                   {
                                     key: "epic",
                                     platform: "epic",
-                                    label: name,
+                                    label: "Epic Games",
                                   },
                                 ];
                               }
 
+                              const platform = getParentPlatform(name);
+
+                              // Ignore platforms we don't have a store mapping for
+                              if (!platform) return [];
+
                               return [
                                 {
-                                  key: name,
-                                  platform: normalizeParentPlatforms([p])[0],
+                                  key: platform,
+                                  platform,
                                   label: name,
                                 },
                               ];
                             })
                             .map((item: any) => (
-                              <motion.button
+                              <motion.a
                                 key={item.key}
-                                onClick={() =>
-                                  window.open(
-                                    getPlatformLink(item.platform, game.name),
-                                    "_blank",
-                                    "noopener,noreferrer",
-                                  )
-                                }
+                                href={getPlatformLink(item.platform, game.name)}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 whileHover={{ y: -2, scale: 1.02 }}
                                 className="flex w-full items-center gap-2 rounded-xl bg-white/8 px-3 py-2 transition-colors duration-300 hover:bg-white/16"
                               >
                                 {getPlatformIcon(item.platform)}
 
                                 <span className="text-[12px]">
-                                  {item.label.toLowerCase().includes("pc")
-                                    ? item.platform === "steam"
-                                      ? "Steam"
-                                      : "Epic Games"
-                                    : item.label}
+                                  {item.label}
                                 </span>
-                              </motion.button>
+                              </motion.a>
                             ))}
                         </>
                       ) : (
