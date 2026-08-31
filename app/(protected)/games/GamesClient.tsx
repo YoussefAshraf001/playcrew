@@ -1827,7 +1827,11 @@ export default function GamesPage() {
                     )}
                   </motion.div>
                 </div>
-                <div className="mb-4 rounded-2xl border border-[var(--theme-border)] theme-panel p-2.5 backdrop-blur-sm">
+                <div
+                  className={`relative mb-4 rounded-2xl border border-[var(--theme-border)] theme-panel p-2.5 backdrop-blur-sm ${
+                    sortMenuOpen ? "z-[70]" : "z-0"
+                  }`}
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <button
                       disabled={currentPage === 1}
@@ -1887,7 +1891,7 @@ export default function GamesPage() {
                   </div>
 
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="theme-surface group relative inline-flex h-10 items-center overflow-visible rounded-2xl border pl-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:border-[rgba(var(--theme-accent-rgb),0.35)] hover:shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.14)]">
+                    <div className="theme-surface group relative z-[60] inline-flex h-10 items-center overflow-visible rounded-2xl border pl-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:border-[rgba(var(--theme-accent-rgb),0.35)] hover:shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.14)]">
                       <div className="theme-accent-soft-bg flex h-8 w-8 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                         <FiSliders className="h-3.5 w-3.5" />
                       </div>
