@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Helmet } from "react-helmet-async";
 import { collection, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
@@ -356,18 +355,10 @@ export default function ForYouPage() {
 
   return (
     <>
-      <Helmet>
-        <title>Picked For You • PlayCrew</title>
-        <meta
-          name="description"
-          content="Genre-based recommendations personalized from your library."
-        />
-      </Helmet>
-
       <main
         className={`relative min-h-screen ${
           navbarLayout === "sidebar" ? "pt-5 pl-5" : "pt-16"
-        } overflow-x-hidden bg-[#020408] text-white`}
+        } overflow-x-hidden bg-[var(--theme-bg)] text-white`}
       >
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute left-0 top-0 h-[520px] w-full bg-linear-to-b from-cyan-500/10 via-cyan-400/5 to-transparent" />

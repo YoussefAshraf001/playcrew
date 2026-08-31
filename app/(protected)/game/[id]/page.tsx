@@ -3,22 +3,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   FaHeart,
+  FaFire,
   FaPlaystation,
   FaXbox,
   FaApple,
   FaSteam,
   FaPause,
   FaPlay,
-  FaRedoAlt,
   FaCrown,
+  FaChevronLeft,
+  FaChevronRight,
   FaInfoCircle,
   FaLinux,
   FaGoogle,
   FaStar,
+  FaSkullCrossbones,
   FaWindows,
+  FaTrophy,
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA, IoLogoGameControllerB } from "react-icons/io";
@@ -28,11 +33,28 @@ import {
   MdRemoveCircleOutline,
 } from "react-icons/md";
 import { DiAndroid } from "react-icons/di";
-import { SiEpicgames, SiStadia, SiWii } from "react-icons/si";
+import {
+  SiBattledotnet,
+  SiEa,
+  SiEpicgames,
+  SiGogdotcom,
+  SiRiotgames,
+  SiStadia,
+  SiUbisoft,
+  SiWii,
+} from "react-icons/si";
 import { IoCloseCircle } from "react-icons/io5";
+import { FaUnlockKeyhole } from "react-icons/fa6";
+import {
+  FiCalendar,
+  FiCheckCircle,
+  FiClock,
+  FiEdit3,
+  FiSmile,
+  FiThumbsUp,
+} from "react-icons/fi";
 import {
   collection,
-  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -43,7 +65,6 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { Helmet } from "react-helmet-async";
 
 import { getAwardCategoryFromDocId, getAwardYears } from "@/app/lib/awards";
 import {
@@ -62,6 +83,7 @@ import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
+import GameSticker from "@/app/components/GameSticker";
 import { TrackedGame } from "@/app/types/trackedGame";
 
 const statuses = [
@@ -102,19 +124,203 @@ interface SimilarGame {
 
 interface GameReview {
   id: string;
+  userId: string;
   username: string;
   text: string;
   sticker: string | null;
   rating: number | null;
+  playtime: number;
+  avatar: string | null;
+  memberSince: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
+  status: string | null;
+  progress: number;
+  playedOn: string | string[] | null;
+  reactions: Record<ReviewReaction, number>;
+  myReaction: ReviewReaction | null;
+}
+
+type ReviewReaction = "helpful" | "funny" | "100-percent" | "glazzing";
+
+const formatCommunityDate = (value: any) => {
+  const date = value?.toDate?.() ?? (value ? new Date(value) : null);
+  return date && !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Unknown";
+};
+
+const normalizePlayedOn = (
+  value: string | string[] | null | undefined,
+): string[] => (Array.isArray(value) ? value : value ? [value] : []);
+
+const formatPlayedOn = (value: string | string[] | null | undefined) => {
+  const values = normalizePlayedOn(value);
+  if (!values.length) return "Not set";
+  const labels: Record<string, string> = {
+    steam: "Steam",
+    "epic-games": "Epic Games",
+    gog: "GOG",
+    xbox: "Xbox",
+    "xbox-360": "Xbox 360",
+    "xbox-one": "Xbox One",
+    "xbox-series": "Xbox Series X/S",
+    "xbox-game-pass-pc": "Xbox Game Pass for PC",
+    playstation: "PlayStation",
+    "playstation-2": "PlayStation 2",
+    "playstation-3": "PlayStation 3",
+    "playstation-4": "PlayStation 4",
+    "playstation-5": "PlayStation 5",
+    psp: "PSP",
+    "ps-vita": "PS Vita",
+    nintendo: "Nintendo",
+    "ea-app": "EA App",
+    "ubisoft-connect": "Ubisoft Connect",
+    "battle-net": "Battle.net",
+    "riot-games": "Riot Games",
+    "offline-activation": "Offline Activation",
+    pirated: "Pirated",
+  };
+  return values
+    .map((item) => labels[item] ?? item.replace(/-/g, " "))
+    .join(", ");
+};
+
+function PlayedOnPlatformIcon({
+  value,
+  className = "",
+}: {
+  value: string | null | undefined;
+  className?: string;
+}) {
+  const props = { className, "aria-hidden": true };
+
+  switch (value) {
+    case "steam":
+      return <FaSteam {...props} />;
+    case "epic-games":
+      return <SiEpicgames {...props} />;
+    case "gog":
+      return <SiGogdotcom {...props} />;
+    case "xbox":
+    case "xbox-360":
+    case "xbox-one":
+    case "xbox-series":
+    case "xbox-game-pass-pc":
+      return <FaXbox {...props} />;
+    case "playstation":
+    case "playstation-2":
+    case "playstation-3":
+    case "playstation-4":
+    case "playstation-5":
+    case "psp":
+    case "ps-vita":
+      return <FaPlaystation {...props} />;
+    case "nintendo":
+      return <BsNintendoSwitch {...props} />;
+    case "ea-app":
+      return <SiEa {...props} />;
+    case "ubisoft-connect":
+      return <SiUbisoft {...props} />;
+    case "battle-net":
+      return <SiBattledotnet {...props} />;
+    case "riot-games":
+      return <SiRiotgames {...props} />;
+    case "offline-activation":
+      return <FaUnlockKeyhole {...props} />;
+    case "pirated":
+      return <FaSkullCrossbones {...props} />;
+    default:
+      return <IoLogoGameControllerA {...props} />;
+  }
+}
+
+function CommunityReviewSticker({ sticker }: { sticker: string }) {
+  const [activeLoop, setActiveLoop] = useState(0);
+  const [pendingLoop, setPendingLoop] = useState<number | null>(null);
+  const [initialReady, setInitialReady] = useState(false);
+  const isLinkedSticker = sticker.startsWith("http") || sticker.startsWith("/");
+  const isRemoteAnimated =
+    sticker.startsWith("http") && /\.(gif|webp)(?:$|[?#])/i.test(sticker);
+  const sourceForLoop = (loop: number) =>
+    isRemoteAnimated
+      ? `${sticker}${sticker.includes("?") ? "&" : "?"}playcrewLoop=${loop}`
+      : sticker;
+
+  useEffect(() => {
+    if (!isRemoteAnimated) return;
+    const timer = window.setTimeout(() => {
+      setPendingLoop(activeLoop + 1);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [activeLoop, isRemoteAnimated, sticker]);
+
+  useEffect(() => {
+    setActiveLoop(0);
+    setPendingLoop(null);
+    setInitialReady(false);
+  }, [sticker]);
+
+  if (!isLinkedSticker) {
+    return (
+      <span className="inline-flex rounded-md border border-[rgba(var(--theme-accent-rgb),0.35)] p-2">
+        <GameSticker stickerId={sticker} />
+      </span>
+    );
+  }
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center">
+      {!initialReady && (
+        <div className="absolute inset-0 animate-pulse bg-white/[0.08]" />
+      )}
+      <img
+        key={activeLoop}
+        src={sourceForLoop(activeLoop)}
+        alt="Review sticker"
+        decoding="async"
+        onLoad={() => setInitialReady(true)}
+        onError={() => setInitialReady(true)}
+        className={`h-auto max-h-full w-auto max-w-full rounded-2xl border border-[rgba(var(--theme-accent-rgb),0.35)] object-contain p-1 transition-opacity duration-300 ${
+          initialReady ? "opacity-100" : "opacity-0"
+        }`}
+      />
+      {pendingLoop !== null && (
+        <img
+          key={`pending-${pendingLoop}`}
+          src={sourceForLoop(pendingLoop)}
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          onLoad={() => {
+            setActiveLoop(pendingLoop);
+            setPendingLoop(null);
+          }}
+          onError={() => setPendingLoop(null)}
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+        />
+      )}
+    </div>
+  );
 }
 
 export default function GamePage() {
   const { id } = useParams();
-  const { user } = useUser();
+  const { user, profile: userProfile } = useUser();
   const { navbarLayout } = useUI();
 
   const [game, setGame] = useState<any>(null);
-  const [bgImage, setBgImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!game?.name) return;
+
+    document.title = `${game.name} • PlayCrew`;
+  }, [game?.name]);
+  // const [bgImage, setBgImage] = useState<string | null>(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<StatusType>(null);
   const [loadingFavorite, setLoadingFavorite] = useState(false);
@@ -128,6 +334,19 @@ export default function GamePage() {
   const [loadingWinnerAwards, setLoadingWinnerAwards] = useState(true);
   const [gameReviews, setGameReviews] = useState<GameReview[]>([]);
   const [loadingGameReviews, setLoadingGameReviews] = useState(false);
+  const [gameReviewsError, setGameReviewsError] = useState(false);
+  const [gameReviewsRefreshKey, setGameReviewsRefreshKey] = useState(0);
+  const [activeReviewIndex, setActiveReviewIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveReviewIndex((current) =>
+      Math.max(0, Math.min(current, gameReviews.length - 1)),
+    );
+  }, [gameReviews.length]);
+
+  useEffect(() => {
+    setActiveReviewIndex(0);
+  }, [game?.id]);
 
   const gotyAwards = useMemo(
     () => winnerAwards.filter((award) => award.category === "Game of the Year"),
@@ -205,7 +424,8 @@ export default function GamePage() {
     return (
       game.short_screenshots?.map((s: any, i: number) => ({
         id: i,
-        image: s.replace(/t_[^/]+/, "t_1080p"), // full quality
+        image: s.replace(/t_[^/]+/, "t_1080p"), // 1080p quality
+        // image: s.replace(/t_[^/]+/, "t_original"), // full quality
         bg: s.replace(/t_[^/]+/, "t_screenshot_big"), // background
       })) ?? []
     );
@@ -291,23 +511,24 @@ export default function GamePage() {
     };
   }, [screenshots]);
 
-  useEffect(() => {
-    if (!screenshots || screenshots.length === 0) {
-      setBgImage(null);
-      return;
-    }
-
-    const pickBackground = () =>
-      screenshots[Math.floor(Math.random() * screenshots.length)].bg;
-
-    setBgImage(pickBackground());
-
-    const interval = setInterval(() => {
-      setBgImage(pickBackground());
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [screenshots]);
+  // Screenshot background slideshow. Kept here in case it is restored later.
+  // useEffect(() => {
+  //   if (!screenshots || screenshots.length === 0) {
+  //     setBgImage(null);
+  //     return;
+  //   }
+  //
+  //   const pickBackground = () =>
+  //     screenshots[Math.floor(Math.random() * screenshots.length)].bg;
+  //
+  //   setBgImage(pickBackground());
+  //
+  //   const interval = setInterval(() => {
+  //     setBgImage(pickBackground());
+  //   }, 10000);
+  //
+  //   return () => clearInterval(interval);
+  // }, [screenshots]);
 
   useEffect(() => {
     if (!user || !game) return;
@@ -339,46 +560,120 @@ export default function GamePage() {
 
     let cancelled = false;
     setLoadingGameReviews(true);
+    setGameReviewsError(false);
 
     const loadGameReviews = async () => {
       try {
         const reviewsQuery = query(
-          collectionGroup(db, "games_igdb"),
-          where("igdb.id", "==", Number(game.id)),
+          collection(db, "communityReviews"),
+          where("gameId", "==", Number(game.id)),
+          where("visibility", "==", "public"),
         );
         const reviewsSnapshot = await getDocs(reviewsQuery);
 
         const reviews = await Promise.all(
           reviewsSnapshot.docs.map(async (reviewDoc) => {
             const data = reviewDoc.data();
-            const text = data.review?.text?.trim();
-            const userId = reviewDoc.ref.parent.parent?.id;
+            const text = data.text?.trim();
 
-            if (!text || !userId) return null;
+            if (!text) return null;
 
-            const userSnapshot = await getDoc(doc(db, "users", userId));
-            const userData = userSnapshot.exists() ? userSnapshot.data() : {};
+            const [reviewerResult, trackedGameResult, reactionsResult] =
+              await Promise.allSettled([
+                getDoc(doc(db, "users", data.userId)),
+                getDoc(
+                  doc(
+                    db,
+                    "users",
+                    data.userId,
+                    "games_igdb",
+                    String(data.gameId),
+                  ),
+                ),
+                getDocs(
+                  collection(db, "communityReviews", reviewDoc.id, "reactions"),
+                ),
+              ]);
+            const reviewerData =
+              reviewerResult.status === "fulfilled" &&
+              reviewerResult.value.exists()
+                ? reviewerResult.value.data()
+                : {};
+            const trackedGame =
+              trackedGameResult.status === "fulfilled" &&
+              trackedGameResult.value.exists()
+                ? trackedGameResult.value.data()
+                : {};
+            const reactionDocs =
+              reactionsResult.status === "fulfilled"
+                ? reactionsResult.value.docs
+                : [];
+            const reactions: Record<ReviewReaction, number> = {
+              helpful: 0,
+              funny: 0,
+              "100-percent": 0,
+              glazzing: 0,
+            };
+            let myReaction: ReviewReaction | null = null;
+            reactionDocs.forEach((reactionDocument) => {
+              const type = reactionDocument.data().type as ReviewReaction;
+              if (type in reactions) reactions[type] += 1;
+              if (reactionDocument.id === user?.uid) myReaction = type;
+            });
+            const avatar =
+              typeof reviewerData.avatar === "string"
+                ? reviewerData.avatar
+                : (reviewerData.avatar?.data ??
+                  reviewerData.avatarUrl ??
+                  reviewerData.photoURL ??
+                  null);
 
-            return {
+            const loadedReview: GameReview = {
               id: reviewDoc.id,
-              username:
-                userData.username ?? userData.displayName ?? "PlayCrew User",
+              userId: data.userId,
+              username: data.username ?? "PlayCrew User",
               text,
-              sticker: data.review?.sticker ?? null,
-              rating:
-                typeof data.my_rating === "number" ? data.my_rating : null,
-            } satisfies GameReview;
+              sticker: data.sticker ?? null,
+              rating: typeof data.rating === "number" ? data.rating : null,
+              playtime:
+                typeof data.playtime === "number"
+                  ? data.playtime
+                  : typeof trackedGame.playtime === "number"
+                    ? trackedGame.playtime
+                    : 0,
+              avatar,
+              memberSince: reviewerData.createdAt ?? null,
+              createdAt: data.createdAt ?? trackedGame.lastUpdated ?? null,
+              updatedAt: data.updatedAt ?? trackedGame.lastUpdated ?? null,
+              status: data.status ?? trackedGame.status ?? null,
+              progress:
+                typeof data.progress === "number"
+                  ? data.progress
+                  : typeof trackedGame.progress === "number"
+                    ? trackedGame.progress
+                    : 0,
+              playedOn: data.playedOn ?? trackedGame.playedOn ?? null,
+              reactions,
+              myReaction,
+            };
+            return loadedReview;
           }),
         );
 
         if (!cancelled) {
           setGameReviews(
-            reviews.filter((review): review is GameReview => review !== null),
+            reviews.filter(
+              (review): review is GameReview =>
+                review !== null && review.userId !== user?.uid,
+            ),
           );
         }
       } catch (error) {
         console.error("Failed to load game reviews", error);
-        if (!cancelled) setGameReviews([]);
+        if (!cancelled) {
+          setGameReviews([]);
+          setGameReviewsError(true);
+        }
       } finally {
         if (!cancelled) setLoadingGameReviews(false);
       }
@@ -389,7 +684,74 @@ export default function GamePage() {
     return () => {
       cancelled = true;
     };
-  }, [game?.id]);
+  }, [game?.id, gameReviewsRefreshKey, user?.uid]);
+
+  useEffect(() => {
+    const reviewText = trackedGameData?.review?.text?.trim();
+    const visibility =
+      (userProfile?.privacy as { profile?: string } | undefined)?.profile ??
+      "public";
+    if (!user || !game?.id || !reviewText || visibility !== "public") return;
+
+    const communityReviewRef = doc(
+      db,
+      "communityReviews",
+      `${user.uid}_${game.id}`,
+    );
+
+    void setDoc(
+      communityReviewRef,
+      {
+        userId: user.uid,
+        username: userProfile?.username ?? user.displayName ?? "PlayCrew User",
+        gameId: Number(game.id),
+        gameName: game.name,
+        text: reviewText,
+        sticker: trackedGameData.review?.sticker ?? null,
+        rating:
+          typeof trackedGameData.my_rating === "number"
+            ? trackedGameData.my_rating
+            : null,
+        playtime:
+          typeof trackedGameData.playtime === "number"
+            ? trackedGameData.playtime
+            : 0,
+        status: trackedGameData.status ?? null,
+        progress:
+          typeof trackedGameData.progress === "number"
+            ? trackedGameData.progress
+            : 0,
+        playedOn: trackedGameData.playedOn ?? null,
+        visibility: "public",
+        createdAt:
+          trackedGameData.review?.createdAt ??
+          trackedGameData.lastUpdated ??
+          new Date(),
+        updatedAt:
+          trackedGameData.review?.updatedAt ??
+          trackedGameData.lastUpdated ??
+          new Date(),
+      },
+      { merge: true },
+    )
+      .then(() => setGameReviewsRefreshKey((key) => key + 1))
+      .catch((error) =>
+        console.error("Failed to publish existing review", error),
+      );
+  }, [
+    game?.id,
+    game?.name,
+    trackedGameData?.lastUpdated,
+    trackedGameData?.my_rating,
+    trackedGameData?.playedOn,
+    trackedGameData?.review?.createdAt,
+    trackedGameData?.review?.sticker,
+    trackedGameData?.review?.text,
+    trackedGameData?.review?.updatedAt,
+    user,
+    userProfile?.privacy,
+    userProfile?.username,
+  ]);
 
   useEffect(() => {
     if (!user || !game?.id) {
@@ -582,6 +944,7 @@ export default function GamePage() {
             playedSessions: data.playedSessions ?? [],
           }),
         ),
+      recentActionSource: "user",
     };
 
     if (!shouldSkipLastUpdated) {
@@ -930,6 +1293,7 @@ export default function GamePage() {
       },
       favorite: trackedGameData?.favorite ?? isFavorited ?? false,
       playedSessions: trackedGameData?.playedSessions ?? [],
+      playedOn: trackedGameData?.playedOn ?? [],
       notInterested: trackedGameData?.notInterested ?? false,
       igdb: {
         id: game.id,
@@ -956,13 +1320,26 @@ export default function GamePage() {
     favorite: boolean,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
+    playedOn: TrackedGame["playedOn"],
+    preReleaseAccess: TrackedGame["preReleaseAccess"],
   ) => {
     if (!user || !game || trackingSaving) return;
 
     try {
       setTrackingSaving(true);
+      const reviewForSave = {
+        ...review,
+        createdAt: review.text.trim()
+          ? (trackedGameData?.review?.createdAt ??
+            (trackedGameData?.review?.text?.trim()
+              ? trackedGameData.lastUpdated
+              : null) ??
+            new Date())
+          : null,
+        updatedAt: review.text.trim() ? new Date() : null,
+      };
       await updateTrackedGame({
-        review,
+        review: reviewForSave,
         my_rating: rating,
         progress,
         playtime,
@@ -970,14 +1347,54 @@ export default function GamePage() {
         favorite,
         notInterested,
         playedSessions,
+        playedOn,
+        preReleaseAccess,
         lastUpdated: serverTimestamp(),
       });
+
+      const communityReviewRef = doc(
+        db,
+        "communityReviews",
+        `${user.uid}_${game.id}`,
+      );
+      const visibility =
+        (userProfile?.privacy as { profile?: string } | undefined)?.profile ??
+        "public";
+
+      if (reviewForSave.text.trim() && visibility === "public") {
+        await setDoc(
+          communityReviewRef,
+          {
+            userId: user.uid,
+            username:
+              userProfile?.username ?? user.displayName ?? "PlayCrew User",
+            gameId: Number(game.id),
+            gameName: game.name,
+            text: reviewForSave.text.trim(),
+            sticker: reviewForSave.sticker ?? null,
+            rating: typeof rating === "number" ? rating : null,
+            playtime,
+            status,
+            progress,
+            playedOn: playedOn ?? null,
+            visibility: "public",
+            createdAt: reviewForSave.createdAt,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        ).catch((error) =>
+          console.error("Failed to sync community review", error),
+        );
+      } else {
+        await deleteDoc(communityReviewRef).catch(() => undefined);
+      }
+      setGameReviewsRefreshKey((key) => key + 1);
 
       setCurrentStatus(status);
       setIsFavorited(favorite);
       setTrackedGameData((prev: any) => ({
         ...(prev ?? {}),
-        review,
+        review: reviewForSave,
         my_rating: rating,
         progress,
         playtime,
@@ -985,6 +1402,8 @@ export default function GamePage() {
         favorite,
         notInterested,
         playedSessions,
+        playedOn,
+        preReleaseAccess,
       }));
       setTrackingModalOpen(false);
       toast.success(
@@ -1034,6 +1453,56 @@ export default function GamePage() {
 
   if (!game || loadingGame) return <LoadingSpinner />;
 
+  const reactToReview = async (reviewId: string, reaction: ReviewReaction) => {
+    if (!user) {
+      toast.error("Sign in to react to reviews.");
+      return;
+    }
+
+    const current = gameReviews.find((review) => review.id === reviewId);
+    if (!current) return;
+    const previousReaction = current.myReaction;
+    const nextReaction = previousReaction === reaction ? null : reaction;
+
+    setGameReviews((reviews) =>
+      reviews.map((review) => {
+        if (review.id !== reviewId) return review;
+        const counts = { ...review.reactions };
+        if (previousReaction) {
+          counts[previousReaction] = Math.max(0, counts[previousReaction] - 1);
+        }
+        if (nextReaction) counts[nextReaction] += 1;
+        return { ...review, reactions: counts, myReaction: nextReaction };
+      }),
+    );
+
+    const reactionRef = doc(
+      db,
+      "communityReviews",
+      reviewId,
+      "reactions",
+      user.uid,
+    );
+
+    try {
+      if (nextReaction) {
+        await setDoc(reactionRef, {
+          userId: user.uid,
+          type: nextReaction,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        await deleteDoc(reactionRef);
+      }
+    } catch (error) {
+      console.error("Failed to react to review", error);
+      setGameReviews((reviews) =>
+        reviews.map((review) => (review.id === reviewId ? current : review)),
+      );
+      toast.error("Could not save your reaction.");
+    }
+  };
+
   if (loadingGame) {
     return (
       <motion.div
@@ -1052,14 +1521,6 @@ export default function GamePage() {
 
   return (
     <>
-      <Helmet>
-        <title>{game.name} • PlayCrew</title>
-        <meta
-          name="description"
-          content={`View ${game.name} details, ratings, and tracking progress on PlayCrew.`}
-        />
-      </Helmet>
-
       {/* dynamic top padding: larger spacing when top nav is used, smaller for sidebar */}
       <div
         className={`relative min-h-screen text-white bg-transparent ${
@@ -1068,16 +1529,14 @@ export default function GamePage() {
       >
         {/* HERO BACKGROUND */}
         <div className="pointer-events-none absolute inset-0 z-0">
-          {bgImage && (
-            <img
-              src={bgImage}
-              alt=""
-              onLoad={() => setLoadedBackground(bgImage)}
-              className={`absolute inset-0 h-full w-full object-cover blur-xl brightness-75 transition-opacity duration-700 ease-out ${
-                loadedBackground === bgImage ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          )}
+          <img
+            src={posterImage}
+            alt=""
+            onLoad={() => setLoadedBackground(posterImage)}
+            className={`absolute inset-0 h-full w-full object-cover blur-xl brightness-75 transition-opacity duration-700 ease-out ${
+              loadedBackground === posterImage ? "opacity-100" : "opacity-0"
+            }`}
+          />
         </div>
 
         {/* MAIN CONTENT */}
@@ -1093,7 +1552,7 @@ export default function GamePage() {
               <div className="grid gap-5 xl:grid-cols-[248px_minmax(0,1fr)] 2xl:grid-cols-[272px_minmax(0,1fr)]">
                 <aside className="flex flex-col items-center gap-4 xl:sticky xl:top-24 xl:self-start">
                   {/* Poster */}
-                  <div className="relative h-60 w-44 sm:h-72 sm:w-48 lg:h-104 lg:w-70">
+                  <div className="relative aspect-[2/3] w-44 sm:w-48 lg:w-70">
                     <img
                       src={posterImage}
                       alt={game.name || "Game poster"}
@@ -1300,7 +1759,13 @@ export default function GamePage() {
                       >
                         {/* HEADER */}
                         <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">
-                          <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.8)]" />
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{
+                              backgroundColor: "#fbbf24",
+                              boxShadow: "0 0 12px rgba(252, 211, 77, 0.8)",
+                            }}
+                          />
                           The PlayCrew Awards
                           <div className="flex items-center text-[10px] font-semibold tracking-[0.24em] text-amber-100/78">
                             {isReleased && (
@@ -1472,10 +1937,8 @@ export default function GamePage() {
                               ease: "easeOut",
                               delay: 0.08,
                             }}
-                            className="relative z-0 w-full overflow-hidden rounded-[28px] border border-amber-200/35 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.42),rgba(245,158,11,0.14)_38%,rgba(0,0,0,0.62)_82%)] px-4 pb-5 pt-4 text-center shadow-[0_24px_48px_rgba(0,0,0,0.34),0_0_0_1px_rgba(251,191,36,0.08)]"
+                            className="relative z-0 w-full overflow-hidden rounded-[28px] bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.42),rgba(245,158,11,0.14)_38%,rgba(0,0,0,0.62)_82%)] px-4 pb-5 pt-4 text-center shadow-[0_24px_48px_rgba(0,0,0,0.34)]"
                           >
-                            <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-linear-to-r from-transparent via-amber-100/80 to-transparent" />
-
                             {/* Trophy */}
                             <div className="mx-auto mt-2 flex h-35 w-35 items-center justify-center">
                               <img
@@ -1851,70 +2314,389 @@ export default function GamePage() {
           </aside>
         </motion.main>
 
-        {/* <section className="relative z-10 mx-auto mt-5 w-full max-w-[1780px] px-3 pb-6 sm:px-4 lg:px-6">
-          <div className="rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] sm:p-5 xl:p-6">
-            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-200/65">
-                  Community
-                </p>
-                <h2 className="mt-1 text-2xl font-bold text-white">
-                  User Reviews
-                </h2>
-              </div>
-              <span className="text-sm text-white/50">
-                {gameReviews.length} {gameReviews.length === 1 ? "review" : "reviews"}
-              </span>
-            </div>
-
-            {loadingGameReviews ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {[0, 1].map((item) => (
-                  <div
-                    key={item}
-                    className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/5"
-                  />
-                ))}
-              </div>
-            ) : gameReviews.length > 0 ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {gameReviews.map((review) => (
-                  <article
-                    key={review.id}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+        <section className="relative z-10 mx-auto mt-5 w-full px-3 pb-6 sm:px-4 lg:px-6">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
+            <div className="rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] sm:p-5 xl:p-6">
+              <div className="mb-5 flex items-end justify-between gap-4">
+                <div>
+                  <p className="theme-accent-text text-[11px] font-semibold uppercase tracking-[0.3em]">
+                    Community
+                  </p>
+                  <h2 className="mt-1 text-2xl font-bold text-white">
+                    User Reviews
+                  </h2>
+                  <p className="mt-1 text-sm text-white/50">
+                    {gameReviews.length}{" "}
+                    {gameReviews.length === 1 ? "review" : "reviews"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous review"
+                    disabled={
+                      activeReviewIndex === 0 || gameReviews.length === 0
+                    }
+                    onClick={() =>
+                      setActiveReviewIndex((current) =>
+                        Math.max(0, current - 1),
+                      )
+                    }
+                    className="theme-surface theme-text grid h-9 w-9 place-items-center rounded-full border transition hover:border-[rgba(var(--theme-accent-rgb),0.55)] hover:text-[var(--theme-accent)] disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-white">
-                          {review.username}
-                        </p>
-                        {review.rating !== null && (
-                          <p className="mt-1 text-xs text-amber-200">
-                            {review.rating}/10
-                          </p>
-                        )}
-                      </div>
-                      {review.sticker && (
-                        <img
-                          src={review.sticker}
-                          alt="Review sticker"
-                          className="h-12 w-12 rounded-lg object-contain"
-                        />
-                      )}
-                    </div>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-white/75">
-                      {review.text}
-                    </p>
-                  </article>
-                ))}
+                    <FaChevronLeft />
+                  </button>
+                  <span className="theme-text-muted min-w-12 text-center text-xs tabular-nums">
+                    {gameReviews.length
+                      ? `${activeReviewIndex + 1} / ${gameReviews.length}`
+                      : "0 / 0"}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Next review"
+                    disabled={
+                      gameReviews.length === 0 ||
+                      activeReviewIndex >= gameReviews.length - 1
+                    }
+                    onClick={() =>
+                      setActiveReviewIndex((current) =>
+                        Math.min(gameReviews.length - 1, current + 1),
+                      )
+                    }
+                    className="theme-surface theme-text grid h-9 w-9 place-items-center rounded-full border transition hover:border-[rgba(var(--theme-accent-rgb),0.55)] hover:text-[var(--theme-accent)] disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
+                  >
+                    <FaChevronRight />
+                  </button>
+                </div>
               </div>
-            ) : (
-              <p className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/50">
-                No user reviews yet. Be the first to review this game.
-              </p>
-            )}
+
+              {loadingGameReviews ? (
+                <div
+                  className="space-y-4"
+                  aria-label="Loading community reviews"
+                >
+                  {[0].map((item) => (
+                    <div
+                      key={item}
+                      className="h-[570px] animate-pulse overflow-hidden rounded-[26px] border border-white/10 bg-black/25 p-4 sm:h-[540px] sm:p-5 md:h-[410px]"
+                    >
+                      <div className="flex h-full flex-col">
+                        <div className="flex items-center justify-between border-b border-white/8 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-13 w-13 rounded-full bg-white/8" />
+                            <div className="space-y-2">
+                              <div className="h-4 w-32 rounded bg-white/8" />
+                              <div className="h-3 w-24 rounded bg-white/6" />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="h-16 w-16 rounded-full bg-white/8" />
+                            <div className="h-16 w-24 rounded-xl bg-white/8" />
+                          </div>
+                        </div>
+                        <div className="grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] md:grid-cols-[minmax(0,1fr)_160px]">
+                          <div className="space-y-2">
+                            <div className="h-3 w-full rounded bg-white/8" />
+                            <div className="h-3 w-5/6 rounded bg-white/8" />
+                            <div className="h-3 w-2/3 rounded bg-white/8" />
+                          </div>
+                          <div className="hidden aspect-square rounded-2xl bg-white/7 md:block" />
+                        </div>
+                        <div className="h-10 border-t border-white/8 pt-3">
+                          <div className="h-3 w-3/4 rounded bg-white/7" />
+                        </div>
+                        <div className="mt-3 flex gap-2 border-t border-white/6 pt-3">
+                          {[0, 1, 2].map((reaction) => (
+                            <div
+                              key={reaction}
+                              className="h-8 w-24 rounded-xl bg-white/7"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : gameReviewsError ? (
+                <p className="rounded-2xl border border-dashed border-amber-400/20 bg-amber-500/[0.06] px-4 py-8 text-center text-sm text-amber-100/65">
+                  Community reviews could not be loaded. Firestore denied the
+                  cross-user review query.
+                </p>
+              ) : gameReviews.length > 0 ? (
+                <div className="space-y-4">
+                  {gameReviews
+                    .slice(activeReviewIndex, activeReviewIndex + 1)
+                    .map((review) => (
+                      <motion.article
+                        key={review.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.35, ease: "easeOut" }}
+                        className="group relative h-[570px] overflow-hidden rounded-[26px] border border-white/12 bg-black/25 p-4 shadow-[0_16px_55px_rgba(0,0,0,0.22)] transition-[border-color] hover:border-[rgba(var(--theme-accent-rgb),0.45)] sm:h-[540px] sm:p-5 md:h-[410px]"
+                      >
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.12),transparent_36%)] opacity-70" />
+                        <div className="relative flex h-full flex-col">
+                          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+                              <Link
+                                href={`/users/${review.username}`}
+                                className="flex min-w-0 items-center gap-3.5"
+                              >
+                                <div className="h-13 w-13 shrink-0 overflow-hidden rounded-full border-2 border-[rgba(var(--theme-accent-rgb),0.7)] bg-black/30 p-0.5">
+                                  {review.avatar ? (
+                                    <img
+                                      src={review.avatar}
+                                      alt={`${review.username}'s avatar`}
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="h-full w-full rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="theme-accent-soft-bg theme-accent-text flex h-full w-full items-center justify-center rounded-full text-xl font-black">
+                                      {review.username.charAt(0).toUpperCase()}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="theme-text truncate text-lg font-black hover:underline">
+                                    @{review.username}
+                                  </p>
+                                  <p className="theme-text-muted mt-1 text-xs">
+                                    Member since{" "}
+                                    {formatCommunityDate(review.memberSince)}
+                                  </p>
+                                </div>
+                              </Link>
+                            </div>
+
+                            <div className="flex items-stretch gap-2 self-end xl:self-auto">
+                              <div
+                                className="relative flex h-16 w-16 items-center justify-center rounded-full"
+                                style={{
+                                  background: `conic-gradient(rgb(var(--theme-accent-rgb)) ${Math.max(0, Math.min(10, review.rating ?? 0)) * 10}%, rgba(255,255,255,0.08) 0)`,
+                                }}
+                              >
+                                <div className="flex gap-0.5 h-13 w-13 items-center justify-center rounded-full bg-[rgb(var(--theme-bg-rgb))]">
+                                  <span className="theme-text text-xl font-black">
+                                    {review.rating ?? "—"}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="theme-accent-soft-bg flex min-w-24 flex-col justify-center rounded-xl border px-3 py-2 text-center">
+                                <p className="theme-text-muted flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em]">
+                                  <FiClock /> Playtime
+                                </p>
+                                <p className="theme-text mt-1 text-base font-black">
+                                  {review.playtime > 0
+                                    ? `${Number.isInteger(review.playtime) ? review.playtime : review.playtime.toFixed(1)}h`
+                                    : "Not set"}
+                                </p>
+                              </div>
+                            </div>
+                          </header>
+
+                          <div
+                            className={`grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] ${review.sticker ? "md:grid-cols-[minmax(0,1fr)_160px]" : ""}`}
+                          >
+                            <p className="theme-text overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 sm:text-base">
+                              {review.text}
+                            </p>
+                            {review.sticker && (
+                              <div className="flex aspect-square w-full max-w-[160px] items-center justify-center justify-self-center overflow-hidden p-2 md:justify-self-end">
+                                <CommunityReviewSticker
+                                  sticker={review.sticker}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          <footer className="theme-text-muted flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-white/10 pt-3 text-xs">
+                            <span className="inline-flex items-center gap-1.5">
+                              <FiCalendar /> Posted{" "}
+                              {formatCommunityDate(review.createdAt)}
+                            </span>
+                            |
+                            <span className="inline-flex items-center gap-1.5">
+                              <FiEdit3 /> Updated{" "}
+                              {formatCommunityDate(review.updatedAt)}
+                            </span>
+                            |
+                            {review.status && (
+                              <span className="theme-accent-text inline-flex items-center gap-1.5 font-semibold">
+                                {review.status === "Completed" ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <FaTrophy />
+                                  </div>
+                                ) : (
+                                  <FiCheckCircle />
+                                )}
+                                {review.status}
+                              </span>
+                            )}
+                            |
+                            <span className="inline-flex items-center gap-1.5">
+                              <span
+                                className="h-4 w-4 rounded-full border border-white/20"
+                                style={{
+                                  background: `conic-gradient(rgb(var(--theme-accent-rgb)) ${Math.max(0, Math.min(100, review.progress))}%, rgba(255,255,255,0.08) 0)`,
+                                }}
+                                aria-hidden="true"
+                              />
+                              {review.progress}% progress
+                            </span>
+                            |
+                            <span className="inline-flex items-center gap-1.5">
+                              Played on:{" "}
+                              {normalizePlayedOn(review.playedOn).map(
+                                (platform) => (
+                                  <PlayedOnPlatformIcon
+                                    key={platform}
+                                    value={platform}
+                                    className="theme-accent-text"
+                                  />
+                                ),
+                              )}
+                              {formatPlayedOn(review.playedOn)}
+                            </span>
+                          </footer>
+
+                          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+                            {[
+                              {
+                                type: "helpful" as const,
+                                label: "Helpful",
+                                icon: FiThumbsUp,
+                              },
+                              {
+                                type: "funny" as const,
+                                label: "Funny",
+                                icon: FiSmile,
+                              },
+                              {
+                                type: "100-percent" as const,
+                                label: "100%",
+                                icon: FaFire,
+                              },
+                              {
+                                type: "glazzing" as const,
+                                label: "Glazzing",
+                                icon: FaCrown,
+                              },
+                            ].map((reaction) => {
+                              const Icon = reaction.icon;
+                              const active =
+                                review.myReaction === reaction.type;
+                              return (
+                                <button
+                                  key={reaction.type}
+                                  type="button"
+                                  onClick={() =>
+                                    reactToReview(review.id, reaction.type)
+                                  }
+                                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                                    active
+                                      ? "theme-accent-soft-bg theme-accent-text border-[rgba(var(--theme-accent-rgb),0.5)]"
+                                      : "theme-surface theme-hover-surface theme-text-muted"
+                                  }`}
+                                  aria-pressed={active}
+                                >
+                                  <Icon /> {reaction.label}
+                                  <span className="opacity-60">
+                                    {review.reactions[reaction.type]}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </motion.article>
+                    ))}
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/50">
+                  No user reviews yet. Be the first to review this game.
+                </p>
+              )}
+            </div>
+            <aside className="relative overflow-hidden rounded-4xl border border-white/12 bg-black/20 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] backdrop-blur-sm sm:p-5 lg:sticky lg:top-24">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.14),transparent_48%)]" />
+              <div className="relative">
+                <header className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                  <div>
+                    <p className="theme-accent-text text-[14px] font-bold uppercase tracking-[0.2em]">
+                      My Review
+                    </p>
+                    <p className="theme-text mt-1 text-xs font-normal">
+                      for {game.name}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <div className="theme-accent-soft-bg flex min-w-20 flex-col items-center justify-center rounded-xl border px-3 py-2 text-center">
+                      <p className="theme-text-muted text-[9px] font-semibold uppercase tracking-[0.12em]">
+                        Playtime
+                      </p>
+                      <p className="theme-accent-text text-lg font-black">
+                        {trackedGameData?.playtime
+                          ? `${Number.isInteger(trackedGameData.playtime) ? trackedGameData.playtime : trackedGameData.playtime.toFixed(1)}h`
+                          : "0h"}
+                      </p>
+                    </div>
+                    <div className="theme-surface flex min-w-24 flex-col items-center justify-center rounded-xl border px-3 py-2 text-center">
+                      <p className="theme-text-muted text-[9px] font-semibold uppercase tracking-[0.12em]">
+                        Played On
+                      </p>
+                      <p className="theme-text mt-1 flex items-center gap-1.5 text-xs font-bold">
+                        {normalizePlayedOn(trackedGameData?.playedOn).map(
+                          (platform) => (
+                            <PlayedOnPlatformIcon
+                              key={platform}
+                              value={platform}
+                              className="theme-accent-text"
+                            />
+                          ),
+                        )}
+                        {formatPlayedOn(trackedGameData?.playedOn)}
+                      </p>
+                    </div>
+                  </div>
+                </header>
+
+                <p
+                  className={`theme-text-muted py-4 whitespace-pre-wrap text-sm leading-6 ${trackedGameData?.review?.text?.trim() ? "" : "italic"}`}
+                >
+                  {trackedGameData?.review?.text?.trim() ||
+                    "You haven’t written a review for this game yet."}
+                </p>
+
+                <div className="flex w-full items-center justify-center overflow-hidden p-3">
+                  {trackedGameData?.review?.sticker ? (
+                    <CommunityReviewSticker
+                      sticker={trackedGameData.review.sticker}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center text-center text-white/25">
+                      <span className="text-2xl">⊘</span>
+                      <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em]">
+                        No sticker selected
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTrackingModalOpen(true)}
+                  disabled={!trackingModalGame}
+                  className="theme-accent-bg mt-4 w-full rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
+                >
+                  {trackedGameData?.review?.text?.trim()
+                    ? "Edit my review"
+                    : `Review ${game.name}`}
+                </button>
+              </div>
+            </aside>
           </div>
-        </section> */}
+        </section>
 
         <AnimatePresence>
           {aboutOpen && (

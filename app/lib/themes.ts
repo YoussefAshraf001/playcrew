@@ -4,15 +4,22 @@ export const THEME_PRESETS = [
     id: "neo-cyan",
     mode: "dark",
     name: "PlayCrew Classic",
-    description: "The current PlayCrew look with icy cyan accents.",
-    swatches: ["#020617", "#0f172a", "#22d3ee", "#67e8f9"],
+    description: "True black with bold PlayCrew blue accents.",
+    swatches: ["#000000", "#0a0f1c", "#2563eb", "#60a5fa"],
   },
   {
     id: "spider-suit",
     mode: "dark",
     name: "Crimson Spider",
     description: "Black and red with comic-book energy.",
-    swatches: ["#020202", "#111111", "#b3001b", "#ff3b30"],
+    swatches: ["#020202", "#111111", "#6f0000", "#b80000"],
+  },
+  {
+    id: "spider-suit-black",
+    mode: "dark",
+    name: "Crimson Spider — Black",
+    description: "The same crimson style with true-black surfaces.",
+    swatches: ["#000000", "#030303", "#6f0000", "#b80000"],
   },
   {
     id: "obsidian-ember",
@@ -38,9 +45,9 @@ export const THEME_PRESETS = [
   {
     id: "winter-is-coming",
     mode: "dark",
-    name: "Steam",
-    description: "Cold stone walls, northern winds, and endless snowfall.",
-    swatches: ["#171d25", "#1b2838", "#2a475e", "#66c0f4"],
+    name: "Azkaban Nocturne",
+    description: "A dark, muted Azkaban palette of cold cyan, stone, and shadow.",
+    swatches: ["#0c1314", "#152b32", "#324a4f", "#536b6d"],
   },
   {
     id: "rose-and-ash",
@@ -62,6 +69,13 @@ export const THEME_PRESETS = [
     name: "Eternal Sovereign",
     description: "Molten gold flowing across obsidian stone. Built for kings.",
     swatches: ["#060606", "#151515", "#d4af37", "#ffd86b"],
+  },
+  {
+    id: "ember-circuit",
+    mode: "dark",
+    name: "Ember Circuit",
+    description: "Graphite machinery lit by high-voltage orange.",
+    swatches: ["#08090b", "#17191d", "#ff6b00", "#ffb000"],
   },
 
   //////////////////////////////// LIGHT THEMES
@@ -128,6 +142,13 @@ export const THEME_PRESETS = [
     name: "Arctic Crystal",
     description: "Frozen glass, fresh snow, and crystalline mint light.",
     swatches: ["#fbffff", "#edfdfd", "#14b8a6", "#99f6e4"],
+  },
+  {
+    id: "lemon-ink",
+    mode: "light",
+    name: "Lemon Ink",
+    description: "Soft butter paper marked with deep indigo ink.",
+    swatches: ["#fffbea", "#fff3b8", "#3730a3", "#f4c430"],
   },
 ] as const;
 
@@ -200,25 +221,6 @@ export const FONT_PRESETS = [
     buttonLineHeight: "1.02",
   },
 
-  {
-    id: "clair-obscur",
-    name: "Clair Obscur: Expedition 33",
-    description: "Bold supernatural heading style.",
-    fontFamily: '"ClairObscurExpedition33", sans-serif',
-    buttonScale: "0.9",
-    buttonLetterSpacing: "-0.02em",
-    buttonLineHeight: "0.98",
-  },
-
-  {
-    id: "gamify",
-    name: "Dead Red",
-    description: "A rough-hewn western display face with fiery swagger.",
-    fontFamily: '"Rye", serif',
-    buttonScale: "0.88",
-    buttonLetterSpacing: "0.015em",
-    buttonLineHeight: "1",
-  },
 ] as const;
 
 export type FontPreset = (typeof FONT_PRESETS)[number]["id"];

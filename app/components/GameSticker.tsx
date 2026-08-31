@@ -10,13 +10,16 @@ export default function GameSticker({
 
   if (!sticker) return null;
 
+  const isAnimatedFormat = /\.(gif|webp)(?:$|[?#])/i.test(sticker.image);
+
   return (
     <Image
       src={sticker.image}
       alt={sticker.label}
       width={120}
       height={120}
-      className="object-contain"
+      unoptimized={isAnimatedFormat}
+      className="object-contain rounded-md"
     />
   );
 }

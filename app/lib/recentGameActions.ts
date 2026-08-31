@@ -11,14 +11,47 @@ export interface RecentActionTrackedGame {
   };
   playtime?: number | null;
   playedSessions?: unknown[] | null;
-  saveUploads?: Array<{ id?: string }> | null;
+  playedOn?: string | string[] | null;
 }
+
+const PLAYED_ON_LABELS: Record<string, string> = {
+  steam: "Steam",
+  "epic-games": "Epic Games",
+  gog: "GOG",
+  xbox: "Xbox",
+  "xbox-360": "Xbox 360",
+  "xbox-one": "Xbox One",
+  "xbox-series": "Xbox Series X/S",
+  "xbox-game-pass-pc": "Xbox Game Pass for PC",
+  playstation: "PlayStation",
+  "playstation-2": "PlayStation 2",
+  "playstation-3": "PlayStation 3",
+  "playstation-4": "PlayStation 4",
+  "playstation-5": "PlayStation 5",
+  psp: "PSP",
+  "ps-vita": "PS Vita",
+  nintendo: "Nintendo",
+  "ea-app": "EA app",
+  "ubisoft-connect": "Ubisoft Connect",
+  "battle-net": "Battle.net",
+  "riot-games": "Riot Games",
+  "offline-activation": "Offline Activation",
+  pirated: "Pirated",
+};
 const normalizeNumber = (value: unknown) => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return null;
   }
 
   return value;
+};
+
+const normalizePlayedOn = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return values
+    .filter((item): item is string => typeof item === "string" && !!item.trim())
+    .map((item) => item.trim())
+    .sort();
 };
 
 const normalizeText = (value: unknown) =>
@@ -133,8 +166,8 @@ export function getRecentGameActionSummary(
       normalizeText(previous.review?.text) ||
       (previous.favorite ?? false) ||
       (previous.notInterested ?? false) ||
-      (previous.playedSessions?.length ?? 0) > 0 ||
-      (previous.saveUploads?.length ?? 0) > 0),
+      normalizePlayedOn(previous.playedOn).length > 0 ||
+      (previous.playedSessions?.length ?? 0) > 0),
   );
 
   if (!hasAnyPrevious) {
@@ -144,7 +177,7 @@ export function getRecentGameActionSummary(
   const prev = previous!;
   const changes: string[] = [];
 
-  const previousHasTrackedData = Boolean(
+  const previousHasClearableData = Boolean(
     normalizeNumber(prev.my_rating) !== null ||
     (normalizeNumber(prev.progress) ?? 0) > 0 ||
     (normalizeNumber(prev.playtime) ?? 0) > 0 ||
@@ -152,8 +185,8 @@ export function getRecentGameActionSummary(
     normalizeText(prev.review?.sticker) ||
     (prev.favorite ?? false) ||
     (prev.notInterested ?? false) ||
-    (prev.playedSessions?.length ?? 0) > 0 ||
-    normalizeText(prev.status) !== "Want To Play",
+    normalizePlayedOn(prev.playedOn).length > 0 ||
+    (prev.playedSessions?.length ?? 0) > 0,
   );
 
   const nextIsCleared =
@@ -164,11 +197,12 @@ export function getRecentGameActionSummary(
     !normalizeText(next.review?.sticker) &&
     !(next.favorite ?? false) &&
     !(next.notInterested ?? false) &&
+    normalizePlayedOn(next.playedOn).length === 0 &&
     (next.playedSessions?.length ?? 0) === 0 &&
     normalizeText(next.status) === "Want To Play";
 
   if (
-    previousHasTrackedData &&
+    previousHasClearableData &&
     nextIsCleared &&
     !(next.notInterested ?? false)
   ) {
@@ -185,8 +219,8 @@ export function getRecentGameActionSummary(
   if ((prev.notInterested ?? false) !== (next.notInterested ?? false)) {
     changes.push(
       next.notInterested
-        ? "Marked as Not Interested"
-        : "Removed from Not Interested",
+        ? "Marked as Lost Interest"
+        : "Removed from Lost Interest",
     );
   }
 
@@ -241,7 +275,7 @@ export function getRecentGameActionSummary(
   const nextRating = normalizeNumber(next.my_rating);
 
   if (previousRating !== nextRating) {
-    // Clearing the rating is part of marking the game as Not Interested,
+    // Clearing the rating is part of marking the game as Lost Interest,
     // so don't report it as a separate action.
     if (nextRating === null) {
       if (!next.notInterested) {
@@ -272,18 +306,6 @@ export function getRecentGameActionSummary(
     );
   }
 
-  // Save uploads
-  const previousSaveUploads = prev.saveUploads?.length ?? 0;
-  const nextSaveUploads = next.saveUploads?.length ?? 0;
-
-  if (previousSaveUploads !== nextSaveUploads) {
-    changes.push(
-      nextSaveUploads > previousSaveUploads
-        ? "Save Backup Uploaded"
-        : "Save Backup Removed",
-    );
-  }
-
   // Played sessions are already represented by the playtime message when
   // playtime changes, so only show this separately for session-only edits.
   if (
@@ -291,6 +313,19 @@ export function getRecentGameActionSummary(
     previousPlaytime === nextPlaytime
   ) {
     changes.push("Play Sessions Updated");
+  }
+
+  const previousPlayedOn = normalizePlayedOn(prev.playedOn);
+  const nextPlayedOn = normalizePlayedOn(next.playedOn);
+
+  if (JSON.stringify(previousPlayedOn) !== JSON.stringify(nextPlayedOn)) {
+    changes.push(
+      nextPlayedOn.length
+        ? `Played On Set to ${nextPlayedOn
+            .map((value) => PLAYED_ON_LABELS[value] ?? value)
+            .join(", ")}`
+        : "Played On Cleared",
+    );
   }
 
   if (changes.length === 0) {

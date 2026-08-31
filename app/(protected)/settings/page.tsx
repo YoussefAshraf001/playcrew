@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FiCheck } from "react-icons/fi";
-import { Helmet } from "react-helmet-async";
+import { FiCheck, FiSearch, FiUpload, FiX } from "react-icons/fi";
 import { doc, updateDoc, deleteField } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import toast from "react-hot-toast";
@@ -14,6 +13,7 @@ import { MdAdd } from "react-icons/md";
 
 import { useUser } from "@/app/context/UserContext";
 import { useUI } from "@/app/context/UIContext";
+import { useSync } from "@/app/context/SyncContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 
@@ -29,8 +29,11 @@ import {
 import {
   clampGamesBgBlur,
   clampGamesBgOverlay,
+  clampIdleWallpaperFadeSeconds,
   DEFAULT_BG_BLUR,
   DEFAULT_BG_OVERLAY,
+  DEFAULT_IDLE_WALLPAPER_ENABLED,
+  DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
 import CropModal from "@/app/components/CropModal";
@@ -43,8 +46,25 @@ type CropData = {
 };
 
 type MediaValue =
-  | { type: "image"; data: string; name?: string }
-  | { type: "gif"; data: string; crop: CropData; name?: string };
+  | { type: "image"; data: string; name?: string; size?: number }
+  | { type: "gif"; data: string; crop: CropData; name?: string; size?: number };
+
+type GiphyWallpaper = {
+  id: string;
+  title: string;
+  previewUrl: string;
+  imageUrl: string;
+  size?: number | null;
+};
+
+const formatFileSize = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message.trim() ? error.message : fallback;
 
 /* ---------------- STORAGE ---------------- */
 
@@ -53,6 +73,13 @@ const FONT_STORAGE_KEY = "playcrew-font-preset";
 const RELEASE_SYNC_INTERVAL_KEY = "playcrew-release-sync-interval-hours";
 const RELEASE_SYNC_INTERVAL_OPTIONS = [8, 12, 24, 48] as const;
 const DEFAULT_RELEASE_SYNC_HOURS = 48;
+
+const formatFadeDuration = (seconds: number) => {
+  if (seconds < 60) return `${seconds}s`;
+
+  const minutes = seconds / 60;
+  return Number.isInteger(minutes) ? `${minutes}m` : `${minutes.toFixed(1)}m`;
+};
 
 const getStoredReleaseSyncInterval = () => {
   if (typeof window === "undefined") return DEFAULT_RELEASE_SYNC_HOURS;
@@ -70,6 +97,8 @@ const getStoredPageSettings = () => {
     return {
       bgBlur: DEFAULT_BG_BLUR,
       bgOverlay: DEFAULT_BG_OVERLAY,
+      idleWallpaperEnabled: DEFAULT_IDLE_WALLPAPER_ENABLED,
+      idleWallpaperFadeSeconds: DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
     };
   }
 
@@ -79,6 +108,8 @@ const getStoredPageSettings = () => {
     return {
       bgBlur: DEFAULT_BG_BLUR,
       bgOverlay: DEFAULT_BG_OVERLAY,
+      idleWallpaperEnabled: DEFAULT_IDLE_WALLPAPER_ENABLED,
+      idleWallpaperFadeSeconds: DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
     };
   }
 
@@ -86,11 +117,18 @@ const getStoredPageSettings = () => {
     const parsed = JSON.parse(stored) as {
       bgBlur?: number;
       bgOverlay?: number;
+      idleWallpaperEnabled?: boolean;
+      idleWallpaperFadeSeconds?: number;
     };
 
     return {
       bgBlur: clampGamesBgBlur(parsed.bgBlur ?? DEFAULT_BG_BLUR),
       bgOverlay: clampGamesBgOverlay(parsed.bgOverlay ?? DEFAULT_BG_OVERLAY),
+      idleWallpaperEnabled:
+        parsed.idleWallpaperEnabled ?? DEFAULT_IDLE_WALLPAPER_ENABLED,
+      idleWallpaperFadeSeconds: clampIdleWallpaperFadeSeconds(
+        parsed.idleWallpaperFadeSeconds ?? DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
+      ),
     };
   } catch (error) {
     console.warn("Failed to parse page settings:", error);
@@ -98,6 +136,8 @@ const getStoredPageSettings = () => {
     return {
       bgBlur: DEFAULT_BG_BLUR,
       bgOverlay: DEFAULT_BG_OVERLAY,
+      idleWallpaperEnabled: DEFAULT_IDLE_WALLPAPER_ENABLED,
+      idleWallpaperFadeSeconds: DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
     };
   }
 };
@@ -107,6 +147,8 @@ const getStoredPageSettings = () => {
 export default function SiteSettingsPage() {
   const { user, profile, setProfile, loading, isAdmin } = useUser();
   const { navbarLayout, setNavbarLayout } = useUI();
+  const { isSyncingReleaseDates, syncCurrent, syncTotal, requestReleaseSync } =
+    useSync();
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [cropType, setCropType] = useState<"wallpaper" | null>(null);
@@ -116,7 +158,16 @@ export default function SiteSettingsPage() {
   const [pendingWallpaper, setPendingWallpaper] = useState<MediaValue | null>(
     null,
   );
+  const [gifCropMedia, setGifCropMedia] = useState<MediaValue | null>(null);
   const [savingWallpaper, setSavingWallpaper] = useState(false);
+  const [wallpaperSourceOpen, setWallpaperSourceOpen] = useState(false);
+  const [giphyPickerOpen, setGiphyPickerOpen] = useState(false);
+  const [giphyQuery, setGiphyQuery] = useState("");
+  const [giphyWallpapers, setGiphyWallpapers] = useState<GiphyWallpaper[]>([]);
+  const [selectedGiphyWallpaper, setSelectedGiphyWallpaper] =
+    useState<GiphyWallpaper | null>(null);
+  const [giphyLoading, setGiphyLoading] = useState(false);
+  const [giphyError, setGiphyError] = useState<string | null>(null);
 
   const [gamesBgBlur, setGamesBgBlur] = useState(
     () => getStoredPageSettings().bgBlur,
@@ -124,6 +175,14 @@ export default function SiteSettingsPage() {
 
   const [gamesBgOverlay, setGamesBgOverlay] = useState(
     () => getStoredPageSettings().bgOverlay,
+  );
+
+  const [idleWallpaperEnabled, setIdleWallpaperEnabled] = useState(
+    () => getStoredPageSettings().idleWallpaperEnabled,
+  );
+
+  const [idleWallpaperFadeSeconds, setIdleWallpaperFadeSeconds] = useState(
+    () => getStoredPageSettings().idleWallpaperFadeSeconds,
   );
 
   const [releaseSyncInterval, setReleaseSyncInterval] = useState(() =>
@@ -147,10 +206,6 @@ export default function SiteSettingsPage() {
     "dark" | "light" | null
   >(null);
 
-  useEffect(() => {
-    document.title = "Theme Forge • PlayCrew";
-  }, []);
-
   const storedTheme =
     typeof window !== "undefined"
       ? (localStorage.getItem(THEME_STORAGE_KEY) as ThemePreset | null)
@@ -162,21 +217,21 @@ export default function SiteSettingsPage() {
       : null;
 
   const resolvedThemePreset =
-    (storedTheme &&
-      THEME_PRESETS.some((theme) => theme.id === storedTheme) &&
-      storedTheme) ||
     (profile?.themePreset &&
       THEME_PRESETS.some((theme) => theme.id === profile.themePreset) &&
       profile.themePreset) ||
+    (storedTheme &&
+      THEME_PRESETS.some((theme) => theme.id === storedTheme) &&
+      storedTheme) ||
     activeThemePreset;
 
   const resolvedFontPreset =
-    (storedFont &&
-      FONT_PRESETS.some((font) => font.id === storedFont) &&
-      storedFont) ||
     (profile?.fontPreset &&
       FONT_PRESETS.some((font) => font.id === profile.fontPreset) &&
       profile.fontPreset) ||
+    (storedFont &&
+      FONT_PRESETS.some((font) => font.id === storedFont) &&
+      storedFont) ||
     activeFontPreset;
 
   const themeMode =
@@ -190,11 +245,12 @@ export default function SiteSettingsPage() {
     if (typeof window === "undefined") return;
 
     const selectedFont =
-      FONT_PRESETS.find((font) => font.id === resolvedFontPreset) ??
+      // Font customization is temporarily disabled.
+      FONT_PRESETS.find((font) => font.id === DEFAULT_FONT_PRESET) ??
       FONT_PRESETS[0];
 
     document.documentElement.dataset.appTheme = resolvedThemePreset;
-    document.documentElement.dataset.appFont = resolvedFontPreset;
+    document.documentElement.dataset.appFont = DEFAULT_FONT_PRESET;
 
     document.documentElement.style.setProperty(
       "--app-font",
@@ -215,7 +271,8 @@ export default function SiteSettingsPage() {
 
     localStorage.setItem(THEME_STORAGE_KEY, resolvedThemePreset);
 
-    localStorage.setItem(FONT_STORAGE_KEY, resolvedFontPreset);
+    // Preserve the saved font preference for when customization returns.
+    // localStorage.setItem(FONT_STORAGE_KEY, resolvedFontPreset);
   }, [resolvedThemePreset, resolvedFontPreset]);
 
   /* ---------------- SAVE BG SETTINGS ---------------- */
@@ -239,17 +296,26 @@ export default function SiteSettingsPage() {
         JSON.stringify({
           bgBlur: gamesBgBlur,
           bgOverlay: gamesBgOverlay,
+          idleWallpaperEnabled,
+          idleWallpaperFadeSeconds,
         }),
       );
     }, 200);
 
     return () => clearTimeout(timeout);
-  }, [gamesBgBlur, gamesBgOverlay]);
+  }, [
+    gamesBgBlur,
+    gamesBgOverlay,
+    idleWallpaperEnabled,
+    idleWallpaperFadeSeconds,
+  ]);
 
   /* ---------------- HANDLERS ---------------- */
 
   const handleThemePresetChange = async (themePreset: ThemePreset) => {
     if (!user || !profile) return;
+
+    const previousThemePreset = resolvedThemePreset;
 
     try {
       /* SAVE IMMEDIATELY */
@@ -264,13 +330,24 @@ export default function SiteSettingsPage() {
         ...profile,
         themePreset,
       });
+
+      await updateDoc(doc(db, "users", user.uid), { themePreset });
     } catch (error) {
+      localStorage.setItem(THEME_STORAGE_KEY, previousThemePreset);
+      setActiveThemePreset(previousThemePreset);
+      setProfile({
+        ...profile,
+        themePreset: previousThemePreset,
+      });
       console.error("Failed to update theme preset:", error);
+      toast.error("Could not save your theme.");
     }
   };
 
   const handleFontPresetChange = async (fontPreset: FontPreset) => {
     if (!user || !profile) return;
+
+    const previousFontPreset = resolvedFontPreset;
 
     try {
       /* SAVE IMMEDIATELY */
@@ -282,14 +359,25 @@ export default function SiteSettingsPage() {
         ...profile,
         fontPreset,
       });
+
+      await updateDoc(doc(db, "users", user.uid), { fontPreset });
     } catch (error) {
+      localStorage.setItem(FONT_STORAGE_KEY, previousFontPreset);
+      setActiveFontPreset(previousFontPreset);
+      setProfile({
+        ...profile,
+        fontPreset: previousFontPreset,
+      });
       console.error("Failed to update font preset:", error);
+      toast.error("Could not save your font.");
     }
   };
 
   const resetGamesPageSettings = () => {
     setGamesBgBlur(DEFAULT_BG_BLUR);
     setGamesBgOverlay(DEFAULT_BG_OVERLAY);
+    setIdleWallpaperEnabled(DEFAULT_IDLE_WALLPAPER_ENABLED);
+    setIdleWallpaperFadeSeconds(DEFAULT_IDLE_WALLPAPER_FADE_SECONDS);
   };
 
   const handleReleaseSyncIntervalChange = (hours: number) => {
@@ -299,8 +387,63 @@ export default function SiteSettingsPage() {
     }
   };
 
+  const loadGiphyWallpapers = async (query = "") => {
+    setGiphyLoading(true);
+    setGiphyError(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set("q", query.trim());
+      const suffix = params.size ? `?${params.toString()}` : "";
+      const response = await fetch(`/api/giphy/wallpapers${suffix}`);
+      const payload = (await response.json().catch(() => null)) as {
+        wallpapers?: GiphyWallpaper[];
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Could not load GIPHY wallpapers");
+      }
+
+      setGiphyWallpapers(payload?.wallpapers ?? []);
+    } catch (error) {
+      setGiphyWallpapers([]);
+      setGiphyError(getErrorMessage(error, "Could not load GIPHY wallpapers"));
+    } finally {
+      setGiphyLoading(false);
+    }
+  };
+
+  const openGiphyPicker = () => {
+    setWallpaperSourceOpen(false);
+    setGiphyPickerOpen(true);
+    setSelectedGiphyWallpaper(null);
+    void loadGiphyWallpapers();
+  };
+
+  const stageSelectedGiphyWallpaper = () => {
+    if (!selectedGiphyWallpaper) return;
+
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setGifCropMedia({
+      type: "gif",
+      data: selectedGiphyWallpaper.imageUrl,
+      crop: { x: 0, y: 0, zoom: 1 },
+      name: selectedGiphyWallpaper.title,
+      size: selectedGiphyWallpaper.size ?? undefined,
+    });
+    setGiphyPickerOpen(false);
+  };
+
+  const getWallpaperCropStyle = (media: MediaValue | null) =>
+    media?.type === "gif" && media.crop
+      ? {
+          transform: `translate(${media.crop.x}px, ${media.crop.y}px) scale(${media.crop.zoom})`,
+        }
+      : undefined;
+
   const activeWallpaper = pendingWallpaper ?? profile?.wallpaper ?? null;
-  const activeWallpaperName = activeWallpaper?.name?.trim() || "Wallpaper";
   const hasSavedWallpaper = Boolean(profile?.wallpaper?.data);
   const hasPendingWallpaper = Boolean(pendingWallpaper);
   const hasWallpaper = hasSavedWallpaper || hasPendingWallpaper;
@@ -319,7 +462,10 @@ export default function SiteSettingsPage() {
     });
 
     if (!signRes.ok) {
-      throw new Error("Signature request failed");
+      const signError = (await signRes.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      throw new Error(signError?.error || "Signature request failed");
     }
 
     const {
@@ -390,10 +536,16 @@ export default function SiteSettingsPage() {
       });
 
       setPendingWallpaper(null);
-      toast.success("Wallpaper saved");
+      toast.success(
+        savedWallpaper.type === "gif" && savedWallpaper.size
+          ? `GIF wallpaper saved • ${formatFileSize(savedWallpaper.size)}`
+          : "Wallpaper saved",
+      );
     } catch (error) {
       console.error(error);
-      toast.error("Failed to save wallpaper");
+      toast.error(
+        `Failed to save wallpaper: ${getErrorMessage(error, "Unknown error")}`,
+      );
     } finally {
       setSavingWallpaper(false);
     }
@@ -447,13 +599,9 @@ export default function SiteSettingsPage() {
 
   return (
     <>
-      <Helmet>
-        <title>Theme Forge • PlayCrew</title>
-      </Helmet>
-
       <motion.main
         className={`relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 sm:px-6 ${
-          navbarLayout === "sidebar" ? "pt-5" : "pt-16"
+          navbarLayout === "sidebar" ? "pt-16 lg:pl-24 lg:pt-8" : "pt-20"
           // navbarLayout === "sidebar" ? "pt-14" : "pt-20"
         }`}
         initial={{ opacity: 0, y: 10 }}
@@ -468,6 +616,7 @@ export default function SiteSettingsPage() {
               alt=""
               className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45"
               style={{
+                ...getWallpaperCropStyle(activeWallpaper),
                 filter: "blur(var(--games-bg-blur, 14px))",
               }}
             />
@@ -481,28 +630,28 @@ export default function SiteSettingsPage() {
           </div>
         )}
 
-        <div className="relative z-10 mx-auto max-w-7xl">
+        <div className="relative z-10 mx-auto w-full max-w-[1900px] xl:h-[calc(100svh-4rem)]">
           {/* LAYOUT */}
-          <div className="grid gap-5 xl:grid-cols-[1.6fr_0.75fr]">
+          <div className="grid gap-3 xl:h-full xl:grid-cols-3 xl:items-start">
             {/* THEMES */}
             <motion.section
-              className="theme-panel-strong rounded-2xl border p-6"
+              className="theme-panel-strong rounded-xl border p-3 xl:order-1 xl:max-h-full xl:overflow-y-auto"
               initial={false}
               animate={wallpaperPreview ? "hidden" : "visible"}
               variants={previewVariants}
               style={{ pointerEvents: wallpaperPreview ? "none" : "auto" }}
             >
-              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
-                    Themes
+                    Appearance
                   </p>
 
-                  <h2 className="theme-text text-lg font-semibold">
+                  <h2 className="theme-text text-base font-semibold">
                     Website Appearance
                   </h2>
 
-                  <p className="theme-text-muted text-sm">
+                  <p className="theme-text-muted text-xs">
                     Customize the overall look and feel of PlayCrew.
                   </p>
                 </div>
@@ -514,7 +663,7 @@ export default function SiteSettingsPage() {
                       key={mode}
                       type="button"
                       onClick={() => setThemeModeOverride(mode)}
-                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                         themeMode === mode
                           ? "bg-[var(--theme-accent)] text-black"
                           : "theme-text/70 hover:theme-text"
@@ -528,31 +677,92 @@ export default function SiteSettingsPage() {
 
               {/* THEMES GRID */}
               <div className="relative">
-                <div
-                  className={`grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 `}
-                >
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {THEME_PRESETS.filter(
-                    (theme) => theme.mode === themeMode,
+                    (theme) =>
+                      theme.mode === themeMode &&
+                      theme.id !== "spider-suit-black",
                   ).map((theme) => {
-                    const isSelected = resolvedThemePreset === theme.id;
+                    const isCrimsonSpider = theme.id === "spider-suit";
+                    const isSelected = isCrimsonSpider
+                      ? resolvedThemePreset === "spider-suit" ||
+                        resolvedThemePreset === "spider-suit-black"
+                      : resolvedThemePreset === theme.id;
+                    const selectedCrimsonVariant =
+                      resolvedThemePreset === "spider-suit-black"
+                        ? "spider-suit-black"
+                        : "spider-suit";
 
                     return (
-                      <button
+                      <div
                         key={theme.id}
-                        type="button"
-                        onClick={() => handleThemePresetChange(theme.id)}
-                        className={`relative min-h-[115px] overflow-hidden rounded-2xl border p-3 text-left transition-all duration-200 ${
+                        role="button"
+                        tabIndex={0}
+                        onClick={() =>
+                          handleThemePresetChange(
+                            isCrimsonSpider ? selectedCrimsonVariant : theme.id,
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ")
+                            return;
+                          event.preventDefault();
+                          void handleThemePresetChange(
+                            isCrimsonSpider ? selectedCrimsonVariant : theme.id,
+                          );
+                        }}
+                        className={`relative min-h-[78px] overflow-hidden rounded-lg border p-3.5 text-left transition-all duration-200 ${
                           isSelected
                             ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
                             : "theme-surface theme-hover-surface"
                         } cursor-pointer`}
                       >
+                        {isCrimsonSpider && (
+                          <div
+                            className="absolute right-1.5 top-1.5 z-10 inline-flex rounded-full border border-white/10 bg-black/60 backdrop-blur-sm text-[12px] font-black leading-3 text-white"
+                            aria-label="Crimson Spider variant"
+                          >
+                            {(
+                              [
+                                ["V1", "spider-suit"],
+                                ["V2", "spider-suit-black"],
+                              ] as const
+                            ).map(([label, preset]) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handleThemePresetChange(preset);
+                                }}
+                                className={`rounded-full px-2 py-1 transition ${
+                                  resolvedThemePreset === preset
+                                    ? "bg-red-700 text-white shadow-sm px-2.5"
+                                    : "text-zinc-400 hover:bg-white/10 hover:text-white"
+                                }`}
+                                aria-pressed={resolvedThemePreset === preset}
+                                title={
+                                  preset === "spider-suit"
+                                    ? "V1: dark grey and black"
+                                    : "V2: true black"
+                                }
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
                         {/* SWATCHES */}
-                        <div className="mb-3 flex items-center gap-2">
+                        <div
+                          className={`mb-2 flex items-center gap-1.5 ${
+                            isCrimsonSpider ? "pr-10" : ""
+                          }`}
+                        >
                           {theme.swatches.map((swatch) => (
                             <span
                               key={`${theme.id}-${swatch}`}
-                              className="h-5 w-5 rounded-full border border-white/10"
+                              className="h-4 w-4 rounded-full border border-white/10"
                               style={{
                                 backgroundColor: swatch,
                               }}
@@ -578,78 +788,85 @@ export default function SiteSettingsPage() {
                             </span>
                           )}
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="mx-auto my-6 h-px w-1/2 bg-[rgba(var(--theme-accent-rgb),0.35)]" />
-              <div className="mb-4">
-                <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
-                  Customization
-                </p>
+              {/* Temporarily disabled: font customization controls. */}
+              {false && (
+                <>
+                  <div className="mx-auto my-3 h-px w-1/2 bg-[rgba(var(--theme-accent-rgb),0.35)]" />
+                  <div className="mb-2">
+                    <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                      Customization
+                    </p>
 
-                <h2 className="theme-text text-lg font-semibold">Fonts</h2>
-              </div>
+                    <h2 className="theme-text text-base font-semibold">
+                      Fonts
+                    </h2>
+                  </div>
 
-              {/* FONT GRID */}
-              <div className="grid grid-cols-2 gap-2">
-                {FONT_PRESETS.map((font) => {
-                  const isSelected = resolvedFontPreset === font.id;
+                  {/* FONT GRID */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {FONT_PRESETS.map((font) => {
+                      const isSelected = resolvedFontPreset === font.id;
 
-                  return (
-                    <button
-                      key={font.id}
-                      type="button"
-                      onClick={() => handleFontPresetChange(font.id)}
-                      className={`relative rounded-xl border px-3 py-1.5 text-left transition-all duration-200 ${
-                        isSelected
-                          ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
-                          : "theme-surface theme-hover-surface"
-                      }`}
-                    >
-                      <p
-                        className={`theme-text text-lg font-bold`}
-                        style={{ fontFamily: font.fontFamily }}
-                      >
-                        Aa
-                      </p>
+                      return (
+                        <button
+                          key={font.id}
+                          type="button"
+                          onClick={() => handleFontPresetChange(font.id)}
+                          className={`relative rounded-lg border px-2.5 py-1 text-left transition-all duration-200 ${
+                            isSelected
+                              ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
+                              : "theme-surface theme-hover-surface"
+                          }`}
+                        >
+                          <p
+                            className="theme-text text-base font-bold"
+                            style={{ fontFamily: font.fontFamily }}
+                          >
+                            Aa
+                          </p>
 
-                      <p className="mt-1 text-xs font-semibold theme-text">
-                        {font.name}
-                      </p>
+                          <p className="mt-1 text-xs font-semibold theme-text">
+                            {font.name}
+                          </p>
 
-                      {isSelected && (
-                        <span className="absolute right-2 top-2 theme-accent-soft-bg inline-flex h-5 w-5 items-center justify-center rounded-full border">
-                          <FiCheck size={11} />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                          {isSelected && (
+                            <span className="absolute right-2 top-2 theme-accent-soft-bg inline-flex h-5 w-5 items-center justify-center rounded-full border">
+                              <FiCheck size={11} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </motion.section>
-            <section>
+            <section className="contents">
               {/* SIDEBAR */}
-              <div>
+              <div className="space-y-3 xl:order-3 xl:max-h-full xl:overflow-y-auto">
                 <motion.section
-                  className="theme-panel-strong rounded-2xl border p-4"
+                  className="theme-panel-strong rounded-xl border p-3"
                   initial={false}
                   animate={wallpaperPreview ? "hidden" : "visible"}
                   variants={previewVariants}
                   style={{ pointerEvents: wallpaperPreview ? "none" : "auto" }}
                 >
-                  <div className="mb-4">
+                  <div className="mb-3">
                     <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
-                      Navigation
+                      System
                     </p>
 
-                    <h2 className="theme-text text-lg font-semibold">
+                    <h2 className="theme-text text-base font-semibold">
                       Navbar Layout
                     </h2>
 
-                    <p className="theme-text-muted mt-1 text-sm">
+                    <p className="theme-text-muted mt-1 text-xs">
                       Choose between the classic top bar and the pill sidebar.
                     </p>
                   </div>
@@ -683,7 +900,7 @@ export default function SiteSettingsPage() {
                               void setNavbarLayout(option.id);
                             }
                           }}
-                          className={`relative overflow-hidden rounded-xl border p-3 text-left transition-all duration-200 ${
+                          className={`relative overflow-hidden rounded-lg border p-2.5 text-left transition-all duration-200 ${
                             isSelected
                               ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
                               : "theme-surface theme-hover-surface"
@@ -716,68 +933,87 @@ export default function SiteSettingsPage() {
                     })}
                   </div>
                 </motion.section>
+                <div className="theme-panel-strong rounded-xl border p-3">
+                  <div className="mb-4">
+                    <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                      Logic
+                    </p>
+
+                    <h2 className="theme-text text-lg font-semibold">
+                      Release Sync Interval
+                    </h2>
+
+                    <p className="theme-text-muted mt-1 text-sm">
+                      Choose how often PlayCrew rechecks release dates.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2">
+                    {RELEASE_SYNC_INTERVAL_OPTIONS.map((hours) => {
+                      const isSelected = releaseSyncInterval === hours;
+                      return (
+                        <button
+                          key={hours}
+                          type="button"
+                          onClick={() => handleReleaseSyncIntervalChange(hours)}
+                          className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-all duration-200 ${
+                            isSelected
+                              ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
+                              : "theme-surface theme-hover-surface"
+                          }`}
+                        >
+                          {hours}h
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      disabled={isSyncingReleaseDates}
+                      onClick={() => {
+                        requestReleaseSync();
+                        toast.success("Release refresh started");
+                      }}
+                      className="theme-accent-soft-bg mt-3 flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      {isSyncingReleaseDates ? (
+                        <>
+                          <span className="loading loading-spinner loading-xs" />
+                          Refreshing {syncCurrent}/{syncTotal || "..."}
+                        </>
+                      ) : (
+                        "Force refresh now"
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="theme-panel-strong rounded-2xl border p-4 mt-4">
-                <div className="mb-4">
-                  <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
-                    Navigation
-                  </p>
-
-                  <h2 className="theme-text text-lg font-semibold">
-                    Release Sync Interval
-                  </h2>
-
-                  <p className="theme-text-muted mt-1 text-sm">
-                    Choose how often PlayCrew rechecks release dates.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-4 gap-2">
-                  {RELEASE_SYNC_INTERVAL_OPTIONS.map((hours) => {
-                    const isSelected = releaseSyncInterval === hours;
-                    return (
-                      <button
-                        key={hours}
-                        type="button"
-                        onClick={() => handleReleaseSyncIntervalChange(hours)}
-                        className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-all duration-200 ${
-                          isSelected
-                            ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
-                            : "theme-surface theme-hover-surface"
-                        }`}
-                      >
-                        {hours}h
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <section className="theme-panel-strong mt-2 rounded-2xl border p-6 w-120 max-w-120">
-                <div className="mb-6">
+              <section className="theme-panel-strong rounded-xl border p-3 xl:order-2 xl:max-h-full xl:overflow-y-auto">
+                <div className="mb-3">
                   <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
                     Appearance
                   </p>
 
-                  <h2 className="theme-text text-lg font-semibold">
+                  <h2 className="theme-text text-base font-semibold">
                     Wallpaper Studio
                   </h2>
 
-                  <p className="theme-text-muted text-sm">
+                  <p className="theme-text-muted text-xs">
                     Personalize PlayCrew with your own wallpaper.
                   </p>
                 </div>
 
                 {/* STATUS */}
-                <div className="theme-surface mb-5 rounded-2xl border p-4">
+                <div className="theme-surface mb-3 rounded-xl border p-3">
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <h3 className="theme-text font-semibold">
                         Wallpaper Status
                       </h3>
 
-                      <p className="theme-text-muted mt-1 text-sm">
+                      <p className="theme-text-muted mt-1 text-xs">
                         {hasPendingWallpaper
                           ? "A new wallpaper is ready to be saved."
                           : hasSavedWallpaper
@@ -805,11 +1041,11 @@ export default function SiteSettingsPage() {
                 </div>
 
                 {/* ACTIONS */}
-                <div className="mb-6 grid gap-3 sm:grid-cols-3">
+                <div className="mb-4 grid gap-2 sm:grid-cols-3">
                   <button
                     type="button"
-                    onClick={() => wallpaperInputRef.current?.click()}
-                    className="theme-accent-bg flex flex-col items-center justify-center gap-2 rounded-2xl p-4 text-center transition hover:scale-[1.02]"
+                    onClick={() => setWallpaperSourceOpen(true)}
+                    className="theme-accent-bg flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center text-sm transition hover:scale-[1.02]"
                   >
                     {hasSavedWallpaper || hasPendingWallpaper ? (
                       <FiImage size={22} />
@@ -828,7 +1064,7 @@ export default function SiteSettingsPage() {
                     type="button"
                     disabled={!hasPendingWallpaper && !hasSavedWallpaper}
                     onClick={removeWallpaper}
-                    className="theme-surface theme-hover-surface flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center transition hover:scale-[1.02] disabled:opacity-50"
+                    className="theme-surface theme-hover-surface flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-center text-sm transition hover:scale-[1.02] disabled:opacity-50"
                   >
                     <FiTrash2 size={22} />
                     <span className="font-semibold">
@@ -869,10 +1105,10 @@ export default function SiteSettingsPage() {
                   </button>
                 </div>
 
-                <div className="my-6 border-t border-[var(--theme-border)]" />
+                <div className="my-4 border-t border-[var(--theme-border)]" />
 
                 {/* BLUR */}
-                <div className="mb-5">
+                <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
                     <span className="theme-text text-sm font-semibold">
                       Background Blur
@@ -900,7 +1136,7 @@ export default function SiteSettingsPage() {
                 </div>
 
                 {/* OVERLAY */}
-                <div className="mb-6">
+                <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
                     <span className="theme-text text-sm font-semibold">
                       Dark Overlay
@@ -927,7 +1163,98 @@ export default function SiteSettingsPage() {
                   />
                 </div>
 
-                <div className="my-6 border-t border-[var(--theme-border)]" />
+                {isAdmin && (
+                  <div className="theme-surface mb-4 rounded-xl border p-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="theme-text text-sm font-semibold">
+                            Idle Wallpaper
+                          </p>
+                          <span className="theme-accent-soft-bg rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]">
+                            Library page only
+                          </span>
+                        </div>
+                        <p className="theme-text-muted mt-1 text-xs leading-4">
+                          Fade the Library page into your wallpaper after a
+                          period without activity. This feature only works on
+                          the Library page.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={idleWallpaperEnabled}
+                        disabled={!hasWallpaper}
+                        onClick={() =>
+                          setIdleWallpaperEnabled((current) => !current)
+                        }
+                        className={`relative h-7 w-12 shrink-0 rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                          idleWallpaperEnabled
+                            ? "border-[var(--theme-accent)] bg-[var(--theme-accent)]"
+                            : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)]"
+                        }`}
+                      >
+                        <span
+                          className={`absolute left-1 top-1 h-[18px] w-[18px] rounded-full bg-[var(--theme-accent-contrast)] shadow-sm transition-transform ${
+                            idleWallpaperEnabled
+                              ? "translate-x-5"
+                              : "translate-x-0"
+                          }`}
+                        />
+                        <span className="sr-only">
+                          {idleWallpaperEnabled
+                            ? "Disable idle wallpaper"
+                            : "Enable idle wallpaper"}
+                        </span>
+                      </button>
+                    </div>
+
+                    {!hasWallpaper && (
+                      <p className="theme-text-muted mt-2 text-[11px]">
+                        Add a wallpaper to enable this option.
+                      </p>
+                    )}
+
+                    <div className="mt-4 border-t border-[var(--theme-border)] pt-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <label
+                          htmlFor="idle-wallpaper-fade-speed"
+                          className="theme-text text-xs font-semibold"
+                        >
+                          Fade After
+                        </label>
+                        <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-[11px] font-bold">
+                          {formatFadeDuration(idleWallpaperFadeSeconds)}
+                        </span>
+                      </div>
+                      <input
+                        id="idle-wallpaper-fade-speed"
+                        type="range"
+                        min="5"
+                        max="300"
+                        step="5"
+                        value={idleWallpaperFadeSeconds}
+                        disabled={!hasWallpaper || !idleWallpaperEnabled}
+                        onChange={(event) =>
+                          setIdleWallpaperFadeSeconds(
+                            clampIdleWallpaperFadeSeconds(
+                              Number(event.target.value),
+                            ),
+                          )
+                        }
+                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                      />
+                      <p className="theme-text-muted mt-2 text-[11px]">
+                        Controls how long the Library page waits before fading
+                        to the wallpaper.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="my-4 border-t border-[var(--theme-border)]" />
 
                 {/* FOOTER ACTIONS */}
                 <div className="grid grid-cols-2 gap-3">
@@ -935,7 +1262,7 @@ export default function SiteSettingsPage() {
                     type="button"
                     onClick={resetGamesPageSettings}
                     disabled={!hasWallpaper}
-                    className="theme-surface theme-hover-surface h-11 rounded-xl border font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    className="theme-surface theme-hover-surface h-9 rounded-lg border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Reset Settings
                   </button>
@@ -944,7 +1271,7 @@ export default function SiteSettingsPage() {
                     type="button"
                     disabled={!hasWallpaper}
                     onClick={() => setWallpaperPreview((v) => !v)}
-                    className={`h-11 rounded-xl font-semibold transition ${
+                    className={`h-9 rounded-lg text-sm font-semibold transition ${
                       !hasWallpaper
                         ? "theme-surface border opacity-50"
                         : wallpaperPreview
@@ -973,14 +1300,19 @@ export default function SiteSettingsPage() {
                     if (file.type === "image/gif") {
                       const reader = new FileReader();
                       reader.onload = () => {
-                        setPendingWallpaper({
+                        setCrop({ x: 0, y: 0 });
+                        setZoom(1);
+                        setGifCropMedia({
                           type: "gif",
                           data: reader.result as string,
                           crop: { x: 0, y: 0, zoom: 1 },
                           name: file.name,
+                          size: file.size,
                         });
-                        toast.success(
-                          "GIF wallpaper staged. Save it when ready.",
+                      };
+                      reader.onerror = () => {
+                        toast.error(
+                          `Could not read GIF: ${reader.error?.message || "FileReader failed"}`,
                         );
                       };
                       reader.readAsDataURL(file);
@@ -999,6 +1331,305 @@ export default function SiteSettingsPage() {
           </div>
         </div>
       </motion.main>
+
+      <AnimatePresence>
+        {wallpaperSourceOpen && (
+          <motion.div
+            className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setWallpaperSourceOpen(false)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="wallpaper-source-title"
+              className="theme-panel-strong relative w-full max-w-lg rounded-2xl border p-5 shadow-2xl"
+              initial={{ opacity: 0, y: 18, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-label="Close wallpaper source chooser"
+                onClick={() => setWallpaperSourceOpen(false)}
+                className="theme-surface theme-hover-surface absolute right-4 top-4 rounded-lg border p-2"
+              >
+                <FiX />
+              </button>
+
+              <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                Wallpaper source
+              </p>
+              <h2
+                id="wallpaper-source-title"
+                className="theme-text mt-1 text-xl font-bold"
+              >
+                Choose your wallpaper
+              </h2>
+              <p className="theme-text-muted mt-1 max-w-md text-sm">
+                Upload your own image or GIF, or find an animated wallpaper on
+                GIPHY.
+              </p>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWallpaperSourceOpen(false);
+                    wallpaperInputRef.current?.click();
+                  }}
+                  className="theme-surface theme-hover-surface rounded-xl border p-4 text-left transition hover:-translate-y-0.5"
+                >
+                  <FiUpload className="theme-accent-soft-text mb-3" size={24} />
+                  <span className="theme-text block font-semibold">
+                    Browse file
+                  </span>
+                  <span className="theme-text-muted mt-1 block text-xs leading-5">
+                    Choose a JPG, PNG, WebP, or animated GIF from this device.
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={openGiphyPicker}
+                  className="theme-accent-soft-bg rounded-xl border p-4 text-left transition hover:-translate-y-0.5 hover:brightness-110"
+                >
+                  <FiSearch className="mb-3" size={24} />
+                  <span className="block font-semibold">Use GIPHY</span>
+                  <span className="mt-1 block text-xs leading-5 opacity-75">
+                    Search GIPHY and stage an animated wallpaper before saving.
+                  </span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {giphyPickerOpen && (
+          <motion.div
+            className="fixed inset-0 z-[10030] flex items-center justify-center bg-black/80 px-3 py-5 backdrop-blur-md sm:px-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setGiphyPickerOpen(false)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="giphy-wallpaper-title"
+              className="theme-panel-strong flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border shadow-2xl"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-[var(--theme-border)] p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="theme-accent-soft-text text-xs font-semibold uppercase tracking-[0.2em]">
+                      Animated wallpapers
+                    </p>
+                    <h2
+                      id="giphy-wallpaper-title"
+                      className="theme-text mt-1 text-xl font-bold"
+                    >
+                      Search GIPHY
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close GIPHY wallpaper picker"
+                    onClick={() => setGiphyPickerOpen(false)}
+                    className="theme-surface theme-hover-surface rounded-lg border p-2"
+                  >
+                    <FiX />
+                  </button>
+                </div>
+
+                <form
+                  className="mt-4 flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void loadGiphyWallpapers(giphyQuery);
+                  }}
+                >
+                  <div className="theme-surface flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-3">
+                    <FiSearch className="theme-text-muted shrink-0" />
+                    <input
+                      value={giphyQuery}
+                      onChange={(event) => setGiphyQuery(event.target.value)}
+                      placeholder="Search cinematic, fantasy, space..."
+                      maxLength={80}
+                      className="theme-text h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--theme-text-muted)]"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={giphyLoading}
+                    className="theme-accent-bg rounded-xl px-4 text-sm font-semibold disabled:opacity-50"
+                  >
+                    Search
+                  </button>
+                </form>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                {giphyLoading ? (
+                  <div className="flex min-h-64 items-center justify-center">
+                    <span className="loading loading-spinner loading-lg text-[var(--theme-accent)]" />
+                  </div>
+                ) : giphyError ? (
+                  <div className="flex min-h-64 flex-col items-center justify-center text-center">
+                    <p className="text-sm font-semibold text-red-300">
+                      {giphyError}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void loadGiphyWallpapers(giphyQuery)}
+                      className="theme-surface theme-hover-surface mt-3 rounded-lg border px-4 py-2 text-sm"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : giphyWallpapers.length ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {giphyWallpapers.map((wallpaper) => {
+                      const selected =
+                        selectedGiphyWallpaper?.id === wallpaper.id;
+                      return (
+                        <button
+                          key={wallpaper.id}
+                          type="button"
+                          onClick={() => setSelectedGiphyWallpaper(wallpaper)}
+                          className={`group relative aspect-video overflow-hidden rounded-xl border bg-black transition ${
+                            selected
+                              ? "border-[var(--theme-accent-strong)] ring-2 ring-[var(--theme-accent)]"
+                              : "border-[var(--theme-border)] hover:border-[var(--theme-border-strong)]"
+                          }`}
+                        >
+                          <img
+                            src={wallpaper.previewUrl}
+                            alt={wallpaper.title}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                          <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/95 to-transparent px-2 pb-2 pt-7 text-left text-[11px] text-white">
+                            {wallpaper.title}
+                          </span>
+                          {selected && (
+                            <span className="theme-accent-bg absolute right-2 top-2 rounded-full p-1.5">
+                              <FiCheck size={13} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="theme-text-muted flex min-h-64 items-center justify-center text-sm">
+                    No GIFs found. Try a different search.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--theme-border)] p-4">
+                <p className="theme-text-muted text-xs">Powered by GIPHY</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGiphyPickerOpen(false)}
+                    className="theme-surface theme-hover-surface rounded-lg border px-4 py-2 text-sm font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selectedGiphyWallpaper}
+                    onClick={stageSelectedGiphyWallpaper}
+                    className="theme-accent-bg rounded-lg px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Crop wallpaper
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {wallpaperPreview && activeWallpaper?.data && (
+          <motion.div
+            className="fixed inset-0 z-[10000] overflow-hidden bg-black"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.32, ease: "easeInOut" }}
+          >
+            <motion.img
+              src={activeWallpaper.data}
+              alt="Wallpaper preview"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{
+                ...getWallpaperCropStyle(activeWallpaper),
+                filter: `blur(${gamesBgBlur}px)`,
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+            />
+            <div
+              className="absolute inset-0 bg-black"
+              style={{ opacity: gamesBgOverlay / 100 }}
+            />
+
+            <motion.button
+              type="button"
+              onClick={() => setWallpaperPreview(false)}
+              className="theme-panel-strong absolute right-5 top-5 z-10 rounded-xl border px-4 py-2 text-sm font-semibold shadow-2xl backdrop-blur-xl transition hover:border-[var(--theme-accent)] hover:bg-[rgba(var(--theme-accent-rgb),0.14)] sm:right-7 sm:top-7"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ delay: 0.16, duration: 0.22 }}
+            >
+              Close Preview
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {gifCropMedia?.type === "gif" && (
+          <CropModal
+            image={gifCropMedia.data}
+            crop={crop}
+            zoom={zoom}
+            setCrop={setCrop}
+            setZoom={setZoom}
+            aspect={16 / 9}
+            onComplete={() => undefined}
+            onSave={() => {
+              const croppedGif: MediaValue = {
+                ...gifCropMedia,
+                crop: { x: crop.x, y: crop.y, zoom },
+              };
+              setPendingWallpaper(croppedGif);
+              setGifCropMedia(null);
+              toast.success(
+                croppedGif.size
+                  ? `GIF wallpaper cropped and staged • ${formatFileSize(croppedGif.size)}`
+                  : "GIF wallpaper cropped and staged. Save it when ready.",
+              );
+            }}
+            onCancel={() => setGifCropMedia(null)}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {cropType && selectedFile && (

@@ -1,5 +1,4 @@
-"use client";
-
+import type { Metadata } from "next";
 import { ReactNode } from "react";
 
 import "./globals.css";
@@ -18,6 +17,14 @@ import ClientOnlyHooks from "./components/ClientOnlyHooks";
 interface RootLayoutProps {
   children: ReactNode;
 }
+
+export const metadata: Metadata = {
+  title: {
+    default: "PlayCrew",
+    template: "%s • PlayCrew",
+  },
+  description: "Track, share, and discover games with PlayCrew.",
+};
 
 export default function RootLayout({ children }: RootLayoutProps) {
   // `usePersistLastPage` is a client-only hook; run it in a tiny client wrapper.

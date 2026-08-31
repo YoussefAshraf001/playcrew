@@ -7,9 +7,60 @@ import { MdBlock } from "react-icons/md";
 import { FaClock, FaExclamation, FaStar } from "react-icons/fa";
 import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
 import { PiDotsNineLight } from "react-icons/pi";
+import PreReleaseBadge from "./PreReleaseBadge";
 
 const formatRating = (rating: number) =>
   Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
+
+function DecodedGameCover({
+  src,
+  alt,
+  lazy = false,
+}: {
+  src: string;
+  alt: string;
+  lazy?: boolean;
+}) {
+  const [ready, setReady] = useState(false);
+  const [displayedSrc, setDisplayedSrc] = useState(src);
+
+  return (
+    <>
+      <div
+        className={`pointer-events-none absolute inset-0 bg-zinc-800 transition-opacity duration-500 ${
+          ready ? "opacity-0" : "animate-pulse opacity-100"
+        }`}
+      />
+      <img
+        src={displayedSrc}
+        alt={alt}
+        loading={lazy ? "lazy" : "eager"}
+        decoding="async"
+        draggable={false}
+        onDragStart={(event) => event.preventDefault()}
+        onLoad={async (event) => {
+          const image = event.currentTarget;
+          try {
+            await image.decode();
+          } catch {
+            // Reveal after load when explicit decoding is unavailable.
+          }
+          setReady(true);
+        }}
+        onError={() => {
+          if (displayedSrc !== "/placeholder-game.jpg") {
+            setDisplayedSrc("/placeholder-game.jpg");
+            return;
+          }
+          setReady(true);
+        }}
+        className={`h-full w-full object-cover opacity-0 transition-opacity duration-700 ease-out ${
+          ready ? "opacity-100" : ""
+        }`}
+      />
+    </>
+  );
+}
 
 export default function GameCard({
   game,
@@ -20,11 +71,13 @@ export default function GameCard({
   reorderMode,
   sortBy,
   showActions = true,
+  posterLayout = false,
+  onOpenSteamAssets,
 }: any) {
-  const [loaded, setLoaded] = useState(false);
   const [isCardHovered, setIsCardHovered] = useState(false);
 
   const releaseDate = parseReleaseDate(game?.igdb?.releaseDate);
+  const coverSrc = game?.igdb?.cover || "/placeholder-game.jpg";
 
   const isReleased =
     releaseDate instanceof Date &&
@@ -40,6 +93,18 @@ export default function GameCard({
     game?.igdb?.releaseDate,
     game?.igdb?.releaseDatePrecision,
   );
+  const accessRibbon = (() => {
+    switch (game?.preReleaseAccess?.type) {
+      case "early-access":
+        return "EARLY ACCESS";
+      case "advanced-access":
+        return "ADVANCED ACCESS";
+      case "leaked":
+        return "LEAKED BUILD";
+      default:
+        return null;
+    }
+  })();
 
   const formatPlaytime = (playtime?: number | null) => {
     if (!playtime) return "0h";
@@ -55,7 +120,9 @@ export default function GameCard({
   };
 
   const isNotInterested =
-    game?.notInterested === true || game?.status === "Not Interested";
+    game?.notInterested === true ||
+    game?.status === "Not Interested" ||
+    game?.status === "Lost Interest";
 
   const showNotInterestedOverlay = isNotInterested;
 
@@ -68,7 +135,7 @@ export default function GameCard({
     switch (sortBy) {
       case "tier":
         if (game.notInterested) {
-          return "🚫 Not Interested";
+          return "🚫 Lost Interest";
         }
 
         return hasRating
@@ -102,8 +169,7 @@ export default function GameCard({
       className={`
         group
         relative
-        w-[225px]
-        max-w-none
+        ${posterLayout ? "w-full max-w-full" : "w-[225px] max-w-none"}
         transition-all
         duration-300
         ${!reorderMode ? "hover:z-50 hover:scale-[1.005] hover:-translate-y-1" : "brightness-90"}
@@ -167,47 +233,36 @@ export default function GameCard({
           hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.45),0_0_32px_rgba(var(--theme-accent-rgb),0.35),0_18px_36px_rgba(0,0,0,0.5)]
         "
       >
+        {accessRibbon && game.preReleaseAccess?.type && (
+          <div className="pointer-events-none absolute left-2 top-2 z-50 max-w-[calc(100%-3.5rem)] -translate-y-2 opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
+            <PreReleaseBadge
+              type={game.preReleaseAccess.type}
+              label={accessRibbon}
+            />
+          </div>
+        )}
         {reorderMode ? (
           <div className="relative h-[330px] w-full overflow-hidden">
-            {!loaded && (
-              <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
-            )}
-
-            <img
-              src={game.igdb.cover || "/placeholder-game.jpg"}
-              alt={game.name}
-              onLoad={() => setLoaded(true)}
-              className={`
-                h-full
-                w-full
-                object-cover
-                transition-all
-                duration-500
-                ${loaded ? "opacity-100" : "opacity-0"}
-              `}
-            />
+            <DecodedGameCover key={coverSrc} src={coverSrc} alt={game.name} />
           </div>
         ) : (
           <Link href={`/game/${game.igdb.id}`} prefetch={false}>
-            <div className="relative h-[330px] w-full overflow-hidden">
-              {!loaded && (
-                <div className="absolute inset-0 bg-zinc-800 animate-pulse" />
-              )}
-
-              <img
-                src={game.igdb.cover || "/placeholder-game.jpg"}
+            <div
+              onContextMenu={(event) => {
+                if (!onOpenSteamAssets) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenSteamAssets(event, game);
+              }}
+              className={`relative w-full overflow-hidden ${
+                posterLayout ? "aspect-[2/3] h-auto" : "h-[330px]"
+              }`}
+            >
+              <DecodedGameCover
+                key={coverSrc}
+                src={coverSrc}
                 alt={game.name}
-                draggable={false}
-                onDragStart={(e) => e.preventDefault()}
-                onLoad={() => setLoaded(true)}
-                className={`
-                  h-full
-                  w-full
-                  object-cover
-                  transition-all
-                  duration-500
-                  ${loaded ? "opacity-100" : "opacity-0"}
-                `}
+                lazy
               />
 
               {/* {sortBadge && !reorderMode && (
@@ -282,7 +337,7 @@ export default function GameCard({
                     </div>
 
                     <h3 className="mt-5 text-lg font-semibold text-white">
-                      Not Interested
+                      Lost Interest
                     </h3>
                   </div>
                 ) : showComingSoonOverlay ? (
@@ -321,8 +376,18 @@ export default function GameCard({
 
                     <div className="mt-1 flex items-center gap-4 text-xs">
                       {hasRating ? (
-                        <span className="flex items-center gap-1 text-yellow-400">
-                          <FaStar size={12} />
+                        <span
+                          className="flex items-center gap-1"
+                          style={{ color: "#fcd34d" }}
+                        >
+                          <FaStar
+                            size={12}
+                            style={{
+                              color: "#fcd34d",
+                              filter:
+                                "drop-shadow(0 0 6px rgba(252, 211, 77, 0.8))",
+                            }}
+                          />
                           {formatRating(game.my_rating)}
                         </span>
                       ) : (

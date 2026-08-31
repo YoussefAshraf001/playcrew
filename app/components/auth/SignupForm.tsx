@@ -1,8 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  deleteUser,
+  updateProfile,
+} from "firebase/auth";
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  query,
+  runTransaction,
+  where,
+} from "firebase/firestore";
 import { auth, db } from "@/app/lib/firebase";
 import { toast } from "react-hot-toast";
 import { FiEye, FiEyeOff } from "react-icons/fi";
@@ -12,6 +24,7 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
   const { open } = useAuthModal();
 
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,21 +32,72 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const normalizedUsername = username
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_-]/g, "")
+      .replace(/_+/g, "_")
+      .replace(/^[-_]+|[-_]+$/g, "");
+
+    if (normalizedUsername.length < 3) {
+      toast.error("Username must contain at least 3 characters.");
+      return;
+    }
+
     try {
       setLoading(true);
       toast.loading("Creating account...");
 
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const usernameQuery = query(
+        collection(db, "users"),
+        where("username", "==", normalizedUsername),
+        limit(1),
+      );
+      const existingUsername = await getDocs(usernameQuery);
+      if (!existingUsername.empty) {
+        toast.dismiss();
+        toast.error("That username is identical to another user's username.");
+        return;
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const cred = await createUserWithEmailAndPassword(
+        auth,
+        normalizedEmail,
+        password,
+      );
 
       const user = cred.user;
-      const username = email.split("@")[0];
 
-      await setDoc(doc(db, "users", user.uid), {
-        username,
-        createdAt: new Date(),
-      });
+      try {
+        await runTransaction(db, async (transaction) => {
+          const usernameRef = doc(db, "usernames", normalizedUsername);
+          const usernameSnap = await transaction.get(usernameRef);
+          if (
+            usernameSnap.exists() &&
+            usernameSnap.data().uid !== user.uid
+          ) {
+            throw new Error("username-already-taken");
+          }
 
-      await updateProfile(user, { displayName: username });
+          transaction.set(doc(db, "users", user.uid), {
+            uid: user.uid,
+            username: normalizedUsername,
+            email: normalizedEmail,
+            createdAt: new Date(),
+          });
+          transaction.set(usernameRef, {
+            uid: user.uid,
+            username: normalizedUsername,
+          });
+        });
+      } catch (error) {
+        await deleteUser(user).catch(() => undefined);
+        throw error;
+      }
+
+      await updateProfile(user, { displayName: normalizedUsername });
 
       toast.dismiss();
       toast.success("Welcome to PlayCrew!", { icon: "👋" });
@@ -43,7 +107,9 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
       const code = (err as { code?: string })?.code;
 
       if (code === "auth/email-already-in-use") {
-        toast.error("That email is already in use. Try logging in instead.");
+        toast.error("That email is already registered. Try logging in instead.");
+      } else if ((err as Error)?.message === "username-already-taken") {
+        toast.error("That username is identical to another user's username.");
       } else if (code === "auth/invalid-email") {
         toast.error("That email address looks invalid.");
       } else if (code === "auth/weak-password") {
@@ -59,7 +125,7 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSignup} className="space-y-5 h-100">
+    <form onSubmit={handleSignup} className="space-y-5">
       <div className="space-y-2 text-center">
         <p className="text-xs uppercase tracking-[0.22em] text-cyan-300/80">
           Join PlayCrew
@@ -73,6 +139,23 @@ export default function SignupForm({ onSuccess }: { onSuccess?: () => void }) {
       </div>
 
       <div className="space-y-4">
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.15em] text-zinc-400">
+            Username
+          </span>
+          <input
+            type="text"
+            placeholder="Choose a unique username"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-cyan-400/70 focus:bg-white/[0.07]"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            minLength={3}
+            maxLength={32}
+            autoComplete="username"
+            required
+          />
+        </label>
+
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.15em] text-zinc-400">
             Email

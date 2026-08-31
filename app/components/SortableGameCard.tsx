@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useSortable } from "@dnd-kit/sortable";
 import GameCard from "./GameCard";
 import { TrackedGame } from "@/app/types/trackedGame";
+import type { MouseEvent } from "react";
 
 interface SortableGameCardProps {
   game: TrackedGame;
@@ -15,6 +16,10 @@ interface SortableGameCardProps {
     message: string,
     action: () => void | Promise<void>,
   ) => void;
+  onOpenSteamAssets?: (
+    event: MouseEvent<HTMLDivElement>,
+    game: TrackedGame,
+  ) => void;
 }
 
 export default function SortableGameCard({
@@ -24,6 +29,7 @@ export default function SortableGameCard({
   releaseFilter,
   openEditModal,
   openConfirmModal,
+  onOpenSteamAssets,
 }: SortableGameCardProps) {
   const {
     attributes,
@@ -54,6 +60,7 @@ export default function SortableGameCard({
         releaseFilter={releaseFilter}
         openEditModal={openEditModal}
         openConfirmModal={openConfirmModal}
+        onOpenSteamAssets={onOpenSteamAssets}
       />
     </div>
   );

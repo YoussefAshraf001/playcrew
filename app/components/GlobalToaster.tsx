@@ -1,13 +1,21 @@
 "use client";
 
-import { Toaster, ToastBar } from "react-hot-toast";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import toast, { Toaster, ToastBar } from "react-hot-toast";
 
 export default function GlobalToaster() {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    toast.dismiss();
+  }, [pathname]);
+
   return (
     <Toaster
       position="top-center"
       reverseOrder={false}
-      containerStyle={{ top: 60, right: 14 }}
+      containerStyle={{ top: 60, right: 14, zIndex: 20000 }}
       toastOptions={{
         duration: 2600,
       }}

@@ -20,6 +20,7 @@ type Props = {
   onClose: () => void;
   onPick: (game: PickerGame) => Promise<void> | void;
   disabledGameIds?: number[];
+  title?: string;
 };
 
 const toPickerGame = (game: IgdbGame): PickerGame | null => {
@@ -42,6 +43,7 @@ export default function ScreenshotsGamePickerModal({
   onClose,
   onPick,
   disabledGameIds = [],
+  title = "Add Game Collection",
 }: Props) {
   const [search, setSearch] = useState("");
   const [games, setGames] = useState<PickerGame[]>([]);
@@ -140,7 +142,7 @@ export default function ScreenshotsGamePickerModal({
           <div className="border-b border-white/10 p-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-white">
-                Add Game Collection
+                {title}
               </h2>
               <button onClick={onClose}>
                 <IoCloseCircle className="text-2xl text-zinc-400 hover:text-white" />

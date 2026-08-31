@@ -1,8 +1,10 @@
+import { useEffect, useMemo } from "react";
 import Cropper, { Area } from "react-easy-crop";
 import { motion } from "framer-motion";
 
 export default function CropModal({
   file,
+  image,
   crop,
   zoom,
   setCrop,
@@ -12,7 +14,8 @@ export default function CropModal({
   onSave,
   onCancel,
 }: {
-  file: File;
+  file?: File;
+  image?: string;
   crop: { x: number; y: number };
   zoom: number;
   setCrop: (v: { x: number; y: number }) => void;
@@ -22,6 +25,21 @@ export default function CropModal({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const objectUrl = useMemo(
+    () => (file ? URL.createObjectURL(file) : null),
+    [file],
+  );
+  const source = image ?? objectUrl;
+
+  useEffect(
+    () => () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    },
+    [objectUrl],
+  );
+
+  if (!source) return null;
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
@@ -37,7 +55,7 @@ export default function CropModal({
       >
         <div className="relative h-80 overflow-hidden rounded-xl border border-cyan-300/20">
           <Cropper
-            image={URL.createObjectURL(file)}
+            image={source}
             crop={crop}
             zoom={zoom}
             aspect={aspect}

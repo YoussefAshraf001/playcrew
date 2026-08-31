@@ -29,6 +29,20 @@ const QUOTES = [
       "We fight not so that the world will remember us, but so there will be a world to remember.",
     author: "Captain John Price",
   },
+  {
+    quote: "This is for the record. History is written by the victor.",
+    author: "Captain John Price",
+  },
+  {
+    quote:
+      "The healthy human mind doesn't wake up thinking this is its last day on Earth.",
+    author: "Captain John Price",
+  },
+  {
+    quote: "We're all a little crazy, aren't we?",
+    author: "Captain John Price",
+  },
+  { quote: "End of the line, mate.", author: "Captain John Price" },
   { quote: "It's not a lake. It's an ocean.", author: "Alan Wake" },
   { quote: "Nightmares exist outside of logic.", author: "Alan Wake" },
   {
@@ -60,6 +74,7 @@ const QUOTES = [
     author: "Geralt",
   },
   { quote: "A man chooses. A slave obeys.", author: "Andrew Ryan" },
+  { quote: "Would you kindly?", author: "BioShock" },
   {
     quote: "We all make choices. But in the end, our choices make us.",
     author: "BioShock",
@@ -69,6 +84,21 @@ const QUOTES = [
     author: "Michael De Santa",
   },
   { quote: "Surviving is winning.", author: "GTA V" },
+  { quote: "War. War never changes.", author: "Fallout" },
+  {
+    quote: "The right man in the wrong place can make all the difference.",
+    author: "G-Man",
+  },
+  {
+    quote: "Had to be me. Someone else might have gotten it wrong.",
+    author: "Mordin Solus",
+  },
+  { quote: "Protocol 3: Protect the Pilot.", author: "BT-7274" },
+  {
+    quote: "Nothing is true. Everything is permitted.",
+    author: "Assassin's Creed",
+  },
+  { quote: "Stand by for Titanfall.", author: "Titanfall" },
   {
     quote: "The strength to stand alone is the strength to make a stand.",
     author: "Aloy",

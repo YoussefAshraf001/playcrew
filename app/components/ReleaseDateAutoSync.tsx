@@ -5,10 +5,15 @@ import { useGames } from "@/app/context/GameContext";
 import { useUser } from "@/app/context/UserContext";
 import { refreshGameData, type RefreshableGame } from "@/app/utils/refreshGame";
 import { useSync } from "../context/SyncContext";
+import type { RefreshBlockField } from "@/app/types/trackedGame";
 
 type SyncGame = {
   id: string;
   status?: string;
+  preReleaseAccess?: unknown;
+  refreshExcluded?: boolean;
+  refreshBlockedFields?: Partial<Record<RefreshBlockField, boolean>>;
+  protectCustomCoverFromRefresh?: boolean;
   igdb?: {
     id?: number;
     name?: string;
@@ -111,22 +116,31 @@ export default function ReleaseDateAutoSync() {
     setSyncCurrent,
     setSyncTotal,
     setCurrentGameName,
+    releaseSyncRequest,
   } = useSync();
   const { games, gamesLoading } = useGames();
   const uid = user?.uid;
   const runningForUidRef = useRef<string | null>(null);
+  const handledForceRequestRef = useRef(0);
 
   useEffect(() => {
     if (!uid || gamesLoading || !games.length) return;
-    if (runningForUidRef.current === uid) return;
-    if (!shouldRunReleaseSync()) return;
+    const isForcedSync = releaseSyncRequest > handledForceRequestRef.current;
+    if (runningForUidRef.current === uid && !isForcedSync) return;
+    if (!isForcedSync && !shouldRunReleaseSync()) return;
 
     const today = new Date();
+    if (isForcedSync) {
+      handledForceRequestRef.current = releaseSyncRequest;
+    }
     today.setHours(0, 0, 0, 0);
 
     const candidates = (games as SyncGame[]).filter(
       (game): game is SyncGame & RefreshableGame => {
-        if (game.status !== "Want To Play") return false;
+        if (game.refreshExcluded) return false;
+        if (game.status !== "Want To Play" && !game.preReleaseAccess) {
+          return false;
+        }
         if (!isRefreshableGame(game)) return false;
 
         const releaseDate = toDate(game.igdb.releaseDate);
@@ -166,11 +180,11 @@ export default function ReleaseDateAutoSync() {
               uid,
               game,
               {
-                name: false,
-                cover: false,
+                name: true,
+                cover: true,
                 genres: false,
-                rating: false,
-                platforms: false,
+                rating: true,
+                platforms: true,
                 released: true,
               },
               game.id,
@@ -192,7 +206,7 @@ export default function ReleaseDateAutoSync() {
     };
 
     sync();
-  }, [games, gamesLoading, uid]);
+  }, [games, gamesLoading, uid, releaseSyncRequest]);
 
   return null;
 }

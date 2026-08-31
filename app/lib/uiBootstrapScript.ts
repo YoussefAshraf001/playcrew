@@ -11,13 +11,11 @@ import {
 } from "./uiPreferences";
 
 const THEME_STORAGE_KEY = "playcrew-theme-preset";
-const FONT_STORAGE_KEY = "playcrew-font-preset";
 
 export const uiBootstrapScript = `
 (() => {
   try {
     const themeKey = ${JSON.stringify(THEME_STORAGE_KEY)};
-    const fontKey = ${JSON.stringify(FONT_STORAGE_KEY)};
     const navbarKey = ${JSON.stringify(NAVBAR_LAYOUT_STORAGE_KEY)};
     const defaultTheme = ${JSON.stringify(DEFAULT_THEME_PRESET)};
     const defaultFont = ${JSON.stringify(DEFAULT_FONT_PRESET)};
@@ -42,18 +40,15 @@ export const uiBootstrapScript = `
     )};
 
     const storedTheme = window.localStorage.getItem(themeKey);
-    const storedFont = window.localStorage.getItem(fontKey);
     const storedNavbarLayout = window.localStorage.getItem(navbarKey);
 
     const nextTheme = themePresets.includes(storedTheme ?? "")
       ? storedTheme
       : defaultTheme;
 
-    const nextFont = fontPresets.some(
-      (preset) => preset.id === storedFont,
-    )
-      ? storedFont
-      : defaultFont;
+    // Font customization is temporarily disabled. Do not alter the saved
+    // preference; simply use the default font for this session.
+    const nextFont = defaultFont;
 
     const nextNavbarLayout =
       storedNavbarLayout === "top" ||

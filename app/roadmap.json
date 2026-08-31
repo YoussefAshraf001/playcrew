@@ -3,11 +3,6 @@
     "section": "Future Plans",
     "items": [
       {
-        "title": "Desktop Integration",
-        "status": "in-progress",
-        "description": "Bringing PlayCrew to desktop."
-      },
-      {
         "title": "Add Music Integration for Dashboard",
         "status": "planned",
         "description": "Allow users to control playcrew playlist straight from dashboard."
@@ -19,7 +14,7 @@
       },
       {
         "title": "Additional Dashboard Backgrounds",
-        "status": "planned",
+        "status": "completed",
         "description": "Expand the collection of dashboard backgrounds."
       },
       {
@@ -39,12 +34,12 @@
       },
       {
         "title": "Higher Quality Background Images/Videos",
-        "status": "in-progress",
+        "status": "planned",
         "description": "Improve the quality of background images and videos for a better visual experience."
       },
       {
         "title": "Pre-Release Access",
-        "status": "Cancelled",
+        "status": "completed",
         "description": "Allow users to mark games as Early Access with a dedicated badge displayed on covers. Unlocking games earlier than their release date."
       },
       {
@@ -78,8 +73,8 @@
         "description": "Implement a custom database infrastructure for improved performance and flexibility."
       },
       {
-        "title": "New Name & Branding",
-        "status": "evaluating",
+        "title": "New Logo & Branding",
+        "status": "completed",
         "description": "Consider rebranding PlayCrew with a new name and visual identity."
       },
       {
@@ -89,8 +84,13 @@
       },
       {
         "title": "Improve Authentication Loading Experience",
-        "status": "planned",
+        "status": "completed",
         "description": "Prevent protected pages from briefly displaying logged-out content while authentication is still loading by introducing proper loading states and route guards."
+      },
+      {
+        "title": "Desktop Integration",
+        "status": "planned",
+        "description": "Bringing PlayCrew to desktop."
       }
     ]
   },

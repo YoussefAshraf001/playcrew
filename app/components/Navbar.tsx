@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
-import { auth } from "@/app/lib/firebase";
+import { auth, db } from "@/app/lib/firebase";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
@@ -12,6 +13,7 @@ import {
   FaCog,
   FaSearch,
   FaUser,
+  FaUsers,
   FaCalendarAlt,
   FaUserPlus,
   FaImages,
@@ -34,15 +36,14 @@ import {
 import { GiTrophiesShelf } from "react-icons/gi";
 import { CiLogin } from "react-icons/ci";
 
-import { useGames } from "@/app/context/GameContext";
 import { useUser } from "../context/UserContext";
 import { useMusic } from "../context/MusicContext";
 import { useUI } from "../context/UIContext";
 import { useAuthModal } from "../context/AuthModalContext";
 import ConfirmModal from "./ConfirmModal";
 import SearchModal from "./SearchModal";
-import NotificationBell from "./NotificationBell";
 import WhatsNewModal from "./WhatsNewModal";
+import FriendsModal from "./FriendsModal";
 import { useSync } from "../context/SyncContext";
 import { FiRefreshCw } from "react-icons/fi";
 
@@ -56,7 +57,6 @@ export default function Navbar() {
   const { profile, user, loading } = useUser();
   const { isSyncingReleaseDates, syncCurrent, syncTotal, currentGameName } =
     useSync();
-  const { games } = useGames();
 
   const newUserImage = user?.photoURL;
   const avatarSrc = profile?.avatar?.data || newUserImage || "";
@@ -77,6 +77,8 @@ export default function Navbar() {
   } = useMusic();
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [friendsModalOpen, setFriendsModalOpen] = useState(false);
+  const [friendRequestCount, setFriendRequestCount] = useState(0);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -91,7 +93,7 @@ export default function Navbar() {
     { href: "/dashboard", icon: FaHome, label: "Dashboard" },
     { href: "/explore", icon: MdExplore, label: "Explore" },
     { href: "/for-you", icon: MdAutoAwesome, label: "For You" },
-    { href: "/games", icon: GiGamepad, label: "My Games" },
+    { href: "/games", icon: GiGamepad, label: "Library" },
     { href: "/calendar", icon: FaCalendarAlt, label: "Releases Calendar" },
     {
       href: "/playcrewawards",
@@ -99,6 +101,16 @@ export default function Navbar() {
       label: "PlayCrew Awards",
     },
     { href: "/screenshots", icon: FaImages, label: "Screenshots" },
+    {
+      href: null,
+      icon: FaUsers,
+      label: "Friends",
+      onClick: () => {
+        setAccountOpen(false);
+        setMobileMenuOpen(false);
+        setFriendsModalOpen(true);
+      },
+    },
     {
       href: null,
       icon: FaSearch,
@@ -109,8 +121,8 @@ export default function Navbar() {
       },
     },
   ];
-  const mobileMainLabels = ["Dashboard", "My Games", "Calendar", "Screenshots"];
-  const mobileExtraLabels = ["Explore", "For You", "Shelf"];
+  const mobileMainLabels = ["Dashboard", "Library", "Calendar", "Screenshots"];
+  const mobileExtraLabels = ["Explore", "For You", "Shelf", "Friends"];
   const mobileMainItems = navItems.filter((item) =>
     mobileMainLabels.includes(item.label),
   );
@@ -149,6 +161,32 @@ export default function Navbar() {
     const frame = window.requestAnimationFrame(() => setHoveredIndex(null));
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
+
+  useEffect(() => {
+    const openFriends = () => setFriendsModalOpen(true);
+    window.addEventListener("playcrew:open-friends", openFriends);
+    return () => window.removeEventListener("playcrew:open-friends", openFriends);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setFriendRequestCount(0);
+      return;
+    }
+
+    const incomingRequestsQuery = query(
+      collection(db, "friend_requests"),
+      where("toUid", "==", user.uid),
+    );
+    return onSnapshot(
+      incomingRequestsQuery,
+      (snapshot) => setFriendRequestCount(snapshot.size),
+      (error) => {
+        setFriendRequestCount(0);
+        console.error("Failed to load friend request count", error);
+      },
+    );
+  }, [user?.uid]);
 
   useEffect(() => {
     const onOutside = (e: MouseEvent) => {
@@ -270,7 +308,7 @@ export default function Navbar() {
                         {href ? (
                           <Link
                             href={href}
-                            className="theme-hover-surface flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition"
+                            className="theme-hover-surface relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition"
                           >
                             <Icon className="text-lg" />
                           </Link>
@@ -281,6 +319,11 @@ export default function Navbar() {
                             className="theme-hover-surface flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition"
                           >
                             <Icon className="text-lg" />
+                            {label === "Friends" && friendRequestCount > 0 && (
+                              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--theme-accent)] px-1 text-[9px] font-black text-[var(--theme-accent-contrast)] shadow-[0_0_10px_rgba(var(--theme-accent-rgb),0.8)]">
+                                {friendRequestCount > 9 ? "9+" : friendRequestCount}
+                              </span>
+                            )}
                           </button>
                         )}
 
@@ -313,50 +356,6 @@ export default function Navbar() {
                       title="Syncing release dates..."
                     />
                   )}
-                  <div className="hidden flex-col items-center gap-2 lg:flex">
-                    <div
-                      className={`relative flex items-center ${
-                        enableDesktopHoverNav &&
-                        hoveredIndex === utilityHoverOffset + 1
-                          ? "z-[90]"
-                          : "z-10"
-                      }`}
-                      onMouseEnter={() => {
-                        if (enableDesktopHoverNav) {
-                          setHoveredIndex(utilityHoverOffset + 1);
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        if (enableDesktopHoverNav) {
-                          setHoveredIndex(null);
-                        }
-                      }}
-                    >
-                      {/* <NotificationBell
-                        games={games}
-                        compactPanelAnchor="right-center"
-                      /> */}
-                      <AnimatePresence>
-                        {enableDesktopHoverNav &&
-                          hoveredIndex === utilityHoverOffset + 1 && (
-                            <motion.span
-                              initial={{ opacity: 0, x: -12 }}
-                              animate={{ opacity: 1, x: 12 }}
-                              exit={{ opacity: 0, x: -12 }}
-                              transition={{
-                                type: "spring",
-                                stiffness: 200,
-                                damping: 25,
-                              }}
-                              className="theme-panel-strong absolute left-full top-1/2 z-[100] ml-2 block -translate-y-1/2 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-lg backdrop-blur-xl pointer-events-none"
-                            >
-                              Notifications
-                            </motion.span>
-                          )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
                   <div
                     className={`relative hidden items-center lg:flex ${
                       enableDesktopHoverNav &&
@@ -801,6 +800,11 @@ export default function Navbar() {
                             className="theme-hover-surface relative z-10 flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition sm:h-10 sm:w-10"
                           >
                             <Icon className="text-base sm:text-lg" />
+                            {label === "Friends" && friendRequestCount > 0 && (
+                              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--theme-accent)] px-1 text-[9px] font-black text-[var(--theme-accent-contrast)] shadow-[0_0_10px_rgba(var(--theme-accent-rgb),0.8)]">
+                                {friendRequestCount > 9 ? "9+" : friendRequestCount}
+                              </span>
+                            )}
                           </button>
                         )}
 
@@ -858,47 +862,6 @@ export default function Navbar() {
                       </div>
                     </div>
                   )}
-
-                  <div className="hidden items-center gap-2 lg:flex">
-                    <div
-                      className={`relative flex items-center ${
-                        enableDesktopHoverNav &&
-                        hoveredIndex === utilityHoverOffset + 1
-                          ? "z-[90]"
-                          : "z-10"
-                      }`}
-                      onMouseEnter={() => {
-                        if (enableDesktopHoverNav) {
-                          setHoveredIndex(utilityHoverOffset + 1);
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        if (enableDesktopHoverNav) {
-                          setHoveredIndex(null);
-                        }
-                      }}
-                    >
-                      {/* <NotificationBell games={games} /> */}
-                      <AnimatePresence>
-                        {enableDesktopHoverNav &&
-                          hoveredIndex === utilityHoverOffset + 1 && (
-                            <motion.span
-                              initial={{ opacity: 0, x: -12 }}
-                              animate={{ opacity: 1, x: 12 }}
-                              exit={{ opacity: 0, x: -12 }}
-                              transition={{
-                                type: "spring",
-                                stiffness: 200,
-                                damping: 25,
-                              }}
-                              className="theme-panel-strong absolute left-full top-1/2 z-[100] ml-2 block -translate-y-1/2 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-lg backdrop-blur-xl pointer-events-none"
-                            >
-                              Notifications
-                            </motion.span>
-                          )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
 
                   <div
                     className={`relative hidden items-center lg:flex ${
@@ -1284,10 +1247,15 @@ export default function Navbar() {
                             key={`mobile-main-${label}`}
                             href={href}
                             onClick={() => setMobileMenuOpen(false)}
-                            className="theme-surface theme-hover-surface theme-text inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                            className="theme-surface theme-hover-surface theme-text relative inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
                           >
                             <Icon className="text-sm" />
                             {label}
+                            {label === "Friends" && friendRequestCount > 0 && (
+                              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-accent)] px-1 text-[10px] font-black text-[var(--theme-accent-contrast)]">
+                                {friendRequestCount > 9 ? "9+" : friendRequestCount}
+                              </span>
+                            )}
                           </Link>
                         ) : (
                           <button
@@ -1297,10 +1265,15 @@ export default function Navbar() {
                               onClick?.();
                               setMobileMenuOpen(false);
                             }}
-                            className="theme-surface theme-hover-surface theme-text inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                            className="theme-surface theme-hover-surface theme-text relative inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
                           >
                             <Icon className="text-sm" />
                             {label}
+                            {label === "Friends" && friendRequestCount > 0 && (
+                              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-accent)] px-1 text-[10px] font-black text-[var(--theme-accent-contrast)]">
+                                {friendRequestCount > 9 ? "9+" : friendRequestCount}
+                              </span>
+                            )}
                           </button>
                         ),
                     )}
@@ -1376,10 +1349,6 @@ export default function Navbar() {
                   </span>
                 </div>
               </button>
-              <div className="theme-surface mt-3 rounded-lg border p-2.5">
-                {/* <NotificationBell games={games} fullWidthTrigger /> */}
-              </div>
-
               <div className="theme-surface mt-3 rounded-xl border p-3">
                 <div className="flex items-center gap-3">
                   {currentTrack?.cover ? (
@@ -1573,6 +1542,11 @@ export default function Navbar() {
       <SearchModal
         isOpen={searchModalOpen}
         onClose={() => setSearchModalOpen(false)}
+      />
+
+      <FriendsModal
+        open={friendsModalOpen}
+        onClose={() => setFriendsModalOpen(false)}
       />
 
       {/* --- WHAT'S NEW MODAL --- */}

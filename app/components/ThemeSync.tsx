@@ -8,12 +8,10 @@ import {
   DEFAULT_FONT_PRESET,
   DEFAULT_THEME_PRESET,
   FONT_PRESETS,
-  isFontPreset,
   isThemePreset,
 } from "@/app/lib/themes";
 
 const THEME_STORAGE_KEY = "playcrew-theme-preset";
-const FONT_STORAGE_KEY = "playcrew-font-preset";
 
 export default function ThemeSync() {
   const { profile } = useUser();
@@ -21,31 +19,26 @@ export default function ThemeSync() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    /* LOCAL STORAGE IS SOURCE OF TRUTH */
+    /* Local storage provides the pre-profile startup cache. */
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
 
-    const storedFont = window.localStorage.getItem(FONT_STORAGE_KEY);
-
     const profileTheme = profile?.themePreset;
-    const profileFont = profile?.fontPreset;
 
-    const nextTheme = isThemePreset(storedTheme)
-      ? storedTheme
-      : isThemePreset(profileTheme)
-        ? profileTheme
+    const nextTheme = isThemePreset(profileTheme)
+      ? profileTheme
+      : isThemePreset(storedTheme)
+        ? storedTheme
         : DEFAULT_THEME_PRESET;
 
-    const nextFont = isFontPreset(storedFont)
-      ? storedFont
-      : isFontPreset(profileFont)
-        ? profileFont
-        : DEFAULT_FONT_PRESET;
+    // Font customization is temporarily disabled. Keep the saved preference
+    // untouched so it can be restored when this feature is re-enabled.
+    const nextFont = DEFAULT_FONT_PRESET;
 
     const selectedFont =
       FONT_PRESETS.find((font) => font.id === nextFont) ?? FONT_PRESETS[0];
 
     window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-    window.localStorage.setItem(FONT_STORAGE_KEY, nextFont);
+    // window.localStorage.setItem(FONT_STORAGE_KEY, nextFont);
 
     /* APPLY THEME */
     document.documentElement.dataset.appTheme = nextTheme;

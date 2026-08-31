@@ -389,7 +389,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
 
     toast.custom(
       (t) => (
-        <div className="w-[min(95vw,28rem)] overflow-hidden rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[#07101a]/95 via-[#0a1420]/95 to-[#081927]/95 text-white shadow-[0_22px_65px_rgba(0,0,0,0.65)] backdrop-blur-xl">
+        <div className="w-[min(95vw,28rem)] overflow-hidden rounded-2xl border border-cyan-300/25 bg-linear-to-br from-[var(--theme-surface-strong)] via-[var(--theme-panel-alt)] to-[var(--theme-bg-elevated)] text-white shadow-[var(--theme-shadow)] backdrop-blur-xl">
           <div className="px-5 pt-4 pb-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-300/80">
               Resume Playback

@@ -153,6 +153,7 @@ export default function GameModal({
       favorite: false,
 
       recentActionSummary: "Added to My Collection",
+      recentActionSource: "user",
 
       lastUpdated: serverTimestamp(),
     };

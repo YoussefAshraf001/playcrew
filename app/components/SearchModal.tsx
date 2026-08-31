@@ -9,8 +9,6 @@ import toast from "react-hot-toast";
 import { FiCalendar, FiClock, FiSearch, FiX } from "react-icons/fi";
 
 import { db } from "@/app/lib/firebase";
-import { searchUsersByUsername } from "@/app/lib/social";
-import ProfileCard from "@/app/components/ProfileCard";
 import { useUser } from "@/app/context/UserContext";
 import { useGames } from "@/app/context/GameContext";
 import { useRouter } from "next/navigation";
@@ -41,7 +39,7 @@ export default function SearchModal({
   isOpen: boolean;
   onClose: () => void;
 }) {
-  const { user, profile } = useUser();
+  const { user } = useUser();
   const { games: trackedGames } = useGames();
   const uid = user?.uid;
   const router = useRouter();
@@ -51,11 +49,7 @@ export default function SearchModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
-  const [userResults, setUserResults] = useState<any[]>([]);
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
-  const [loadedUserImages, setLoadedUserImages] = useState<
-    Record<string, boolean>
-  >({});
 
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -73,18 +67,13 @@ export default function SearchModal({
   }, [trackedGames]);
 
   const mixedResults = useMemo(() => {
-    const users = userResults.map((u) => ({
-      type: "user",
-      id: `u_${u.id}`,
-      data: u,
-    }));
     const games = results.map((g) => ({
       type: "game",
       id: `g_${g.id}`,
       data: g,
     }));
-    return [...users, ...games];
-  }, [userResults, results]);
+    return games;
+  }, [results]);
 
   const selectedIndex = useMemo(
     () => mixedResults.findIndex((r) => r.id === selectedResultId),
@@ -110,12 +99,10 @@ export default function SearchModal({
   const handleClear = () => {
     setQuery("");
     setResults([]);
-    setUserResults([]);
     setError(null);
     setLoading(false);
     setSelectedGameId(null);
     setSelectedResultId(null);
-    setLoadedUserImages({});
     inputRef.current?.focus();
   };
 
@@ -169,7 +156,6 @@ export default function SearchModal({
   useEffect(() => {
     if (!query || query.trim().length < 2) {
       setResults([]);
-      setUserResults([]);
       setLoading(false);
       setError(null);
       setSelectedGameId(null);
@@ -184,14 +170,11 @@ export default function SearchModal({
       setError(null);
 
       try {
-        const [igdbRes, users] = await Promise.all([
-          fetch("/api/igdb/search", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: query.trim() }),
-          }),
-          searchUsersByUsername(query.trim(), 20, profile?.username),
-        ]);
+        const igdbRes = await fetch("/api/igdb/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: query.trim() }),
+        });
 
         if (!igdbRes.ok) throw new Error("Search request failed");
 
@@ -201,20 +184,14 @@ export default function SearchModal({
         );
 
         setResults(withCovers);
-        setUserResults(users || []);
 
         setSelectedGameId(withCovers[0]?.id ?? null);
         setSelectedResultId(
-          users?.[0]
-            ? `u_${users[0].id}`
-            : withCovers[0]
-              ? `g_${withCovers[0].id}`
-              : null,
+          withCovers[0] ? `g_${withCovers[0].id}` : null,
         );
       } catch (err) {
         console.error(err);
         setResults([]);
-        setUserResults([]);
         setSelectedGameId(null);
         setSelectedResultId(null);
         setError("Search failed. Try again.");
@@ -226,11 +203,7 @@ export default function SearchModal({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [profile?.username, query]);
-
-  useEffect(() => {
-    setLoadedUserImages({});
-  }, [userResults]);
+  }, [query]);
 
   useEffect(() => {
     if (!resultsRef.current || !selectedResultId) return;
@@ -289,6 +262,7 @@ export default function SearchModal({
         playedSessions: [],
 
         recentActionSummary: "Added to My Collection",
+        recentActionSource: "user",
 
         lastUpdated: new Date(),
       });
@@ -424,7 +398,7 @@ export default function SearchModal({
                           <p className="theme-text text-base font-semibold">
                             {query.trim().length >= 2
                               ? "No results found"
-                              : "Search for users or games"}
+                              : "Search for games"}
                           </p>
                           <p className="theme-text-muted mt-1 text-sm">
                             {query.trim().length >= 2
@@ -474,9 +448,6 @@ export default function SearchModal({
                                       <div className="min-w-0">
                                         <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
                                           {game.name}
-                                          <span className="ml-2 inline-block rounded-full bg-cyan-600/8 px-2 py-0.5 text-[11px] text-cyan-200">
-                                            Game
-                                          </span>
                                         </p>
                                         <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                                           {releaseDate && (
@@ -541,95 +512,7 @@ export default function SearchModal({
                             );
                           }
 
-                          // user item
-                          const u = item.data;
-                          const isSelectedUser =
-                            selectedResultId === `u_${u.id}`;
-
-                          return (
-                            <div
-                              key={`u_${u.id}`}
-                              data-mixed-id={`u_${u.id}`}
-                              onClick={() => setSelectedResultId(`u_${u.id}`)}
-                              className={`group rounded-2xl border transition ${
-                                isSelectedUser
-                                  ? "border-rose-300/30 bg-rose-400/6 shadow-[0_0_18px_rgba(244,63,94,0.06)]"
-                                  : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] hover:border-white/15 hover:bg-white/5"
-                              }`}
-                            >
-                              <div className="flex items-center gap-3 p-3 sm:gap-4 sm:p-4">
-                                <div className="h-14 w-14 shrink-0 rounded-xl overflow-hidden">
-                                  {u.avatar?.data ? (
-                                    <div className="relative h-14 w-14">
-                                      {!loadedUserImages[u.id] && (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
-                                          <span className="loading loading-spinner loading-sm text-cyan-300" />
-                                        </div>
-                                      )}
-                                      <img
-                                        src={u.avatar.data}
-                                        alt=""
-                                        aria-hidden="true"
-                                        className={`h-14 w-14 object-cover transition-opacity duration-300 ${
-                                          loadedUserImages[u.id]
-                                            ? "opacity-100"
-                                            : "opacity-0"
-                                        }`}
-                                        onLoad={() =>
-                                          setLoadedUserImages((prev) => ({
-                                            ...prev,
-                                            [u.id]: true,
-                                          }))
-                                        }
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="h-14 w-14 rounded-xl bg-zinc-800 flex items-center justify-center text-lg">
-                                      {u.username?.[0]?.toUpperCase()}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <p className="theme-text truncate text-sm font-semibold sm:text-[15px]">
-                                        {u.displayName || u.username}
-                                        <span className="ml-2 inline-block rounded-full bg-rose-600/12 px-2 py-0.5 text-[11px] text-rose-300">
-                                          User
-                                        </span>
-                                      </p>
-                                      <div className="theme-text-muted mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                                        <span className="text-xs text-zinc-400">
-                                          {u.bio}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 flex gap-2 md:hidden">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedResultId(`u_${u.id}`);
-                                      }}
-                                      className="theme-surface theme-hover-surface theme-text flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                                    >
-                                      Preview
-                                    </button>
-
-                                    <Link
-                                      href={`/users/${u.username}`}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="flex-1 rounded-lg border px-3 py-0.5 md:py-1.5 text-xs font-semibold border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-                                    >
-                                      View Profile
-                                    </Link>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
+                          return null;
                         })}{" "}
                       </motion.div>
                     )}
@@ -649,7 +532,6 @@ export default function SearchModal({
                   <div className="min-h-0 flex-1 overflow-y-auto p-5">
                     <AnimatePresence mode="wait">
                       {selectedMixed ? (
-                        selectedMixed.type === "game" ? (
                           <motion.div
                             key={(selectedMixed.data as SearchGame).id}
                             className="space-y-4"
@@ -759,35 +641,6 @@ export default function SearchModal({
                               );
                             })()}
                           </motion.div>
-                        ) : (
-                          <motion.div
-                            key={`user-${selectedMixed.data.id}`}
-                            className="space-y-4"
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.18, ease: "easeOut" }}
-                          >
-                            <div className="mx-auto lg:w-[360px]">
-                              <ProfileCard
-                                profile={{
-                                  uid: selectedMixed.data.id,
-                                  ...(selectedMixed.data as any),
-                                }}
-                              />
-
-                              <div className="mt-3 flex gap-2">
-                                <Link
-                                  href={`/users/${(selectedMixed.data as any).username}`}
-                                  onClick={onClose}
-                                  className="theme-surface theme-hover-surface theme-text inline-flex h-10 flex-1 items-center justify-center rounded-2xl border text-sm font-semibold transition"
-                                >
-                                  View Profile
-                                </Link>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )
                       ) : (
                         <div className="theme-text-muted flex h-full items-center justify-center text-center">
                           Select a result to preview it here.

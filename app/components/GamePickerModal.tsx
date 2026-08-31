@@ -1406,7 +1406,7 @@ export default function GamePickerModal({
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 18, scale: 0.98 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
-                            className="w-full max-w-xl rounded-3xl border border-amber-200/18 bg-[#080604]/96 p-5 shadow-[0_28px_80px_rgba(0,0,0,0.55)]"
+                            className="w-full max-w-xl rounded-3xl border border-amber-200/18 bg-[var(--theme-surface-strong)] p-5 shadow-[var(--theme-shadow)]"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>

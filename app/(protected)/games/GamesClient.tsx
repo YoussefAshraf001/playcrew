@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
 import {
   DndContext,
@@ -16,12 +22,20 @@ import {
 } from "@dnd-kit/sortable";
 import Link from "next/link";
 import {
+  collection,
   doc,
+  deleteDoc,
   deleteField,
   getDoc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
   setDoc,
   Timestamp,
   updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import { IoStarSharp } from "react-icons/io5";
 import toast from "react-hot-toast";
@@ -34,6 +48,7 @@ import {
   FiSearch,
   FiSliders,
   FiTrash,
+  FiX,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 
@@ -51,8 +66,11 @@ import styles from "./OnlineToggle.module.css";
 import {
   clampGamesBgBlur,
   clampGamesBgOverlay,
+  clampIdleWallpaperFadeSeconds,
   DEFAULT_BG_BLUR,
   DEFAULT_BG_OVERLAY,
+  DEFAULT_IDLE_WALLPAPER_ENABLED,
+  DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
 import SortableGameCard from "@/app/components/SortableGameCard";
@@ -69,6 +87,11 @@ import {
   appendRecentGameActionSummary,
   getRecentGameActionSummary,
 } from "@/app/lib/recentGameActions";
+import { acceptFriendRequest, declineFriendRequest } from "@/app/lib/social";
+import SteamAssetsModal, {
+  type SteamAsset,
+} from "@/app/components/SteamAssetsModal";
+import { SiSteam } from "react-icons/si";
 
 const STATUSES = [
   "All",
@@ -80,11 +103,41 @@ const STATUSES = [
   "Want To Play",
 ];
 
+const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
+  { value: "name", label: "Name" },
+  { value: "playtime", label: "Playtime" },
+  { value: "progress", label: "Progress" },
+  { value: "tier", label: "Rating" },
+  { value: "release", label: "Release Date" },
+  { value: "date", label: "Latest Changes" },
+];
+
 const formatRating = (rating: number) =>
   Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
 
 const getLastRecentAction = (summary: string | null | undefined) =>
   summary?.split(" • ").slice(-1)[0] ?? "";
+
+const getRecentActivityKey = (game: TrackedGame) => {
+  const updatedAt = game.lastUpdated?.toMillis?.() ?? 0;
+  return `${game._docId ?? game.igdb.id}:${updatedAt}:${game.recentActionSummary ?? ""}`;
+};
+
+type SocialNotification = {
+  id: string;
+  type: "friend_request" | "friend_accept";
+  fromUid?: string;
+  senderUsername?: string;
+  senderAvatar?: string | { data?: string };
+  message?: string;
+  read: boolean;
+  createdAt?: Timestamp | null;
+};
+
+const getSocialNotificationAvatar = (notification: SocialNotification) =>
+  typeof notification.senderAvatar === "string"
+    ? notification.senderAvatar
+    : (notification.senderAvatar?.data ?? "");
 
 interface UserProfile {
   uid: string;
@@ -108,6 +161,8 @@ interface UserProfile {
   trackedGames: Record<string, TrackedGame>;
   creationTime?: Date;
   lastSignInTime?: Date;
+  unlockedBadgeIds?: string[];
+  privacy?: { profile?: "public" | "friends" | "private" };
 }
 
 type ProfileMedia = UserProfile["avatar"] | UserProfile["wallpaper"];
@@ -169,10 +224,32 @@ export default function GamesPage() {
   const [saving, setSaving] = useState(false);
   const [recentModalOpen, setRecentModalOpen] = useState(false);
   const [recentVisibleCount, setRecentVisibleCount] = useState(15);
+  const [selectedRecentGameIds, setSelectedRecentGameIds] = useState<
+    Set<string>
+  >(new Set());
+  const [deletingRecentActivities, setDeletingRecentActivities] =
+    useState(false);
+  const [readRecentActivityKeys, setReadRecentActivityKeys] = useState<
+    Set<string>
+  >(new Set());
+  const [recentReadStateHydrated, setRecentReadStateHydrated] = useState(false);
+  const [socialNotifications, setSocialNotifications] = useState<
+    SocialNotification[]
+  >([]);
+  const [socialActionId, setSocialActionId] = useState<string | null>(null);
+  const [pendingIncomingRequestUids, setPendingIncomingRequestUids] =
+    useState<Set<string> | null>(null);
   const [coverPreview, setCoverPreview] = useState<{
     src: string;
     alt: string;
   } | null>(null);
+  const [cardSteamMenu, setCardSteamMenu] = useState<{
+    game: TrackedGame;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [steamAssetsGame, setSteamAssetsGame] =
+    useState<TrackedGame | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -181,7 +258,12 @@ export default function GamesPage() {
   >(() => {});
 
   //NEW FADE ANIMATION
-  const [idleModeEnabled, setIdleModeEnabled] = useState(false);
+  const [idleModeEnabled, setIdleModeEnabled] = useState(
+    DEFAULT_IDLE_WALLPAPER_ENABLED,
+  );
+  const [idleWallpaperFadeSeconds, setIdleWallpaperFadeSeconds] = useState(
+    DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
+  );
   const [isIdle, setIsIdle] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAdmin = Boolean(localProfile?.admin ?? userProfile?.admin);
@@ -207,7 +289,7 @@ export default function GamesPage() {
 
       idleTimerRef.current = setTimeout(() => {
         setIsIdle(true);
-      }, 1500);
+      }, idleWallpaperFadeSeconds * 1000);
     };
 
     const events = [
@@ -233,11 +315,10 @@ export default function GamesPage() {
         window.removeEventListener(event, resetIdleTimer);
       });
     };
-  }, [isAdmin, idleModeEnabled]);
+  }, [isAdmin, idleModeEnabled, idleWallpaperFadeSeconds]);
 
   const isDraggingRef = useRef(false);
-  const canReorder =
-    selectedStatus === "Want To Play" && releaseFilter === "Released";
+  const canReorder = false;
   const includeOnlineLocked = selectedStatus !== "All";
   const compactStatusTabs =
     !showFavoritesOnly && selectedStatus === "Want To Play";
@@ -322,6 +403,8 @@ export default function GamesPage() {
       const parsed = JSON.parse(stored) as {
         bgBlur?: number;
         bgOverlay?: number;
+        idleWallpaperEnabled?: boolean;
+        idleWallpaperFadeSeconds?: number;
       };
 
       if (typeof parsed.bgBlur === "number") {
@@ -330,6 +413,16 @@ export default function GamesPage() {
 
       if (typeof parsed.bgOverlay === "number") {
         setBgOverlay(clampGamesBgOverlay(parsed.bgOverlay));
+      }
+
+      if (typeof parsed.idleWallpaperEnabled === "boolean") {
+        setIdleModeEnabled(parsed.idleWallpaperEnabled);
+      }
+
+      if (typeof parsed.idleWallpaperFadeSeconds === "number") {
+        setIdleWallpaperFadeSeconds(
+          clampIdleWallpaperFadeSeconds(parsed.idleWallpaperFadeSeconds),
+        );
       }
     } catch (error) {
       toast.error(
@@ -347,9 +440,20 @@ export default function GamesPage() {
 
     window.localStorage.setItem(
       PAGE_SETTINGS_STORAGE_KEY,
-      JSON.stringify({ bgBlur, bgOverlay }),
+      JSON.stringify({
+        bgBlur,
+        bgOverlay,
+        idleWallpaperEnabled: idleModeEnabled,
+        idleWallpaperFadeSeconds,
+      }),
     );
-  }, [bgBlur, bgOverlay, settingsHydrated]);
+  }, [
+    bgBlur,
+    bgOverlay,
+    idleModeEnabled,
+    idleWallpaperFadeSeconds,
+    settingsHydrated,
+  ]);
 
   const getMediaSrc = (media?: ProfileMedia, legacy?: string) => {
     if (!media && legacy) return legacy;
@@ -395,7 +499,10 @@ export default function GamesPage() {
 
     allGames.forEach((g) => {
       const status =
-        g.status && g.status !== "Not Interested" && map[g.status]
+        g.status &&
+        g.status !== "Not Interested" &&
+        g.status !== "Lost Interest" &&
+        map[g.status]
           ? g.status
           : "Want To Play";
       map[status].push(g);
@@ -483,11 +590,16 @@ export default function GamesPage() {
   const playingSort =
     typeof window === "undefined" ? null : loadStatusSorts()["Playing"];
 
-  const [sortBy, setSortBy] = useState<SortBy>(playingSort?.sortBy ?? "date");
+  const [sortBy, setSortBy] = useState<SortBy>(
+    playingSort?.sortBy === "priority"
+      ? "date"
+      : (playingSort?.sortBy ?? "date"),
+  );
 
   const [sortOrder, setSortOrder] = useState<SortOrder>(
     playingSort?.sortOrder ?? "desc",
   );
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
 
   // Filter and sort safely
   const filteredGames = useMemo(
@@ -578,6 +690,240 @@ export default function GamesPage() {
     [recentGamesWithSummary, recentVisibleCount],
   );
 
+  const recentReadStorageKey = uid
+    ? `playcrew-recent-activity-read:${uid}`
+    : null;
+
+  useEffect(() => {
+    if (!uid) {
+      setSocialNotifications([]);
+      return;
+    }
+
+    const notificationsQuery = query(
+      collection(db, "users", uid, "notifications"),
+      orderBy("createdAt", "desc"),
+      limit(25),
+    );
+
+    return onSnapshot(
+      notificationsQuery,
+      (snapshot) => {
+        setSocialNotifications(
+          snapshot.docs
+            .map((notificationDoc) => ({
+              id: notificationDoc.id,
+              ...(notificationDoc.data() as Omit<SocialNotification, "id">),
+            }))
+            .filter(
+              (notification) =>
+                notification.type === "friend_request" ||
+                notification.type === "friend_accept",
+            ),
+        );
+      },
+      (error) => {
+        console.error("Failed to load social notifications", error);
+      },
+    );
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) {
+      setPendingIncomingRequestUids(null);
+      return;
+    }
+
+    const incomingRequestsQuery = query(
+      collection(db, "friend_requests"),
+      where("toUid", "==", uid),
+    );
+
+    return onSnapshot(
+      incomingRequestsQuery,
+      (snapshot) => {
+        setPendingIncomingRequestUids(
+          new Set(
+            snapshot.docs.map((requestDoc) =>
+              String(requestDoc.data().fromUid),
+            ),
+          ),
+        );
+      },
+      (error) => {
+        console.error("Failed to validate friend request notifications", error);
+      },
+    );
+  }, [uid]);
+
+  const visibleSocialNotifications = useMemo(
+    () =>
+      socialNotifications.filter(
+        (notification) => notification.type !== "friend_request",
+      ),
+    [socialNotifications],
+  );
+
+  useEffect(() => {
+    if (!uid || pendingIncomingRequestUids === null) return;
+
+    const staleRequestNotifications = socialNotifications.filter(
+      (notification) =>
+        notification.type === "friend_request" &&
+        (!notification.fromUid ||
+          !pendingIncomingRequestUids.has(notification.fromUid)),
+    );
+
+    staleRequestNotifications.forEach((notification) => {
+      void deleteDoc(
+        doc(db, "users", uid, "notifications", notification.id),
+      ).catch((error) => {
+        console.error(
+          "Failed to remove stale friend request notification",
+          error,
+        );
+      });
+    });
+  }, [pendingIncomingRequestUids, socialNotifications, uid]);
+
+  useEffect(() => {
+    if (!recentReadStorageKey || gamesLoading) {
+      setRecentReadStateHydrated(false);
+      return;
+    }
+
+    const stored = window.localStorage.getItem(recentReadStorageKey);
+    if (stored === null) {
+      const baseline = new Set(
+        recentGamesWithSummary.map(getRecentActivityKey),
+      );
+      window.localStorage.setItem(
+        recentReadStorageKey,
+        JSON.stringify([...baseline]),
+      );
+      setReadRecentActivityKeys(baseline);
+    } else {
+      try {
+        setReadRecentActivityKeys(new Set(JSON.parse(stored) as string[]));
+      } catch {
+        setReadRecentActivityKeys(new Set());
+      }
+    }
+
+    setRecentReadStateHydrated(true);
+  }, [gamesLoading, recentReadStorageKey, recentGamesWithSummary]);
+
+  const saveReadRecentActivityKeys = (keys: Set<string>) => {
+    setReadRecentActivityKeys(keys);
+    if (recentReadStorageKey) {
+      window.localStorage.setItem(
+        recentReadStorageKey,
+        JSON.stringify([...keys]),
+      );
+    }
+  };
+
+  const markRecentActivityRead = (game: TrackedGame) => {
+    const key = getRecentActivityKey(game);
+    if (readRecentActivityKeys.has(key)) return;
+    saveReadRecentActivityKeys(new Set([...readRecentActivityKeys, key]));
+  };
+
+  const markSocialNotificationRead = async (notificationId: string) => {
+    if (!uid) return;
+    const notification = socialNotifications.find(
+      (item) => item.id === notificationId,
+    );
+    if (!notification || notification.read) return;
+
+    setSocialNotifications((current) =>
+      current.map((item) =>
+        item.id === notificationId ? { ...item, read: true } : item,
+      ),
+    );
+
+    try {
+      await updateDoc(doc(db, "users", uid, "notifications", notificationId), {
+        read: true,
+      });
+    } catch (error) {
+      console.error("Failed to mark social notification as read", error);
+    }
+  };
+
+  const handleSocialRequestAction = async (
+    notification: SocialNotification,
+    action: "accept" | "decline",
+  ) => {
+    if (!uid || !notification.fromUid || socialActionId) return;
+    setSocialActionId(notification.id);
+    const previousNotifications = socialNotifications;
+    setSocialNotifications((current) =>
+      current.filter((item) => item.id !== notification.id),
+    );
+
+    try {
+      if (action === "accept") {
+        await acceptFriendRequest(notification.fromUid, uid);
+      } else {
+        await declineFriendRequest(notification.fromUid, uid);
+      }
+
+      await deleteDoc(doc(db, "users", uid, "notifications", notification.id));
+      toast.success(
+        action === "accept"
+          ? "Friend request accepted."
+          : "Friend request declined.",
+      );
+    } catch (error) {
+      setSocialNotifications(previousNotifications);
+      console.error(`Failed to ${action} friend request`, error);
+      toast.error(`Could not ${action} this friend request.`);
+    } finally {
+      setSocialActionId(null);
+    }
+  };
+
+  const markAllRecentActivitiesRead = async () => {
+    saveReadRecentActivityKeys(
+      new Set([
+        ...readRecentActivityKeys,
+        ...recentGamesWithSummary.map(getRecentActivityKey),
+      ]),
+    );
+
+    if (!uid) return;
+    const unreadSocial = visibleSocialNotifications.filter(
+      (item) => !item.read,
+    );
+    if (!unreadSocial.length) return;
+
+    setSocialNotifications((current) =>
+      current.map((item) => ({ ...item, read: true })),
+    );
+
+    const batch = writeBatch(db);
+    unreadSocial.forEach((item) => {
+      batch.update(doc(db, "users", uid, "notifications", item.id), {
+        read: true,
+      });
+    });
+    try {
+      await batch.commit();
+    } catch (error) {
+      console.error("Failed to mark social notifications as read", error);
+    }
+  };
+
+  const hasUnreadRecentActivities =
+    visibleSocialNotifications.some((notification) => !notification.read) ||
+    (recentReadStateHydrated &&
+      recentGamesWithSummary.some(
+        (game) =>
+          game.recentActionSource !== "user" &&
+          !readRecentActivityKeys.has(getRecentActivityKey(game)),
+      ));
+
   const handleTabChange = (status: string) => {
     setLastStatus(status);
     setAnimationType("status");
@@ -586,8 +932,8 @@ export default function GamesPage() {
 
     if (status === "Want To Play") {
       setReleaseFilter("Released");
-      setSortBy("priority");
-      setSortOrder("asc");
+      setSortBy("date");
+      setSortOrder("desc");
     } else {
       setReleaseFilter("All");
 
@@ -595,8 +941,8 @@ export default function GamesPage() {
       const saved = sorts[status];
 
       if (saved) {
-        setSortBy(saved.sortBy);
-        setSortOrder(saved.sortOrder);
+        setSortBy(saved.sortBy === "priority" ? "date" : saved.sortBy);
+        setSortOrder(saved.sortBy === "priority" ? "desc" : saved.sortOrder);
       }
     }
 
@@ -742,14 +1088,46 @@ export default function GamesPage() {
     return updated as TrackedGame;
   };
 
+  const openCardSteamAssetsMenu = (
+    event: MouseEvent<HTMLDivElement>,
+    game: TrackedGame,
+  ) => {
+    setCardSteamMenu({
+      game,
+      x: Math.min(event.clientX, window.innerWidth - 230),
+      y: Math.min(event.clientY, window.innerHeight - 70),
+    });
+  };
+
+  const useCardSteamAssetAsCover = async (asset: SteamAsset) => {
+    if (!user || !steamAssetsGame) return;
+    const docId = steamAssetsGame._docId || String(steamAssetsGame.igdb.id);
+    try {
+      await updateDoc(doc(db, "users", user.uid, "games_igdb", docId), {
+        "igdb.cover": asset.url,
+        protectCustomCoverFromRefresh: true,
+      });
+      toast.success(`${asset.label} set as the cover. Cover lock enabled.`);
+    } catch (error) {
+      console.error("Failed to apply Steam cover from game card", error);
+      toast.error("Could not set the Steam image as the cover.");
+      throw error;
+    }
+  };
+
+  const getRecentGameDocId = (game: TrackedGame) =>
+    String(
+      game._docId ||
+        Object.keys(localProfile?.trackedGames ?? {}).find(
+          (key) => localProfile?.trackedGames[key]?.igdb?.id === game.igdb.id,
+        ) ||
+        "",
+    );
+
   const deleteRecentEditNote = async (game: TrackedGame) => {
     if (!user || !isAdmin) return;
 
-    const docId =
-      game._docId ||
-      Object.keys(localProfile?.trackedGames ?? {}).find(
-        (key) => localProfile?.trackedGames[key]?.igdb?.id === game.igdb.id,
-      );
+    const docId = getRecentGameDocId(game);
 
     if (!docId) {
       toast.error("Unable to find game to delete note.");
@@ -761,6 +1139,7 @@ export default function GamesPage() {
 
       await updateDoc(gameRef, {
         recentActionSummary: deleteField(),
+        recentActionSource: deleteField(),
       });
 
       setLocalProfile((prev) => {
@@ -776,6 +1155,7 @@ export default function GamesPage() {
             [docId]: {
               ...existingGame,
               recentActionSummary: undefined,
+              recentActionSource: undefined,
             },
           },
         };
@@ -785,6 +1165,58 @@ export default function GamesPage() {
     } catch {
       toast.error("Failed to delete note.");
     }
+  };
+
+  const deleteSelectedRecentActivities = async () => {
+    if (!user || !isAdmin || !selectedRecentGameIds.size) return;
+
+    const selectedIds = [...selectedRecentGameIds];
+    setDeletingRecentActivities(true);
+
+    try {
+      for (let index = 0; index < selectedIds.length; index += 450) {
+        const batch = writeBatch(db);
+        selectedIds.slice(index, index + 450).forEach((docId) => {
+          batch.update(doc(db, "users", user.uid, "games_igdb", docId), {
+            recentActionSummary: deleteField(),
+            recentActionSource: deleteField(),
+          });
+        });
+        await batch.commit();
+      }
+
+      setLocalProfile((previous) => {
+        if (!previous) return previous;
+
+        const trackedGames = { ...previous.trackedGames };
+        selectedIds.forEach((docId) => {
+          const existingGame = trackedGames[docId];
+          if (existingGame) {
+            trackedGames[docId] = {
+              ...existingGame,
+              recentActionSummary: undefined,
+              recentActionSource: undefined,
+            };
+          }
+        });
+
+        return { ...previous, trackedGames };
+      });
+      setSelectedRecentGameIds(new Set());
+      toast.success(
+        `Deleted ${selectedIds.length} notification${selectedIds.length === 1 ? "" : "s"}.`,
+      );
+    } catch (error) {
+      console.error("Failed to delete selected notifications", error);
+      toast.error("Failed to delete the selected notifications.");
+    } finally {
+      setDeletingRecentActivities(false);
+    }
+  };
+
+  const closeRecentActivityModal = () => {
+    setRecentModalOpen(false);
+    setSelectedRecentGameIds(new Set());
   };
 
   const reorderFavorites = async (reordered: TrackedGame[]) => {
@@ -864,6 +1296,8 @@ export default function GamesPage() {
     favorite: boolean,
     notInterested: boolean,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
+    playedOn: TrackedGame["playedOn"],
+    preReleaseAccess: TrackedGame["preReleaseAccess"],
   ) => {
     if (!editingGame || saving) return;
 
@@ -873,6 +1307,15 @@ export default function GamesPage() {
       const targetDocId = editingGame._docId ?? String(editingGame.igdb.id);
 
       const prev = editingGame;
+      const reviewForSave = {
+        ...review,
+        createdAt: review.text.trim()
+          ? (prev.review?.createdAt ??
+            (prev.review?.text?.trim() ? prev.lastUpdated : null) ??
+            new Date())
+          : null,
+        updatedAt: review.text.trim() ? new Date() : null,
+      };
 
       const nothingChanged =
         prev.my_rating === rating &&
@@ -884,7 +1327,16 @@ export default function GamesPage() {
         (prev.review?.text ?? "") === review.text &&
         (prev.review?.sticker ?? null) === review.sticker &&
         JSON.stringify(prev.playedSessions ?? []) ===
-          JSON.stringify(playedSessions ?? []);
+          JSON.stringify(playedSessions ?? []) &&
+        JSON.stringify(
+          Array.isArray(prev.playedOn)
+            ? prev.playedOn
+            : prev.playedOn
+              ? [prev.playedOn]
+              : [],
+        ) === JSON.stringify(playedOn) &&
+        JSON.stringify(prev.preReleaseAccess ?? null) ===
+          JSON.stringify(preReleaseAccess ?? null);
 
       if (nothingChanged) {
         setModalOpen(false);
@@ -900,9 +1352,10 @@ export default function GamesPage() {
           status,
           progress,
           my_rating: typeof rating === "number" ? rating : null,
-          review,
+          review: reviewForSave,
           playtime,
           playedSessions,
+          playedOn,
         }),
       );
 
@@ -915,11 +1368,54 @@ export default function GamesPage() {
         status,
         favorite,
         notInterested,
-        review,
+        review: reviewForSave,
         playedSessions,
+        playedOn,
+        preReleaseAccess,
         lastUpdated: new Date(),
         recentActionSummary,
+        recentActionSource: "user",
       });
+
+      if (user) {
+        const communityReviewRef = doc(
+          db,
+          "communityReviews",
+          `${user.uid}_${editingGame.igdb.id}`,
+        );
+        const visibility = localProfile?.privacy?.profile ?? "public";
+
+        if (reviewForSave.text.trim() && visibility === "public") {
+          await setDoc(
+            communityReviewRef,
+            {
+              userId: user.uid,
+              username:
+                localProfile?.username ??
+                userProfile?.username ??
+                user.displayName ??
+                "PlayCrew User",
+              gameId: Number(editingGame.igdb.id),
+              gameName: editingGame.name ?? editingGame.igdb.name,
+              text: reviewForSave.text.trim(),
+              sticker: reviewForSave.sticker ?? null,
+              rating: typeof rating === "number" ? rating : null,
+              playtime,
+              status,
+              progress,
+              playedOn: playedOn ?? null,
+              visibility: "public",
+              createdAt: reviewForSave.createdAt,
+              updatedAt: Timestamp.fromDate(new Date()),
+            },
+            { merge: true },
+          ).catch((error) =>
+            console.error("Failed to sync community review", error),
+          );
+        } else {
+          await deleteDoc(communityReviewRef).catch(() => undefined);
+        }
+      }
 
       /* ---------------- Fix timestamp locally ---------------- */
 
@@ -1134,23 +1630,6 @@ export default function GamesPage() {
                     <p className="text-[12px] theme-text-muted mt-1 max-w-[230px] mx-auto">
                       Joined On: {formattedDate}
                     </p>
-                    {isAdmin && (
-                      <div className="mt-4 flex justify-center">
-                        <button
-                          type="button"
-                          onClick={() => setIdleModeEnabled((prev) => !prev)}
-                          className={`theme-surface inline-flex h-9 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition ${
-                            idleModeEnabled
-                              ? "border-cyan-500 bg-cyan-500 text-black"
-                              : "theme-text"
-                          }`}
-                        >
-                          {idleModeEnabled
-                            ? "Idle Wallpaper: ON"
-                            : "Idle Wallpaper: OFF"}
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                   <hr className="my-4 sm:my-6 w-full border-[var(--theme-border)]" />
@@ -1311,8 +1790,8 @@ export default function GamesPage() {
                                       setReleaseFilter(nextFilter);
 
                                       if (nextFilter === "Released") {
-                                        setSortBy("priority");
-                                        setSortOrder("asc");
+                                        setSortBy("date");
+                                        setSortOrder("desc");
                                       } else if (nextFilter === "Unreleased") {
                                         setSortBy("release");
                                         setSortOrder("asc");
@@ -1371,15 +1850,22 @@ export default function GamesPage() {
                       <FiSearch className="theme-text-muted pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder={`${
-                          showFavoritesOnly
-                            ? "Search for a favorite game"
-                            : "Search for a game in " + selectedStatus
-                        }`}
+                        placeholder={"Search"}
                         value={searchQuery}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        className="theme-surface-alt h-9 w-full rounded-xl border pl-9 pr-3 text-sm theme-text placeholder:theme-text-muted focus:border-cyan-300/70 focus:outline-none"
+                        className="theme-surface-alt h-9 w-full rounded-xl border pl-9 pr-10 text-sm theme-text placeholder:theme-text-muted focus:border-cyan-300/70 focus:outline-none"
                       />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => handleSearchChange("")}
+                          aria-label="Clear game search"
+                          title="Clear search"
+                          className="theme-text-muted absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition hover:bg-[rgba(var(--theme-accent-rgb),0.12)] hover:text-[var(--theme-accent)]"
+                        >
+                          <FiX className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
 
                     <button
@@ -1401,7 +1887,7 @@ export default function GamesPage() {
                   </div>
 
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="theme-surface group relative inline-flex h-10 items-center overflow-hidden rounded-2xl border pl-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:border-cyan-300/25 hover:shadow-[0_0_18px_rgba(34,211,238,0.12)]">
+                    <div className="theme-surface group relative inline-flex h-10 items-center overflow-visible rounded-2xl border pl-2 pr-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:border-[rgba(var(--theme-accent-rgb),0.35)] hover:shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.14)]">
                       <div className="theme-accent-soft-bg flex h-8 w-8 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                         <FiSliders className="h-3.5 w-3.5" />
                       </div>
@@ -1414,84 +1900,67 @@ export default function GamesPage() {
                         </span>
                       </div>
                       <div className="relative">
-                        <select
-                          value={canReorder ? "priority" : sortBy}
+                        <button
+                          type="button"
                           disabled={canReorder}
-                          onChange={(e) => {
-                            const value = e.target.value as SortBy;
-
-                            setSortBy(value);
-                            saveStatusSort(selectedStatus, value, sortOrder);
-
-                            setCurrentPage(1);
-                          }}
-                          className={`
-                        theme-surface-alt
-                        h-8
-                        min-w-[158px]
-                        appearance-none
-                        rounded-xl
-                        border
-                        pl-3
-                        pr-9
-                        text-sm
-                        font-medium
-                        theme-text
-                        outline-none
-                        transition
-                        focus:border-cyan-300/65
-                        focus:bg-white/[0.07]
-                        ${canReorder ? "cursor-not-allowed opacity-70" : ""}
-                      `}
+                          aria-haspopup="listbox"
+                          aria-expanded={sortMenuOpen}
+                          onClick={() => setSortMenuOpen((open) => !open)}
+                          className={`theme-surface-alt flex h-8 min-w-[158px] items-center rounded-xl border pl-3 pr-9 text-left text-sm font-medium theme-text outline-none transition focus:border-[var(--theme-accent)] focus:bg-white/[0.07] ${canReorder ? "cursor-not-allowed opacity-70" : ""}`}
                         >
-                          <option
-                            className="bg-[var(--theme-panel-alt)] theme-text"
-                            value="name"
-                          >
-                            Name
-                          </option>
-                          <option
-                            className="bg-[var(--theme-panel-alt)] theme-text"
-                            value="playtime"
-                          >
-                            Playtime
-                          </option>
-                          {canReorder && (
-                            <option
-                              className="bg-[var(--theme-panel-alt)] theme-text"
-                              value="priority"
-                            >
-                              My Play Order
-                            </option>
-                          )}
-                          <option
-                            className="bg-[var(--theme-panel-alt)] theme-text"
-                            value="progress"
-                          >
-                            Progress
-                          </option>
-                          <option
-                            className="bg-[var(--theme-panel-alt)] theme-text"
-                            value="tier"
-                          >
-                            Rating
-                          </option>
-                          <option
-                            className="bg-[var(--theme-panel-alt)] theme-text"
-                            value="release"
-                          >
-                            Release Date
-                          </option>
-                          <option
-                            className="bg-[var(--theme-panel-alt)] theme-text"
-                            value="date"
-                          >
-                            Latest Changes
-                          </option>
-                        </select>
-                        <span className="theme-text-muted pointer-events-none absolute inset-y-0 right-3 flex items-center transition group-hover:text-cyan-200/80">
+                          {canReorder
+                            ? "Story Order"
+                            : (SORT_OPTIONS.find(
+                                (option) => option.value === sortBy,
+                              )?.label ?? "Latest Changes")}
+                        </button>
+                        <span className="theme-text-muted pointer-events-none absolute inset-y-0 right-3 flex items-center transition group-hover:text-[var(--theme-accent-strong)]">
                           <FiChevronRight className="h-3.5 w-3.5 rotate-90" />
                         </span>
+                        {sortMenuOpen && !canReorder && (
+                          <>
+                            <button
+                              type="button"
+                              aria-label="Close sort menu"
+                              onClick={() => setSortMenuOpen(false)}
+                              className="fixed inset-0 z-40 cursor-default"
+                            />
+                            <div
+                              role="listbox"
+                              className="theme-panel-strong absolute right-0 top-[calc(100%+8px)] z-50 w-52 rounded-xl border border-[var(--theme-border)] p-1.5 shadow-2xl"
+                            >
+                              {SORT_OPTIONS.map((option) => {
+                                const isSelected = option.value === sortBy;
+                                return (
+                                  <button
+                                    key={option.value}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={isSelected}
+                                    onClick={() => {
+                                      setSortBy(option.value);
+                                      saveStatusSort(
+                                        selectedStatus,
+                                        option.value,
+                                        sortOrder,
+                                      );
+                                      setCurrentPage(1);
+                                      setSortMenuOpen(false);
+                                    }}
+                                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                                      isSelected
+                                        ? "bg-[rgba(var(--theme-accent-rgb),0.2)] text-[var(--theme-accent-strong)]"
+                                        : "theme-text hover:bg-[rgba(var(--theme-accent-rgb),0.1)]"
+                                    }`}
+                                  >
+                                    {option.label}
+                                    {isSelected && <FiCheck size={14} />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1758,6 +2227,7 @@ export default function GamesPage() {
                                   releaseFilter={releaseFilter}
                                   openEditModal={openEditModal}
                                   openConfirmModal={openConfirmModal}
+                                  onOpenSteamAssets={openCardSteamAssetsMenu}
                                 />
                               ))}
                             </>
@@ -1789,6 +2259,7 @@ export default function GamesPage() {
                             releaseFilter={releaseFilter}
                             reorderMode={reorderMode}
                             sortBy={sortBy}
+                            onOpenSteamAssets={openCardSteamAssetsMenu}
                           />
                         ))
                       )}
@@ -1901,7 +2372,7 @@ export default function GamesPage() {
                                 </span>
 
                                 <div className="flex gap-1.5 mt-1">
-                                  <span className="theme-surface-alt theme-text-muted rounded-full px-1.5 py-0.5 text-[11px] font-semibold transition group-hover:bg-white/20">
+                                  <span className="theme-text-muted rounded-full border border-white/12 bg-white/12 px-1.5 py-0.5 text-[11px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition group-hover:border-white/20 group-hover:bg-white/20">
                                     {g.playtime
                                       ? `${Math.floor(g.playtime)}h ${Math.round(
                                           (g.playtime % 1) * 60,
@@ -1917,10 +2388,13 @@ export default function GamesPage() {
                                     }`}
                                   >
                                     {g.notInterested ? (
-                                      "Not Interested"
+                                      "Lost Interest"
                                     ) : (
                                       <>
-                                        <IoStarSharp className="w-3 h-3 text-amber-400" />
+                                        <IoStarSharp
+                                          className="h-3 w-3"
+                                          style={{ color: "#fbbf24" }}
+                                        />
                                         {typeof g.my_rating === "number" &&
                                         Number.isFinite(g.my_rating)
                                           ? formatRating(g.my_rating)
@@ -1947,8 +2421,14 @@ export default function GamesPage() {
                 {/* Recently Edited */}
                 <div className="theme-panel mb-8 rounded-2xl border p-4 flex flex-col gap-3 max-h-[45vh] min-h-[45vh] lg:mb-0">
                   <div className="flex items-center justify-between py-1">
-                    <h3 className="theme-text font-bold text-lg">
+                    <h3 className="theme-text flex items-center gap-2 text-lg font-bold">
                       Notifications Box
+                      {hasUnreadRecentActivities && (
+                        <span
+                          className="h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--theme-accent)] shadow-[0_0_12px_rgba(var(--theme-accent-rgb),0.9)]"
+                          aria-label="Unread notification-box activity"
+                        />
+                      )}
                     </h3>
 
                     <button
@@ -1968,32 +2448,146 @@ export default function GamesPage() {
                   <div className="flex-1 pr-2 overflow-y-auto custom-scrollbar">
                     {loading ? (
                       renderSkeletons(3, "recent")
-                    ) : recentlyEditedGames.length === 0 ? (
+                    ) : recentlyEditedGames.length === 0 &&
+                      visibleSocialNotifications.length === 0 ? (
                       <div className="h-[35vh] flex justify-center items-center">
-                        <p className="theme-text-muted">No recent games</p>
+                        <p className="theme-text-muted">No notifications yet</p>
                       </div>
                     ) : (
-                      recentlyEditedGames.map((g) => (
-                        <Link key={g.igdb.id} href={`/game/${g.igdb?.id}`}>
-                          <div className="theme-hover-surface flex flex-col gap-1.5 rounded-xl p-2 cursor-pointer group transition-all duration-200">
-                            <div className="flex items-center gap-2">
-                              <img
-                                className="w-12 h-16 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
-                                src={g.igdb.cover}
-                                alt={g.name}
-                              />
-                              <div className="min-w-0 flex-1 flex flex-col justify-center">
-                                <span className="block max-w-full truncate theme-text font-bold text-[12px] transition">
-                                  {g.name}
-                                </span>
-                                <p className="mt-1.5 break-words text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
-                                  {getLastRecentAction(g.recentActionSummary)}
-                                </p>
+                      <>
+                        {visibleSocialNotifications
+                          .slice(0, 3)
+                          .map((notification) => {
+                            const avatar =
+                              getSocialNotificationAvatar(notification);
+                            return (
+                              <div
+                                key={notification.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() =>
+                                  window.dispatchEvent(
+                                    new CustomEvent("playcrew:open-friends"),
+                                  )
+                                }
+                                onMouseEnter={() =>
+                                  void markSocialNotificationRead(
+                                    notification.id,
+                                  )
+                                }
+                                className={`theme-hover-surface mb-1 flex items-center gap-2 rounded-xl border p-2 transition-all duration-300 ${
+                                  !notification.read
+                                    ? "border-[rgba(var(--theme-accent-rgb),0.5)] bg-[rgba(var(--theme-accent-rgb),0.1)] shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.28)]"
+                                    : "border-transparent"
+                                }`}
+                              >
+                                {avatar ? (
+                                  <img
+                                    src={avatar}
+                                    alt={notification.senderUsername ?? "User"}
+                                    className="h-12 w-12 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="theme-accent-soft-bg flex h-12 w-12 shrink-0 items-center justify-center rounded-full border text-lg font-bold">
+                                    {(notification.senderUsername ?? "U")
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <span className="theme-text block truncate text-xs font-bold">
+                                    {notification.type === "friend_request"
+                                      ? "Friend Request"
+                                      : "Friend Request Accepted"}
+                                  </span>
+                                  <p className="theme-text-muted mt-1 line-clamp-2 text-[11px]">
+                                    {notification.message}
+                                  </p>
+                                  {notification.type === "friend_request" && (
+                                    <div className="mt-2 flex gap-1.5">
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          socialActionId === notification.id
+                                        }
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          void handleSocialRequestAction(
+                                            notification,
+                                            "accept",
+                                          );
+                                        }}
+                                        className="rounded-lg border border-emerald-400/35 bg-emerald-500/15 px-2 py-1 text-[10px] font-bold text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-45"
+                                      >
+                                        Accept
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          socialActionId === notification.id
+                                        }
+                                        onClick={(event) => {
+                                          event.preventDefault();
+                                          event.stopPropagation();
+                                          void handleSocialRequestAction(
+                                            notification,
+                                            "decline",
+                                          );
+                                        }}
+                                        className="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-[10px] font-bold text-zinc-300 transition hover:bg-white/10 disabled:opacity-45"
+                                      >
+                                        Decline
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </div>
-                        </Link>
-                      ))
+                            );
+                          })}
+                        {recentlyEditedGames.map((g) => {
+                          const isUnread =
+                            recentReadStateHydrated &&
+                            g.recentActionSource !== "user" &&
+                            !readRecentActivityKeys.has(
+                              getRecentActivityKey(g),
+                            );
+
+                          return (
+                            <Link
+                              key={g.igdb.id}
+                              href={`/game/${g.igdb?.id}`}
+                              onMouseEnter={() => markRecentActivityRead(g)}
+                            >
+                              <div
+                                className={`theme-hover-surface flex cursor-pointer flex-col gap-1.5 rounded-xl border p-2 transition-all duration-300 group ${
+                                  isUnread
+                                    ? "border-[rgba(var(--theme-accent-rgb),0.5)] bg-[rgba(var(--theme-accent-rgb),0.1)] shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.28)]"
+                                    : "border-transparent"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <img
+                                    className="w-12 h-16 object-cover rounded-md shadow-md group-hover:scale-105 transition-transform"
+                                    src={g.igdb.cover}
+                                    alt={g.name}
+                                  />
+                                  <div className="min-w-0 flex-1 flex flex-col justify-center">
+                                    <span className="block max-w-full truncate theme-text font-bold text-[12px] transition">
+                                      {g.name}
+                                    </span>
+                                    <p className="mt-1.5 break-words text-[11px] font-medium text-cyan-100/85 group-hover:text-cyan-50">
+                                      {getLastRecentAction(
+                                        g.recentActionSummary,
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </>
                     )}
                   </div>
                 </div>
@@ -2048,7 +2642,7 @@ export default function GamesPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setRecentModalOpen(false)}
+            onClick={closeRecentActivityModal}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 30 }}
@@ -2064,7 +2658,7 @@ export default function GamesPage() {
             >
               {/* Header */}
               <div className="sticky top-0 z-20 border-b border-white/10 backdrop-blur-xl px-8 py-5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">
                       Activity Feed
@@ -2073,16 +2667,79 @@ export default function GamesPage() {
                       Notification Box
                     </h2>
                     <p className="theme-text-muted mt-1 text-sm">
-                      Latest changes across your game library
+                      Game activity and community updates
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => setRecentModalOpen(false)}
-                    className="h-11 w-11 rounded-xl border border-white/10 transition hover:bg-white/5"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {isAdmin && recentGames.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const visibleIds = recentGames
+                              .map(getRecentGameDocId)
+                              .filter(Boolean);
+                            const allVisibleSelected = visibleIds.every((id) =>
+                              selectedRecentGameIds.has(id),
+                            );
+                            setSelectedRecentGameIds((current) => {
+                              const next = new Set(current);
+                              visibleIds.forEach((id) => {
+                                if (allVisibleSelected) next.delete(id);
+                                else next.add(id);
+                              });
+                              return next;
+                            });
+                          }}
+                          disabled={deletingRecentActivities}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-40"
+                        >
+                          <FiCheck size={15} />
+                          {recentGames
+                            .map(getRecentGameDocId)
+                            .filter(Boolean)
+                            .every((id) => selectedRecentGameIds.has(id))
+                            ? "Clear selection"
+                            : "Select all"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openConfirmModal(
+                              `Delete ${selectedRecentGameIds.size} selected notification${selectedRecentGameIds.size === 1 ? "" : "s"}?`,
+                              deleteSelectedRecentActivities,
+                            )
+                          }
+                          disabled={
+                            selectedRecentGameIds.size === 0 ||
+                            deletingRecentActivities
+                          }
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3 text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <FiTrash size={15} />
+                          {deletingRecentActivities
+                            ? "Deleting..."
+                            : `Delete (${selectedRecentGameIds.size})`}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={markAllRecentActivitiesRead}
+                      disabled={!hasUnreadRecentActivities}
+                      className="theme-accent-soft-bg inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <FiCheck size={15} />
+                      Mark all as read
+                    </button>
+                    <button
+                      onClick={closeRecentActivityModal}
+                      className="h-11 w-11 rounded-xl border border-white/10 transition hover:bg-white/5"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2091,98 +2748,244 @@ export default function GamesPage() {
                 <div className="relative max-w-4xl mx-auto">
                   <div className="absolute left-[22px] top-0 bottom-0 w-px bg-cyan-500/20" />
 
-                  {recentGames.map((g, index) => (
-                    <motion.div
-                      key={`${g.igdb.id}-${index}`}
-                      initial={{ opacity: 0, x: -15 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        delay: index * 0.02,
-                      }}
-                      className="relative mb-6 pl-16"
-                    >
-                      <div className="absolute left-[10px] top-8 h-6 w-6 rounded-full border-4 border-[var(--theme-bg)] bg-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.7)]" />
-
-                      <div className="group relative flex cursor-pointer rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md transition-all duration-300 hover:border-cyan-400/30 hover:bg-white/[0.05]">
-                        <Link
-                          href={`/game/${g.igdb.id}`}
-                          onClick={() => setRecentModalOpen(false)}
-                          className="flex flex-1"
+                  {visibleSocialNotifications.map((notification, index) => {
+                    const avatar = getSocialNotificationAvatar(notification);
+                    return (
+                      <motion.div
+                        key={notification.id}
+                        initial={{ opacity: 0, x: -15 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.02 }}
+                        className="relative mb-6 pl-16"
+                        onMouseEnter={() =>
+                          void markSocialNotificationRead(notification.id)
+                        }
+                      >
+                        <div className="absolute left-[10px] top-8 h-6 w-6 rounded-full border-4 border-[var(--theme-bg)] bg-[var(--theme-accent)] shadow-[0_0_15px_rgba(var(--theme-accent-rgb),0.7)]" />
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            closeRecentActivityModal();
+                            window.dispatchEvent(
+                              new CustomEvent("playcrew:open-friends"),
+                            );
+                          }}
+                          className={`flex items-center gap-4 rounded-2xl border p-4 backdrop-blur-md transition-all duration-300 hover:border-[rgba(var(--theme-accent-rgb),0.45)] hover:bg-white/[0.05] ${
+                            !notification.read
+                              ? "border-[rgba(var(--theme-accent-rgb),0.55)] bg-[rgba(var(--theme-accent-rgb),0.1)] shadow-[0_0_26px_rgba(var(--theme-accent-rgb),0.3)]"
+                              : "border-white/10 bg-white/[0.03]"
+                          }`}
                         >
-                          <div className="flex gap-4 w-full">
+                          {avatar ? (
                             <img
-                              src={g.igdb.cover}
-                              alt={g.name}
-                              className="h-28 w-20 rounded-xl object-cover shadow-lg transition-transform duration-300 group-hover:scale-105"
+                              src={avatar}
+                              alt={notification.senderUsername ?? "User"}
+                              className="h-16 w-16 rounded-full object-cover"
                             />
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <h3 className="line-clamp-2 text-lg font-bold">
-                                    {g.name}
-                                  </h3>
-
-                                  <p className="mt-2 text-sm font-medium text-cyan-300">
-                                    {g.recentActionSummary}
-                                  </p>
-                                </div>
-
-                                <span className="whitespace-nowrap text-xs text-zinc-500">
-                                  {g.lastUpdated
-                                    ? new Date(
-                                        g.lastUpdated.toMillis(),
-                                      ).toLocaleString()
-                                    : "Unknown"}
-                                </span>
-                              </div>
-
-                              <div className="mt-4 flex flex-wrap gap-2">
-                                <span className="rounded-full bg-white/5 px-3 py-1 text-xs">
-                                  {g.status}
-                                </span>
-
-                                {typeof g.my_rating === "number" && (
-                                  <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
-                                    ★ {g.my_rating}
-                                  </span>
-                                )}
-
-                                {(g.playtime ?? 0) > 0 && (
-                                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs">
-                                    {Math.floor(g.playtime ?? 0)}h
-                                  </span>
-                                )}
-                              </div>
-
-                              {g.review?.text && (
-                                <p className="mt-3 line-clamp-2 text-sm text-zinc-400">
-                                  {g.review?.text}
+                          ) : (
+                            <div className="theme-accent-soft-bg flex h-16 w-16 shrink-0 items-center justify-center rounded-full border text-2xl font-bold">
+                              {(notification.senderUsername ?? "U")
+                                .charAt(0)
+                                .toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <h3 className="text-lg font-bold">
+                                  {notification.type === "friend_request"
+                                    ? "Friend Request"
+                                    : "Friend Request Accepted"}
+                                </h3>
+                                <p className="mt-2 text-sm text-[var(--theme-accent-strong)]">
+                                  {notification.message}
                                 </p>
-                              )}
+                                {notification.type === "friend_request" && (
+                                  <div className="mt-4 flex gap-2">
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        socialActionId === notification.id
+                                      }
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        void handleSocialRequestAction(
+                                          notification,
+                                          "accept",
+                                        );
+                                      }}
+                                      className="rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-4 py-2 text-xs font-bold text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-45"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={
+                                        socialActionId === notification.id
+                                      }
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        void handleSocialRequestAction(
+                                          notification,
+                                          "decline",
+                                        );
+                                      }}
+                                      className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-xs font-bold text-zinc-300 transition hover:bg-white/10 disabled:opacity-45"
+                                    >
+                                      Decline
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                              <span className="whitespace-nowrap text-xs text-zinc-500">
+                                {notification.createdAt
+                                  ?.toDate()
+                                  .toLocaleString() ?? "Just now"}
+                              </span>
                             </div>
                           </div>
-                        </Link>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
 
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              openConfirmModal(
-                                `Delete recently edited note for ${g.name}?`,
-                                () => deleteRecentEditNote(g),
-                              );
-                            }}
-                            className="ml-4 self-start rounded-full border border-red-500/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/15 hover:text-red-100"
+                  {recentGames.map((g, index) => {
+                    const isUnread =
+                      recentReadStateHydrated &&
+                      g.recentActionSource !== "user" &&
+                      !readRecentActivityKeys.has(getRecentActivityKey(g));
+                    const recentGameDocId = getRecentGameDocId(g);
+                    const isSelected = selectedRecentGameIds.has(
+                      recentGameDocId,
+                    );
+
+                    return (
+                      <motion.div
+                        key={`${g.igdb.id}-${index}`}
+                        initial={{ opacity: 0, x: -15 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          delay: index * 0.02,
+                        }}
+                        className="relative mb-6 pl-16"
+                        onMouseEnter={() => markRecentActivityRead(g)}
+                      >
+                        <div className="absolute left-[10px] top-8 h-6 w-6 rounded-full border-4 border-[var(--theme-bg)] bg-cyan-500 shadow-[0_0_15px_rgba(34,211,238,0.7)]" />
+
+                        <div
+                          className={`group relative flex cursor-pointer rounded-2xl border p-4 backdrop-blur-md transition-all duration-300 hover:border-[rgba(var(--theme-accent-rgb),0.45)] hover:bg-white/[0.05] ${
+                            isSelected
+                              ? "border-cyan-300/70 bg-cyan-500/10 ring-2 ring-cyan-400/25"
+                              : isUnread
+                              ? "border-[rgba(var(--theme-accent-rgb),0.55)] bg-[rgba(var(--theme-accent-rgb),0.1)] shadow-[0_0_26px_rgba(var(--theme-accent-rgb),0.3)]"
+                              : "border-white/10 bg-white/[0.03]"
+                          }`}
+                        >
+                          {isAdmin && recentGameDocId && (
+                            <label
+                              className="mr-3 mt-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(event) => {
+                                  const checked = event.target.checked;
+                                  setSelectedRecentGameIds((current) => {
+                                    const next = new Set(current);
+                                    if (checked) next.add(recentGameDocId);
+                                    else next.delete(recentGameDocId);
+                                    return next;
+                                  });
+                                }}
+                                aria-label={`Select notification for ${g.name}`}
+                                className="h-5 w-5 cursor-pointer accent-cyan-400"
+                              />
+                            </label>
+                          )}
+                          <Link
+                            href={`/game/${g.igdb.id}`}
+                            onClick={closeRecentActivityModal}
+                            className="flex flex-1"
                           >
-                            <FiTrash size={16} />
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
+                            <div className="flex gap-4 w-full">
+                              <img
+                                src={g.igdb.cover}
+                                alt={g.name}
+                                className="h-28 w-20 rounded-xl object-cover shadow-lg transition-transform duration-300 group-hover:scale-105"
+                              />
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <h3 className="line-clamp-2 text-lg font-bold">
+                                      {g.name}
+                                    </h3>
+
+                                    <p className="mt-2 text-sm font-medium text-cyan-300">
+                                      {g.recentActionSummary}
+                                    </p>
+                                  </div>
+
+                                  <span className="whitespace-nowrap text-xs text-zinc-500">
+                                    {g.lastUpdated
+                                      ? new Date(
+                                          g.lastUpdated.toMillis(),
+                                        ).toLocaleString()
+                                      : "Unknown"}
+                                  </span>
+                                </div>
+
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  <span className="rounded-full bg-white/5 px-3 py-1 text-xs">
+                                    {g.status}
+                                  </span>
+
+                                  {typeof g.my_rating === "number" && (
+                                    <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+                                      ★ {g.my_rating}
+                                    </span>
+                                  )}
+
+                                  {(g.playtime ?? 0) > 0 && (
+                                    <span className="rounded-full bg-white/5 px-3 py-1 text-xs">
+                                      {Math.floor(g.playtime ?? 0)}h
+                                    </span>
+                                  )}
+                                </div>
+
+                                {g.review?.text && (
+                                  <p className="mt-3 line-clamp-2 text-sm text-zinc-400">
+                                    {g.review?.text}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </Link>
+
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                openConfirmModal(
+                                  `Delete recently edited note for ${g.name}?`,
+                                  () => deleteRecentEditNote(g),
+                                );
+                              }}
+                              className="ml-4 self-start rounded-full border border-red-500/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500/15 hover:text-red-100"
+                            >
+                              <FiTrash size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
 
                   {recentVisibleCount < sortedRecentGames.length && (
                     <div className="relative pb-8 pl-16">
@@ -2219,6 +3022,79 @@ export default function GamesPage() {
           </motion.div>
         )}{" "}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {isIdle && wallpaperMedia && (
+          <motion.div
+            className="pointer-events-none fixed inset-0 z-[9998] overflow-hidden bg-[var(--theme-bg)]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.65, ease: "easeInOut" }}
+          >
+            <motion.img
+              src={getMediaSrc(wallpaperMedia)}
+              alt="Idle wallpaper"
+              className="h-full w-full object-cover"
+              style={{
+                ...getMediaStyle(wallpaperMedia),
+                filter: `blur(${bgBlur}px) brightness(0.75)`,
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.7, ease: "easeOut" }}
+            />
+            <div
+              className="absolute inset-0 bg-black"
+              style={{ opacity: bgOverlay / 100 }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {cardSteamMenu && (
+          <>
+            <button
+              type="button"
+              aria-label="Close game-card menu"
+              onClick={() => setCardSteamMenu(null)}
+              className="fixed inset-0 z-[10040] cursor-default"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              style={{ left: cardSteamMenu.x, top: cardSteamMenu.y }}
+              className="fixed z-[10050] w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950 p-1.5 shadow-2xl"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setSteamAssetsGame(cardSteamMenu.game);
+                  setCardSteamMenu(null);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                <SiSteam className="text-lg text-[#66c0f4]" />
+                Use SteamDB images
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {steamAssetsGame && (
+        <SteamAssetsModal
+          open
+          igdbId={steamAssetsGame.igdb.id}
+          gameName={steamAssetsGame.name}
+          currentCoverUrl={steamAssetsGame.igdb.cover}
+          onClose={() => setSteamAssetsGame(null)}
+          onUseAsset={useCardSteamAssetAsCover}
+        />
+      )}
 
       <AnimatePresence>
         {coverPreview && (

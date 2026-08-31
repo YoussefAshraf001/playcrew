@@ -4,7 +4,6 @@ import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { Helmet } from "react-helmet-async";
 import { collection, getDocs } from "firebase/firestore";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
@@ -52,10 +51,6 @@ export default function Dashboard() {
   const [canContinue, setCanContinue] = useState(false);
 
   const [pageReady, setPageReady] = useState(true);
-
-  useEffect(() => {
-    document.title = "Main Menu • PlayCrew";
-  }, []);
 
   useEffect(() => {
     setPanelOpen(openPanel !== "none");
@@ -159,7 +154,7 @@ export default function Dashboard() {
   const menuItems = [
     { label: "Continue", action: "continue" },
     { label: "New Game", action: "explore" },
-    { label: "My Games", action: "games" },
+    { label: "Library", action: "games" },
     { label: "Explore", action: "explore" },
     { label: "Gallery", action: "gallery" },
     user && { label: "Overview", action: "overview" },
@@ -309,14 +304,6 @@ export default function Dashboard() {
 
   return (
     <>
-      <Helmet>
-        <title>Main Menu • PlayCrew</title>
-        <meta
-          name="description"
-          content="Your PlayCrew dashboard for tracking progress, activity, and updates."
-        />
-      </Helmet>
-
       <motion.div
         key={pathname}
         variants={pageVariants}
@@ -378,7 +365,7 @@ export default function Dashboard() {
                 w-60 sm:w-[260px] md:w-[270px]
                 px-4 sm:px-5 md:px-6 py-3 sm:py-4
                 rounded-2xl
-                bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
+                bg-linear-to-br from-[var(--theme-panel-alt)] to-[var(--theme-surface-strong)]
                 backdrop-blur-xl
                 border border-cyan-400/20
                 shadow-[0_10px_40px_rgba(0,0,0,0.6)]
@@ -448,7 +435,7 @@ export default function Dashboard() {
                 w-60 sm:w-[260px] md:w-[300px] h-24 md:h-28 xl:h-32
                 px-4 sm:px-5 md:px-6 py-3 sm:py-4
                 rounded-2xl
-                bg-linear-to-br from-[#0b1a24]/90 to-[#071118]/90
+                bg-linear-to-br from-[var(--theme-panel-alt)] to-[var(--theme-surface-strong)]
                 backdrop-blur-xl
                 border border-cyan-400/20
                 shadow-[0_10px_40px_rgba(0,0,0,0.6)]

@@ -1,0 +1,17 @@
+[
+  { "id": "completed-1", "family": "completed", "title": "First Victory", "description": "Complete your first game.", "threshold": 1, "icon": "🏁", "tier": "bronze" },
+  { "id": "completed-10", "family": "completed", "title": "Finisher", "description": "Complete 10 games.", "threshold": 10, "icon": "🏆", "tier": "silver" },
+  { "id": "completed-25", "family": "completed", "title": "Seasoned Finisher", "description": "Complete 25 games.", "threshold": 25, "icon": "👑", "tier": "gold" },
+  { "id": "completed-50", "family": "completed", "title": "Completionist", "description": "Complete 50 games.", "threshold": 50, "icon": "💎", "tier": "platinum" },
+  { "id": "completed-100", "family": "completed", "title": "Centurion", "description": "Complete 100 games.", "threshold": 100, "icon": "💯", "tier": "diamond" },
+  { "id": "playtime-10", "family": "playtime", "title": "Getting Started", "description": "Track 10 hours of playtime.", "threshold": 10, "icon": "⏱️", "tier": "bronze" },
+  { "id": "playtime-100", "family": "playtime", "title": "Game Night Regular", "description": "Track 100 hours of playtime.", "threshold": 100, "icon": "🌙", "tier": "silver" },
+  { "id": "playtime-500", "family": "playtime", "title": "Time Traveler", "description": "Track 500 hours of playtime.", "threshold": 500, "icon": "⌛", "tier": "gold" },
+  { "id": "playtime-1000", "family": "playtime", "title": "Thousand-Hour Club", "description": "Track 1,000 hours of playtime.", "threshold": 1000, "icon": "🔥", "tier": "platinum" },
+  { "id": "playtime-5000", "family": "playtime", "title": "Lifetime Gamer", "description": "Track 5,000 hours of playtime.", "threshold": 5000, "icon": "♾️", "tier": "diamond" },
+  { "id": "reviews-1", "family": "reviews", "title": "First Impression", "description": "Write your first review.", "threshold": 1, "icon": "✍️", "tier": "bronze" },
+  { "id": "reviews-10", "family": "reviews", "title": "Critic", "description": "Write 10 reviews.", "threshold": 10, "icon": "📝", "tier": "silver" },
+  { "id": "reviews-25", "family": "reviews", "title": "Trusted Voice", "description": "Write 25 reviews.", "threshold": 25, "icon": "🎙️", "tier": "gold" },
+  { "id": "reviews-50", "family": "reviews", "title": "Veteran Critic", "description": "Write 50 reviews.", "threshold": 50, "icon": "📰", "tier": "platinum" },
+  { "id": "reviews-100", "family": "reviews", "title": "Master Reviewer", "description": "Write 100 reviews.", "threshold": 100, "icon": "🌟", "tier": "diamond" }
+]

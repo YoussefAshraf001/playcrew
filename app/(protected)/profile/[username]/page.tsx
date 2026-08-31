@@ -20,8 +20,10 @@ import {
   where,
   getDocs,
   deleteField,
+  deleteDoc,
+  runTransaction,
+  setDoc,
 } from "firebase/firestore";
-import { Helmet } from "react-helmet-async";
 
 import { useUser } from "../../../context/UserContext";
 import { db, auth } from "@/app/lib/firebase";
@@ -43,6 +45,18 @@ import AnimatedField from "@/app/components/AnimatedField";
 import Textarea from "@/app/components/Textarea";
 import CropModal from "@/app/components/CropModal";
 import ImageOverlay from "@/app/components/ImageOverlay";
+import {
+  FiCamera,
+  FiCheck,
+  FiLock,
+  FiGlobe,
+  FiRotateCcw,
+  FiSave,
+  FiShield,
+  FiTrash2,
+  FiUser,
+  FiUsers,
+} from "react-icons/fi";
 
 /* ---------------- TYPES ---------------- */
 
@@ -64,6 +78,7 @@ type UserProfile = {
   bio?: string;
   avatar?: MediaValue;
   wallpaper?: MediaValue;
+  privacy?: Record<string, "public" | "friends" | "private">;
 };
 
 type UploadKind = "avatar" | "wallpaper";
@@ -99,14 +114,11 @@ export default function EditProfilePage() {
   const [gamesBgOverlay, setGamesBgOverlay] = useState(DEFAULT_BG_OVERLAY);
   const [siteSettingsHydrated, setSiteSettingsHydrated] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const wallpaperInputRef = useRef<HTMLInputElement>(null);
   const accountPanelRef = useRef<HTMLDivElement>(null);
   const currentWallpaperData = (draft ?? profile)?.wallpaper?.data;
 
   /* ---------------- INIT ---------------- */
-
-  useEffect(() => {
-    document.title = "Identity Hub • PlayCrew";
-  }, []);
 
   useEffect(() => {
     if (!profile) return;
@@ -151,9 +163,19 @@ export default function EditProfilePage() {
   useEffect(() => {
     if (typeof window === "undefined" || !siteSettingsHydrated) return;
 
+    let currentSettings: Record<string, unknown> = {};
+    try {
+      currentSettings = JSON.parse(
+        window.localStorage.getItem(PAGE_SETTINGS_STORAGE_KEY) ?? "{}",
+      ) as Record<string, unknown>;
+    } catch {
+      currentSettings = {};
+    }
+
     window.localStorage.setItem(
       PAGE_SETTINGS_STORAGE_KEY,
       JSON.stringify({
+        ...currentSettings,
         bgBlur: gamesBgBlur,
         bgOverlay: gamesBgOverlay,
       }),
@@ -179,8 +201,9 @@ export default function EditProfilePage() {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, "_") // replace spaces with underscores
+      .replace(/[^a-z0-9_-]/g, "")
       .replace(/_+/g, "_") // collapse repeated underscores
-      .replace(/^-+|-+$/g, ""); // trim edge dashes
+      .replace(/^[-_]+|[-_]+$/g, ""); // trim edge separators
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -541,8 +564,8 @@ export default function EditProfilePage() {
 
         if (await isUsernameTaken(draft.username)) {
           abortSave(
-            "Username is already taken",
-            "Try a different name, or add numbers or underscores",
+            "Identical username already exists",
+            "Another user already registered that exact username",
           );
 
           return;
@@ -553,6 +576,9 @@ export default function EditProfilePage() {
 
       if (draft.email !== original.email) updates.email = draft.email;
       if (draft.bio !== original.bio) updates.bio = draft.bio;
+      if (JSON.stringify(draft.privacy) !== JSON.stringify(original.privacy)) {
+        updates.privacy = draft.privacy ?? {};
+      }
 
       const avatarChanged =
         JSON.stringify(draft.avatar) !== JSON.stringify(original.avatar);
@@ -573,8 +599,104 @@ export default function EditProfilePage() {
       }
 
       if (Object.keys(updates).length > 0) {
-        await updateDoc(doc(db, "users", user!.uid), updates);
+        if (updates.username) {
+          await runTransaction(db, async (transaction) => {
+            const nextUsername = String(updates.username);
+            const nextUsernameRef = doc(db, "usernames", nextUsername);
+            const nextUsernameSnap = await transaction.get(nextUsernameRef);
+
+            if (
+              nextUsernameSnap.exists() &&
+              nextUsernameSnap.data().uid !== user!.uid
+            ) {
+              throw new Error("username-already-taken");
+            }
+
+            const previousUsername = original.username?.trim().toLowerCase();
+            const previousUsernameRef = previousUsername
+              ? doc(db, "usernames", previousUsername)
+              : null;
+            const previousUsernameSnap = previousUsernameRef
+              ? await transaction.get(previousUsernameRef)
+              : null;
+
+            transaction.update(doc(db, "users", user!.uid), updates);
+            transaction.set(nextUsernameRef, {
+              uid: user!.uid,
+              username: nextUsername,
+            });
+
+            if (
+              previousUsernameRef &&
+              previousUsername !== nextUsername &&
+              previousUsernameSnap?.exists() &&
+              previousUsernameSnap.data().uid === user!.uid
+            ) {
+              transaction.delete(previousUsernameRef);
+            }
+          });
+        } else {
+          await updateDoc(doc(db, "users", user!.uid), updates);
+        }
         setProfile({ ...profile!, ...updates });
+      }
+
+      const visibilityChanged =
+        (draft.privacy?.profile ?? "public") !==
+        (original.privacy?.profile ?? "public");
+
+      if (visibilityChanged) {
+        const visibility = draft.privacy?.profile ?? "public";
+        const gamesSnapshot = await getDocs(
+          collection(db, "users", user!.uid, "games_igdb"),
+        );
+
+        await Promise.all(
+          gamesSnapshot.docs.map(async (gameDocument) => {
+            const gameData = gameDocument.data();
+            const reviewText = gameData.review?.text?.trim();
+            if (!reviewText) return;
+
+            const gameId = Number(gameData.igdb?.id ?? gameDocument.id);
+            const communityRef = doc(
+              db,
+              "communityReviews",
+              `${user!.uid}_${gameId}`,
+            );
+
+            if (visibility !== "public") {
+              await deleteDoc(communityRef).catch(() => undefined);
+              return;
+            }
+
+            await setDoc(
+              communityRef,
+              {
+                userId: user!.uid,
+                username: draft.username ?? "PlayCrew User",
+                gameId,
+                gameName: gameData.name ?? gameData.igdb?.name ?? "Game",
+                text: reviewText,
+                sticker: gameData.review?.sticker ?? null,
+                rating:
+                  typeof gameData.my_rating === "number"
+                    ? gameData.my_rating
+                    : null,
+                playtime:
+                  typeof gameData.playtime === "number" ? gameData.playtime : 0,
+                status: gameData.status ?? null,
+                progress:
+                  typeof gameData.progress === "number" ? gameData.progress : 0,
+                playedOn: gameData.playedOn ?? null,
+                visibility: "public",
+                createdAt:
+                  gameData.review?.createdAt ?? gameData.lastUpdated ?? new Date(),
+                updatedAt: new Date(),
+              },
+              { merge: true },
+            );
+          }),
+        );
       }
 
       if (updates.username) {
@@ -597,6 +719,14 @@ export default function EditProfilePage() {
       console.error("Profile save failed:", err);
       const msg = String(err?.message ?? "").toLowerCase();
       const code = String(err?.code ?? "").toLowerCase();
+
+      if (msg.includes("username-already-taken")) {
+        abortSave(
+          "Identical username already exists",
+          "Another user already registered that exact username",
+        );
+        return;
+      }
 
       if (msg.includes("cloudinary")) {
         abortSave(
@@ -651,195 +781,360 @@ export default function EditProfilePage() {
 
   return (
     <>
-      <Helmet>
-        <title>Identity Hub • PlayCrew</title>
-        <meta
-          name="description"
-          content="Manage your PlayCrew profile, preferences, and account settings."
-        />
-      </Helmet>
-
       <motion.main
-        className="relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-4 py-24 sm:px-6 lg:flex lg:items-center lg:justify-center lg:py-8"
+        className="page-top-offset relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-3 pb-28 pt-20 sm:px-6 sm:pt-24 lg:px-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        {active?.wallpaper?.data && (
-          <div className="absolute inset-0 bg-black">
+        {/* {active?.wallpaper?.data && (
+          <div className="absolute inset-0 bg-[var(--theme-bg)]">
             <img
               src={active.wallpaper.data}
               alt=""
               onLoad={() => setWallpaperLoaded(true)}
               className={`absolute inset-0 h-full w-full scale-110 object-cover transition-opacity duration-700 ease-out ${
-                wallpaperLoaded ? "opacity-45" : "opacity-0"
+                wallpaperLoaded ? "opacity-55" : "opacity-0"
               }`}
-              style={{ filter: "blur(14px)" }}
+              style={{ filter: `blur(${gamesBgBlur}px)` }}
+            />
+            <div
+              className="absolute inset-0 bg-[var(--theme-bg)]"
+              style={{ opacity: gamesBgOverlay / 100 }}
             />
           </div>
-        )}
+        )} */}
+
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,var(--theme-tint-a),transparent_30%),radial-gradient(circle_at_88%_18%,var(--theme-tint-b),transparent_28%)]" />
 
         <motion.div
           ref={accountPanelRef}
-          className="theme-panel relative z-10 mx-auto w-full max-w-6xl rounded-4xl border p-4 backdrop-blur-2xl sm:p-6 lg:p-8"
-          initial={{ y: 40, opacity: 0 }}
+          className="relative z-10 mx-auto w-full max-w-7xl"
+          initial={{ y: 24, opacity: 0 }}
           animate={{
-            y: otherModalOpen ? 8 : 0,
+            y: otherModalOpen ? 6 : 0,
             opacity: otherModalOpen ? 0 : 1,
-            scale: otherModalOpen ? 0.98 : 1,
+            scale: otherModalOpen ? 0.99 : 1,
             pointerEvents: otherModalOpen ? "none" : "auto",
           }}
           transition={{ duration: 0.22, ease: "easeOut" }}
         >
-          <AnimatePresence>
-            {hasChanges && (
-              <motion.div
-                initial={{ opacity: 0, y: -100 }}
-                animate={{ opacity: 1, y: 80 }}
-                exit={{ opacity: 0, y: 100 }}
-                transition={{ duration: 0.4 }}
-                className="fixed bottom-0 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl theme-panel shadow-2xl"
-              >
-                <span className="theme-text-muted text-sm">
-                  You have unsaved changes
-                </span>
+          <section className="theme-panel overflow-hidden rounded-[30px] border backdrop-blur-2xl sm:rounded-[36px]">
+            <div className="relative h-52 overflow-hidden sm:h-64 lg:h-72">
+              {active?.wallpaper?.data ? (
+                <img
+                  src={active.wallpaper.data}
+                  alt="Profile wallpaper"
+                  className="h-full w-full object-cover"
+                  style={
+                    active.wallpaper.type === "gif" && active.wallpaper.crop
+                      ? {
+                          transform: `translate(${active.wallpaper.crop.x}px, ${active.wallpaper.crop.y}px) scale(${active.wallpaper.crop.zoom})`,
+                        }
+                      : undefined
+                  }
+                />
+              ) : (
+                <div className="h-full w-full bg-[radial-gradient(circle_at_20%_15%,var(--theme-tint-a),transparent_34%),radial-gradient(circle_at_82%_25%,var(--theme-tint-b),transparent_30%),linear-gradient(135deg,var(--theme-panel-alt),var(--theme-bg))]" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-[var(--theme-bg)] via-transparent to-transparent" />
 
+              <div className="absolute right-3 top-3 flex gap-2 sm:right-5 sm:top-5">
                 <button
-                  onClick={discardChanges}
-                  className="theme-surface rounded-xl px-4 py-2 text-sm"
+                  type="button"
+                  onClick={() => wallpaperInputRef.current?.click()}
+                  className="theme-panel-strong theme-hover-accent inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold shadow-lg backdrop-blur-xl"
                 >
-                  Discard
+                  <FiCamera size={15} />
+                  <span className="hidden sm:inline">
+                    {active?.wallpaper ? "Change cover" : "Add cover"}
+                  </span>
                 </button>
+                {active?.wallpaper && (
+                  <button
+                    type="button"
+                    aria-label="Remove wallpaper"
+                    onClick={() =>
+                      setDraft((current) =>
+                        current
+                          ? { ...current, wallpaper: undefined }
+                          : current,
+                      )
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-red-300/35 bg-red-500/15 text-red-100 backdrop-blur-xl transition hover:bg-red-500/25"
+                  >
+                    <FiTrash2 size={15} />
+                  </button>
+                )}
+              </div>
+              <input
+                ref={wallpaperInputRef}
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) onSelectImage(file, "wallpaper");
+                  event.currentTarget.value = "";
+                }}
+              />
+            </div>
 
-                <button
-                  onClick={saveProfile}
-                  disabled={passwordInvalid}
-                  className="theme-accent-bg rounded-xl px-4 py-2 text-sm font-semibold"
-                >
-                  Save Changes
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <motion.div
-            className="space-y-5"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-          >
-            {/* PROFILE CARD */}
-            <motion.div
-              layout
-              className="theme-panel-strong rounded-3xl border p-5 sm:p-6"
-            >
-              <p className="theme-accent-soft-text mb-5 text-xs font-semibold uppercase tracking-[0.18em]">
-                Profile
-              </p>
-
-              <div className="flex flex-col gap-6 lg:flex-row">
-                {/* AVATAR */}
-                <div
-                  className="flex justify-center lg:justify-start cursor-pointer"
-                  onClick={() => avatarInputRef.current?.click()}
-                >
+            <div className="relative px-4 pb-5 sm:px-7 sm:pb-7 lg:px-9">
+              <div className="-mt-16 flex flex-col items-center gap-4 sm:-mt-20 sm:flex-row sm:items-end">
+                <div className="rounded-full border-4 border-[var(--theme-bg)] bg-[var(--theme-bg)] shadow-2xl">
                   <ImageOverlay
                     label="Avatar"
                     media={active?.avatar}
                     rounded
                     onEdit={() => avatarInputRef.current?.click()}
                     onDelete={() =>
-                      setDraft((p) => (p ? { ...p, avatar: undefined } : p))
-                    }
-                  />
-
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={(e) =>
-                      e.target.files &&
-                      onSelectImage(e.target.files[0], "avatar")
+                      setDraft((current) =>
+                        current ? { ...current, avatar: undefined } : current,
+                      )
                     }
                   />
                 </div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) onSelectImage(file, "avatar");
+                    event.currentTarget.value = "";
+                  }}
+                />
 
-                {/* DETAILS */}
-                <div className="flex-1">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <AnimatedField
-                      label="Username"
-                      name="username"
-                      value={active?.username || ""}
-                      onChange={handleChange}
-                      maxLength={15}
-                    />
-
-                    <AnimatedField
-                      label="Email"
-                      name="email"
-                      value={active?.email || ""}
-                      onChange={handleChange}
-                    />
+                <div className="min-w-0 flex-1 pb-1 text-center sm:text-left">
+                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                    <h1 className="theme-text truncate text-2xl font-black sm:text-3xl">
+                      {active?.username || "Player"}
+                    </h1>
+                    {active?.admin && (
+                      <span className="theme-accent-soft-bg inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em]">
+                        <FiShield size={11} /> Admin
+                      </span>
+                    )}
                   </div>
-
-                  <div className="mt-4">
-                    <Textarea
-                      label="Bio"
-                      name="bio"
-                      value={active?.bio || ""}
-                      onChange={handleChange}
-                    />
-                  </div>
+                  <p className="theme-text-muted mt-1 text-sm">
+                    Shape how your identity appears across PlayCrew.
+                  </p>
                 </div>
+
+                <span
+                  className={`mb-1 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                    hasChanges ? "theme-accent-soft-bg" : "theme-surface"
+                  }`}
+                >
+                  <FiCheck size={13} />
+                  {hasChanges ? "Changes pending" : "Profile up to date"}
+                </span>
               </div>
-            </motion.div>
+            </div>
+          </section>
 
-            {/* SECURITY CARD */}
-            <motion.div
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_0.85fr]">
+            <motion.section
               layout
-              className="theme-panel-strong rounded-3xl border p-5 sm:p-6"
+              className="theme-panel-strong rounded-3xl border p-4 sm:p-6"
             >
-              <div className="mb-5">
-                <h2 className="text-lg font-semibold theme-text">
-                  Privacy & Security
-                </h2>
-
-                <p className="theme-text-muted text-sm">
-                  Change your password and account credentials.
-                </p>
+              <div className="mb-5 flex items-start gap-3">
+                <span className="theme-accent-soft-bg flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border">
+                  <FiUser />
+                </span>
+                <div>
+                  <h2 className="theme-text text-lg font-bold">
+                    Public identity
+                  </h2>
+                  <p className="theme-text-muted mt-0.5 text-xs sm:text-sm">
+                    Your username, contact address, and player bio.
+                  </p>
+                </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
+                <AnimatedField
+                  label="Username"
+                  name="username"
+                  value={active?.username || ""}
+                  onChange={handleChange}
+                  maxLength={MAX_USERNAME_LENGTH}
+                />
+                <AnimatedField
+                  label="Email"
+                  name="email"
+                  value={active?.email || ""}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="mt-4">
+                <Textarea
+                  label="Bio"
+                  name="bio"
+                  value={active?.bio || ""}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="mt-5 border-t theme-border pt-5">
+                <div className="mb-3">
+                  <h3 className="theme-text text-sm font-bold">Profile visibility</h3>
+                  <p className="theme-text-muted mt-1 text-xs">
+                    Choose who can open your profile, library, reviews, achievements, and screenshots.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    {
+                      value: "public" as const,
+                      label: "Public",
+                      description: "Visible to everyone",
+                      icon: FiGlobe,
+                    },
+                    {
+                      value: "friends" as const,
+                      label: "Friends Only",
+                      description: "Visible to your friends",
+                      icon: FiUsers,
+                    },
+                    {
+                      value: "private" as const,
+                      label: "Private",
+                      description: "Visible only to you",
+                      icon: FiLock,
+                    },
+                  ].map((option) => {
+                    const selected =
+                      ((active as UserProfile | null)?.privacy?.profile ??
+                        "public") === option.value;
+                    const Icon = option.icon;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  privacy: {
+                                    ...(current.privacy ?? {}),
+                                    profile: option.value,
+                                  },
+                                }
+                              : current,
+                          )
+                        }
+                        className={`rounded-2xl border p-3 text-left transition ${
+                          selected
+                            ? "theme-accent-soft-bg border-[rgba(var(--theme-accent-rgb),0.55)]"
+                            : "theme-surface theme-hover-surface"
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        <Icon className={selected ? "theme-accent-text" : "theme-text-muted"} />
+                        <p className="theme-text mt-2 text-xs font-bold">{option.label}</p>
+                        <p className="theme-text-muted mt-0.5 text-[10px]">{option.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.section>
+
+            <motion.section
+              layout
+              className="theme-panel-strong rounded-3xl border p-4 sm:p-6"
+            >
+              <div className="mb-5 flex items-start gap-3">
+                <span className="theme-accent-soft-bg flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border">
+                  <FiLock />
+                </span>
+                <div>
+                  <h2 className="theme-text text-lg font-bold">Security</h2>
+                  <p className="theme-text-muted mt-0.5 text-xs sm:text-sm">
+                    Update your password or request a secure reset.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4">
                 <AnimatedPasswordField
                   label="Current Password"
                   value={currentPassword}
                   show={showCurrent}
-                  toggle={() => setShowCurrent((p) => !p)}
+                  toggle={() => setShowCurrent((current) => !current)}
                   onChange={setCurrentPassword}
                   disabled={passwordResetRequested}
                 />
-
                 <AnimatedPasswordField
                   label="New Password"
                   value={newPassword}
                   show={showNew}
-                  toggle={() => setShowNew((p) => !p)}
+                  toggle={() => setShowNew((current) => !current)}
                   onChange={setNewPassword}
                   disabled={passwordResetRequested}
                 />
               </div>
 
+              {passwordInvalid && (
+                <p className="mt-3 rounded-xl border border-amber-300/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  Enter your current password before choosing a new one.
+                </p>
+              )}
+
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="theme-accent-text mt-4 text-sm transition hover:brightness-110"
+                disabled={passwordResetRequested}
+                className="theme-surface theme-hover-accent mt-4 inline-flex w-full items-center justify-center rounded-xl border px-3 py-2.5 text-xs font-semibold disabled:opacity-50"
               >
-                Forgot your password?
+                {passwordResetRequested
+                  ? "Reset email requested"
+                  : "Send password reset email"}
+              </button>
+            </motion.section>
+          </div>
+        </motion.div>
+
+        <AnimatePresence>
+          {hasChanges && !otherModalOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 30, x: "-50%" }}
+              animate={{ opacity: 1, y: 0, x: "-50%" }}
+              exit={{ opacity: 0, y: 30, x: "-50%" }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="theme-panel fixed bottom-4 left-1/2 z-40 flex w-[min(94vw,560px)] items-center gap-2 rounded-2xl border p-2.5 shadow-[var(--theme-shadow)] backdrop-blur-2xl"
+            >
+              <div className="hidden min-w-0 flex-1 px-2 sm:block">
+                <p className="theme-text text-sm font-semibold">
+                  Unsaved changes
+                </p>
+                <p className="theme-text-muted text-[11px]">
+                  Save or discard your profile edits.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={discardChanges}
+                className="theme-surface theme-hover-surface inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold sm:flex-none"
+              >
+                <FiRotateCcw size={14} /> Discard
+              </button>
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={passwordInvalid || isSaving}
+                className="theme-accent-bg inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+              >
+                <FiSave size={14} /> Save Changes
               </button>
             </motion.div>
-          </motion.div>
-        </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {cropType && selectedFile && (
@@ -858,26 +1153,25 @@ export default function EditProfilePage() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {changingUsername ||
-            (isSaving && (
+          {(changingUsername || isSaving) && (
+            <motion.div
+              className="theme-modal-backdrop fixed inset-0 z-50 flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
               <motion.div
-                className="theme-modal-backdrop fixed inset-0 z-50 flex items-center justify-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                className="theme-panel-strong flex flex-col items-center gap-4 rounded-2xl border px-8 py-7 theme-text shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
               >
-                <motion.div
-                  className="theme-panel-strong flex flex-col items-center gap-4 rounded-2xl border px-8 py-7 theme-text shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1 }}
-                >
-                  <p className="theme-accent-text text-md tracking-wide">
-                    Updating Your Account
-                  </p>
-                  <span className="theme-accent-text loading loading-dots loading-xl" />
-                </motion.div>
+                <p className="theme-accent-text text-md tracking-wide">
+                  Updating Your Account
+                </p>
+                <span className="theme-accent-text loading loading-dots loading-xl" />
               </motion.div>
-            ))}
+            </motion.div>
+          )}
         </AnimatePresence>
       </motion.main>
     </>

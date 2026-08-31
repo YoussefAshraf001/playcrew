@@ -1,23 +1,55 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import toast from "react-hot-toast";
 import { MdBookmarkRemove } from "react-icons/md";
 import {
   FaBan,
+  FaChevronDown,
   FaCrown,
+  FaGamepad,
   FaHeart,
   FaRegHeart,
   FaSearch,
+  FaSkullCrossbones,
   FaStar,
   FaTimes,
   FaEraser,
   FaTrash,
+  FaWindows,
+  FaXbox,
 } from "react-icons/fa";
+import {
+  SiBattledotnet,
+  SiEa,
+  SiEpicgames,
+  SiGogdotcom,
+  SiNintendo,
+  SiPlaystation,
+  SiRiotgames,
+  SiSteam,
+  SiUbisoft,
+} from "react-icons/si";
+import type { IconType } from "react-icons";
+import { FaUnlockKeyhole } from "react-icons/fa6";
 
 import ConfirmModal from "./ConfirmModal";
-import { PlaySession, TrackedGame } from "../types/trackedGame";
+import {
+  PlayedOnPlatform,
+  PlaySession,
+  PreReleaseAccess,
+  PreReleaseAccessType,
+  TrackedGame,
+} from "../types/trackedGame";
 import {
   appendPlaySession,
   formatSessionDuration,
@@ -25,9 +57,13 @@ import {
   normalizeSessionDate,
 } from "../lib/playSessions";
 import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
+import PreReleaseBadge from "@/app/components/PreReleaseBadge";
 import { GAME_STICKERS } from "../lib/gameStickers";
 import { IoMdAdd } from "react-icons/io";
 import { useUser } from "../context/UserContext";
+import { db } from "../lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
+import SteamAssetsModal, { type SteamAsset } from "./SteamAssetsModal";
 
 interface GameTrackingModalProps {
   open: boolean;
@@ -63,8 +99,126 @@ interface GameTrackingModalProps {
     favorite: boolean,
     notInterested: boolean,
     playedSessions: PlaySession[],
+    playedOn: PlayedOnPlatform[],
+    preReleaseAccess: PreReleaseAccess | null,
   ) => Promise<void> | void;
 }
+
+const ACCESS_OPTIONS: Array<{
+  type: PreReleaseAccessType;
+  label: string;
+  description: string;
+}> = [
+  {
+    type: "early-access",
+    label: "Early Access",
+    description: "An official, playable work-in-progress release.",
+  },
+  {
+    type: "advanced-access",
+    label: "Advanced Access",
+    description: "Official access shortly before the public launch.",
+  },
+  {
+    type: "leaked",
+    label: "Leaked",
+    description: "An unofficial pre-release build.",
+  },
+];
+
+const PLAYED_ON_OPTIONS: Array<{
+  value: PlayedOnPlatform;
+  label: string;
+  icon: IconType;
+  color: string;
+}> = [
+  { value: "steam", label: "Steam", icon: SiSteam, color: "#66c0f4" },
+  {
+    value: "epic-games",
+    label: "Epic Games",
+    icon: SiEpicgames,
+    color: "#ffffff",
+  },
+  { value: "gog", label: "GOG", icon: SiGogdotcom, color: "#a855f7" },
+  { value: "xbox-360", label: "Xbox 360", icon: FaXbox, color: "#107c10" },
+  { value: "xbox-one", label: "Xbox One", icon: FaXbox, color: "#107c10" },
+  {
+    value: "xbox-series",
+    label: "Xbox Series X/S",
+    icon: FaXbox,
+    color: "#107c10",
+  },
+  {
+    value: "xbox-game-pass-pc",
+    label: "Xbox Game Pass for PC",
+    icon: FaXbox,
+    color: "#107c10",
+  },
+  {
+    value: "playstation",
+    label: "PlayStation",
+    icon: SiPlaystation,
+    color: "#0070d1",
+  },
+  {
+    value: "playstation-2",
+    label: "PlayStation 2",
+    icon: SiPlaystation,
+    color: "#0070d1",
+  },
+  {
+    value: "playstation-3",
+    label: "PlayStation 3",
+    icon: SiPlaystation,
+    color: "#0070d1",
+  },
+  {
+    value: "playstation-4",
+    label: "PlayStation 4",
+    icon: SiPlaystation,
+    color: "#0070d1",
+  },
+  {
+    value: "playstation-5",
+    label: "PlayStation 5",
+    icon: SiPlaystation,
+    color: "#0070d1",
+  },
+  { value: "psp", label: "PSP", icon: SiPlaystation, color: "#0070d1" },
+  { value: "ps-vita", label: "PS Vita", icon: SiPlaystation, color: "#0070d1" },
+  { value: "nintendo", label: "Nintendo", icon: SiNintendo, color: "#e60012" },
+  { value: "ea-app", label: "EA app", icon: SiEa, color: "#ff4747" },
+  {
+    value: "ubisoft-connect",
+    label: "Ubisoft Connect",
+    icon: SiUbisoft,
+    color: "#0070ff",
+  },
+  {
+    value: "battle-net",
+    label: "Battle.net",
+    icon: SiBattledotnet,
+    color: "#148eff",
+  },
+  {
+    value: "riot-games",
+    label: "Riot Games",
+    icon: SiRiotgames,
+    color: "#d32936",
+  },
+  {
+    value: "offline-activation",
+    label: "Offline Activation",
+    icon: FaUnlockKeyhole,
+    color: "#f59e0b",
+  },
+  {
+    value: "pirated",
+    label: "Pirated",
+    icon: FaSkullCrossbones,
+    color: "#9ca3af",
+  },
+];
 
 const MODAL_THEME = {
   border: "border-white/12",
@@ -132,7 +286,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     onRemove,
   } = props;
 
-  const { profile: userProfile } = useUser();
+  const { user, profile: userProfile } = useUser();
   const isAdmin = Boolean(userProfile?.admin);
 
   const [notes, setNotes] = useState(initialReview.text ?? "");
@@ -160,7 +314,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const [status, setStatus] = useState(initialStatus ?? "Playing");
   const [favorite, setFavorite] = useState(initialFavorite ?? false);
   const [notInterested, setNotInterested] = useState(
-    game?.notInterested === true || initialStatus === "Not Interested",
+    game?.notInterested === true ||
+      initialStatus === "Not Interested" ||
+      initialStatus === "Lost Interest",
   );
   const [confirmNotInterestedOpen, setConfirmNotInterestedOpen] =
     useState(false);
@@ -170,9 +326,31 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const [playedSessions, setPlayedSessions] = useState<PlaySession[]>(
     normalizePlaySessions(initialPlayedSessions),
   );
+  const [playedOn, setPlayedOn] = useState<PlayedOnPlatform[]>(
+    Array.isArray(game?.playedOn)
+      ? game.playedOn
+      : game?.playedOn
+        ? [game.playedOn]
+        : [],
+  );
+  const [playedOnMenuOpen, setPlayedOnMenuOpen] = useState(false);
   const [pendingDeleteSession, setPendingDeleteSession] = useState<
     number | null
   >(null);
+  const [preReleaseAccess, setPreReleaseAccess] =
+    useState<PreReleaseAccess | null>(game?.preReleaseAccess ?? null);
+  const [accessDialogOpen, setAccessDialogOpen] = useState(false);
+  const [pendingAccessType, setPendingAccessType] =
+    useState<PreReleaseAccessType | null>(null);
+  const [unreleasedEditApprovedFor, setUnreleasedEditApprovedFor] = useState<
+    number | null
+  >(null);
+  const [coverOverride, setCoverOverride] = useState<string | null>(null);
+  const [posterMenuPosition, setPosterMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [steamAssetsOpen, setSteamAssetsOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -295,6 +473,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       favorite,
       notInterested,
       nextPlayedSessions,
+      playedOn,
+      preReleaseAccess,
     );
   };
 
@@ -311,8 +491,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       false,
       false,
       [],
+      [],
+      null,
     );
     setConfirmCleanOpen(false);
+    setUnreleasedEditApprovedFor(null);
     onClose();
   };
 
@@ -333,7 +516,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const clearNotInterested = () => {
     setNotInterested(false);
-    if (status === "Not Interested") {
+    if (status === "Not Interested" || status === "Lost Interest") {
       setStatus("Want To Play");
     }
   };
@@ -360,15 +543,103 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const normalizeDate = (value?: unknown) => parseReleaseDate(value);
 
-  const bgUrl = game?.igdb.cover || "/placeholder-game.jpg";
+  const bgUrl =
+    coverOverride || game?.igdb.cover || "/placeholder-game.jpg";
   const releaseDate = normalizeDate(game?.igdb.releaseDate);
   const gameIsReleased = !!releaseDate && releaseDate <= new Date();
+  // Temporarily disabled: unreleased-game edit confirmation gate.
+  const showUnreleasedEditGate =
+    false &&
+    !gameIsReleased &&
+    !preReleaseAccess &&
+    unreleasedEditApprovedFor !== game?.igdb.id;
+  const handleModalClose = () => {
+    setUnreleasedEditApprovedFor(null);
+    onClose();
+  };
+  const openPosterMenu = (event: MouseEvent<HTMLImageElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPosterMenuPosition({
+      x: Math.min(event.clientX, window.innerWidth - 230),
+      y: Math.min(event.clientY, window.innerHeight - 70),
+    });
+  };
+  const useSteamAssetAsCover = async (asset: SteamAsset) => {
+    if (!game) return;
+    if (!user) {
+      toast.error("You need to be signed in to change the cover.");
+      return;
+    }
+
+    const gameDocId = game._docId || String(game.igdb.id);
+    try {
+      await updateDoc(doc(db, "users", user.uid, "games_igdb", gameDocId), {
+        "igdb.cover": asset.url,
+        protectCustomCoverFromRefresh: true,
+      });
+      setCoverOverride(asset.url);
+      toast.success(`${asset.label} set as the cover. Cover lock enabled.`);
+    } catch (error) {
+      console.error("Failed to apply Steam cover", error);
+      toast.error("Could not set the Steam image as the cover.");
+      throw error;
+    }
+  };
+  const accessLabel = ACCESS_OPTIONS.find(
+    (option) => option.type === preReleaseAccess?.type,
+  )?.label;
+  const chooseAccessDate = (dateSource: "unlock" | "official") => {
+    if (!pendingAccessType) return;
+
+    setPreReleaseAccess({
+      type: pendingAccessType,
+      unlockedAt: new Date(),
+      dateSource,
+    });
+    setPendingAccessType(null);
+    setAccessDialogOpen(false);
+    toast.success("Pre-release access added. Save to apply it.");
+  };
 
   const progressRadius = 40;
   const progressStroke = 8;
   const progressCircumference = 2 * Math.PI * progressRadius;
   const progressOffset =
     progressCircumference - (progress / 100) * progressCircumference;
+  const progressAngle = (progress / 100) * Math.PI * 2 - Math.PI / 2;
+  const progressHandleX = 50 + progressRadius * Math.cos(progressAngle);
+  const progressHandleY = 50 + progressRadius * Math.sin(progressAngle);
+
+  const updateProgressFromPointer = (event: PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - (bounds.left + bounds.width / 2);
+    const y = event.clientY - (bounds.top + bounds.height / 2);
+    const clockwiseAngle = (Math.atan2(y, x) * 180) / Math.PI + 90 + 360;
+    const nextProgress = Math.round((clockwiseAngle % 360) / 3.6);
+
+    setProgress((currentProgress) => {
+      if (currentProgress >= 75 && nextProgress <= 25) return 100;
+      if (currentProgress <= 25 && nextProgress >= 75) return 0;
+      return nextProgress;
+    });
+  };
+
+  const handleProgressKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setProgress((current) => Math.min(100, current + 1));
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      event.preventDefault();
+      setProgress((current) => Math.max(0, current - 1));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setProgress(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setProgress(100);
+    }
+  };
 
   const handleDeleteSession = async (index: number, deductTime: boolean) => {
     const removed = playedSessions[index];
@@ -432,6 +703,68 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_28%),linear-gradient(135deg,rgba(0,0,0,0.3),rgba(0,0,0,0.72))] backdrop-blur-md" />
 
+            <AnimatePresence>
+              {showUnreleasedEditGate && (
+                <motion.div
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="unreleased-edit-title"
+                  aria-describedby="unreleased-edit-description"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-40 flex items-center justify-center bg-black/88 p-5 backdrop-blur-xl"
+                >
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98, y: 8 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="w-full max-w-md rounded-[28px] border border-amber-300/25 bg-zinc-950/95 p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.75)] sm:p-8"
+                  >
+                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-amber-300/30 bg-amber-400/10 text-3xl text-amber-200">
+                      <FaUnlockKeyhole aria-hidden="true" />
+                    </div>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-amber-200/70">
+                      Unreleased game
+                    </p>
+                    <h2
+                      id="unreleased-edit-title"
+                      className="text-2xl font-black text-white"
+                    >
+                      Are you sure you want to edit it?
+                    </h2>
+                    <p
+                      id="unreleased-edit-description"
+                      className="mx-auto mt-3 max-w-sm text-sm leading-6 text-zinc-300"
+                    >
+                      {game.name} has not been released or unlocked through
+                      Early Access, Advanced Access, or a leaked build yet.
+                    </p>
+                    <div className="mt-7 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={handleModalClose}
+                        className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+                      >
+                        Go back
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setUnreleasedEditApprovedFor(game.igdb.id)
+                        }
+                        autoFocus
+                        className="rounded-xl bg-amber-300 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-amber-200"
+                      >
+                        Edit anyway
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_1fr_auto] gap-3 p-3 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch] touch-pan-y sm:gap-4 sm:p-6">
               <div className="pointer-events-none absolute inset-x-6 top-0 h-32 rounded-full bg-amber-200/10 blur-3xl" />
 
@@ -440,6 +773,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   <img
                     src={bgUrl}
                     alt={game?.name || "Game cover"}
+                    onContextMenu={openPosterMenu}
+                    title="Right-click for cover options"
                     className="h-16 w-12 shrink-0 rounded-xl border border-white/20 object-cover shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
                   />
                   <div className="min-w-0">
@@ -464,6 +799,39 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               game?.igdb.releaseDatePrecision,
                             )}`}
                       </span>
+                      {!gameIsReleased && !preReleaseAccess && (
+                        <button
+                          type="button"
+                          onClick={() => setAccessDialogOpen(true)}
+                          className="rounded-full border border-amber-300/55 bg-amber-500/20 px-3 py-1 text-xs font-bold text-amber-100 transition hover:bg-amber-500/35"
+                        >
+                          Unlock
+                        </button>
+                      )}
+                      {preReleaseAccess && (
+                        <span className="inline-flex items-center gap-2">
+                          <PreReleaseBadge
+                            type={preReleaseAccess.type}
+                            label={accessLabel}
+                          />
+                          {!gameIsReleased && (
+                            <button
+                              type="button"
+                              onClick={() => setAccessDialogOpen(true)}
+                              className="text-white/65 underline hover:text-white"
+                            >
+                              Change
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPreReleaseAccess(null)}
+                            className="text-white/65 underline hover:text-white"
+                          >
+                            Remove
+                          </button>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -537,7 +905,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               </header>
 
               <div className="grid min-h-0 gap-3 overflow-y-auto pr-1">
-                <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr] md:items-stretch">
+                <div
+                  className={`relative grid gap-3 md:grid-cols-[1.2fr_0.8fr] md:items-stretch ${
+                    playedOnMenuOpen ? "z-30" : "z-0"
+                  }`}
+                >
                   <section className="grid gap-3 sm:min-h-0">
                     <div
                       className={`relative overflow-hidden rounded-[28px] border border-white/12 bg-[linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-5 backdrop-blur-xl`}
@@ -557,7 +929,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                     cy={dialCenter}
                                     r={dialRadius}
                                     fill="none"
-                                    stroke="rgba(255,255,255,0.12)"
+                                    stroke="rgba(251,191,36,0.14)"
                                     strokeWidth={dialStroke}
                                     strokeLinecap="round"
                                     strokeDasharray={`${arcLength} ${circumference}`}
@@ -588,21 +960,24 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                       x2="100%"
                                       y2="100%"
                                     >
-                                      <stop offset="0%" stopColor="#f5d47a" />
-                                      <stop offset="55%" stopColor="#ffd778" />
-                                      <stop offset="100%" stopColor="#fff1c7" />
+                                      <stop offset="0%" stopColor="#f59e0b" />
+                                      <stop offset="55%" stopColor="#fbbf24" />
+                                      <stop offset="100%" stopColor="#fde68a" />
                                     </linearGradient>
                                   </defs>
                                 </svg>
 
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                                  <p className="text-[11px] uppercase tracking-[0.3em] text-zinc-400">
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-200/75">
                                     Rating
                                   </p>
                                   <div className="mt-1 flex items-end justify-center gap-1 leading-none">
-                                    <span className="text-5xl font-bold tracking-tight text-[#ffd77a] flex items-center justify-center">
+                                    <span className="flex items-center justify-center text-5xl font-bold tracking-tight text-amber-300 drop-shadow-[0_0_14px_rgba(251,191,36,0.3)]">
                                       {rating === 10 ? (
-                                        <FaCrown className="text-6xl text-yellow-300 drop-shadow-[0_0_18px_rgba(255,215,122,0.7)]" />
+                                        <FaCrown
+                                          className="text-6xl drop-shadow-[0_0_18px_rgba(251,191,36,0.75)]"
+                                          style={{ color: "#fbbf24" }}
+                                        />
                                       ) : (
                                         formatRating(rating ?? 0)
                                       )}
@@ -613,8 +988,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   </div>
                                 </div>
                               </div>
-                              <div className="w-38 mx-auto flex items-center justify-center gap-1.5 rounded-full border border-amber-300/40 bg-amber-400/12 px-3 py-1.5 text-[11px] font-medium text-amber-100">
-                                <FaStar className="text-sm" />
+                              <div className="mx-auto flex w-38 items-center justify-center gap-1.5 rounded-full border border-[#d9a928] bg-[rgba(180,125,15,0.28)] px-3 py-1.5 text-[11px] font-bold text-[#ffe29a] shadow-[0_0_18px_rgba(245,158,11,0.16)]">
+                                <FaStar className="text-sm text-[#fbbf24]" />
                                 <span>{getRatingLabel(rating)}</span>
                               </div>
                             </div>
@@ -622,7 +997,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                             <div className="grid gap-4">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-xs uppercase tracking-[0.22em] text-amber-100/70">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
                                     Your Rating
                                   </p>
                                   <p className="mt-1 text-sm text-zinc-300">
@@ -648,7 +1023,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   <span>
                                     {isNotInterested
                                       ? "Restore"
-                                      : "Not Interested"}
+                                      : "Lost Interest"}
                                   </span>
                                 </button>
                               </div>
@@ -682,7 +1057,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                       "--slider-progress": `${((rating ?? 0) / 10) * 100}%`,
                                     } as CSSProperties
                                   }
-                                  className="rating-slider h-2.5 w-full accent-[#ffd77a]"
+                                  className="rating-slider h-2.5 w-full accent-amber-400"
                                 />
                               </div>
 
@@ -732,7 +1107,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     </div>
                   </section>
 
-                  <aside className="grid gap-2 sm:grid-cols-2 md:grid-cols-1 md:min-h-0">
+                  <aside
+                    className={`relative grid gap-2 sm:grid-cols-2 md:min-h-0 md:grid-cols-1 ${
+                      playedOnMenuOpen ? "z-30" : "z-0"
+                    }`}
+                  >
                     <div
                       className={`flex h-full min-h-[300px] flex-col rounded-[28px] border border-white/12 bg-[linear-gradient(165deg,rgba(255,255,255,0.1),rgba(255,255,255,0.04))] p-4 backdrop-blur-xl lg:min-h-[360px] lg:p-5`}
                     >
@@ -756,88 +1135,85 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                           </button>
                         </div>
 
-                        <div className="flex shrink-0 flex-col items-center rounded-[22px] border border-white/10 bg-black/20 px-3 py-2.5 text-center lg:px-4 lg:py-3">
-                          <div className="relative h-14 w-14 lg:h-16 lg:w-16">
-                            {/* Logo outline */}
-                            <img
-                              src="/logo.svg"
-                              alt=""
-                              className="absolute inset-0 h-full w-full object-contain"
-                            />
-
-                            {/* Liquid clipped to logo */}
-                            <div
-                              className="absolute inset-0 overflow-hidden"
-                              style={{
-                                WebkitMaskImage: "url('/logo.svg')",
-                                maskImage: "url('/logo.svg')",
-                                WebkitMaskRepeat: "no-repeat",
-                                maskRepeat: "no-repeat",
-                                WebkitMaskPosition: "center",
-                                maskPosition: "center",
-                                WebkitMaskSize: "contain",
-                                maskSize: "contain",
-                              }}
+                        <div className="flex shrink-0 flex-col items-center text-center">
+                          <div
+                            role="slider"
+                            tabIndex={0}
+                            aria-label="Completion percentage"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={progress}
+                            onKeyDown={handleProgressKeyDown}
+                            onPointerDown={(event) => {
+                              event.currentTarget.setPointerCapture(
+                                event.pointerId,
+                              );
+                              updateProgressFromPointer(event);
+                            }}
+                            onPointerMove={(event) => {
+                              if (
+                                event.currentTarget.hasPointerCapture(
+                                  event.pointerId,
+                                )
+                              ) {
+                                updateProgressFromPointer(event);
+                              }
+                            }}
+                            onPointerUp={(event) =>
+                              event.currentTarget.releasePointerCapture(
+                                event.pointerId,
+                              )
+                            }
+                            className="relative h-24 w-24 cursor-grab touch-none select-none rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)] active:cursor-grabbing lg:h-28 lg:w-28"
+                          >
+                            <svg
+                              viewBox="0 0 100 100"
+                              className="h-full w-full overflow-visible drop-shadow-[0_0_14px_rgba(var(--theme-accent-rgb),0.3)]"
+                              aria-hidden="true"
                             >
-                              <motion.div
-                                className="absolute inset-x-0 bottom-0 h-full bg-blue-500"
-                                animate={{
-                                  height: `${progress}%`,
-                                }}
-                                transition={{
-                                  duration: 0.35,
-                                  ease: "easeOut",
-                                }}
-                              >
-                                {/* Water surface */}
-                                <motion.div
-                                  className="absolute -top-2 left-[-20%] h-4 w-[140%] rounded-[50%] bg-blue-200/60"
-                                  animate={{
-                                    x: ["-8%", "8%", "-8%"],
-                                  }}
-                                  transition={{
-                                    duration: 2.5,
-                                    repeat: Infinity,
-                                    ease: "easeInOut",
-                                  }}
-                                />
-                              </motion.div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid gap-3 lg:mt-5 lg:flex-1 lg:grid-rows-[auto_auto] lg:gap-4">
-                        <div className="rounded-[24px] border border-white/10 bg-black/20 p-3.5 lg:p-4">
-                          <div className="mb-3 flex items-center justify-between">
-                            <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                              Completion
-                            </span>
-                            <span className="text-sm font-semibold text-white">
+                              <circle
+                                cx="50"
+                                cy="50"
+                                r={progressRadius}
+                                fill="rgba(0,0,0,0.32)"
+                                stroke="rgba(255,255,255,0.12)"
+                                strokeWidth={progressStroke}
+                              />
+                              <circle
+                                cx="50"
+                                cy="50"
+                                r={progressRadius}
+                                fill="none"
+                                stroke="var(--theme-accent)"
+                                strokeWidth={progressStroke}
+                                strokeLinecap="round"
+                                strokeDasharray={progressCircumference}
+                                strokeDashoffset={progressOffset}
+                                transform="rotate(-90 50 50)"
+                              />
+                              <circle
+                                cx={progressHandleX}
+                                cy={progressHandleY}
+                                r="5"
+                                fill="white"
+                                stroke="var(--theme-accent)"
+                                strokeWidth="3"
+                              />
+                            </svg>
+                            <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xl font-black text-white lg:text-2xl">
                               {progress}%
                             </span>
                           </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={progress}
-                            onChange={(e) =>
-                              setProgress(Number(e.target.value))
-                            }
-                            style={
-                              {
-                                "--slider-progress": `${progress}%`,
-                              } as CSSProperties
-                            }
-                            className="completion-slider h-2.5 w-full accent-emerald-400"
-                          />
+                          <span className="mt-1 text-[9px] uppercase tracking-[0.18em] text-zinc-500">
+                            Drag completion
+                          </span>
                         </div>
+                      </div>
 
-                        <div className="grid grid-cols-2 gap-3">
-                          <label className="rounded-[22px] border border-white/12 bg-white/4 px-4 py-3">
-                            <span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                      <div className="mt-4 grid content-start gap-3 lg:mt-5 lg:gap-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="h-16 rounded-xl border border-white/12 bg-white/4 px-3 py-1">
+                            <span className="block text-[10px] uppercase leading-4 tracking-[0.18em] text-zinc-500">
                               Hours
                             </span>
                             <input
@@ -847,11 +1223,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               onChange={(e) =>
                                 setHours(Math.max(0, Number(e.target.value)))
                               }
-                              className="w-full bg-transparent text-xl font-semibold text-white outline-none lg:text-2xl"
+                              className="h-10 w-full bg-transparent text-lg font-semibold leading-5 text-white outline-none"
                             />
                           </label>
-                          <label className="rounded-[22px] border border-white/12 bg-white/4 px-4 py-3">
-                            <span className="mb-2 block text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                          <label className="h-16 rounded-xl border border-white/12 bg-white/4 px-3 py-1">
+                            <span className="block text-[10px] uppercase leading-4 tracking-[0.18em] text-zinc-500">
                               Minutes
                             </span>
                             <input
@@ -867,16 +1243,130 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                                   ),
                                 )
                               }
-                              className="w-full bg-transparent text-xl font-semibold text-white outline-none lg:text-2xl"
+                              className="h-10 w-full bg-transparent text-lg font-semibold leading-5 text-white outline-none"
                             />
                           </label>
+                        </div>
+                        <div className="relative flex h-15 flex-col justify-center rounded-xl border border-white/12 bg-white/4 px-3 py-1">
+                          <span className="block text-[8px] uppercase leading-4 tracking-[0.18em] text-zinc-500">
+                            Played on
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPlayedOnMenuOpen((current) => !current)
+                            }
+                            aria-haspopup="listbox"
+                            aria-expanded={playedOnMenuOpen}
+                            className="flex h-5 w-full items-center justify-between gap-3 text-left text-sm font-semibold leading-5 text-white outline-none"
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="flex shrink-0 items-center gap-1">
+                                {playedOn.length ? (
+                                  PLAYED_ON_OPTIONS.filter((option) =>
+                                    playedOn.includes(option.value),
+                                  ).map((option) => {
+                                    const PlatformIcon = option.icon;
+                                    return (
+                                      <PlatformIcon
+                                        key={option.value}
+                                        className="text-base"
+                                        style={{ color: option.color }}
+                                      />
+                                    );
+                                  })
+                                ) : (
+                                  <FaGamepad className="text-zinc-500" />
+                                )}
+                              </span>
+                              <span className="truncate">
+                                {playedOn.length
+                                  ? PLAYED_ON_OPTIONS.filter((option) =>
+                                      playedOn.includes(option.value),
+                                    )
+                                      .map((option) => option.label)
+                                      .join(", ")
+                                  : "Not specified"}
+                              </span>
+                            </span>
+                            <FaChevronDown
+                              className={`shrink-0 text-xs text-zinc-500 transition-transform ${
+                                playedOnMenuOpen ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {playedOnMenuOpen && (
+                            <>
+                              <button
+                                type="button"
+                                aria-label="Close played-on menu"
+                                onClick={() => setPlayedOnMenuOpen(false)}
+                                className="fixed inset-0 z-40 cursor-default"
+                              />
+                              <div
+                                role="listbox"
+                                aria-multiselectable="true"
+                                className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-56 overflow-y-auto rounded-xl border border-white/15 bg-zinc-950 p-1.5 shadow-2xl"
+                              >
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={playedOn.length === 0}
+                                  onClick={() => {
+                                    setPlayedOn([]);
+                                  }}
+                                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-zinc-400 transition hover:bg-white/10 hover:text-white"
+                                >
+                                  <FaGamepad className="shrink-0" />
+                                  Not specified
+                                </button>
+                                {PLAYED_ON_OPTIONS.map((option) => {
+                                  const PlatformIcon = option.icon;
+
+                                  return (
+                                    <button
+                                      key={option.value}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={playedOn.includes(
+                                        option.value,
+                                      )}
+                                      onClick={() => {
+                                        setPlayedOn((current) =>
+                                          current.includes(option.value)
+                                            ? current.filter(
+                                                (value) =>
+                                                  value !== option.value,
+                                              )
+                                            : [...current, option.value],
+                                        );
+                                        setPlayedOnMenuOpen(false);
+                                      }}
+                                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition hover:bg-white/10 ${
+                                        playedOn.includes(option.value)
+                                          ? "bg-white/10 text-white"
+                                          : "text-zinc-200"
+                                      }`}
+                                    >
+                                      <PlatformIcon
+                                        className="shrink-0 text-base"
+                                        style={{ color: option.color }}
+                                      />
+                                      {option.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
                   </aside>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[1fr_280px]">
+                <div className="relative z-0 grid gap-3 md:grid-cols-[1fr_280px]">
                   {/* REVIEW */}
 
                   <div className="grid min-h-[170px] grid-rows-[auto_1fr] rounded-[24px] border border-white/12 bg-white/8 p-3.5 backdrop-blur-xl md:min-h-[220px]">
@@ -969,12 +1459,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               <footer className="flex flex-col gap-2 rounded-[24px] border border-white/12 bg-white/8 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-zinc-300">
                   {isNotInterested
-                    ? "Unmark as Not Interested to rate this game."
+                    ? "Unmark as Lost Interest to rate this game."
                     : "Your library, your rules."}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={onClose}
+                    onClick={handleModalClose}
                     className="rounded-xl border border-white/15 bg-black/35 px-3.5 py-2 text-sm text-white transition hover:bg-white/14"
                     disabled={saving || removing}
                   >
@@ -983,7 +1473,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   <button
                     onClick={async () => {
                       await handleSave();
-                      onClose();
+                      handleModalClose();
                     }}
                     disabled={saving || removing}
                     className={`rounded-xl bg-linear-to-r px-4 py-2 text-sm font-bold transition hover:brightness-105 disabled:opacity-60 ${MODAL_THEME.button}`}
@@ -1123,7 +1613,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             <ConfirmModal
               open={confirmNotInterestedOpen}
               title="Are you sure?"
-              message="Marking this game as not interested means this game did not click with you. Doing so will clear your ratings for this game."
+              message="Marking this game as Lost Interest means this game did not click with you. Doing so will clear your rating for this game."
               confirmText="Yes, Clear"
               cancelText="Cancel"
               onCancel={() => setConfirmNotInterestedOpen(false)}
@@ -1137,7 +1627,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             <ConfirmModal
               open={confirmCleanOpen}
               title="Clean game?"
-              message="This will clear the review, sticker, rating, progress, playtime, play sessions, favorite, and not-interested status. The game will remain in your collection."
+              message="This will clear the review, sticker, rating, progress, playtime, played-on platform, play sessions, favorite, not-interested status, and pre-release access. The game will remain in your collection."
               confirmText={saving ? "Cleaning..." : "Yes, Clean"}
               cancelText="Cancel"
               onCancel={() => {
@@ -1210,7 +1700,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       damping: 30,
                       stiffness: 300,
                     }}
-                    className="absolute right-0 top-0 z-40 h-full w-full max-w-[400px] border-l border-white/10 bg-[#101012]/98 shadow-2xl shadow-black/40 backdrop-blur-md"
+                    className="absolute right-0 top-0 z-40 h-full w-full max-w-[400px] border-l border-[var(--theme-border)] bg-[var(--theme-surface-strong)] shadow-2xl backdrop-blur-md"
                   >
                     <div className="flex h-full flex-col">
                       {/* Header */}
@@ -1389,6 +1879,144 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               )}
             </AnimatePresence>
           </motion.div>
+
+          <AnimatePresence>
+            {accessDialogOpen && (
+              <motion.div
+                className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => {
+                  setAccessDialogOpen(false);
+                  setPendingAccessType(null);
+                }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                  onClick={(event) => event.stopPropagation()}
+                  className="w-full max-w-lg rounded-3xl border border-white/15 bg-zinc-950 p-6 shadow-2xl"
+                >
+                  {!pendingAccessType ? (
+                    <>
+                      <h3 className="text-xl font-bold text-white">
+                        How are you accessing this game?
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-400">
+                        Choose the ribbon that will stay with this game.
+                      </p>
+                      <div className="mt-5 grid gap-3">
+                        {ACCESS_OPTIONS.map((option) => (
+                          <button
+                            key={option.type}
+                            type="button"
+                            onClick={() => setPendingAccessType(option.type)}
+                            className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-amber-300/50 hover:bg-amber-500/10"
+                          >
+                            <span className="block font-bold text-white">
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block text-sm text-zinc-400">
+                              {option.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold text-white">
+                        Which date should your timeline use?
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-400">
+                        The official IGDB release date will remain unchanged.
+                      </p>
+                      <div className="mt-5 grid gap-3">
+                        <button
+                          type="button"
+                          onClick={() => chooseAccessDate("unlock")}
+                          className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-4 text-left transition hover:bg-amber-500/20"
+                        >
+                          <span className="block font-bold text-amber-100">
+                            Use today&apos;s unlock date
+                          </span>
+                          <span className="mt-1 block text-sm text-zinc-400">
+                            Best for tracking when you actually started access.
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => chooseAccessDate("official")}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
+                        >
+                          <span className="block font-bold text-white">
+                            Use the official release date
+                          </span>
+                          <span className="mt-1 block text-sm text-zinc-400">
+                            Keep the official date as the personal timeline
+                            date.
+                          </span>
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPendingAccessType(null)}
+                        className="mt-5 text-sm text-zinc-400 underline hover:text-white"
+                      >
+                        Back
+                      </button>
+                    </>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {posterMenuPosition && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Close poster menu"
+                  onClick={() => setPosterMenuPosition(null)}
+                  className="fixed inset-0 z-[10040] cursor-default"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  style={{
+                    left: posterMenuPosition.x,
+                    top: posterMenuPosition.y,
+                  }}
+                  className="fixed z-[10050] w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950 p-1.5 shadow-2xl"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPosterMenuPosition(null);
+                      setSteamAssetsOpen(true);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    <SiSteam className="text-lg text-[#66c0f4]" />
+                    Use SteamDB images
+                  </button>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          <SteamAssetsModal
+            open={steamAssetsOpen}
+            igdbId={game.igdb.id}
+            gameName={game.name}
+            currentCoverUrl={bgUrl}
+            onClose={() => setSteamAssetsOpen(false)}
+            onUseAsset={useSteamAssetAsCover}
+          />
         </motion.div>
       )}
     </AnimatePresence>

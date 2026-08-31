@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { Suspense } from "react";
-import { Helmet } from "react-helmet-async";
 import { AnimatePresence, motion } from "framer-motion";
 import Cropper, { type Area } from "react-easy-crop";
 import {
@@ -36,6 +35,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/app/lib/firebase";
 import { useUI } from "@/app/context/UIContext";
 import { useUser } from "@/app/context/UserContext";
+import { useGames } from "@/app/context/GameContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ConfirmModal from "@/app/components/ConfirmModal";
 import WheelLockSwitch from "@/app/components/WheelLockSwitch";
@@ -68,6 +68,48 @@ type Shot = {
   bytes?: number;
   createdAt?: unknown;
 };
+
+function DecodedCoverImage({ src }: { src: string }) {
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <>
+      {!failed && (
+        <div
+          className={`pointer-events-none absolute inset-0 bg-zinc-800/80 transition-opacity duration-500 ${
+            ready ? "opacity-0" : "animate-pulse opacity-100"
+          }`}
+        />
+      )}
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+        onLoad={async (event) => {
+          const image = event.currentTarget;
+          try {
+            await image.decode();
+          } catch {
+            // Reveal after load when explicit decoding is unavailable.
+          }
+          setReady(true);
+        }}
+        onError={() => setFailed(true)}
+        className={`h-full w-full object-cover opacity-0 transition-opacity duration-700 ease-out ${
+          ready ? "opacity-100" : ""
+        }`}
+      />
+      {failed && (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-900 text-xs font-semibold text-zinc-400">
+          Image unavailable
+        </div>
+      )}
+    </>
+  );
+}
 
 const FEATURES = [
   {
@@ -111,6 +153,7 @@ const toHighQualityIgdbCover = (url?: string | null) => {
 function ScreenshotsPageContent() {
   const { navbarLayout } = useUI();
   const { user, loading: userLoading } = useUser();
+  const { games } = useGames();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -127,9 +170,9 @@ function ScreenshotsPageContent() {
   const [folderName, setFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
-  const [coverAction, setCoverAction] = useState<"upload" | "remove" | null>(
-    null,
-  );
+  const [coverAction, setCoverAction] = useState<
+    "upload" | "remove" | "game-poster" | null
+  >(null);
   const [deletingFolder, setDeletingFolder] = useState(false);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
   const [gamePickerOpen, setGamePickerOpen] = useState(false);
@@ -153,12 +196,39 @@ function ScreenshotsPageContent() {
     useState<Area | null>(null);
   const [savingCroppedCustomCover, setSavingCroppedCustomCover] =
     useState(false);
+  const [coverSourceModalOpen, setCoverSourceModalOpen] = useState(false);
+  const [coverLink, setCoverLink] = useState("");
   const editCoverInputRef = useRef<HTMLInputElement | null>(null);
   const lastRestoredFolderIdRef = useRef<string | null>(null);
   const [rotationStep, setRotationStep] = useState(0);
+  const [isCarouselMoving, setIsCarouselMoving] = useState(false);
+  const carouselMotionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const wheelDeltaRef = useRef(0);
+  const lastWheelStepAtRef = useRef(0);
   const [carouselRevealed, setCarouselRevealed] = useState(false);
   const [activeCoverReady, setActiveCoverReady] = useState(false);
   const returnFolderId = searchParams.get("folder");
+
+  const customGamePosters = useMemo(() => {
+    const posters = new Map<number, string>();
+
+    games.forEach((game) => {
+      const igdbId = game.igdb?.id;
+      const cover = game.igdb?.cover;
+
+      if (
+        typeof igdbId === "number" &&
+        typeof cover === "string" &&
+        cover.trim()
+      ) {
+        posters.set(igdbId, cover);
+      }
+    });
+
+    return posters;
+  }, [games]);
 
   const carouselFolders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -219,6 +289,39 @@ function ScreenshotsPageContent() {
     }
     return folders.find((f) => f.id === selectedFolderId) ?? null;
   }, [carouselFolders, folders, frontFolderIndex, selectedFolderId]);
+  const selectedGamePoster = selectedFolder?.igdbId
+    ? (customGamePosters.get(selectedFolder.igdbId) ?? null)
+    : null;
+
+  useEffect(() => {
+    const sources = carouselFolders
+      .map((folder) =>
+        toHighQualityIgdbCover(
+          folder.customCoverUrl ??
+            (folder.igdbId
+              ? customGamePosters.get(folder.igdbId)
+              : null) ??
+            folder.coverUrl,
+        ),
+      )
+      .filter((source): source is string => Boolean(source));
+
+    sources.forEach((source) => {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = source;
+      void image.decode().catch(() => undefined);
+    });
+  }, [carouselFolders, customGamePosters]);
+
+  useEffect(
+    () => () => {
+      if (carouselMotionTimerRef.current) {
+        clearTimeout(carouselMotionTimerRef.current);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!carouselFolders.length) {
@@ -411,7 +514,9 @@ function ScreenshotsPageContent() {
 
     const coverSrc =
       toHighQualityIgdbCover(
-        selectedFolder.customCoverUrl ?? selectedFolder.coverUrl,
+        selectedFolder.customCoverUrl ??
+          selectedGamePoster ??
+          selectedFolder.coverUrl,
       ) || "/placeholder-game.jpg";
 
     if (activeCoverReady) {
@@ -441,6 +546,7 @@ function ScreenshotsPageContent() {
     selectedFolder?.id,
     selectedFolder?.coverUrl,
     selectedFolder?.customCoverUrl,
+    selectedGamePoster,
   ]);
 
   const activeFolderId = selectedFolder?.id ?? selectedFolderId;
@@ -686,6 +792,105 @@ function ScreenshotsPageContent() {
     } catch (err) {
       console.error(err);
       toast.error("Could not remove custom cover");
+    } finally {
+      setCoverUploading(false);
+      setCoverAction(null);
+    }
+  };
+
+  const useSavedGamePoster = async () => {
+    if (!user || !selectedFolder || !selectedGamePoster) return;
+
+    setCoverUploading(true);
+    setCoverAction("game-poster");
+
+    try {
+      const oldCustomCoverId = selectedFolder.customCoverPublicId ?? null;
+      const folderRef = doc(
+        db,
+        "users",
+        user.uid,
+        "screenshotFolders",
+        selectedFolder.id,
+      );
+
+      await updateDoc(folderRef, {
+        customCoverUrl: selectedGamePoster,
+        customCoverPublicId: null,
+      });
+
+      if (
+        oldCustomCoverId &&
+        !shots.some((shot) => shot.publicId === oldCustomCoverId)
+      ) {
+        await destroyInCloudinary(oldCustomCoverId).catch(() => undefined);
+      }
+
+      toast.success("Using the game poster from Library");
+      setCoverSourceModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not use the saved game poster");
+    } finally {
+      setCoverUploading(false);
+      setCoverAction(null);
+    }
+  };
+
+  const useCoverFromLink = async () => {
+    if (!user || !selectedFolder) return;
+
+    const value = coverLink.trim();
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(value);
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+        throw new Error("Unsupported protocol");
+      }
+    } catch {
+      toast.error("Enter a valid http or https image link");
+      return;
+    }
+
+    setCoverUploading(true);
+    setCoverAction("upload");
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error("Image could not be loaded"));
+        image.src = parsedUrl.toString();
+      });
+
+      const oldCustomCoverId = selectedFolder.customCoverPublicId ?? null;
+      const folderRef = doc(
+        db,
+        "users",
+        user.uid,
+        "screenshotFolders",
+        selectedFolder.id,
+      );
+
+      await updateDoc(folderRef, {
+        customCoverUrl: parsedUrl.toString(),
+        customCoverPublicId: null,
+      });
+
+      if (
+        oldCustomCoverId &&
+        !shots.some((shot) => shot.publicId === oldCustomCoverId)
+      ) {
+        await destroyInCloudinary(oldCustomCoverId).catch(() => undefined);
+      }
+
+      setCoverLink("");
+      setCoverSourceModalOpen(false);
+      toast.success("Collection cover linked");
+    } catch (err) {
+      console.error(err);
+      toast.error("That image link could not be loaded");
     } finally {
       setCoverUploading(false);
       setCoverAction(null);
@@ -956,7 +1161,25 @@ function ScreenshotsPageContent() {
     if (renaming) return;
     setGamePickerOpen(false);
     setConfirmOpen(false);
+    setCoverSourceModalOpen(false);
+    setCoverLink("");
     setRenaming(true);
+  };
+
+  const rotateCarousel = (steps: number) => {
+    if (!steps) return;
+
+    setIsCarouselMoving(true);
+    setRotationStep((current) => current + steps);
+
+    if (carouselMotionTimerRef.current) {
+      clearTimeout(carouselMotionTimerRef.current);
+    }
+
+    carouselMotionTimerRef.current = setTimeout(() => {
+      setIsCarouselMoving(false);
+      carouselMotionTimerRef.current = null;
+    }, 480);
   };
 
   const handleCarouselWheel = (e: WheelEvent<HTMLDivElement>) => {
@@ -964,8 +1187,22 @@ function ScreenshotsPageContent() {
     e.preventDefault();
     if (!carouselFolders.length) return;
 
-    const direction = e.deltaY > 0 ? 1 : -1;
-    setRotationStep((prev) => prev + direction);
+    const dominantDelta =
+      Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    wheelDeltaRef.current += dominantDelta;
+
+    const now = performance.now();
+    if (
+      Math.abs(wheelDeltaRef.current) < 42 ||
+      now - lastWheelStepAtRef.current < 170
+    ) {
+      return;
+    }
+
+    const direction = wheelDeltaRef.current > 0 ? 1 : -1;
+    wheelDeltaRef.current = 0;
+    lastWheelStepAtRef.current = now;
+    rotateCarousel(direction);
   };
 
   const setWheelScrollPreference = (next: boolean) => {
@@ -984,7 +1221,7 @@ function ScreenshotsPageContent() {
   if (!hydrated || !featureResolved) {
     return (
       <main
-        className={`page-top-offset relative h-svh overflow-hidden bg-[#070504] ${
+        className={`page-top-offset relative h-svh overflow-hidden bg-[var(--theme-bg)] ${
           navbarLayout === "sidebar" ? "pt-10" : "pt-20"
         } text-white`}
       >
@@ -997,14 +1234,6 @@ function ScreenshotsPageContent() {
 
   return (
     <>
-      <Helmet>
-        <title>Shots Gallery • PlayCrew</title>
-        <meta
-          name="description"
-          content="Curate your game screenshots in an art-gallery style workspace."
-        />
-      </Helmet>
-
       <main
         className={`theme-text relative h-svh overflow-hidden bg-[var(--theme-bg)] px-4 sm:px-6 lg:px-8 ${
           navbarLayout === "sidebar" ? "pt-20" : "pt-20"
@@ -1210,7 +1439,11 @@ function ScreenshotsPageContent() {
                               selectedFolder?.id === folder.id;
                             const coverSrc =
                               toHighQualityIgdbCover(
-                                folder.customCoverUrl ?? folder.coverUrl,
+                                folder.customCoverUrl ??
+                                  (folder.igdbId
+                                    ? customGamePosters.get(folder.igdbId)
+                                    : null) ??
+                                  folder.coverUrl,
                               ) || "/placeholder-game.jpg";
                             const rawOffset = ((index -
                               frontFolderIndex +
@@ -1247,7 +1480,7 @@ function ScreenshotsPageContent() {
                                     router.push(`/screenshots/${folder.id}`);
                                     return;
                                   }
-                                  setRotationStep((prev) => prev + offset);
+                                  rotateCarousel(offset);
                                 }}
                                 onKeyDown={(e) => {
                                   if (renaming || deletingFolder) return;
@@ -1261,10 +1494,10 @@ function ScreenshotsPageContent() {
                                       router.push(`/screenshots/${folder.id}`);
                                       return;
                                     }
-                                    setRotationStep((prev) => prev + offset);
+                                    rotateCarousel(offset);
                                   }
                                 }}
-                                className={`group absolute h-88 w-60 cursor-pointer select-none md:h-112 md:w-76 ${
+                                className={`group absolute h-88 w-60 transform-gpu cursor-pointer select-none will-change-transform [backface-visibility:hidden] md:h-112 md:w-76 ${
                                   isVisible ? "" : "pointer-events-none"
                                 } ${deletingFolder ? "pointer-events-none" : ""} ${
                                   isDeletingThisFolder ? "opacity-90" : ""
@@ -1279,37 +1512,33 @@ function ScreenshotsPageContent() {
                                 }}
                                 transition={{
                                   type: "spring",
-                                  stiffness: 220,
-                                  damping: 28,
+                                  stiffness: 260,
+                                  damping: 30,
                                   mass: 0.8,
                                 }}
                                 style={{
                                   zIndex: 120 - absOffset,
+                                  willChange: "transform, opacity",
                                 }}
                               >
                                 <div
-                                  className={`absolute inset-0 overflow-hidden rounded-xl border bg-[#17110e] shadow-[0_14px_34px_rgba(0,0,0,0.42)] transition ${
+                                  className={`absolute inset-0 overflow-hidden rounded-xl border bg-[var(--theme-surface-strong)] transition-[border-color,box-shadow] duration-200 ${
+                                    isCarouselMoving
+                                      ? "shadow-none"
+                                      : "shadow-[var(--theme-shadow)]"
+                                  } ${
                                     isSelected
                                       ? "border-cyan-500/80"
                                       : "border-white/15"
                                   }`}
                                 >
-                                  <motion.img
+                                  <DecodedCoverImage
                                     key={coverSrc}
                                     src={coverSrc}
-                                    alt=""
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{
-                                      duration: 0.28,
-                                      ease: "easeOut",
-                                    }}
-                                    className="h-full w-full object-cover"
-                                    draggable={false}
                                   />
                                   {isDeletingThisFolder && (
                                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
-                                      <div className="rounded-xl border border-red-300/35 bg-[#120b0b] px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.55)]">
+                                      <div className="rounded-xl border border-red-300/35 bg-[var(--theme-surface-strong)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
                                         <span className="loading loading-spinner loading-md text-red-200" />
                                         <p className="mt-2 text-sm font-semibold text-red-100">
                                           Deleting collection...
@@ -1319,7 +1548,7 @@ function ScreenshotsPageContent() {
                                   )}
                                   {isRemovingCustomThisFolder && (
                                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
-                                      <div className="rounded-xl border border-red-300/35 bg-[#120b0b] px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.55)]">
+                                      <div className="rounded-xl border border-red-300/35 bg-[var(--theme-surface-strong)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
                                         <span className="loading loading-bars loading-sm text-red-200" />
                                         <p className="mt-2 text-sm font-semibold text-red-100">
                                           Removing custom image
@@ -1329,7 +1558,7 @@ function ScreenshotsPageContent() {
                                   )}
                                   {isUploadingCustomThisFolder && (
                                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
-                                      <div className="rounded-xl border border-cyan-300/35 bg-[#0a1216] px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.55)]">
+                                      <div className="rounded-xl border border-cyan-300/35 bg-[var(--theme-surface-strong)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
                                         <span className="loading loading-spinner loading-md text-cyan-200" />
                                         <p className="mt-2 text-sm font-semibold text-cyan-100">
                                           Uploading custom image
@@ -1373,7 +1602,7 @@ function ScreenshotsPageContent() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -26 }}
                             transition={{ duration: 0.2, ease: "easeOut" }}
-                            className="fixed inset-x-4 top-28 z-2200 mx-auto w-full max-w-[360px] rounded-xl border border-cyan-500/35 bg-[#0d0b09] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.55)] md:absolute md:right-4 md:top-4 md:inset-x-auto md:mx-0 md:z-2200 md:w-[320px]"
+                            className="fixed inset-x-4 top-28 z-2200 mx-auto w-full max-w-[360px] rounded-xl border border-cyan-500/35 bg-[var(--theme-surface-strong)] p-3 shadow-[var(--theme-shadow)] md:absolute md:right-4 md:top-4 md:inset-x-auto md:mx-0 md:z-2200 md:w-[320px]"
                           >
                             <div
                               className="space-y-3"
@@ -1405,7 +1634,7 @@ function ScreenshotsPageContent() {
                                     type="button"
                                     disabled={coverUploading}
                                     onClick={() =>
-                                      editCoverInputRef.current?.click()
+                                      setCoverSourceModalOpen(true)
                                     }
                                     className="col-span-2 inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-cyan-500/35 bg-cyan-500/12 px-2.5 text-[11px] font-semibold text-cyan-500 transition hover:bg-cyan-500/22 disabled:opacity-60"
                                   >
@@ -1441,10 +1670,153 @@ function ScreenshotsPageContent() {
                                 className="hidden"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) void openCustomCoverCrop(file);
+                                  if (file) {
+                                    setCoverSourceModalOpen(false);
+                                    void openCustomCoverCrop(file);
+                                  }
                                   e.currentTarget.value = "";
                                 }}
                               />
+
+                              <AnimatePresence>
+                                {coverSourceModalOpen && (
+                                  <motion.div
+                                    className="fixed inset-0 z-2300 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    onClick={() =>
+                                      setCoverSourceModalOpen(false)
+                                    }
+                                  >
+                                    <motion.div
+                                      initial={{
+                                        opacity: 0,
+                                        scale: 0.96,
+                                        y: 12,
+                                      }}
+                                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                                      exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                                      onClick={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                      className="theme-panel-strong w-full max-w-lg rounded-2xl border p-5 shadow-[var(--theme-shadow)]"
+                                    >
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                          <p className="theme-accent-text text-[10px] font-bold uppercase tracking-[0.18em]">
+                                            Cover source
+                                          </p>
+                                          <h3 className="theme-text mt-1 text-lg font-bold">
+                                            Add a Custom Image
+                                          </h3>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setCoverSourceModalOpen(false)
+                                          }
+                                          className="theme-surface flex h-9 w-9 items-center justify-center rounded-lg border"
+                                        >
+                                          <FiX />
+                                        </button>
+                                      </div>
+
+                                      <div className="mt-5 grid gap-3">
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            coverUploading ||
+                                            !selectedGamePoster
+                                          }
+                                          onClick={useSavedGamePoster}
+                                          className="theme-surface theme-hover-accent flex items-center gap-3 rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45"
+                                        >
+                                          {selectedGamePoster ? (
+                                            <img
+                                              src={selectedGamePoster}
+                                              alt="Saved game poster"
+                                              className="h-14 w-10 rounded-md object-cover"
+                                            />
+                                          ) : (
+                                            <span className="theme-accent-soft-bg flex h-14 w-10 items-center justify-center rounded-md border">
+                                              <FaImages />
+                                            </span>
+                                          )}
+                                          <span>
+                                            <span className="theme-text block text-sm font-bold">
+                                              Take image from your library
+                                            </span>
+                                            <span className="theme-text-muted mt-1 block text-xs">
+                                              {selectedGamePoster
+                                                ? "Use the poster path already saved in Firestore."
+                                                : "This game has no custom library poster."}
+                                            </span>
+                                          </span>
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          disabled={coverUploading}
+                                          onClick={() =>
+                                            editCoverInputRef.current?.click()
+                                          }
+                                          className="theme-surface theme-hover-accent flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-45"
+                                        >
+                                          <span className="theme-accent-soft-bg flex h-11 w-11 items-center justify-center rounded-lg border">
+                                            <FaUpload />
+                                          </span>
+                                          <span>
+                                            <span className="theme-text block text-sm font-bold">
+                                              Browse a file on your PC
+                                            </span>
+                                            <span className="theme-text-muted mt-1 block text-xs">
+                                              Select an image and adjust its
+                                              crop.
+                                            </span>
+                                          </span>
+                                        </button>
+
+                                        <div className="theme-surface rounded-xl border p-3">
+                                          <label className="theme-text block text-sm font-bold">
+                                            Enter an image link
+                                          </label>
+                                          <div className="mt-2 flex gap-2">
+                                            <input
+                                              type="url"
+                                              value={coverLink}
+                                              onChange={(event) =>
+                                                setCoverLink(event.target.value)
+                                              }
+                                              onKeyDown={(event) => {
+                                                if (event.key === "Enter") {
+                                                  event.preventDefault();
+                                                  void useCoverFromLink();
+                                                }
+                                              }}
+                                              placeholder="https://example.com/poster.jpg"
+                                              className="theme-surface-alt theme-text min-w-0 flex-1 rounded-lg border px-3 py-2 text-xs outline-none focus:border-[var(--theme-accent)]"
+                                            />
+                                            <button
+                                              type="button"
+                                              disabled={
+                                                coverUploading ||
+                                                !coverLink.trim()
+                                              }
+                                              onClick={() =>
+                                                void useCoverFromLink()
+                                              }
+                                              className="theme-accent-bg rounded-lg px-4 text-xs font-bold disabled:opacity-45"
+                                            >
+                                              Use Link
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
 
                               <div className="rounded-lg border border-white/10 bg-black/35 p-2">
                                 <label className="mb-1 block text-left text-[9px] uppercase tracking-[0.14em] text-cyan-500/80">
@@ -1490,14 +1862,14 @@ function ScreenshotsPageContent() {
                       <>
                         <button
                           type="button"
-                          onClick={() => setRotationStep((prev) => prev - 1)}
+                          onClick={() => rotateCarousel(-1)}
                           className="absolute left-5 top-1/2 z-500 inline-flex -translate-y-1/2 rounded-full border border-white/20 bg-black/65 px-3 py-3 text-xs font-semibold text-white transition hover:border-cyan-500/55 hover:bg-black"
                         >
                           <FaArrowLeft />
                         </button>
                         <button
                           type="button"
-                          onClick={() => setRotationStep((prev) => prev + 1)}
+                          onClick={() => rotateCarousel(1)}
                           className="absolute right-5 top-1/2 z-500 inline-flex -translate-y-1/2 rounded-full border border-white/20 bg-black/65 px-3 py-3 text-xs font-semibold text-white transition hover:border-cyan-500/55 hover:bg-black"
                         >
                           <FaArrowRight />
@@ -1520,7 +1892,7 @@ function ScreenshotsPageContent() {
           }}
         >
           <motion.div
-            className="w-full max-w-3xl rounded-2xl border border-cyan-500/25 bg-[#0b0908]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.62)]"
+            className="w-full max-w-3xl rounded-2xl border border-cyan-500/25 bg-[var(--theme-surface-strong)] p-4 shadow-[var(--theme-shadow)]"
             initial={{ scale: 0.94, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.94, opacity: 0 }}
@@ -1612,7 +1984,7 @@ export default function ScreenshotsPage() {
     <Suspense
       fallback={
         <main
-          className={`page-top-offset min-h-screen bg-[#070504] px-4 ${
+          className={`page-top-offset min-h-screen bg-[var(--theme-bg)] px-4 ${
             navbarLayout === "sidebar" ? "pt-10" : "pt-24"
           } text-white`}
         >

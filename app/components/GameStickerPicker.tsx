@@ -34,6 +34,9 @@ export default function GameStickerPicker({ value, onChange }: Props) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {GAME_STICKERS.map((sticker) => {
           const active = value === sticker.id;
+          const isAnimatedFormat = /\.(gif|webp)(?:$|[?#])/i.test(
+            sticker.image,
+          );
 
           return (
             <button
@@ -52,6 +55,7 @@ export default function GameStickerPicker({ value, onChange }: Props) {
                   src={sticker.image}
                   alt={sticker.label}
                   fill
+                  unoptimized={isAnimatedFormat}
                   className="object-contain"
                 />
               </div>

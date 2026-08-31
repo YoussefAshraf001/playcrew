@@ -3,7 +3,7 @@
 import ThemeSync from "./ThemeSync";
 import RouteTransitionLoader from "./RouteTransitionLoader";
 import ReleaseDateAutoSync from "./ReleaseDateAutoSync";
-import ReleaseNotificationSync from "./ReleaseNotificationSync";
+import BadgeSync from "./BadgeSync";
 
 export default function AppServices() {
   return (
@@ -11,7 +11,7 @@ export default function AppServices() {
       <ThemeSync />
       <RouteTransitionLoader />
       <ReleaseDateAutoSync />
-      <ReleaseNotificationSync />
+      <BadgeSync />
     </>
   );
 }

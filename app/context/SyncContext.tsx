@@ -14,6 +14,9 @@ type SyncContextType = {
 
   currentGameName: string;
   setCurrentGameName: (value: string) => void;
+
+  releaseSyncRequest: number;
+  requestReleaseSync: () => void;
 };
 
 const SyncContext = createContext<SyncContextType | null>(null);
@@ -23,6 +26,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [syncCurrent, setSyncCurrent] = useState(0);
   const [syncTotal, setSyncTotal] = useState(0);
   const [currentGameName, setCurrentGameName] = useState("");
+  const [releaseSyncRequest, setReleaseSyncRequest] = useState(0);
 
   return (
     <SyncContext.Provider
@@ -38,6 +42,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         currentGameName,
         setCurrentGameName,
+
+        releaseSyncRequest,
+        requestReleaseSync: () => setReleaseSyncRequest((value) => value + 1),
       }}
     >
       {children}

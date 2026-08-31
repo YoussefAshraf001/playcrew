@@ -145,7 +145,6 @@ type FadeInImageProps = {
   wrapperClassName?: string;
   imgClassName?: string;
   loading?: "eager" | "lazy";
-  keepVisibleOnSrcChange?: boolean;
 };
 
 function FadeInImage({
@@ -154,21 +153,18 @@ function FadeInImage({
   wrapperClassName = "",
   imgClassName = "",
   loading = "lazy",
-  keepVisibleOnSrcChange = false,
 }: FadeInImageProps) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      if (!keepVisibleOnSrcChange) {
-        setLoaded(false);
-      }
+      setLoaded(false);
       setFailed(false);
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [src, keepVisibleOnSrcChange]);
+  }, [src]);
 
   return (
     <div className={`relative ${wrapperClassName}`}>
@@ -190,7 +186,14 @@ function FadeInImage({
           alt={alt}
           loading={loading}
           decoding="async"
-          onLoad={() => setLoaded(true)}
+          onLoad={async (event) => {
+            try {
+              await event.currentTarget.decode();
+            } catch {
+              // Reveal after load when explicit decoding is unavailable.
+            }
+            setLoaded(true);
+          }}
           onError={() => setFailed(true)}
           style={{ contentVisibility: "auto" }}
           className={`${imgClassName} opacity-0 transition-opacity duration-500 ${
@@ -891,7 +894,13 @@ export default function ScreenshotFolderPage() {
       );
     } catch (err) {
       console.error(err);
-      toast.error("Could not set cover");
+      toast.error(
+        `Could not set cover: ${
+          err instanceof Error && err.message.trim()
+            ? err.message
+            : "Unknown error"
+        }`,
+      );
     } finally {
       setSavingCroppedCover(false);
     }
@@ -1112,8 +1121,8 @@ export default function ScreenshotFolderPage() {
         whileHover={{ y: -3 }}
         className={`group overflow-hidden rounded-[20px] border shadow-[0_18px_45px_rgba(0,0,0,0.4)] ${
           tone === "favorite"
-            ? "border-amber-300/35 bg-[#1a130f]"
-            : "border-white/12 bg-[#101012]"
+            ? "border-amber-300/35 bg-[rgba(var(--theme-accent-rgb),0.12)]"
+            : "border-[var(--theme-border)] bg-[var(--theme-surface-strong)]"
         }`}
       >
         <div className="relative">
@@ -1215,7 +1224,7 @@ export default function ScreenshotFolderPage() {
       <main
         className={`min-h-screen ${
           navbarLayout === "sidebar" ? "pt-15" : "pt-24"
-        } bg-[#070504] px-4 text-white`}
+        } bg-[var(--theme-bg)] px-4 text-white`}
       >
         <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-black/50 p-6">
           <p className="text-zinc-200">You need to be logged in.</p>
@@ -1228,7 +1237,7 @@ export default function ScreenshotFolderPage() {
     <main
       className={`min-h-svh ${
         navbarLayout === "sidebar" ? "pt-15" : "pt-20"
-      } xl:h-svh xl:overflow-hidden bg-[#070504] px-4 text-white sm:px-6 lg:px-8`}
+      } bg-[var(--theme-bg)] px-4 text-white sm:px-6 lg:px-8 xl:h-svh xl:overflow-hidden`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -1236,7 +1245,7 @@ export default function ScreenshotFolderPage() {
     >
       {dragOverlayVisible && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4">
-          <div className="rounded-2xl border border-cyan-500/45 bg-[#120d08]/95 px-8 py-6 text-center shadow-[0_24px_70px_rgba(0,0,0,0.62)]">
+          <div className="rounded-2xl border border-cyan-500/45 bg-[var(--theme-surface-strong)] px-8 py-6 text-center shadow-[var(--theme-shadow)]">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-500/85">
               Upload
             </p>
@@ -1247,7 +1256,7 @@ export default function ScreenshotFolderPage() {
           </div>
         </div>
       )}
-      <section className="mx-auto xl:h-[calc(100svh-5.5rem)] max-w-[1800px] rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_82%_0%,rgba(251,191,36,0.12),transparent_36%),radial-gradient(circle_at_0%_100%,rgba(6,182,212,0.14),transparent_30%),#08090d] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.6)] sm:p-6">
+      <section className="mx-auto max-w-[1800px] rounded-[30px] border border-[var(--theme-border)] bg-[radial-gradient(circle_at_82%_0%,var(--theme-tint-a),transparent_36%),radial-gradient(circle_at_0%_100%,var(--theme-tint-b),transparent_30%),var(--theme-panel)] p-4 shadow-[var(--theme-shadow)] sm:p-6 xl:h-[calc(100svh-5.5rem)]">
         <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="min-h-0 overflow-y-auto rounded-2xl border border-white/12 bg-black/35 p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300/90">
@@ -1496,7 +1505,7 @@ export default function ScreenshotFolderPage() {
             }}
           >
             <motion.div
-              className="w-full max-w-md rounded-2xl border border-red-300/30 bg-[#0d0b0a]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.62)]"
+              className="w-full max-w-md rounded-2xl border border-red-300/30 bg-[var(--theme-surface-strong)] p-4 shadow-[var(--theme-shadow)]"
               initial={{ scale: 0.94 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.94 }}
@@ -1548,7 +1557,7 @@ export default function ScreenshotFolderPage() {
             }}
           >
             <motion.div
-              className="w-full max-w-3xl rounded-2xl border border-cyan-500/25 bg-[#0b0908]/95 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.62)]"
+              className="w-full max-w-3xl rounded-2xl border border-cyan-500/25 bg-[var(--theme-surface-strong)] p-4 shadow-[var(--theme-shadow)]"
               initial={{ scale: 0.94 }}
               animate={{ scale: 1 }}
               exit={{ scale: 0.94 }}
@@ -1673,7 +1682,6 @@ export default function ScreenshotFolderPage() {
                     src={viewerShot.url}
                     alt="Screenshot preview"
                     loading="eager"
-                    keepVisibleOnSrcChange
                     wrapperClassName="max-h-[82vh] max-w-[96vw] overflow-hidden rounded-lg"
                     imgClassName="max-h-[82vh] max-w-[96vw] object-contain"
                   />

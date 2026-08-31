@@ -11,6 +11,17 @@ export const GAME_STICKERS = [
     image: "/stickers/absolute-slop.webp",
   },
   {
+    id: "price-happy",
+    label: "Happy Price",
+    image: "/stickers/price-happy.webp",
+  },
+  {
+    id: "price-annoyed",
+    label: "Annoyed Price",
+    image: "/stickers/price-annoyed.webp",
+  },
+
+  {
     id: "peak_story",
     label: "Peak Story",
     image: "/stickers/peak-story.webp",

@@ -9,7 +9,7 @@ import {
   declineFriendRequest,
   removeFriend,
   blockUser,
-  isFriend,
+  unblockUser,
   friendRequestDocId,
 } from "@/app/lib/social";
 import { useUser } from "@/app/context/UserContext";
@@ -25,57 +25,46 @@ export default function FriendButton({
 }) {
   const { user } = useUser();
   const myUid = user?.uid;
-  const [status, setStatus] = useState<
-    "none" | "pending_sent" | "pending_received" | "friends"
-  >("none");
+  const [friendshipExists, setFriendshipExists] = useState(false);
+  const [sentRequestExists, setSentRequestExists] = useState(false);
+  const [receivedRequestExists, setReceivedRequestExists] = useState(false);
+  const [blockExists, setBlockExists] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function check() {
-      if (!myUid || !targetUid) return setStatus("none");
-
-      try {
-        const friendship = await isFriend(myUid, targetUid);
-        if (!mounted) return;
-        if (friendship) return setStatus("friends");
-        setStatus("none");
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    void check();
-
-    return () => {
-      mounted = false;
-    };
-  }, [myUid, targetUid]);
+  const status = friendshipExists
+    ? "friends"
+    : receivedRequestExists
+      ? "pending_received"
+      : sentRequestExists
+        ? "pending_sent"
+        : "none";
 
   useEffect(() => {
     if (!myUid || !targetUid) return;
 
+    const friendshipRef = doc(db, "users", myUid, "friends", targetUid);
     const sentRef = doc(db, "friend_requests", friendRequestDocId(myUid, targetUid));
     const receivedRef = doc(db, "friend_requests", friendRequestDocId(targetUid, myUid));
+    const blockRef = doc(db, "users", myUid, "blocks", targetUid);
 
+    const unsubFriendship = onSnapshot(friendshipRef, (snap) => {
+      setFriendshipExists(snap.exists());
+    });
     const unsubSent = onSnapshot(sentRef, (snap) => {
-      setStatus((current) => {
-        if (current === "friends") return current;
-        return snap.exists() ? "pending_sent" : current === "pending_sent" ? "none" : current;
-      });
+      setSentRequestExists(snap.exists());
     });
 
     const unsubReceived = onSnapshot(receivedRef, (snap) => {
-      setStatus((current) => {
-        if (current === "friends") return current;
-        return snap.exists() ? "pending_received" : current === "pending_received" ? "none" : current;
-      });
+      setReceivedRequestExists(snap.exists());
+    });
+    const unsubBlock = onSnapshot(blockRef, (snap) => {
+      setBlockExists(snap.exists());
     });
 
     return () => {
+      unsubFriendship();
       unsubSent();
       unsubReceived();
+      unsubBlock();
     };
   }, [myUid, targetUid]);
 
@@ -87,7 +76,6 @@ export default function FriendButton({
     setLoading(true);
     try {
       await sendFriendRequest(myUid, targetUid);
-      setStatus("pending_sent");
       toast.success(`Friend request sent to ${targetUsername ?? "user"}.`);
     } catch (err) {
       console.error(err);
@@ -105,8 +93,9 @@ export default function FriendButton({
     setLoading(true);
     try {
       await cancelFriendRequest(myUid, targetUid);
-      setStatus("none");
-      toast.success("Friend request canceled.");
+      toast.success(
+        `Friend request to ${targetUsername ?? "this user"} canceled.`,
+      );
     } catch (err) {
       console.error(err);
       toast.error("Failed to cancel request.");
@@ -123,8 +112,7 @@ export default function FriendButton({
     setLoading(true);
     try {
       await removeFriend(myUid, targetUid);
-      setStatus("none");
-      toast.success("Friend removed.");
+      toast.success(`${targetUsername ?? "User"} removed from your friends.`);
     } catch (err) {
       console.error(err);
       toast.error("Failed to remove friend.");
@@ -141,8 +129,7 @@ export default function FriendButton({
     setLoading(true);
     try {
       await acceptFriendRequest(targetUid, myUid);
-      setStatus("friends");
-      toast.success("Friend request accepted.");
+      toast.success(`${targetUsername ?? "User"} is now your friend.`);
     } catch (err) {
       console.error(err);
       toast.error("Failed to accept friend request.");
@@ -159,8 +146,9 @@ export default function FriendButton({
     setLoading(true);
     try {
       await declineFriendRequest(targetUid, myUid);
-      setStatus("none");
-      toast.success("Friend request declined.");
+      toast.success(
+        `Declined ${targetUsername ?? "this user"}'s friend request.`,
+      );
     } catch (err) {
       console.error(err);
       toast.error("Failed to decline friend request.");
@@ -177,7 +165,6 @@ export default function FriendButton({
     setLoading(true);
     try {
       await blockUser(myUid, targetUid);
-      setStatus("none");
       toast.success(`User ${targetUsername ?? "blocked"} has been blocked.`);
     } catch (err) {
       console.error(err);
@@ -187,11 +174,36 @@ export default function FriendButton({
     }
   };
 
+  const handleUnblock = async () => {
+    if (!myUid || !targetUid) {
+      toast.error("Unable to unblock user.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await unblockUser(myUid, targetUid);
+      toast.success(`${targetUsername ?? "User"} has been unblocked.`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to unblock user.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!targetUid) return null;
 
   return (
     <div className="flex items-center gap-2">
-      {status === "friends" ? (
+      {blockExists ? (
+        <button
+          onClick={handleUnblock}
+          disabled={loading}
+          className="theme-surface theme-hover-surface theme-text rounded-xl border px-3 py-1 text-sm transition duration-200 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Unblock
+        </button>
+      ) : status === "friends" ? (
         <button
           onClick={handleRemove}
           disabled={loading}
@@ -234,13 +246,15 @@ export default function FriendButton({
         </button>
       )}
 
-      <button
-        onClick={handleBlock}
-        disabled={loading}
-        className="rounded-xl border border-red-500 bg-red-950 px-3 py-1 text-sm text-red-200 transition duration-200 ease-out hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Block
-      </button>
+      {!blockExists && (
+        <button
+          onClick={handleBlock}
+          disabled={loading}
+          className="rounded-xl border border-red-500 bg-red-950 px-3 py-1 text-sm text-red-200 transition duration-200 ease-out hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Block
+        </button>
+      )}
     </div>
   );
 }

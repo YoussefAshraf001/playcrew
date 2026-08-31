@@ -48,6 +48,17 @@ export const getReleaseTime = (value: unknown): number => {
   return Infinity;
 };
 
+// Release filters and release-date sorting use the user's chosen personal
+// timeline date. The canonical IGDB date remains available for sync and for
+// deciding whether a pre-release ribbon is still active.
+export const getTimelineReleaseTime = (game: TrackedGame): number => {
+  if (game.preReleaseAccess?.dateSource === "unlock") {
+    return getReleaseTime(game.preReleaseAccess.unlockedAt);
+  }
+
+  return getReleaseTime(game.igdb?.releaseDate);
+};
+
 export const filterGames = ({
   allGames,
   gamesByStatus,
@@ -67,30 +78,34 @@ export const filterGames = ({
   releaseFilter: ReleaseFilter;
   searchQuery: string;
 }) => {
+  const normalizedQuery = normalizeGameName(searchQuery);
+  const hasSearchQuery = normalizedQuery.length > 0;
+
   let list = showFavoritesOnly
     ? allGames.filter((g) => g.favorite)
+    : hasSearchQuery
+      ? allGames
     : selectedStatus === "All"
       ? gamesByStatus.All
       : gamesByStatus[selectedStatus] || [];
 
   list = [...list];
 
-  if (!includeOnlineGames && selectedStatus === "All") {
+  if (!hasSearchQuery && !includeOnlineGames && selectedStatus === "All") {
     list = list.filter((g) => g.status !== "Online");
   }
 
-  if (searchQuery) {
-    const normalizedQuery = normalizeGameName(searchQuery);
+  if (hasSearchQuery) {
     list = list.filter(
       (g) => g.name && normalizeGameName(g.name).includes(normalizedQuery),
     );
   }
 
-  if (releaseFilter !== "All") {
+  if (!hasSearchQuery && releaseFilter !== "All") {
     const now = Date.now();
 
     list = list.filter((g) => {
-      const releaseTime = getReleaseTime(g.igdb?.releaseDate);
+      const releaseTime = getTimelineReleaseTime(g);
 
       if (releaseTime === Infinity) {
         return releaseFilter === "Unreleased";
@@ -102,11 +117,19 @@ export const filterGames = ({
     });
   }
 
-  if (selectedStatus === "All" && !includeUnreleasedGames) {
+  if (
+    !hasSearchQuery &&
+    selectedStatus === "All" &&
+    !includeUnreleasedGames
+  ) {
     const now = Date.now();
 
     list = list.filter((g) => {
-      const releaseTime = getReleaseTime(g.igdb?.releaseDate);
+      // A pre-release game the user has unlocked is part of their playable
+      // library even though its official release date is still in the future.
+      if (g.preReleaseAccess) return true;
+
+      const releaseTime = getTimelineReleaseTime(g);
 
       if (releaseTime === Infinity) return false;
 
@@ -158,8 +181,8 @@ export const sortGames = ({
           : (b.wantToPlayOrder ?? Number.MAX_SAFE_INTEGER) -
               (a.wantToPlayOrder ?? Number.MAX_SAFE_INTEGER);
       case "release": {
-        const aVal = getReleaseTime(a.igdb?.releaseDate);
-        const bVal = getReleaseTime(b.igdb?.releaseDate);
+        const aVal = getTimelineReleaseTime(a);
+        const bVal = getTimelineReleaseTime(b);
         return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
       }
       case "date":

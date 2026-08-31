@@ -1,9 +1,149 @@
 [
   {
+    "version": "2.0",
+    "title": "Enhanced",
+    "date": "2026-08-31",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Game Tracking",
+        "items": [
+          "Redesigned the Game Tracking modal with a more compact layout and a movable circular completion control",
+          "Added multi-select Played On tracking with platform and storefront icons for Steam, Epic Games, GOG, PlayStation, Xbox, Nintendo, Riot Games, Battle.net, EA app, Ubisoft Connect, offline activation, and more",
+          "Added Early Access, Advanced Access, and Leaked Build tracking without changing the official release date or automatically moving games to Playing",
+          "Added persistent access badges that reveal with the rest of the GameCard content on hover",
+          "Added granular refresh protection for titles, posters, platforms, and ratings, including automatic protection for custom covers",
+          "Manual refresh can now temporarily override blocked fields after an explicit confirmation",
+          "Expanded the developer game editor to manage tracking details, access dates, sessions, reviews, stickers, ratings, progress, and game metadata",
+          "Removed Play Order sorting and retired unused save-game tracking logic"
+        ]
+      },
+      {
+        "category": "Community Reviews",
+        "items": [
+          "Added a Community section to game pages with user reviews, profile images, ratings, playtime, progress, status, Played On platforms, and animated stickers",
+          "Added a standalone My Review card and review modal that refreshes community reviews after saving",
+          "Redesigned community review cards with a compact presentation, fixed sizing, loading skeletons, fade-in transitions, and arrow navigation",
+          "Added Helpful, Funny, 100%, and Glazing reactions with persistent per-user reaction data",
+          "Added public community review support for migrated library reviews while preserving their original creation and update dates",
+          "Improved animated GIF and WebP sticker playback with seamless looping and transparent presentation"
+        ]
+      },
+      {
+        "category": "Profiles & Achievements",
+        "items": [
+          "Revamped public user profiles with improved layout, data presentation, and responsive behavior",
+          "Added Public, Friends Only, and Private profile visibility controls",
+          "Added Currently Playing and Favorite Games carousels with skeleton loading and fade transitions",
+          "Added a one-row Achievements carousel with dimming navigation arrows and editable achievement definitions in achievements.json",
+          "Added a collectible badge cabinet with automatic achievement synchronization",
+          "Added paginated review browsing with title search, load-more behavior, sticker placeholders, and sticker loading skeletons",
+          "Improved review ordering so Recent Reviews consistently shows the newest entries first"
+        ]
+      },
+      {
+        "category": "Screenshots",
+        "items": [
+          "Added custom screenshot artwork selection from your game library, local files, or image links",
+          "Custom game posters stored in the library now appear throughout screenshot views",
+          "Added pulsing image skeletons and complete-image fade-ins across the Library, screenshots, and Steam artwork browser",
+          "Improved the screenshot carousel with smoother whole-collection movement",
+          "Screenshot downloads from game pages now request the original-resolution image",
+          "Fixed screenshot viewer layering so game reviews and community content no longer appear above the viewer"
+        ]
+      },
+      {
+        "category": "Release Dates & Calendar",
+        "items": [
+          "Added more specific release notifications for release windows and confirmed exact dates",
+          "Improved the calendar day modal for browsing every game releasing on a selected date",
+          "Added themed Early Access, Advanced Access, and Leaked badges to calendar entries while keeping games on their official calendar dates",
+          "Leaked badges now display the recorded leak date inside the badge",
+          "Added an administrator-only Force Refresh Now action to Release Sync settings",
+          "Improved release synchronization and notification state handling to prevent old collection entries from reappearing as new notifications"
+        ]
+      },
+      {
+        "category": "Notifications & Activity",
+        "items": [
+          "New Notification Box entries now glow until read, with a theme-colored unread indicator on the title",
+          "Added Mark All as Read and hover-to-read behavior",
+          "Added checkbox selection, Select All, and bulk deletion for notifications",
+          "User-made tracking changes now appear as regular activity entries without the refresh highlight",
+          "Improved activity messages for status, Played On, release date, and tracking changes",
+          "Improved refresh messages for new posters, title updates, rating changes, and upcoming platform support",
+          "Fixed status-only changes back to Want To Play being incorrectly reported as Game Cleared",
+          "Improved unread-state persistence so previously seen notifications remain read after refresh"
+        ]
+      },
+      {
+        "category": "Themes & Settings",
+        "items": [
+          "Reorganized Site Settings into a wider three-column layout with Appearance controls grouped together",
+          "Moved the administrator-only Idle Wallpaper controls into the Wallpaper section",
+          "Added local and GIPHY wallpaper browsing with crop previews before saving",
+          "Added an adjustable idle-wallpaper fade delay from 5 seconds to 5 minutes for the Library page",
+          "Wallpaper preview and idle wallpaper modes now fade out the full interface for distraction-free viewing",
+          "Added one new dark theme and one new light theme",
+          "Reworked Crimson Spider into a true black-and-red theme with brighter gray text and deeper red accents",
+          "Added V1 and V2 variants to Crimson Spider, including a true-black surface option inside the theme card",
+          "Reworked PlayCrew Classic into a darker black-and-blue theme",
+          "Improved theme palette coverage so interface colors and Opera GX range controls respond consistently across the website"
+        ]
+      },
+      {
+        "category": "Interface & Quality of Life",
+        "items": [
+          "Added a clear button to library search and fixed searches being limited by the currently selected status",
+          "Renamed My Games to Library and clarified that idle wallpapers only activate on the Library page",
+          "Improved GameCard access labels and hover presentation",
+          "Added SteamDB artwork browsing from game posters with poster-sized previews, before-and-after comparison, loading skeletons, and current-artwork highlighting",
+          "Changed the game page background from a screenshot slideshow to poster-based artwork and refined the poster aspect ratio",
+          "Kept favorite stars, rating circles, crowns, and rating labels consistently golden across themes",
+          "Improved platform icon colors so they match their real storefront or console branding",
+          "Added more game quotes, including new Captain Price quotes",
+          "Extended developer editor unlock sessions from 10 minutes to 1 hour"
+        ]
+      },
+      {
+        "category": "Developer Tools & Cleanup",
+        "items": [
+          "Added a dedicated administrator /dev page for quickly assigning one or multiple Played On platforms across released library games",
+          "Added a developer tool for replacing a special edition with its normal IGDB release while preserving tracking data and Last Updated",
+          "Steam artwork changes now behave as silent administrator maintenance without notifications or Last Updated changes",
+          "Added PlayStation and Xbox generation-specific platform choices and dimmed games that already have platform data without disabling editing",
+          "Developer platform changes preserve the game's existing last-updated timestamp",
+          "Removed obsolete Save Game fields and cleanup paths from active Firestore game data",
+          "Removed unused theme fonts and legacy standalone Xbox platform selection"
+        ]
+      },
+      {
+        "category": "Fixes",
+        "items": [
+          "Fixed Played On values not loading when opening Game Tracking from a game page",
+          "Fixed Played On dropdown positioning, stacking, height, selection behavior, and persistence",
+          "Fixed migrated community reviews missing Played On information",
+          "Fixed community review queries and reaction writes failing against the updated Firestore structure",
+          "Fixed custom covers being replaced by automatic refreshes",
+          "Fixed capitalization-only title changes creating unnecessary notifications",
+          "Fixed upcoming platform notifications implying that unreleased games were already available",
+          "Fixed Steam artwork detection missing supported library capsule files",
+          "Fixed Steam artwork toasts appearing behind the artwork modal",
+          "Fixed the Gaming Pill overlapping Settings and improved its page spacing",
+          "Fixed stickers playing only once, fading between loops, gaining unwanted backgrounds, or being clipped inside review cards",
+          "Fixed achievement carousel scrollbars remaining visible",
+          "Fixed profile screenshots and review data not appearing when visibility allowed access",
+          "Fixed completion control wrapping past 100%",
+          "Fixed Game of the Year award container retaining an unintended themed border or glow"
+        ]
+      }
+    ]
+  },
+  {
     "version": "7.5.4",
     "title": "Hotfix",
     "date": "2026-08-20",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Fixes",

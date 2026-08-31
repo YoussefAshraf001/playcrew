@@ -172,7 +172,7 @@ export default function MusicPlayer() {
             exit: { y: -200, opacity: 0 },
           })}
       transition={{ duration: 0.35, ease: "easeInOut" }}
-      className={`fixed z-1000 w-[min(95vw,38rem)] rounded-2xl border theme-panel-strong bg-linear-to-br from-[#071a2a]/95 via-[#0a1120]/95 to-[#111827]/95 px-3 py-2.5 shadow-[0_18px_55px_rgba(0,0,0,0.62)] backdrop-blur-xl md:w-[580px] lg:right-6 ${
+      className={`theme-panel-strong fixed z-1000 w-[min(95vw,38rem)] rounded-2xl border bg-linear-to-br from-[var(--theme-surface-strong)] via-[var(--theme-panel-alt)] to-[var(--theme-bg-elevated)] px-3 py-2.5 shadow-[var(--theme-shadow)] backdrop-blur-xl md:w-[580px] lg:right-6 ${
         navbarLayout === "sidebar"
           ? "left-25 origin-top-left -translate-y-[-750%]"
           : "left-1/2 -translate-x-1/2 md:left-auto md:right-4 md:translate-x-0"

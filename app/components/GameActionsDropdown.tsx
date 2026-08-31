@@ -9,7 +9,10 @@ import toast from "react-hot-toast";
 
 import RefreshModal, { type RefreshField } from "./RefreshModal";
 import { db } from "@/app/lib/firebase";
-import { refreshGameData } from "../utils/refreshGame";
+import {
+  getBlockedRefreshFields,
+  refreshGameData,
+} from "../utils/refreshGame";
 import { useUser } from "../context/UserContext";
 import DevGameEditor from "./DevButton";
 
@@ -73,7 +76,69 @@ export default function GameActionsDropdown({
   }, [isHovered]);
 
   const handleRefresh = async (fields: Record<RefreshField, boolean>) => {
-    if (!user) return;
+    if (!user) return false;
+
+    const configuredBlockedFields = getBlockedRefreshFields(game);
+    const blockedFields = new Set(
+      Object.entries(fields)
+        .filter(
+          ([field, enabled]) =>
+            enabled && configuredBlockedFields.has(field as RefreshField),
+        )
+        .map(([field]) => field as RefreshField),
+    );
+
+    let overrideBlockedFields = false;
+    if (blockedFields.size) {
+      const blockedLabels = Array.from(blockedFields).map((field) =>
+        field === "released"
+          ? "release date"
+          : field === "cover"
+            ? "cover"
+            : field,
+      );
+      const shouldOverride = await new Promise<boolean>((resolve) => {
+        toast.custom(
+          (notification) => (
+            <div className="w-[min(92vw,420px)] rounded-xl border border-amber-300/35 bg-zinc-950 p-4 text-white shadow-2xl">
+              <p className="font-semibold text-amber-100">
+                {game.name} is set to block refresh
+              </p>
+              <p className="mt-1 text-xs leading-5 text-zinc-300">
+                Blocked: {blockedLabels.join(", ")}. Do you want to override
+                the protection and refresh once?
+              </p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.dismiss(notification.id);
+                    resolve(false);
+                  }}
+                  className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10"
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.dismiss(notification.id);
+                    resolve(true);
+                  }}
+                  className="rounded-lg border border-amber-300/40 bg-amber-400 px-3 py-1.5 text-xs font-bold text-black hover:bg-amber-300"
+                >
+                  Yes, refresh once
+                </button>
+              </div>
+            </div>
+          ),
+          { id: `refresh-override-${game._docId ?? game.igdb.id}`, duration: Infinity },
+        );
+      });
+
+      if (!shouldOverride) return false;
+      overrideBlockedFields = true;
+    }
 
     try {
       await refreshGameData(
@@ -81,6 +146,7 @@ export default function GameActionsDropdown({
         game,
         fields,
         game._docId ?? game.igdb.id.toString(),
+        { overrideBlockedFields },
       );
 
       toast.success(
@@ -90,8 +156,10 @@ export default function GameActionsDropdown({
         </span>,
       );
       setRefreshOpen(false);
+      return true;
     } catch (err) {
-      toast.error("Refresh failed");
+      toast.error(err instanceof Error ? err.message : "Refresh failed");
+      return false;
     }
   };
 

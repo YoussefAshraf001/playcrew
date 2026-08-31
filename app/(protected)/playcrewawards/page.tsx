@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDocs, setDoc } from "firebase/firestore";
 import { AnimatePresence, motion } from "framer-motion";
-import { Helmet } from "react-helmet-async";
 import { toast } from "react-hot-toast";
 
 import { db } from "@/app/lib/firebase";
@@ -733,7 +732,7 @@ export default function ShelfPage() {
             duration: isSpotlightCelebrating ? 2 : 0.72,
             ease: "easeOut",
           }}
-          className={`relative h-full overflow-visible rounded-2xl border border-amber-200/25 bg-[#08090d] hover:border-amber-200/60 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_16px_36px_rgba(0,0,0,0.38)] ${isSpotlightCelebrating ? "ring-1 ring-amber-200/35" : ""}`}
+          className={`relative h-full overflow-visible rounded-2xl border border-amber-200/25 bg-[var(--theme-surface-strong)] hover:border-amber-200/60 hover:shadow-[var(--theme-shadow)] ${isSpotlightCelebrating ? "ring-1 ring-amber-200/35" : ""}`}
         >
           <div className="rounded-xl pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(251,191,36,0.18),transparent_58%)]" />
           <div className="rounded-xl pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),transparent_26%,rgba(0,0,0,0.2)_100%)]" />
@@ -828,14 +827,6 @@ export default function ShelfPage() {
 
   return (
     <>
-      <Helmet>
-        <title>Awards Shelf • PlayCrew</title>
-        <meta
-          name="description"
-          content="Build and manage your yearly PlayCrew game awards."
-        />
-      </Helmet>
-
       <main
         className={`theme-text ${
           navbarLayout === "sidebar"
@@ -1147,7 +1138,7 @@ export default function ShelfPage() {
                         transition={{ duration: 0.24, ease: "easeOut" }}
                         className="theme-text-muted mt-1.5 max-w-152 text-sm lg:text-[15px]"
                       >
-                        The Game Awards are cooked. These are the real winners.
+                        The Game Awards are cooked. Pick your own winners.
                       </motion.p>
                     </AnimatePresence>
                   </div>

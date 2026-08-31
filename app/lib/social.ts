@@ -7,7 +7,6 @@ import {
   getDocs,
   query,
   setDoc,
-  deleteDoc,
   writeBatch,
   serverTimestamp,
   where,
@@ -72,41 +71,33 @@ export async function sendFriendRequest(
     createdAt: serverTimestamp(),
   });
 
-  // create notification
-  const notifRef = doc(collection(db, "users", toUid, "notifications"));
-  const senderSnap = await getDoc(doc(db, "users", fromUid));
-
-  if (!senderSnap.exists()) throw new Error("Sender not found");
-
-  const sender = senderSnap.data() as UserDoc;
-
-  await setDoc(notifRef, {
-    type: "friend_request",
-
-    fromUid,
-    toUid,
-
-    senderId: fromUid,
-    senderUsername: sender.username,
-    senderAvatar: sender.avatar ?? sender.photoURL ?? "",
-
-    message: message || `${sender.username} sent you a friend request.`,
-    read: false,
-    createdAt: serverTimestamp(),
-  });
 }
 
 export async function cancelFriendRequest(fromUid: string, toUid: string) {
   const id = friendRequestDocId(fromUid, toUid);
-  const ref = doc(db, "friend_requests", id);
-  await deleteDoc(ref);
+  const matchingRequestsQuery = query(
+    collection(db, "friend_requests"),
+    where("fromUid", "==", fromUid),
+    where("toUid", "==", toUid),
+  );
+  const matchingRequests = await getDocs(matchingRequestsQuery);
+  const batch = writeBatch(db);
+
+  batch.delete(doc(db, "friend_requests", id));
+  matchingRequests.docs.forEach((requestDoc) => {
+    if (requestDoc.id !== id) batch.delete(requestDoc.ref);
+  });
+  await batch.commit();
 }
 
 export async function declineFriendRequest(fromUid: string, toUid: string) {
-  // mark request as declined or delete
   const id = friendRequestDocId(fromUid, toUid);
-  const ref = doc(db, "friend_requests", id);
-  await deleteDoc(ref);
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "friend_requests", id));
+  batch.delete(
+    doc(db, "users", toUid, "notifications", `friend-request-${fromUid}`),
+  );
+  await batch.commit();
 }
 
 export async function acceptFriendRequest(fromUid: string, toUid: string) {
@@ -115,22 +106,36 @@ export async function acceptFriendRequest(fromUid: string, toUid: string) {
   const friendRefB = doc(db, "users", toUid, "friends", fromUid);
   const requestId = friendRequestDocId(fromUid, toUid);
   const requestRef = doc(db, "friend_requests", requestId);
+  const requestNotificationRef = doc(
+    db,
+    "users",
+    toUid,
+    "notifications",
+    `friend-request-${fromUid}`,
+  );
 
   await runTransaction(db, async (tx) => {
     tx.set(friendRefA, { uid: toUid, createdAt: serverTimestamp() });
     tx.set(friendRefB, { uid: fromUid, createdAt: serverTimestamp() });
     tx.delete(requestRef);
+    tx.delete(requestNotificationRef);
   });
 
-  // notify origin
+  const accepterSnap = await getDoc(doc(db, "users", toUid));
+  const accepter = accepterSnap.data() as UserDoc | undefined;
   const notifRef = doc(collection(db, "users", fromUid, "notifications"));
   await setDoc(notifRef, {
     type: "friend_accept",
     fromUid: toUid,
     toUid: fromUid,
+    senderId: toUid,
+    senderUsername: accepter?.username ?? "PlayCrew User",
+    senderAvatar: accepter?.avatar ?? accepter?.photoURL ?? "",
+    message: `${accepter?.username ?? "A PlayCrew user"} accepted your friend request.`,
     read: false,
     createdAt: serverTimestamp(),
   });
+
 }
 
 export async function removeFriend(myUid: string, otherUid: string) {
@@ -143,27 +148,46 @@ export async function removeFriend(myUid: string, otherUid: string) {
 }
 
 export async function blockUser(myUid: string, blockedUid: string) {
-  // block and remove friendship + delete pending requests
+  // Only include existing relationship records in the batch. Attempting to
+  // delete absent request documents is rejected by participant-only rules
+  // because an absent document has no fromUid/toUid fields to authorize.
   const blockRef = doc(db, "users", myUid, "blocks", blockedUid);
   const friendRefA = doc(db, "users", myUid, "friends", blockedUid);
   const friendRefB = doc(db, "users", blockedUid, "friends", myUid);
-  const req1 = doc(
-    db,
-    "friend_requests",
-    friendRequestDocId(myUid, blockedUid),
-  );
-  const req2 = doc(
-    db,
-    "friend_requests",
-    friendRequestDocId(blockedUid, myUid),
-  );
+
+  const [friendship, sentRequests, receivedRequests] = await Promise.all([
+    getDoc(friendRefA),
+    getDocs(
+      query(
+        collection(db, "friend_requests"),
+        where("fromUid", "==", myUid),
+        where("toUid", "==", blockedUid),
+      ),
+    ),
+    getDocs(
+      query(
+        collection(db, "friend_requests"),
+        where("fromUid", "==", blockedUid),
+        where("toUid", "==", myUid),
+      ),
+    ),
+  ]);
 
   const batch = writeBatch(db);
   batch.set(blockRef, { blockedUid, createdAt: serverTimestamp() });
-  batch.delete(friendRefA);
-  batch.delete(friendRefB);
-  batch.delete(req1);
-  batch.delete(req2);
+  if (friendship.exists()) {
+    batch.delete(friendRefA);
+    batch.delete(friendRefB);
+  }
+  sentRequests.docs.forEach((requestDoc) => batch.delete(requestDoc.ref));
+  receivedRequests.docs.forEach((requestDoc) => batch.delete(requestDoc.ref));
+  await batch.commit();
+}
+
+export async function unblockUser(myUid: string, blockedUid: string) {
+  if (!myUid || !blockedUid) throw new Error("Missing uids");
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "users", myUid, "blocks", blockedUid));
   await batch.commit();
 }
 

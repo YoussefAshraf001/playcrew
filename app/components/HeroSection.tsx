@@ -265,6 +265,7 @@ export default function HeroSection({
       favorite: false,
 
       recentActionSummary: "Added to My Collection",
+      recentActionSource: "user",
 
       lastUpdated: serverTimestamp(),
     };

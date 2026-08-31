@@ -126,3 +126,60 @@ export const formatReleaseDate = (
     year: "numeric",
   });
 };
+
+export const formatReleaseChangeMessage = ({
+  gameName,
+  previousValue,
+  nextValue,
+  previousPrecision,
+  nextPrecision,
+}: {
+  gameName: string;
+  previousValue: unknown;
+  nextValue: unknown;
+  previousPrecision?: ReleaseDatePrecision | null;
+  nextPrecision?: ReleaseDatePrecision | null;
+}): string | null => {
+  const previous = parseReleaseDate(previousValue);
+  const next = parseReleaseDate(nextValue);
+
+  if (!next) {
+    return previous ? `${gameName}'s release date is now TBA.` : null;
+  }
+
+  const nextLabel = formatReleaseDate(next, nextPrecision);
+  const nextHasExactDay = hasConfirmedReleaseDay(next, nextPrecision);
+
+  if (!previous) {
+    return nextHasExactDay
+      ? `${gameName} got updated and is releasing on ${nextLabel}.`
+      : `${gameName} got a release window of ${nextLabel}.`;
+  }
+
+  const previousHasExactDay = hasConfirmedReleaseDay(
+    previous,
+    previousPrecision,
+  );
+  const sameDate = previous.getTime() === next.getTime();
+
+  if (!previousHasExactDay && nextHasExactDay) {
+    return `${gameName} got updated and is releasing on ${nextLabel}.`;
+  }
+
+  if (sameDate) {
+    if (previousPrecision !== nextPrecision && !nextHasExactDay) {
+      return `${gameName} got a release window of ${nextLabel}.`;
+    }
+    return null;
+  }
+
+  const previousLabel = formatReleaseDate(previous, previousPrecision);
+
+  if (!nextHasExactDay) {
+    return `${gameName}'s release window changed from ${previousLabel} to ${nextLabel}.`;
+  }
+
+  return next.getTime() < previous.getTime()
+    ? `${gameName}'s release date moved up from ${previousLabel} to ${nextLabel}.`
+    : `${gameName}'s release date moved back from ${previousLabel} to ${nextLabel}.`;
+};

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { IoCloseCircle } from "react-icons/io5";
 import { MdOutlineFileDownload } from "react-icons/md";
@@ -59,7 +60,11 @@ export default function ScreenshotsCarousel({
 
   const handleDownload = async (screenshot: Screenshot) => {
     try {
-      const res = await fetch(screenshot.image);
+      const originalImage = screenshot.image.replace(
+        /t_1080p(?=\/)/,
+        "t_original",
+      );
+      const res = await fetch(originalImage);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
@@ -143,11 +148,13 @@ export default function ScreenshotsCarousel({
         ))}
       </div>
 
-      {/* Modal */}
-      <AnimatePresence>
-        {modalOpen && (
+      {/* Render outside page stacking contexts so later sections cannot cover it. */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {modalOpen && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/90"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -209,8 +216,10 @@ export default function ScreenshotsCarousel({
               </button>
             </div>
           </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </>
   );
 }

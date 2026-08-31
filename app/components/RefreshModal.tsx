@@ -19,7 +19,9 @@ interface Props {
   itemName?: string | null;
   count?: number | null;
   onClose: () => void;
-  onConfirm: (fields: Record<RefreshField, boolean>) => Promise<void> | void;
+  onConfirm: (
+    fields: Record<RefreshField, boolean>,
+  ) => Promise<boolean | void> | boolean | void;
 }
 
 const refreshKeys: RefreshField[] = [
@@ -67,11 +69,11 @@ export default function RefreshModal({
     if (selectedCount === 0) return;
     try {
       setProcessing(true);
-      await onConfirm(fields);
-      toast.success("Refresh queued");
+      const confirmed = await onConfirm(fields);
+      if (confirmed === false) return;
       onClose();
       resetFields();
-    } catch (err) {
+    } catch {
       toast.error("Refresh failed");
     } finally {
       setProcessing(false);

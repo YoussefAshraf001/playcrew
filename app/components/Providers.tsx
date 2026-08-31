@@ -1,4 +1,5 @@
-import { HelmetProvider } from "react-helmet-async";
+"use client";
+
 import { AuthModalProvider } from "../context/AuthModalContext";
 import { UserProvider } from "../context/UserContext";
 import { GameProvider } from "../context/GameContext";
@@ -8,18 +9,16 @@ import { SyncProvider } from "../context/SyncContext";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <HelmetProvider>
-      <AuthModalProvider>
-        <UserProvider>
-          <GameProvider>
-            <MusicProvider>
-              <UIProvider>
-                <SyncProvider>{children}</SyncProvider>
-              </UIProvider>
-            </MusicProvider>
-          </GameProvider>
-        </UserProvider>
-      </AuthModalProvider>
-    </HelmetProvider>
+    <AuthModalProvider>
+      <UserProvider>
+        <GameProvider>
+          <MusicProvider>
+            <UIProvider>
+              <SyncProvider>{children}</SyncProvider>
+            </UIProvider>
+          </MusicProvider>
+        </GameProvider>
+      </UserProvider>
+    </AuthModalProvider>
   );
 }

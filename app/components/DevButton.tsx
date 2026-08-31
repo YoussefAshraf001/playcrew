@@ -15,6 +15,12 @@ import { RiShieldKeyholeFill } from "react-icons/ri";
 
 import { db } from "@/app/lib/firebase";
 import { GAME_STICKERS } from "../lib/gameStickers";
+import type {
+  PlaySession,
+  PreReleaseAccess,
+  RefreshBlockField,
+} from "@/app/types/trackedGame";
+import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
 
 interface Props {
   userId: string;
@@ -31,22 +37,34 @@ interface GameData {
     genres?: string[];
     platforms?: string[];
     releaseDate?: unknown;
+    releaseDatePrecision?: ReleaseDatePrecision | null;
     rating?: number;
   };
   playtime?: number;
   progress?: number;
   status?: string;
   favorite?: boolean;
+  favoriteOrder?: number | null;
+  favoriteAllTime?: boolean;
+  wantToPlayOrder?: number | null;
+  notInterested?: boolean;
   review?: {
     text?: string;
     sticker?: string | null;
   };
-  my_rating?: number;
+  my_rating?: number | null;
+  playedSessions?: PlaySession[];
+  recentActionSummary?: string;
+  preReleaseAccess?: PreReleaseAccess | null;
+  refreshExcluded?: boolean;
+  refreshBlockedFields?: Partial<Record<RefreshBlockField, boolean>>;
+  protectCustomCoverFromRefresh?: boolean;
   lastUpdated?: unknown;
 }
 
 const DEV_KEY = "dev_unlock";
 const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD!;
+const DEV_UNLOCK_DURATION_MS = 60 * 60 * 1000;
 const STATUS_OPTIONS = [
   "Playing",
   "Completed",
@@ -54,6 +72,17 @@ const STATUS_OPTIONS = [
   "Dropped",
   "Online",
   "Want To Play",
+];
+const REFRESH_BLOCK_OPTIONS: Array<{
+  id: RefreshBlockField;
+  label: string;
+}> = [
+  { id: "name", label: "Name" },
+  { id: "cover", label: "Cover" },
+  { id: "genres", label: "Genres" },
+  { id: "rating", label: "Rating" },
+  { id: "platforms", label: "Platforms" },
+  { id: "released", label: "Release date" },
 ];
 
 export default function DevGameEditor({ userId, game, onClose }: Props) {
@@ -69,6 +98,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
   const isClosingRef = useRef(false);
   const [genresInput, setGenresInput] = useState("");
   const [platformsInput, setPlatformsInput] = useState("");
+  const [playedSessionsInput, setPlayedSessionsInput] = useState("[]");
 
   const requestClose = useCallback(() => {
     if (isClosingRef.current) return;
@@ -81,7 +111,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
   useEffect(() => {
     const stored = localStorage.getItem(DEV_KEY);
-    if (stored && Date.now() - Number(stored) < 10 * 60 * 1000) {
+    if (stored && Date.now() - Number(stored) < DEV_UNLOCK_DURATION_MS) {
       setUnlocked(true);
     }
   }, []);
@@ -111,6 +141,9 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     if (!gameData) return;
     setGenresInput((gameData.igdb.genres || []).join(", "));
     setPlatformsInput((gameData.igdb.platforms || []).join(", "));
+    setPlayedSessionsInput(
+      JSON.stringify(gameData.playedSessions ?? [], null, 2),
+    );
   }, [gameData]);
 
   useEffect(() => {
@@ -145,10 +178,6 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     value: GameData["igdb"][K],
   ) => {
     setGameData((p) => (p ? { ...p, igdb: { ...p.igdb, [key]: value } } : p));
-  };
-
-  const updateCategory = (key: string, value: number) => {
-    const bounded = Math.min(10, Math.max(0, Math.round(value)));
   };
 
   const parseNumber = (value: string, fallback = 0) => {
@@ -229,8 +258,14 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     setSaving(true);
 
     try {
+      const playedSessions = JSON.parse(playedSessionsInput);
+      if (!Array.isArray(playedSessions)) {
+        throw new Error("Play sessions must be a JSON array.");
+      }
+
       await updateDoc(doc(db, "users", userId, "games_igdb", game._docId), {
         ...gameData,
+        playedSessions,
         igdb: {
           ...gameData.igdb,
           releaseDate: gameData.igdb.releaseDate ?? null,
@@ -254,6 +289,10 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
         </span>,
       );
       requestClose();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not save game data.",
+      );
     } finally {
       setSaving(false);
     }
@@ -423,7 +462,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                  <section className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+                  <section className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
                     <div className="bg-zinc-800 rounded-xl overflow-hidden border border-white/10 min-h-[280px]">
                       {gameData.igdb.cover ? (
                         <img
@@ -531,17 +570,58 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-2 text-sm text-zinc-300 md:col-span-2">
-                        <input
-                          type="checkbox"
-                          checked={!!gameData.favorite}
-                          onChange={(e) =>
-                            updateField("favorite", e.target.checked)
-                          }
-                          className="checkbox checkbox-sm"
-                        />
-                        Favorite
-                      </label>
+                      <div className="grid grid-cols-2 gap-3 md:col-span-2 sm:grid-cols-4">
+                        {[
+                          ["favorite", "Favorite"],
+                          ["favoriteAllTime", "All-time favorite"],
+                          ["notInterested", "Not interested"],
+                        ].map(([key, label]) => (
+                          <label
+                            key={key}
+                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-800/70 p-2.5 text-sm text-zinc-300"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!gameData[key as keyof GameData]}
+                              onChange={(e) =>
+                                updateField(
+                                  key as
+                                    | "favorite"
+                                    | "favoriteAllTime"
+                                    | "notInterested",
+                                  e.target.checked,
+                                )
+                              }
+                              className="checkbox checkbox-sm"
+                            />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+
+                      {[
+                        ["favoriteOrder", "Favorite order"],
+                        ["wantToPlayOrder", "Want-to-play order"],
+                      ].map(([key, label]) => (
+                        <label key={key} className="flex flex-col gap-1">
+                          <span className="text-xs text-zinc-400">{label}</span>
+                          <input
+                            type="number"
+                            className="bg-zinc-800 p-2.5 rounded border border-white/10"
+                            value={
+                              (gameData[key as keyof GameData] as number) ?? ""
+                            }
+                            onChange={(e) =>
+                              updateField(
+                                key as "favoriteOrder" | "wantToPlayOrder",
+                                e.target.value === ""
+                                  ? null
+                                  : parseNumber(e.target.value),
+                              )
+                            }
+                          />
+                        </label>
+                      ))}
 
                       <label className="flex flex-col gap-1 md:col-span-2">
                         <span className="text-xs text-zinc-400">
@@ -560,9 +640,110 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                   </section>
 
                   <section className="space-y-4">
-                    <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
-                      IGDB Data
-                    </h4>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
+                          IGDB Data
+                        </h4>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Control external metadata and refresh behavior.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-red-400/20 bg-red-500/5 p-3">
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-red-100">
+                          Block refresh fields
+                        </p>
+                        <p className="mt-1 text-[10px] text-zinc-400">
+                          Enabled fields are protected from automatic updates.
+                          Manual refreshes require an explicit override.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {REFRESH_BLOCK_OPTIONS.map((option) => {
+                          const blocked =
+                            gameData.refreshExcluded === true ||
+                            gameData.refreshBlockedFields?.[option.id] === true;
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              role="switch"
+                              aria-checked={blocked}
+                              onClick={() => {
+                                const legacyBlocks = Object.fromEntries(
+                                  REFRESH_BLOCK_OPTIONS.map(({ id }) => [
+                                    id,
+                                    true,
+                                  ]),
+                                ) as Record<RefreshBlockField, boolean>;
+                                setGameData((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        refreshExcluded: false,
+                                        refreshBlockedFields: {
+                                          ...(current.refreshExcluded
+                                            ? legacyBlocks
+                                            : current.refreshBlockedFields),
+                                          [option.id]: !blocked,
+                                        },
+                                      }
+                                    : current,
+                                );
+                              }}
+                              className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${
+                                blocked
+                                  ? "border-red-400/50 bg-red-500/15 text-red-100"
+                                  : "border-white/10 bg-zinc-900 text-zinc-400 hover:border-white/20"
+                              }`}
+                            >
+                              <span>{option.label}</span>
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full ${
+                                  blocked ? "bg-red-400" : "bg-zinc-600"
+                                }`}
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={
+                          gameData.protectCustomCoverFromRefresh === true
+                        }
+                        onClick={() =>
+                          updateField(
+                            "protectCustomCoverFromRefresh",
+                            !gameData.protectCustomCoverFromRefresh,
+                          )
+                        }
+                        className={`mt-3 flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+                          gameData.protectCustomCoverFromRefresh
+                            ? "border-amber-400/50 bg-amber-500/10 text-amber-100"
+                            : "border-white/10 bg-zinc-900 text-zinc-400 hover:border-white/20"
+                        }`}
+                      >
+                        <span>
+                          <span className="block text-xs font-semibold">
+                            Protect custom cover
+                          </span>
+                          <span className="mt-0.5 block text-[10px] opacity-70">
+                            Lock the current cover against automatic refreshes
+                          </span>
+                        </span>
+                        <span
+                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                            gameData.protectCustomCoverFromRefresh
+                              ? "bg-amber-400"
+                              : "bg-zinc-600"
+                          }`}
+                        />
+                      </button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <label className="flex flex-col gap-1">
                         <span className="text-xs text-zinc-400">IGDB ID</span>
@@ -573,6 +754,29 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                             updateIGDB("id", parseNumber(e.target.value, 0))
                           }
                         />
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-400">
+                          Release Precision
+                        </span>
+                        <select
+                          className="bg-zinc-800 p-2.5 rounded border border-white/10"
+                          value={gameData.igdb.releaseDatePrecision ?? ""}
+                          onChange={(e) =>
+                            updateIGDB(
+                              "releaseDatePrecision",
+                              (e.target.value ||
+                                null) as ReleaseDatePrecision | null,
+                            )
+                          }
+                        >
+                          <option value="">Auto</option>
+                          <option value="year">Year</option>
+                          <option value="quarter">Quarter</option>
+                          <option value="month">Month</option>
+                          <option value="day">Exact day</option>
+                        </select>
                       </label>
 
                       <label className="flex flex-col gap-1">
@@ -642,6 +846,164 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                   </section>
 
                   <section className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
+                          Play Sessions
+                        </h4>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Add, change, reorder, or remove session records.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            const sessions = JSON.parse(playedSessionsInput);
+                            setPlayedSessionsInput(
+                              JSON.stringify(
+                                [
+                                  ...(Array.isArray(sessions) ? sessions : []),
+                                  {
+                                    playedAt: new Date().toISOString(),
+                                    durationHours: 1,
+                                  },
+                                ],
+                                null,
+                                2,
+                              ),
+                            );
+                          } catch {
+                            toast.error(
+                              "Fix the sessions JSON before adding one.",
+                            );
+                          }
+                        }}
+                        className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
+                      >
+                        + Add session
+                      </button>
+                    </div>
+
+                    <div className="grid gap-4">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-400">
+                          Played sessions
+                        </span>
+                        <textarea
+                          spellCheck={false}
+                          className="min-h-56 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface-strong)] p-3 font-mono text-xs leading-relaxed text-cyan-50 focus:border-cyan-400/40 focus:outline-none"
+                          value={playedSessionsInput}
+                          onChange={(e) =>
+                            setPlayedSessionsInput(e.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
+                      Access & Activity
+                    </h4>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-400">
+                          Access type
+                        </span>
+                        <select
+                          className="bg-zinc-800 p-2.5 rounded border border-white/10"
+                          value={gameData.preReleaseAccess?.type ?? ""}
+                          onChange={(e) =>
+                            updateField(
+                              "preReleaseAccess",
+                              e.target.value
+                                ? {
+                                    type: e.target
+                                      .value as PreReleaseAccess["type"],
+                                    unlockedAt:
+                                      parseDateValue(
+                                        gameData.preReleaseAccess?.unlockedAt,
+                                      ) ?? new Date(),
+                                    dateSource:
+                                      gameData.preReleaseAccess?.dateSource ??
+                                      "official",
+                                  }
+                                : null,
+                            )
+                          }
+                        >
+                          <option value="">None</option>
+                          <option value="early-access">Early Access</option>
+                          <option value="advanced-access">
+                            Advanced Access
+                          </option>
+                          <option value="leaked">Leaked</option>
+                        </select>
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-400">
+                          Access date
+                        </span>
+                        <input
+                          type="datetime-local"
+                          disabled={!gameData.preReleaseAccess}
+                          className="bg-zinc-800 p-2.5 rounded border border-white/10 disabled:opacity-40"
+                          value={toLocalDateTimeInput(
+                            gameData.preReleaseAccess?.unlockedAt,
+                          )}
+                          onChange={(e) =>
+                            gameData.preReleaseAccess &&
+                            updateField("preReleaseAccess", {
+                              ...gameData.preReleaseAccess,
+                              unlockedAt: new Date(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+
+                      <label className="flex flex-col gap-1">
+                        <span className="text-xs text-zinc-400">
+                          Date source
+                        </span>
+                        <select
+                          disabled={!gameData.preReleaseAccess}
+                          className="bg-zinc-800 p-2.5 rounded border border-white/10 disabled:opacity-40"
+                          value={
+                            gameData.preReleaseAccess?.dateSource ?? "official"
+                          }
+                          onChange={(e) =>
+                            gameData.preReleaseAccess &&
+                            updateField("preReleaseAccess", {
+                              ...gameData.preReleaseAccess,
+                              dateSource: e.target.value as
+                                | "unlock"
+                                | "official",
+                            })
+                          }
+                        >
+                          <option value="official">Official</option>
+                          <option value="unlock">Unlock date</option>
+                        </select>
+                      </label>
+
+                      <label className="flex flex-col gap-1 md:col-span-3">
+                        <span className="text-xs text-zinc-400">
+                          Recent action summary
+                        </span>
+                        <input
+                          className="bg-zinc-800 p-2.5 rounded border border-white/10"
+                          value={gameData.recentActionSummary ?? ""}
+                          onChange={(e) =>
+                            updateField("recentActionSummary", e.target.value)
+                          }
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
                         User Ratings
@@ -651,17 +1013,32 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                     <div className="w-full">
                       <label className="flex flex-col gap-1 w-full">
                         <span className="text-xs text-zinc-400">My Rating</span>
-                        <input
-                          type="number"
-                          className="w-full bg-zinc-800 p-2.5 rounded border border-white/10"
-                          value={gameData.my_rating ?? 0}
-                          onChange={(e) =>
-                            updateField(
-                              "my_rating",
-                              parseNumber(e.target.value, 0),
-                            )
-                          }
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={10}
+                            step={0.1}
+                            className="w-full bg-zinc-800 p-2.5 rounded border border-white/10"
+                            value={gameData.my_rating ?? ""}
+                            placeholder="Not rated"
+                            onChange={(e) =>
+                              updateField(
+                                "my_rating",
+                                e.target.value === ""
+                                  ? null
+                                  : parseNumber(e.target.value, 0),
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() => updateField("my_rating", null)}
+                            className="rounded border border-white/10 bg-zinc-800 px-3 text-xs text-zinc-300 hover:bg-zinc-700"
+                          >
+                            Clear
+                          </button>
+                        </div>
                       </label>
                     </div>
                   </section>
@@ -684,6 +1061,23 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                             No Sticker
                           </div>
                         )}
+                        <select
+                          className="mt-3 w-full rounded border border-white/10 bg-zinc-900 p-2 text-sm"
+                          value={gameData.review?.sticker ?? ""}
+                          onChange={(e) =>
+                            updateField("review", {
+                              ...(gameData.review ?? {}),
+                              sticker: e.target.value || null,
+                            })
+                          }
+                        >
+                          <option value="">No sticker</option>
+                          {GAME_STICKERS.map((sticker) => (
+                            <option key={sticker.id} value={sticker.id}>
+                              {sticker.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div>
