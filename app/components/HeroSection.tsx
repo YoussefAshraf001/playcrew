@@ -5,7 +5,7 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 
 import { db } from "../lib/firebase";
 
@@ -23,14 +23,15 @@ import {
 } from "react-icons/fa";
 import {
   MdRemoveCircleOutline,
+  MdOutlineAddToQueue,
   MdOutlineOnlinePrediction,
   MdFullscreen,
   MdFullscreenExit,
 } from "react-icons/md";
-import { GiMouthWatering } from "react-icons/gi";
 import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
 import { useMusic } from "../context/MusicContext";
 import { useUI } from "../context/UIContext";
+import { buildCanonicalTrackedGamePayload } from "@/app/lib/trackedGamePayload";
 
 declare global {
   interface Window {
@@ -52,7 +53,11 @@ const STATUS_CONFIG = [
     icon: <MdOutlineOnlinePrediction />,
     color: "bg-purple-500",
   },
-  { label: "Want To Play", icon: <GiMouthWatering />, color: "bg-teal-500" },
+  {
+    label: "Want To Play",
+    icon: <MdOutlineAddToQueue />,
+    color: "bg-teal-500",
+  },
 ];
 const HERO_TRAILER_VOLUME_KEY = "hero-trailer-volume";
 const HERO_VIDEO_OVERSCAN = 1.18;
@@ -203,82 +208,20 @@ export default function HeroSection({
     }
     if (!activeGame) return;
 
-    // Normalize genres
-    const genres = Array.isArray(activeGame.genres)
-      ? activeGame.genres
-          .map((g: any) => (typeof g === "object" ? g.name : g))
-          .filter(Boolean)
-      : [];
-
-    // Normalize platforms
-    const platforms = Array.isArray(activeGame.platforms)
-      ? activeGame.platforms
-          .map((p: any) => p?.platform?.name || p?.name)
-          .filter(Boolean)
-      : [];
-
-    // Normalize release date
-    const releaseDate =
-      typeof activeGame.first_release_date === "number"
-        ? new Date(activeGame.first_release_date * 1000)
-        : null;
-
-    // Resolve cover
-    let coverUrl = "/placeholder-game.jpg";
-
-    if (activeGame.cover) {
-      if (typeof activeGame.cover === "string") {
-        coverUrl = activeGame.cover.startsWith("http")
-          ? activeGame.cover
-          : `https:${activeGame.cover}`;
-      } else if (activeGame.cover.url) {
-        coverUrl = `https:${activeGame.cover.url.replace(
-          "t_thumb",
-          "t_cover_big_2x",
-        )}`;
-      }
-    } else if (activeGame.background_image) {
-      coverUrl = activeGame.background_image;
-    }
-
-    const payload = {
-      name: activeGame.name,
-
-      igdb: {
-        id: activeGame.id,
-        name: activeGame.name,
-        cover: coverUrl,
-        rating: activeGame.rating || 0,
-        genres,
-        platforms,
-        releaseDate,
-      },
-
-      my_rating: null,
-      playtime: 0,
-      progress: 0,
-      review: {
-        text: "",
-        sticker: null,
-      },
-      status: "Want To Play",
-      favorite: false,
-
-      recentActionSummary: "Added to My Collection",
-      recentActionSource: "user",
-
-      lastUpdated: serverTimestamp(),
-    };
+    const canonicalPayload = await buildCanonicalTrackedGamePayload(
+      activeGame.id,
+      activeGame.name,
+    );
 
     await setDoc(
       doc(db, "users", user.uid, "games_igdb", activeGame.id.toString()),
-      payload,
+      canonicalPayload,
       { merge: true },
     );
 
     setSavedGames((prev) => ({
       ...prev,
-      [gameId]: payload,
+      [gameId]: canonicalPayload,
     }));
 
     toast.success(

@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { FiHeart } from "react-icons/fi";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { toast } from "react-hot-toast";
 import { db } from "../lib/firebase";
 import { FaHeart, FaMusic, FaStar } from "react-icons/fa";
@@ -12,6 +12,7 @@ import { IoCloseCircle } from "react-icons/io5";
 import Link from "next/link";
 import { GoArrowRight } from "react-icons/go";
 import { useMusic } from "../context/MusicContext";
+import { buildCanonicalTrackedGamePayload } from "@/app/lib/trackedGamePayload";
 
 export default function GameModal({
   game,
@@ -94,73 +95,14 @@ export default function GameModal({
     if (!game) return;
     setLoadingAdd(true);
 
-    // Normalize genres
-    const genres = Array.isArray(game.genres)
-      ? game.genres
-          .map((g: any) => (typeof g === "object" ? g.name : g))
-          .filter(Boolean)
-      : [];
-
-    // Normalize platforms
-    const platforms = Array.isArray(game.platforms)
-      ? game.platforms
-          .map((p: any) => p?.platform?.name || p?.name)
-          .filter(Boolean)
-      : [];
-
-    // Normalize release date
-    const releaseDate =
-      typeof game.first_release_date === "number"
-        ? new Date(game.first_release_date * 1000)
-        : null;
-
-    // Resolve cover
-    let coverUrl = "/placeholder-game.jpg";
-
-    if (game.cover) {
-      if (typeof game.cover === "string") {
-        coverUrl = game.cover.startsWith("http")
-          ? game.cover
-          : `https:${game.cover}`;
-      } else if (game.cover.url) {
-        coverUrl = `https:${game.cover.url.replace("t_thumb", "t_cover_big_2x")}`;
-      }
-    } else if (game.background_image) {
-      coverUrl = game.background_image;
-    }
-
-    const payload = {
-      name: game.name,
-
-      igdb: {
-        id: game.id,
-        name: game.name,
-        cover: coverUrl,
-        rating: game.rating || 0,
-        genres,
-        platforms,
-        releaseDate,
-      },
-
-      my_rating: null,
-      playtime: 0,
-      progress: 0,
-      review: {
-        text: "",
-        sticker: null,
-      },
-      status: "Want To Play",
-      favorite: false,
-
-      recentActionSummary: "Added to My Collection",
-      recentActionSource: "user",
-
-      lastUpdated: serverTimestamp(),
-    };
+    const canonicalPayload = await buildCanonicalTrackedGamePayload(
+      game.id,
+      game.name,
+    );
 
     await setDoc(
       doc(db, "users", user.uid, "games_igdb", game.id.toString()),
-      payload,
+      canonicalPayload,
       { merge: true },
     );
 

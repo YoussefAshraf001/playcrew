@@ -1,5 +1,6 @@
 import { getIGDBToken, igdbReleaseDateQuery } from "@/app/lib/igdb";
 import { inferReleaseDatePrecision } from "@/app/lib/releaseDates";
+import { resolveIgdbReleasePhases } from "@/app/lib/igdbReleasePhases";
 import { NextResponse } from "next/server";
 
 const SIMILAR_TARGET = 20;
@@ -36,8 +37,12 @@ export async function POST(req: Request) {
         aggregated_rating, total_rating, total_rating_count,
         first_release_date, summary, storyline, platforms.name,
         screenshots.url, videos.video_id, dlcs, similar_games,
-        franchises,
-        game_engines, game_status, websites;
+        involved_companies.developer, involved_companies.publisher,
+        involved_companies.company.name,
+        franchises.name, game_engines.name, game_status.status,
+        game_modes.name, themes.name, player_perspectives.name,
+        age_ratings.organization.name, age_ratings.rating_category.rating,
+        websites;
         where id = ${id};
       `,
     });
@@ -47,7 +52,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: errText }, { status: 500 });
     }
 
-    const [game] = await gameRes.json();
+    const games = await gameRes.json();
+    const game = Array.isArray(games) ? games[0] : null;
+
+    if (!game?.id || typeof game.name !== "string") {
+      return NextResponse.json({ error: "Game not found" }, { status: 404 });
+    }
 
     const similarResPromise = game.similar_games?.length
       ? fetch("https://api.igdb.com/v4/games", {
@@ -66,12 +76,12 @@ export async function POST(req: Request) {
       : Promise.resolve(null);
 
     // These requests do not depend on one another, so run them together.
-    const [[releaseDateInfo], timeRes, similarRes] = await Promise.all([
+    const [releaseDateEntries, timeRes, similarRes] = await Promise.all([
       igdbReleaseDateQuery(`
-        fields date, human, y, m;
+        fields date, human, y, m, status.name, platform.name, release_region.region;
         where game = ${id};
         sort date asc;
-        limit 1;
+        limit 100;
       `),
       fetch("https://api.igdb.com/v4/game_time_to_beats", {
         method: "POST",
@@ -94,6 +104,10 @@ export async function POST(req: Request) {
     }
 
     const [timeToBeat] = await timeRes.json();
+    const releasePhases = resolveIgdbReleasePhases(
+      releaseDateEntries,
+      game.first_release_date,
+    );
 
     // 3) Map similar games
     let similarGames: any[] = [];
@@ -204,9 +218,14 @@ export async function POST(req: Request) {
         ) || [],
       platforms:
         game.platforms?.map((p: any) => ({ platform: { name: p.name } })) || [],
-      released: game.first_release_date,
+      released: releasePhases.releaseDate,
+      earlyAccessDate: releasePhases.earlyAccessDate,
+      earlyAccessDatePrecision: releasePhases.earlyAccessDatePrecision,
+      fullReleaseDate: releasePhases.fullReleaseDate,
+      fullReleaseDatePrecision: releasePhases.fullReleaseDatePrecision,
+      releaseDateKind: releasePhases.releaseDateKind,
       releaseDatePrecision: inferReleaseDatePrecision(
-        releaseDateInfo?.human ?? null,
+        releasePhases.releaseDateHuman,
       ),
       rating: game.aggregated_rating ? Math.round(game.aggregated_rating) : 0,
       total_rating: game.total_rating,
@@ -214,9 +233,35 @@ export async function POST(req: Request) {
       videos: game.videos,
       dlcs: game.dlcs,
       similar_games: similarGames,
-      franchises: game.franchises,
-      game_engines: game.game_engines,
-      game_status: game.game_status,
+      developers:
+        game.involved_companies
+          ?.filter((entry: any) => entry.developer && entry.company?.name)
+          .map((entry: any) => entry.company.name) || [],
+      publishers:
+        game.involved_companies
+          ?.filter((entry: any) => entry.publisher && entry.company?.name)
+          .map((entry: any) => entry.company.name) || [],
+      franchises:
+        game.franchises?.map((entry: any) => entry.name).filter(Boolean) || [],
+      game_engines:
+        game.game_engines?.map((entry: any) => entry.name).filter(Boolean) || [],
+      game_status: game.game_status?.status ?? null,
+      game_modes:
+        game.game_modes?.map((entry: any) => entry.name).filter(Boolean) || [],
+      themes:
+        game.themes?.map((entry: any) => entry.name).filter(Boolean) || [],
+      player_perspectives:
+        game.player_perspectives
+          ?.map((entry: any) => entry.name)
+          .filter(Boolean) || [],
+      age_ratings:
+        game.age_ratings
+          ?.map((entry: any) => {
+            const organization = entry.organization?.name;
+            const rating = entry.rating_category?.rating;
+            return organization && rating ? `${organization} ${rating}` : null;
+          })
+          .filter(Boolean) || [],
       websites: game.websites,
       genres:
         game.genres?.map(

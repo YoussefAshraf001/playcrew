@@ -8,6 +8,10 @@ import { FaClock, FaExclamation, FaStar } from "react-icons/fa";
 import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
 import { PiDotsNineLight } from "react-icons/pi";
 import PreReleaseBadge from "./PreReleaseBadge";
+import {
+  getAutomaticReleaseState,
+  isAutomaticallyInEarlyAccess,
+} from "@/app/lib/igdbReleasePhases";
 
 const formatRating = (rating: number) =>
   Number.isInteger(rating) ? String(rating) : rating.toFixed(1);
@@ -76,13 +80,28 @@ export default function GameCard({
 }: any) {
   const [isCardHovered, setIsCardHovered] = useState(false);
 
-  const releaseDate = parseReleaseDate(game?.igdb?.releaseDate);
+  const officialReleaseDate = parseReleaseDate(game?.igdb?.releaseDate);
+  const customReleaseDate = parseReleaseDate(
+    game?.customReleaseTime?.releasesAt,
+  );
+  const releaseDate = customReleaseDate ?? officialReleaseDate;
   const coverSrc = game?.igdb?.cover || "/placeholder-game.jpg";
 
-  const isReleased =
-    releaseDate instanceof Date &&
-    !isNaN(releaseDate.getTime()) &&
-    releaseDate.getTime() <= Date.now();
+  const hasStructuredReleasePhases = Boolean(
+    game?.igdb?.earlyAccessDate ||
+    game?.igdb?.fullReleaseDate ||
+    game?.igdb?.releaseDateKind === "early-access" ||
+    game?.igdb?.releaseDateKind === "full-release",
+  );
+  const isReleased = hasStructuredReleasePhases
+    ? getAutomaticReleaseState(
+        game?.igdb?.earlyAccessDate,
+        game?.igdb?.fullReleaseDate,
+        game?.igdb?.releaseDate,
+      ) === "released"
+    : releaseDate instanceof Date &&
+      !isNaN(releaseDate.getTime()) &&
+      releaseDate.getTime() <= Date.now();
 
   const showComingSoonOverlay =
     selectedStatus === "Want To Play" &&
@@ -93,10 +112,19 @@ export default function GameCard({
     game?.igdb?.releaseDate,
     game?.igdb?.releaseDatePrecision,
   );
+  const automaticEarlyAccess = isAutomaticallyInEarlyAccess(
+    game?.igdb?.earlyAccessDate,
+    game?.igdb?.fullReleaseDate,
+  );
+  const accessType =
+    game?.preReleaseAccess?.type ??
+    (automaticEarlyAccess ? "early-access" : null);
   const accessRibbon = (() => {
-    switch (game?.preReleaseAccess?.type) {
+    switch (accessType) {
       case "early-access":
-        return "EARLY ACCESS";
+        return automaticEarlyAccess && !game?.preReleaseAccess
+          ? "EARLY ACCESS"
+          : "EARLY ACCESS";
       case "advanced-access":
         return "ADVANCED ACCESS";
       case "leaked":
@@ -221,24 +249,23 @@ export default function GameCard({
         </div>
       ) : null}
       <div
-        className="
+        className={`
           relative
           bg-zinc-900/80
           rounded-xl
+          border
+          border-transparent
           overflow-hidden
           shadow-md
           transition-all
           duration-300
-        hover:border-cyan-300/45
-          hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.45),0_0_32px_rgba(var(--theme-accent-rgb),0.35),0_18px_36px_rgba(0,0,0,0.5)]
-        "
+          hover:border-[rgba(var(--theme-accent-rgb),0.6)]
+          hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.5),0_0_32px_rgba(var(--theme-accent-rgb),0.3),0_18px_36px_rgba(0,0,0,0.5)]
+        `}
       >
-        {accessRibbon && game.preReleaseAccess?.type && (
+        {accessRibbon && accessType && (
           <div className="pointer-events-none absolute left-2 top-2 z-50 max-w-[calc(100%-3.5rem)] -translate-y-2 opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
-            <PreReleaseBadge
-              type={game.preReleaseAccess.type}
-              label={accessRibbon}
-            />
+            <PreReleaseBadge type={accessType} label={accessRibbon} />
           </div>
         )}
         {reorderMode ? (

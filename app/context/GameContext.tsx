@@ -11,6 +11,7 @@ import { db } from "@/app/lib/firebase";
 import { useUser } from "./UserContext";
 import type { PlayedOnPlatform } from "@/app/types/trackedGame";
 import type { RefreshBlockField } from "@/app/types/trackedGame";
+import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
 
 type Game = {
   id: string;
@@ -20,6 +21,11 @@ type Game = {
     name?: string;
     cover?: string;
     releaseDate?: any;
+    earlyAccessDate?: unknown;
+    earlyAccessDatePrecision?: ReleaseDatePrecision | null;
+    fullReleaseDate?: unknown;
+    fullReleaseDatePrecision?: ReleaseDatePrecision | null;
+    releaseDateKind?: "early-access" | "full-release" | "unknown" | null;
   };
   status?: string;
   playtime?: number | null;
@@ -28,6 +34,12 @@ type Game = {
   refreshExcluded?: boolean;
   refreshBlockedFields?: Partial<Record<RefreshBlockField, boolean>>;
   protectCustomCoverFromRefresh?: boolean;
+  calendarPrimary?: boolean;
+  customReleaseTime?: {
+    releasesAt?: unknown;
+    timeZone?: string;
+    sourceTimeZone?: string;
+  } | null;
   review?: { text?: string | null } | null;
 };
 

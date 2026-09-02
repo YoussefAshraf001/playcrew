@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getIGDBToken, igdbReleaseDateQuery } from "@/app/lib/igdb";
 import { inferReleaseDatePrecision } from "@/app/lib/releaseDates";
+import { resolveIgdbReleasePhases } from "@/app/lib/igdbReleasePhases";
 
 export async function GET(req: Request) {
   try {
@@ -57,12 +58,16 @@ export async function GET(req: Request) {
       throw parseErr;
     }
 
-    const [releaseDateInfo] = await igdbReleaseDateQuery(`
-      fields date, human, y, m;
+    const releaseDateEntries = await igdbReleaseDateQuery(`
+      fields date, human, y, m, status.name, platform.name, release_region.region;
       where game = ${id};
       sort date asc;
-      limit 1;
+      limit 100;
     `);
+    const releasePhases = resolveIgdbReleasePhases(
+      releaseDateEntries,
+      game.first_release_date,
+    );
 
     return NextResponse.json({
       id: game.id,
@@ -73,9 +78,14 @@ export async function GET(req: Request) {
       genres: game.genres?.map((g: any) => g.name) ?? [],
       rating: game.rating ?? null,
       platforms: game.platforms?.map((p: any) => p.name) ?? [],
-      releaseDate: game.first_release_date ?? null,
+      releaseDate: releasePhases.releaseDate,
+      earlyAccessDate: releasePhases.earlyAccessDate,
+      earlyAccessDatePrecision: releasePhases.earlyAccessDatePrecision,
+      fullReleaseDate: releasePhases.fullReleaseDate,
+      fullReleaseDatePrecision: releasePhases.fullReleaseDatePrecision,
+      releaseDateKind: releasePhases.releaseDateKind,
       releaseDatePrecision: inferReleaseDatePrecision(
-        releaseDateInfo?.human ?? null,
+        releasePhases.releaseDateHuman,
       ),
     });
   } catch (err) {

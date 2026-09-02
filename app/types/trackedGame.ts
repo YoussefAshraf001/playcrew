@@ -1,4 +1,5 @@
 import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
+import type { IgdbReleaseDateKind } from "@/app/lib/igdbReleasePhases";
 
 export type StoredRating = number | "excluded" | null;
 export type RefreshBlockField =
@@ -58,6 +59,12 @@ export interface PreReleaseAccess {
   dateSource: "unlock" | "official";
 }
 
+export interface CustomReleaseTime {
+  releasesAt: Date;
+  timeZone: string;
+  sourceTimeZone?: string;
+}
+
 export interface TrackedGame {
   _docId: string;
 
@@ -85,6 +92,9 @@ export interface TrackedGame {
   recentActionSummary?: string;
   recentActionSource?: "user" | "refresh";
   preReleaseAccess?: PreReleaseAccess | null;
+  customReleaseTime?: CustomReleaseTime | null;
+  customReleaseNotificationFor?: number | null;
+  customReleaseNotificationDocumentFor?: number | null;
   refreshExcluded?: boolean;
   refreshBlockedFields?: Partial<Record<RefreshBlockField, boolean>>;
   protectCustomCoverFromRefresh?: boolean;
@@ -96,6 +106,11 @@ export interface TrackedGame {
     rating?: number;
     genres?: string[];
     releaseDate?: Date;
+    earlyAccessDate?: Date | null;
+    earlyAccessDatePrecision?: ReleaseDatePrecision | null;
+    fullReleaseDate?: Date | null;
+    fullReleaseDatePrecision?: ReleaseDatePrecision | null;
+    releaseDateKind?: IgdbReleaseDateKind | null;
     releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 }

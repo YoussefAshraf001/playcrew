@@ -1,5 +1,6 @@
 import { igdbReleaseDateQuery } from "@/app/lib/igdb";
 import { inferReleaseDatePrecision } from "@/app/lib/releaseDates";
+import { resolveIgdbReleasePhases } from "@/app/lib/igdbReleasePhases";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -11,22 +12,36 @@ export async function POST(req: Request) {
     }
 
     const data = await igdbReleaseDateQuery(`
-      fields date, human, y, m;
+      fields date, human, y, m, status.name, platform.name, release_region.region;
       where game = ${igdbId};
       sort date asc;
-      limit 1;
+      limit 100;
     `);
 
-    if (!Array.isArray(data) || !data[0]?.date) {
-      return NextResponse.json({ igdbDate: null, precision: null, human: null });
+    if (!Array.isArray(data)) {
+      return NextResponse.json({
+        igdbDate: null,
+        earlyAccessDate: null,
+        earlyAccessDatePrecision: null,
+        fullReleaseDate: null,
+        fullReleaseDatePrecision: null,
+        releaseDateKind: null,
+        precision: null,
+        human: null,
+      });
     }
 
-    const entry = data[0];
+    const phases = resolveIgdbReleasePhases(data);
 
     return NextResponse.json({
-      igdbDate: entry.date,
-      precision: inferReleaseDatePrecision(entry.human),
-      human: entry.human ?? null,
+      igdbDate: phases.releaseDate,
+      earlyAccessDate: phases.earlyAccessDate,
+      earlyAccessDatePrecision: phases.earlyAccessDatePrecision,
+      fullReleaseDate: phases.fullReleaseDate,
+      fullReleaseDatePrecision: phases.fullReleaseDatePrecision,
+      releaseDateKind: phases.releaseDateKind,
+      precision: inferReleaseDatePrecision(phases.releaseDateHuman),
+      human: phases.releaseDateHuman,
     });
   } catch (err: any) {
     console.error("IGDB ERROR:", err.message);

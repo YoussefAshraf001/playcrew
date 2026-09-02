@@ -17,18 +17,24 @@ const fieldVariants = {
 
 export default function AnimatedPasswordField({
   label,
+  name,
   value,
   show,
   toggle,
   onChange,
+  onFocus,
   disabled,
+  autoComplete = "new-password",
 }: {
   label: string;
+  name: string;
   value: string;
   show: boolean;
   toggle: () => void;
   onChange: (v: string) => void;
+  onFocus?: () => void;
   disabled: boolean;
+  autoComplete?: "off" | "current-password" | "new-password";
 }) {
   return (
     <motion.div
@@ -42,9 +48,15 @@ export default function AnimatedPasswordField({
 
       <div className="relative">
         <input
+          name={name}
           type={show ? "text" : "password"}
           value={value}
           disabled={disabled}
+          autoComplete={autoComplete}
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
+          onFocus={onFocus}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full rounded-xl px-3 py-2.5 pr-10 text-sm transition-colors duration-300 ${
             disabled

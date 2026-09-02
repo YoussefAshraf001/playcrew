@@ -46,6 +46,8 @@ export const inferReleaseDatePrecision = (
   const value = human.trim();
   if (/^\d{4}$/.test(value)) return "year";
   if (/^Q[1-4]\s+\d{4}$/i.test(value)) return "quarter";
+  if (/^\d{4}[-/.](?:0?[1-9]|1[0-2])$/.test(value)) return "month";
+  if (/^(?:0?[1-9]|1[0-2])[-/.]\d{4}$/.test(value)) return "month";
   if (/^[A-Za-z]+\s+\d{4}$/.test(value)) return "month";
   return "day";
 };
@@ -93,7 +95,7 @@ export const hasConfirmedReleaseDay = (
   return resolveReleasePrecision(date, precision) === "day";
 };
 
-const getQuarter = (date: Date) => Math.floor(date.getMonth() / 3) + 1;
+const getQuarter = (date: Date) => Math.floor(date.getUTCMonth() / 3) + 1;
 
 export const formatReleaseDate = (
   value: unknown,
@@ -106,17 +108,21 @@ export const formatReleaseDate = (
   const resolvedPrecision = resolveReleasePrecision(date, precision);
 
   if (resolvedPrecision === "year") {
-    return date.toLocaleDateString(locale, { year: "numeric" });
+    return date.toLocaleDateString(locale, {
+      year: "numeric",
+      timeZone: "UTC",
+    });
   }
 
   if (resolvedPrecision === "quarter") {
-    return `Q${getQuarter(date)} ${date.getFullYear()}`;
+    return `Q${getQuarter(date)} ${date.getUTCFullYear()}`;
   }
 
   if (resolvedPrecision === "month") {
     return date.toLocaleDateString(locale, {
       month: "short",
       year: "numeric",
+      timeZone: "UTC",
     });
   }
 

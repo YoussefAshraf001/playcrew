@@ -27,9 +27,9 @@ import {
 } from "react-icons/fa";
 import { BsNintendoSwitch } from "react-icons/bs";
 import { IoLogoGameControllerA, IoLogoGameControllerB } from "react-icons/io";
-import { GiMouthWatering } from "react-icons/gi";
 import {
   MdOutlineOnlinePrediction,
+  MdOutlineAddToQueue,
   MdRemoveCircleOutline,
 } from "react-icons/md";
 import { DiAndroid } from "react-icons/di";
@@ -50,6 +50,8 @@ import {
   FiCheckCircle,
   FiClock,
   FiEdit3,
+  FiExternalLink,
+  FiMessageSquare,
   FiSmile,
   FiThumbsUp,
 } from "react-icons/fi";
@@ -70,7 +72,9 @@ import { getAwardCategoryFromDocId, getAwardYears } from "@/app/lib/awards";
 import {
   formatReleaseDate,
   hasConfirmedReleaseDay,
+  parseReleaseDate,
 } from "@/app/lib/releaseDates";
+import { getAutomaticReleaseState } from "@/app/lib/igdbReleasePhases";
 import { db } from "@/app/lib/firebase";
 import {
   appendRecentGameActionSummary,
@@ -102,7 +106,7 @@ const statuses = [
   }, // Neutral / discovery â†’ purple
   {
     label: "Want To Play",
-    icon: <GiMouthWatering size={20} />,
+    icon: <MdOutlineAddToQueue size={20} />,
     color: "bg-teal-500",
   }, // Excited / wishlist â†’ teal
 ];
@@ -142,6 +146,218 @@ interface GameReview {
 }
 
 type ReviewReaction = "helpful" | "funny" | "100-percent" | "glazzing";
+
+const COUNTDOWN_UNITS = [
+  { key: "days", label: "Days" },
+  { key: "hours", label: "Hours" },
+  { key: "minutes", label: "Minutes" },
+  { key: "seconds", label: "Seconds" },
+] as const;
+
+function ReleaseCountdown({ date }: { date: Date }) {
+  const [remaining, setRemaining] = useState(() =>
+    Math.max(0, date.getTime() - Date.now()),
+  );
+
+  useEffect(() => {
+    const updateRemaining = () =>
+      setRemaining(Math.max(0, date.getTime() - Date.now()));
+
+    updateRemaining();
+    const timer = window.setInterval(updateRemaining, 1000);
+    return () => window.clearInterval(timer);
+  }, [date]);
+
+  const totalSeconds = Math.floor(remaining / 1000);
+  const values = {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative isolate overflow-hidden rounded-[28px] border border-white/12 bg-black/12 p-5 shadow-[0_20px_55px_rgba(0,0,0,0.24)]"
+    >
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_58%)]" />
+
+      <div className="mb-4 flex flex-col items-center justify-center gap-1.5 text-center">
+        <div className="flex items-center justify-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#22d3ee] opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#22d3ee] shadow-[0_0_14px_rgba(34,211,238,0.85)]" />
+          </span>
+          <span className="text-xs font-bold uppercase tracking-[0.26em] text-[#a5f3fc]">
+            Launch countdown
+          </span>
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.14em] text-white/40">
+          <FiClock aria-hidden="true" /> Live
+        </span>
+      </div>
+
+      <div
+        className="grid grid-cols-4 gap-1.5 sm:gap-2.5"
+        role="timer"
+        aria-label={`Time until release: ${values.days} days, ${values.hours} hours, ${values.minutes} minutes, and ${values.seconds} seconds`}
+      >
+        {COUNTDOWN_UNITS.map(({ key, label }) => (
+          <div
+            key={key}
+            className="rounded-2xl border border-white/12 bg-white/[0.035] px-1 py-2.5 text-center shadow-inner backdrop-blur-md sm:py-3"
+          >
+            <div className="font-mono text-xl font-black tabular-nums leading-none text-white drop-shadow-[0_0_12px_rgba(103,232,249,0.28)] sm:text-2xl lg:text-3xl">
+              {String(values[key]).padStart(2, "0")}
+            </div>
+            <div className="mt-1.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-white/45 sm:text-[9px]">
+              {label}
+            </div>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function RatingAnalysis({
+  score,
+  totalCount,
+}: {
+  score?: number | null;
+  totalCount?: number | null;
+}) {
+  const displayScore =
+    typeof score === "number" ? Math.max(0, Math.min(5, score / 20)) : 0;
+  const meterRows = [5, 4, 3, 2, 1].map((stars) => ({
+    stars,
+    fill: Math.max(0, 100 - Math.abs(displayScore - stars) * 100),
+  }));
+
+  return (
+    <section className="flex h-full flex-col rounded-[26px] border border-white/12 bg-black/20 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#67e8f9]">
+              Rating Analysis
+            </p>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-white/45">
+              IGDB
+            </span>
+          </div>
+          <h2 className="mt-1 text-xl font-bold">Player Rating</h2>
+        </div>
+        <div className="text-right">
+          <p className="text-3xl font-black text-amber-300">
+            {displayScore.toFixed(1)}
+          </p>
+          <p className="text-[10px] text-white/45">out of 5</p>
+        </div>
+      </div>
+
+      <div className="my-auto min-h-[132px] space-y-2 py-4">
+        {meterRows.map(({ stars, fill }) => (
+          <div
+            key={stars}
+            className="grid grid-cols-[28px_minmax(0,1fr)_42px] items-center gap-2"
+          >
+            <span
+              className={`text-xs font-bold transition-colors duration-300 ${
+                fill > 0 ? "text-amber-200" : "text-white/35"
+              }`}
+            >
+              {stars}★
+            </span>
+            <div className="h-2 overflow-hidden rounded-full bg-white/8">
+              <motion.div
+                animate={{ width: `${fill}%` }}
+                transition={{ duration: 0.45, ease: "easeInOut" }}
+                className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300"
+              />
+            </div>
+            <span className="text-right text-[10px] tabular-nums text-white/45">
+              {fill > 0 ? `${Math.round(fill)}%` : "—"}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="border-t border-white/8 pt-3 text-[11px] text-white/45">
+        {totalCount
+          ? `${totalCount} IGDB rating${totalCount === 1 ? "" : "s"}`
+          : "No IGDB ratings yet"}
+      </p>
+    </section>
+  );
+}
+const formatBeatTime = (seconds: unknown) => {
+  if (typeof seconds !== "number" || seconds <= 0) return "—";
+  const hours = seconds / 3600;
+  return `${hours >= 10 ? Math.round(hours) : hours.toFixed(1)}h`;
+};
+
+function TimeToBeat({ gameName, data }: { gameName: string; data?: any }) {
+  const estimates = [
+    { label: "Main Story", value: data?.hastily },
+    { label: "Main + Extras", value: data?.normally },
+    { label: "Completionist", value: data?.completely },
+  ];
+  const hasData = estimates.some(
+    ({ value }) => typeof value === "number" && value > 0,
+  );
+
+  return (
+    <section className="flex h-full flex-col rounded-[26px] border border-white/12 bg-black/20 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)]">
+      <div className="mb-5 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#67e8f9]">
+            Playtime estimates
+          </p>
+          <h2 className="mt-1 text-xl font-bold">How Long to Beat</h2>
+        </div>
+        <FiClock className="text-2xl text-white/35" aria-hidden="true" />
+      </div>
+
+      <div className="grid flex-1 grid-cols-3 items-center gap-2 py-4">
+        {estimates.map(({ label, value }) => (
+          <div
+            key={label}
+            className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-center"
+          >
+            <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full border border-[#22d3ee]/30 bg-[#22d3ee]/8 text-[#67e8f9]">
+              <FiClock />
+            </div>
+            <p className="text-xl font-black tabular-nums">
+              {formatBeatTime(value)}
+            </p>
+            <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">
+              {label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[11px] text-white/45">
+        <span>
+          {hasData
+            ? `${data?.count ?? 0} User submissions`
+            : "No estimates available yet"}
+        </span>
+        <a
+          href={`https://howlongtobeat.com/?q=${encodeURIComponent(gameName)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 font-semibold text-[#67e8f9] transition hover:text-[#a5f3fc]"
+        >
+          Check HLTB <FiExternalLink />
+        </a>
+      </div>
+    </section>
+  );
+}
 
 const formatCommunityDate = (value: any) => {
   const date = value?.toDate?.() ?? (value ? new Date(value) : null);
@@ -267,7 +483,7 @@ function CommunityReviewSticker({ sticker }: { sticker: string }) {
 
   if (!isLinkedSticker) {
     return (
-      <span className="inline-flex rounded-md border border-[rgba(var(--theme-accent-rgb),0.35)] p-2">
+      <span className="inline-flex rounded-md border border-white/15 bg-white/[0.035] p-2">
         <GameSticker stickerId={sticker} />
       </span>
     );
@@ -285,7 +501,7 @@ function CommunityReviewSticker({ sticker }: { sticker: string }) {
         decoding="async"
         onLoad={() => setInitialReady(true)}
         onError={() => setInitialReady(true)}
-        className={`h-auto max-h-full w-auto max-w-full rounded-2xl border border-[rgba(var(--theme-accent-rgb),0.35)] object-contain p-1 transition-opacity duration-300 ${
+        className={`h-auto max-h-full w-auto max-w-full rounded-2xl border border-white/15 bg-white/[0.035] object-contain p-1 transition-opacity duration-300 ${
           initialReady ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -314,6 +530,7 @@ export default function GamePage() {
   const { navbarLayout } = useUI();
 
   const [game, setGame] = useState<any>(null);
+  const [gameLoadError, setGameLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!game?.name) return;
@@ -337,6 +554,7 @@ export default function GamePage() {
   const [gameReviewsError, setGameReviewsError] = useState(false);
   const [gameReviewsRefreshKey, setGameReviewsRefreshKey] = useState(0);
   const [activeReviewIndex, setActiveReviewIndex] = useState(0);
+  const [releaseClock, setReleaseClock] = useState(0);
 
   useEffect(() => {
     setActiveReviewIndex((current) =>
@@ -400,16 +618,27 @@ export default function GamePage() {
   useEffect(() => {
     const fetchGame = async () => {
       setLoadingGame(true);
+      setGameLoadError(null);
       try {
         const res = await fetch(`/api/igdb/game`, {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id }),
-          cache: "force-cache",
+          cache: "no-store",
         });
         const data = await res.json();
+
+        if (!res.ok || !data?.id || typeof data.name !== "string") {
+          throw new Error(data?.error || "Game data could not be loaded");
+        }
+
         setGame(data);
       } catch (err) {
         console.error(err);
+        setGame(null);
+        setGameLoadError(
+          err instanceof Error ? err.message : "Game data could not be loaded",
+        );
       } finally {
         setLoadingGame(false);
       }
@@ -866,6 +1095,14 @@ export default function GamePage() {
 
     const releaseDate =
       typeof game.released === "number" ? new Date(game.released * 1000) : null;
+    const earlyAccessDate =
+      typeof game.earlyAccessDate === "number"
+        ? new Date(game.earlyAccessDate * 1000)
+        : null;
+    const fullReleaseDate =
+      typeof game.fullReleaseDate === "number"
+        ? new Date(game.fullReleaseDate * 1000)
+        : null;
 
     let coverUrl = "/placeholder-game.jpg";
 
@@ -911,6 +1148,11 @@ export default function GamePage() {
         genres,
         platforms,
         releaseDate,
+        earlyAccessDate,
+        earlyAccessDatePrecision: game.earlyAccessDatePrecision ?? null,
+        fullReleaseDate,
+        fullReleaseDatePrecision: game.fullReleaseDatePrecision ?? null,
+        releaseDateKind: game.releaseDateKind ?? null,
         releaseDatePrecision: game.releaseDatePrecision ?? null,
       },
 
@@ -1236,11 +1478,70 @@ export default function GamePage() {
       : `${absDays} day${absDays > 1 ? "s" : ""} ago`;
   };
 
-  const isReleased =
-    hasConfirmedReleaseDay(
+  const customReleaseDate = parseReleaseDate(
+    trackedGameData?.customReleaseTime?.releasesAt,
+  );
+  const hasStructuredReleasePhases = Boolean(
+    game?.earlyAccessDate || game?.fullReleaseDate,
+  );
+  const automaticReleaseState = getAutomaticReleaseState(
+    game?.earlyAccessDate
+      ? game.earlyAccessDate * 1000
+      : trackedGameData?.igdb?.earlyAccessDate,
+    game?.fullReleaseDate
+      ? game.fullReleaseDate * 1000
+      : trackedGameData?.igdb?.fullReleaseDate,
+    typeof game?.released === "number" ? game.released * 1000 : null,
+  );
+  const isReleased = customReleaseDate
+    ? customReleaseDate.getTime() <= Date.now()
+    : hasStructuredReleasePhases ||
+        trackedGameData?.igdb?.releaseDateKind === "early-access" ||
+        trackedGameData?.igdb?.releaseDateKind === "full-release"
+      ? automaticReleaseState === "released"
+      : hasConfirmedReleaseDay(
+          typeof game?.released === "number" ? game.released * 1000 : null,
+          game?.releaseDatePrecision,
+        ) && game.released * 1000 <= Date.now();
+
+  const countdownDate =
+    customReleaseDate ??
+    (hasConfirmedReleaseDay(
       typeof game?.released === "number" ? game.released * 1000 : null,
       game?.releaseDatePrecision,
-    ) && game.released * 1000 <= Date.now();
+    )
+      ? new Date(game.released * 1000)
+      : null);
+  const automaticAvailabilityDate =
+    parseReleaseDate(
+      game?.earlyAccessDate
+        ? game.earlyAccessDate * 1000
+        : trackedGameData?.igdb?.earlyAccessDate,
+    ) ??
+    parseReleaseDate(
+      typeof game?.released === "number" ? game.released * 1000 : null,
+    );
+  const unlockAt =
+    customReleaseDate?.getTime() ??
+    automaticAvailabilityDate?.getTime() ??
+    null;
+
+  useEffect(() => {
+    if (!unlockAt) return;
+
+    const remaining = unlockAt - Date.now();
+    if (remaining <= 0) return;
+
+    const timer = window.setTimeout(
+      () => setReleaseClock((current) => current + 1),
+      Math.min(remaining + 100, 2_147_483_647),
+    );
+    return () => window.clearTimeout(timer);
+  }, [releaseClock, unlockAt]);
+
+  const showReleaseCountdown = Boolean(
+    countdownDate && countdownDate.getTime() > Date.now(),
+  );
 
   const awardYear =
     typeof game?.released === "number"
@@ -1252,12 +1553,34 @@ export default function GamePage() {
   const platformCount = Array.isArray(game?.platforms)
     ? game.platforms.length
     : 0;
-  const showUnreleasedOverlay = !hasReleaseDate || !isReleased;
-
-  const slugFromName = game?.name
-    ?.toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+  const resolvedFactNames = (value: unknown) =>
+    Array.isArray(value)
+      ? value
+          .filter(
+            (entry): entry is string =>
+              typeof entry === "string" && entry.trim().length > 0,
+          )
+          .join(", ")
+      : typeof value === "string" && value.trim().length > 0
+        ? value
+        : "";
+  const gameFacts = [
+    { label: "Developer", value: resolvedFactNames(game?.developers) },
+    { label: "Publisher", value: resolvedFactNames(game?.publishers) },
+    { label: "Franchise", value: resolvedFactNames(game?.franchises) },
+    { label: "Engine", value: resolvedFactNames(game?.game_engines) },
+    { label: "Themes", value: resolvedFactNames(game?.themes) },
+    {
+      label: "Perspective",
+      value: resolvedFactNames(game?.player_perspectives),
+    },
+    { label: "Age rating", value: resolvedFactNames(game?.age_ratings) },
+    { label: "Status", value: resolvedFactNames(game?.game_status) },
+  ].filter((fact) => Boolean(fact.value));
+  const isAvailableToPlay = customReleaseDate
+    ? customReleaseDate.getTime() <= Date.now()
+    : isReleased || automaticReleaseState === "early-access";
+  const showUnreleasedOverlay = !isAvailableToPlay;
 
   const trackingModalGame = useMemo<TrackedGame | null>(() => {
     if (!game?.id) return null;
@@ -1295,6 +1618,8 @@ export default function GamePage() {
       playedSessions: trackedGameData?.playedSessions ?? [],
       playedOn: trackedGameData?.playedOn ?? [],
       notInterested: trackedGameData?.notInterested ?? false,
+      preReleaseAccess: trackedGameData?.preReleaseAccess ?? null,
+      customReleaseTime: trackedGameData?.customReleaseTime ?? null,
       igdb: {
         id: game.id,
         name: game.name,
@@ -1302,6 +1627,28 @@ export default function GamePage() {
         rating: game.rating || 0,
         genres: normalizeGenres(game.genres),
         releaseDate,
+        earlyAccessDate:
+          trackedGameData?.igdb?.earlyAccessDate ??
+          (typeof game.earlyAccessDate === "number"
+            ? new Date(game.earlyAccessDate * 1000)
+            : null),
+        earlyAccessDatePrecision:
+          trackedGameData?.igdb?.earlyAccessDatePrecision ??
+          game.earlyAccessDatePrecision ??
+          null,
+        fullReleaseDate:
+          trackedGameData?.igdb?.fullReleaseDate ??
+          (typeof game.fullReleaseDate === "number"
+            ? new Date(game.fullReleaseDate * 1000)
+            : null),
+        fullReleaseDatePrecision:
+          trackedGameData?.igdb?.fullReleaseDatePrecision ??
+          game.fullReleaseDatePrecision ??
+          null,
+        releaseDateKind:
+          trackedGameData?.igdb?.releaseDateKind ??
+          game.releaseDateKind ??
+          null,
         releaseDatePrecision: game.releaseDatePrecision ?? null,
       },
     };
@@ -1451,7 +1798,27 @@ export default function GamePage() {
 
   ///////////////////////////////////////// UI /////////////////////////////////////////////
 
-  if (!game || loadingGame) return <LoadingSpinner />;
+  if (loadingGame) return <LoadingSpinner />;
+
+  if (gameLoadError || !game) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-6 text-center">
+        <div className="rounded-3xl border border-white/10 bg-black/25 px-8 py-10 backdrop-blur-xl">
+          <p className="text-lg font-semibold text-white">Unable to load game</p>
+          <p className="mt-2 text-sm text-white/55">
+            {gameLoadError || "This game could not be found."}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/15"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const reactToReview = async (reviewId: string, reaction: ReviewReaction) => {
     if (!user) {
@@ -1537,6 +1904,7 @@ export default function GamePage() {
               loadedBackground === posterImage ? "opacity-100" : "opacity-0"
             }`}
           />
+          <div className="absolute inset-0 bg-black/5" />
         </div>
 
         {/* MAIN CONTENT */}
@@ -1548,7 +1916,7 @@ export default function GamePage() {
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
           <div className="flex min-w-0 flex-col gap-5">
-            <section className="overflow-hidden rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_28px_90px_rgba(0,0,0,0.38)] sm:p-5 xl:p-6">
+            <section className="overflow-hidden rounded-4xl border border-white/12 bg-black/[0.08] p-4 shadow-[0_28px_90px_rgba(0,0,0,0.32)] backdrop-blur-md sm:p-5 xl:p-6">
               <div className="grid gap-5 xl:grid-cols-[248px_minmax(0,1fr)] 2xl:grid-cols-[272px_minmax(0,1fr)]">
                 <aside className="flex flex-col items-center gap-4 xl:sticky xl:top-24 xl:self-start">
                   {/* Poster */}
@@ -1562,51 +1930,37 @@ export default function GamePage() {
                     />
                   </div>
 
-                  {/* IGDB link */}
-                  <div>
-                    <a
-                      href={`https://www.igdb.com/games/${slugFromName}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-white/65 transition-all duration-300 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-200"
-                    >
-                      <span>IGDB</span>
-                      <span className="font-mono text-white/75">
-                        #{game.id}
-                      </span>
-                    </a>
-                  </div>
-
                   {/* Compact stat grid */}
-                  <div className="grid grid-cols-2 gap-3 w-full max-w-[260px]">
-                    {/* Rating */}
+                  <div className="grid w-full max-w-[280px] grid-cols-1 gap-3">
+                    {/* Personal rating */}
                     <div className="flex flex-col justify-evenly rounded-2xl border border-white/12 bg-white/2 p-3 text-center">
                       <h3 className="text-[10px] uppercase tracking-[0.22em] text-white/55">
-                        Rating
+                        My Rating
                       </h3>
 
                       <div className="flex items-center justify-center gap-1 text-[12px] font-semibold text-white">
                         <FaStar
                           size={12}
                           className={
-                            game.total_rating
+                            typeof trackedGameData?.my_rating === "number" &&
+                            trackedGameData.my_rating > 0
                               ? "text-amber-300"
                               : "text-white/35"
                           }
                         />
                         <span>
-                          {game.total_rating
-                            ? `${Math.round(game.total_rating)} / 100`
-                            : isReleased
-                              ? "Not rated"
-                              : "Unreleased"}
+                          {typeof trackedGameData?.my_rating === "number" &&
+                          trackedGameData.my_rating > 0
+                            ? `${Number(trackedGameData.my_rating.toFixed(2))} / 10`
+                            : "Not rated"}
                         </span>
                       </div>
 
                       <p className="text-[10px] text-white/55">
-                        {game.total_rating_count
-                          ? `${game.total_rating_count} reviews`
-                          : "No reviews"}
+                        {typeof trackedGameData?.my_rating === "number" &&
+                        trackedGameData.my_rating > 0
+                          ? "Your personal score"
+                          : "Set in Manage Game"}
                       </p>
                     </div>
 
@@ -1626,6 +1980,34 @@ export default function GamePage() {
                       </div>
                     </div>
                   </div>
+
+                  {gameFacts.length > 0 && (
+                    <div className="w-full max-w-[280px] overflow-hidden rounded-2xl border border-white/12 bg-black/12 p-3.5 shadow-[0_16px_36px_rgba(0,0,0,0.18)]">
+                      <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-white/8 pb-2.5">
+                        <h3 className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65">
+                          Game Facts
+                        </h3>
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#22d3ee] shadow-[0_0_9px_rgba(34,211,238,0.7)]" />
+                      </div>
+
+                      <dl className="space-y-2.5">
+                        {gameFacts.map((fact) => (
+                          <div
+                            key={fact.label}
+                            className="grid grid-cols-[76px_minmax(0,1fr)] gap-2 text-[10px] leading-4"
+                          >
+                            <dt className="text-white/35">{fact.label}</dt>
+                            <dd
+                              className="min-w-0 text-right font-semibold text-white/75"
+                              title={fact.value}
+                            >
+                              {fact.value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
                 </aside>
 
                 <div className="min-w-0 space-y-4 sm:space-y-5">
@@ -1753,28 +2135,38 @@ export default function GamePage() {
 
                       <motion.div
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.35 }}
-                        className="rounded-[22px] bg-[linear-gradient(180deg,rgba(251,191,36,0.21),rgba(0,0,0,0.20))] p-3"
+                        animate={{
+                          opacity: loadingWinnerAwards ? 0.4 : 1,
+                        }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className="relative h-[112px] overflow-hidden rounded-[22px] border border-amber-200/15 bg-black/12 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
                       >
+                        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(251,191,36,0.14),transparent_42%)]" />
                         {/* HEADER */}
-                        <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-100/78">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{
-                              backgroundColor: "#fbbf24",
-                              boxShadow: "0 0 12px rgba(252, 211, 77, 0.8)",
-                            }}
-                          />
-                          The PlayCrew Awards
-                          <div className="flex items-center text-[10px] font-semibold tracking-[0.24em] text-amber-100/78">
-                            {isReleased && (
-                              <span className="ml-1 gap-1 inline-flex items-center justify-center rounded-full bg-amber-300/20 px-3 py-[0.5px] text-[10px] font-bold text-amber-100">
-                                {winnerAwards.length}
-                                <span>Won</span>
-                              </span>
-                            )}
+                        <div className="relative mb-3 flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-amber-200/20 bg-amber-300/10 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.1)]">
+                              <FaTrophy size={12} />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-[11px] font-bold uppercase tracking-[0.18em] text-white/85">
+                                PlayCrew Awards
+                              </p>
+                              <p className="text-[8px] uppercase tracking-[0.15em] text-white/35">
+                                Recognition archive
+                              </p>
+                            </div>
                           </div>
+
+                          {!loadingWinnerAwards && (
+                            <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-white/55">
+                              {isReleased
+                                ? `${winnerAwards.length} ${winnerAwards.length === 1 ? "win" : "wins"}`
+                                : hasReleaseDate
+                                  ? `Next awards · Dec 10, ${awardYear}`
+                                  : "Date TBA"}
+                            </span>
+                          )}
                         </div>
 
                         {/* LOADING */}
@@ -1782,7 +2174,7 @@ export default function GamePage() {
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="flex justify-center gap-2"
+                            className="flex h-8 items-center justify-center gap-2"
                           >
                             <span className="loading loading-infinity loading-sm" />
                           </motion.div>
@@ -1793,13 +2185,46 @@ export default function GamePage() {
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
-                            className="text-[12px] text-white/70 text-center"
+                            className="flex h-10 items-center justify-center text-center text-[12px] leading-4 text-white/70"
                           >
-                            {hasReleaseDate ? (
+                            {winnerAwards.length > 0 && hasReleaseDate ? (
+                              <div className="flex w-full min-w-0 items-center">
+                                <div className="flex min-w-0 items-center gap-2 overflow-hidden text-left">
+                                  <span className="shrink-0 text-[8px] font-bold uppercase tracking-[0.16em] text-amber-200/60">
+                                    Previous win
+                                  </span>
+                                  <div className="flex min-w-0 gap-1.5 overflow-hidden">
+                                    {winnerAwards.map((award) => (
+                                      <span
+                                        key={`${award.year}-${award.category}-history`}
+                                        className="truncate rounded-full border border-amber-200/15 bg-amber-300/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/75"
+                                      >
+                                        <strong className="text-amber-200">
+                                          {award.year}
+                                        </strong>{" "}
+                                        {award.category}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="hidden">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_9px_rgba(103,232,249,0.8)]" />
+                                  <div>
+                                    <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-cyan-200/65">
+                                      Next ceremony
+                                    </p>
+                                    <p className="text-[11px] font-bold text-white/85">
+                                      {awardYear} · Dec 10
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : hasReleaseDate ? (
                               <>
                                 {awardYear} PlayCrew Game Awards will be
-                                announced on{" "}
-                                <span className="font-semibold text-amber-200">
+                                announced on
+                                <span className="font-semibold text-amber-200 pl-1">
                                   December 10th, {awardYear}
                                 </span>
                                 .
@@ -1817,71 +2242,73 @@ export default function GamePage() {
                             <motion.div
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
-                              className="text-[12px] text-white/60 text-center"
+                              className="flex h-8 items-center justify-center text-center text-[12px] text-white/60"
                             >
                               No PlayCrew awards won
                             </motion.div>
                           )}
 
                         {/* AWARDS */}
-                        {!loadingWinnerAwards && winnerAwards.length > 0 && (
-                          <>
-                            <div
-                              ref={genreContainerRef}
-                              className="relative w-full max-w-full overflow-hidden"
-                            >
-                              <motion.div
-                                className="flex w-max items-center gap-2 whitespace-nowrap"
-                                animate={
-                                  genreShouldScroll && genreScrollDistance > 0
-                                    ? { x: [0, -genreScrollDistance] }
-                                    : { x: 0 }
-                                }
-                                transition={
-                                  genreShouldScroll && genreScrollDistance > 0
-                                    ? {
-                                        duration: Math.max(
-                                          14,
-                                          genreScrollDistance / 34,
-                                        ),
-                                        repeat: Infinity,
-                                        ease: "linear",
-                                      }
-                                    : { duration: 0 }
-                                }
+                        {!loadingWinnerAwards &&
+                          isReleased &&
+                          winnerAwards.length > 0 && (
+                            <>
+                              <div
+                                ref={genreContainerRef}
+                                className="relative flex h-8 w-full max-w-full items-center overflow-hidden"
                               >
-                                {/* ORIGINAL */}
-                                <div
-                                  ref={genreTrackRef}
-                                  className="flex shrink-0 items-center gap-2 whitespace-nowrap"
+                                <motion.div
+                                  className="flex w-max items-center gap-2 whitespace-nowrap"
+                                  animate={
+                                    genreShouldScroll && genreScrollDistance > 0
+                                      ? { x: [0, -genreScrollDistance] }
+                                      : { x: 0 }
+                                  }
+                                  transition={
+                                    genreShouldScroll && genreScrollDistance > 0
+                                      ? {
+                                          duration: Math.max(
+                                            14,
+                                            genreScrollDistance / 34,
+                                          ),
+                                          repeat: Infinity,
+                                          ease: "linear",
+                                        }
+                                      : { duration: 0 }
+                                  }
                                 >
-                                  {winnerAwards.map((award) => (
-                                    <span
-                                      key={`${award.year}-${award.category}`}
-                                      className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
-                                    >
-                                      {award.year} {award.category}
-                                    </span>
-                                  ))}
-                                </div>
-
-                                {/* DUPLICATE FOR LOOP */}
-                                {genreShouldScroll && (
-                                  <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-                                    {otherWinnerAwards.map((award) => (
+                                  {/* ORIGINAL */}
+                                  <div
+                                    ref={genreTrackRef}
+                                    className="flex shrink-0 items-center gap-2 whitespace-nowrap"
+                                  >
+                                    {winnerAwards.map((award) => (
                                       <span
-                                        key={`${award.year}-${award.category}-loop`}
+                                        key={`${award.year}-${award.category}`}
                                         className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
                                       >
                                         {award.year} {award.category}
                                       </span>
                                     ))}
                                   </div>
-                                )}
-                              </motion.div>
-                            </div>
-                          </>
-                        )}
+
+                                  {/* DUPLICATE FOR LOOP */}
+                                  {genreShouldScroll && (
+                                    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                                      {otherWinnerAwards.map((award) => (
+                                        <span
+                                          key={`${award.year}-${award.category}-loop`}
+                                          className="rounded-full border border-white/12 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/84"
+                                        >
+                                          {award.year} {award.category}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </motion.div>
+                              </div>
+                            </>
+                          )}
                       </motion.div>
                     </div>
                   </div>
@@ -1893,36 +2320,44 @@ export default function GamePage() {
                       className={`grid gap-4 ${
                         hasAwards
                           ? "xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)]"
-                          : "grid-cols-1 lg:h-60"
+                          : showReleaseCountdown
+                            ? "grid-cols-1"
+                            : "grid-cols-1 lg:h-60"
                       }`}
                     >
-                      {/* STORY */}
-                      <motion.div
-                        layout
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                        className="rounded-[28px] border border-white/12 bg-black/12 p-5"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                          <h2 className="text-2xl font-bold text-white">
-                            Story
-                          </h2>
+                      <div className="flex min-w-0 flex-col gap-4">
+                        {/* STORY */}
+                        <motion.div
+                          layout
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                          className="flex-1 rounded-[28px] border border-white/12 bg-black/12 p-5"
+                        >
+                          <div className="mb-4 flex items-center justify-between gap-3">
+                            <h2 className="text-2xl font-bold text-white">
+                              Story
+                            </h2>
 
-                          {description?.length > storyLimit && (
-                            <button
-                              className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline"
-                              onClick={() => setAboutOpen(true)}
-                            >
-                              Read more
-                            </button>
-                          )}
-                        </div>
+                            {description?.length > storyLimit && (
+                              <button
+                                className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline"
+                                onClick={() => setAboutOpen(true)}
+                              >
+                                Read more
+                              </button>
+                            )}
+                          </div>
 
-                        <p className="text-[13px] leading-7 text-white/78">
-                          {description
-                            ? truncate(description, storyLimit)
-                            : "No description found."}
-                        </p>
-                      </motion.div>
+                          <p className="text-[13px] leading-7 text-white/78">
+                            {description
+                              ? truncate(description, storyLimit)
+                              : "No description found."}
+                          </p>
+                        </motion.div>
+
+                        {showReleaseCountdown && countdownDate && (
+                          <ReleaseCountdown date={countdownDate} />
+                        )}
+                      </div>
 
                       {/* AWARDS */}
                       <AnimatePresence>
@@ -1976,6 +2411,14 @@ export default function GamePage() {
                       </AnimatePresence>
                     </motion.div>
                   </AnimatePresence>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <RatingAnalysis
+                      score={game.total_rating}
+                      totalCount={game.total_rating_count}
+                    />
+                    <TimeToBeat gameName={game.name} data={game.time_to_beat} />
+                  </div>
                 </div>
               </div>
             </section>
@@ -1987,7 +2430,7 @@ export default function GamePage() {
                   whileTap={{ scale: 0.96 }}
                   className={`rounded-full border px-4 py-2 ${
                     tab === "screenshots"
-                      ? "border-cyan-300/50 bg-cyan-400 text-black"
+                      ? "border-[#67e8f9]/50 bg-[#22d3ee] text-black shadow-[0_0_18px_rgba(34,211,238,0.18)]"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
                   onClick={() => setTab("screenshots")}
@@ -1999,7 +2442,7 @@ export default function GamePage() {
                   whileTap={{ scale: 0.96 }}
                   className={`rounded-full border px-4 py-2 ${
                     tab === "trailers"
-                      ? "border-cyan-300/50 bg-cyan-400 text-black"
+                      ? "border-[#67e8f9]/50 bg-[#22d3ee] text-black shadow-[0_0_18px_rgba(34,211,238,0.18)]"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
                   onClick={() => setTab("trailers")}
@@ -2011,7 +2454,7 @@ export default function GamePage() {
                   whileTap={{ scale: 0.96 }}
                   className={`rounded-full border px-4 py-2 ${
                     tab === "similar"
-                      ? "border-cyan-300/50 bg-cyan-400 text-black"
+                      ? "border-[#67e8f9]/50 bg-[#22d3ee] text-black shadow-[0_0_18px_rgba(34,211,238,0.18)]"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
                   onClick={() => setTab("similar")}
@@ -2314,23 +2757,25 @@ export default function GamePage() {
           </aside>
         </motion.main>
 
-        <section className="relative z-10 mx-auto mt-5 w-full px-3 pb-6 sm:px-4 lg:px-6">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)] lg:items-start">
-            <div className="rounded-4xl border border-white/12 bg-black/12 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] sm:p-5 xl:p-6">
-              <div className="mb-5 flex items-end justify-between gap-4">
+        <section className="relative z-10 mx-auto mt-5 w-full max-w-[1780px] px-3 pb-8 sm:px-4 lg:px-6">
+          <div className="relative overflow-hidden rounded-[34px] border border-white/12 bg-black/10 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.24)] backdrop-blur-sm sm:p-4">
+            <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-cyan-400/[0.06] blur-3xl" />
+            <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-stretch">
+            <div className="rounded-[26px] border border-white/10 bg-black/15 p-4 sm:p-5 xl:p-6">
+              <div className="mb-5 flex items-center justify-between gap-4 border-b border-white/8 pb-4">
                 <div>
-                  <p className="theme-accent-text text-[11px] font-semibold uppercase tracking-[0.3em]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#67e8f9]">
                     Community
                   </p>
                   <h2 className="mt-1 text-2xl font-bold text-white">
                     User Reviews
                   </h2>
-                  <p className="mt-1 text-sm text-white/50">
-                    {gameReviews.length}{" "}
-                    {gameReviews.length === 1 ? "review" : "reviews"}
-                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="hidden rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-100/65 sm:inline-flex">
+                    {gameReviews.length} {gameReviews.length === 1 ? "review" : "reviews"}
+                  </span>
+                  <div className="flex items-center gap-2">
                   <button
                     type="button"
                     aria-label="Previous review"
@@ -2342,11 +2787,11 @@ export default function GamePage() {
                         Math.max(0, current - 1),
                       )
                     }
-                    className="theme-surface theme-text grid h-9 w-9 place-items-center rounded-full border transition hover:border-[rgba(var(--theme-accent-rgb),0.55)] hover:text-[var(--theme-accent)] disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
+                    className="grid h-9 w-9 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
                   >
                     <FaChevronLeft />
                   </button>
-                  <span className="theme-text-muted min-w-12 text-center text-xs tabular-nums">
+                  <span className="min-w-12 text-center text-xs tabular-nums text-white/55">
                     {gameReviews.length
                       ? `${activeReviewIndex + 1} / ${gameReviews.length}`
                       : "0 / 0"}
@@ -2363,10 +2808,11 @@ export default function GamePage() {
                         Math.min(gameReviews.length - 1, current + 1),
                       )
                     }
-                    className="theme-surface theme-text grid h-9 w-9 place-items-center rounded-full border transition hover:border-[rgba(var(--theme-accent-rgb),0.55)] hover:text-[var(--theme-accent)] disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
+                    className="grid h-9 w-9 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
                   >
                     <FaChevronRight />
                   </button>
+                  </div>
                 </div>
               </div>
 
@@ -2432,9 +2878,9 @@ export default function GamePage() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.35, ease: "easeOut" }}
-                        className="group relative h-[570px] overflow-hidden rounded-[26px] border border-white/12 bg-black/25 p-4 shadow-[0_16px_55px_rgba(0,0,0,0.22)] transition-[border-color] hover:border-[rgba(var(--theme-accent-rgb),0.45)] sm:h-[540px] sm:p-5 md:h-[410px]"
+                        className="group relative h-[570px] overflow-hidden rounded-[26px] border border-white/12 bg-black/25 p-4 shadow-[0_16px_55px_rgba(0,0,0,0.22)] transition-[border-color] hover:border-white/30 sm:h-[540px] sm:p-5 md:h-[410px]"
                       >
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.12),transparent_36%)] opacity-70" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.07),transparent_36%)] opacity-70" />
                         <div className="relative flex h-full flex-col">
                           <header className="flex flex-col gap-4 border-b border-white/10 pb-4 xl:flex-row xl:items-center xl:justify-between">
                             <div className="flex flex-wrap items-center gap-3 sm:gap-5">
@@ -2442,7 +2888,7 @@ export default function GamePage() {
                                 href={`/users/${review.username}`}
                                 className="flex min-w-0 items-center gap-3.5"
                               >
-                                <div className="h-13 w-13 shrink-0 overflow-hidden rounded-full border-2 border-[rgba(var(--theme-accent-rgb),0.7)] bg-black/30 p-0.5">
+                                <div className="h-13 w-13 shrink-0 overflow-hidden rounded-full border-2 border-white/25 bg-black/30 p-0.5">
                                   {review.avatar ? (
                                     <img
                                       src={review.avatar}
@@ -2452,16 +2898,16 @@ export default function GamePage() {
                                       className="h-full w-full rounded-full object-cover"
                                     />
                                   ) : (
-                                    <div className="theme-accent-soft-bg theme-accent-text flex h-full w-full items-center justify-center rounded-full text-xl font-black">
+                                    <div className="flex h-full w-full items-center justify-center rounded-full border border-white/12 bg-white/10 text-xl font-black text-white">
                                       {review.username.charAt(0).toUpperCase()}
                                     </div>
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="theme-text truncate text-lg font-black hover:underline">
+                                  <p className="truncate text-lg font-black text-white hover:underline">
                                     @{review.username}
                                   </p>
-                                  <p className="theme-text-muted mt-1 text-xs">
+                                  <p className="mt-1 text-xs text-white/55">
                                     Member since{" "}
                                     {formatCommunityDate(review.memberSince)}
                                   </p>
@@ -2473,20 +2919,20 @@ export default function GamePage() {
                               <div
                                 className="relative flex h-16 w-16 items-center justify-center rounded-full"
                                 style={{
-                                  background: `conic-gradient(rgb(var(--theme-accent-rgb)) ${Math.max(0, Math.min(10, review.rating ?? 0)) * 10}%, rgba(255,255,255,0.08) 0)`,
+                                  background: `conic-gradient(rgb(34, 211, 238) ${Math.max(0, Math.min(10, review.rating ?? 0)) * 10}%, rgba(255,255,255,0.08) 0)`,
                                 }}
                               >
-                                <div className="flex gap-0.5 h-13 w-13 items-center justify-center rounded-full bg-[rgb(var(--theme-bg-rgb))]">
-                                  <span className="theme-text text-xl font-black">
+                                <div className="flex gap-0.5 h-13 w-13 items-center justify-center rounded-full bg-black/90">
+                                  <span className="text-xl font-black text-white">
                                     {review.rating ?? "—"}
                                   </span>
                                 </div>
                               </div>
-                              <div className="theme-accent-soft-bg flex min-w-24 flex-col justify-center rounded-xl border px-3 py-2 text-center">
-                                <p className="theme-text-muted flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em]">
+                              <div className="flex min-w-24 flex-col justify-center rounded-xl border border-white/12 bg-white/[0.055] px-3 py-2 text-center">
+                                <p className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
                                   <FiClock /> Playtime
                                 </p>
-                                <p className="theme-text mt-1 text-base font-black">
+                                <p className="mt-1 text-base font-black text-white">
                                   {review.playtime > 0
                                     ? `${Number.isInteger(review.playtime) ? review.playtime : review.playtime.toFixed(1)}h`
                                     : "Not set"}
@@ -2498,7 +2944,7 @@ export default function GamePage() {
                           <div
                             className={`grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] ${review.sticker ? "md:grid-cols-[minmax(0,1fr)_160px]" : ""}`}
                           >
-                            <p className="theme-text overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 sm:text-base">
+                            <p className="overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 text-white sm:text-base">
                               {review.text}
                             </p>
                             {review.sticker && (
@@ -2510,7 +2956,7 @@ export default function GamePage() {
                             )}
                           </div>
 
-                          <footer className="theme-text-muted flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-white/10 pt-3 text-xs">
+                          <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-white/10 pt-3 text-xs text-white/55">
                             <span className="inline-flex items-center gap-1.5">
                               <FiCalendar /> Posted{" "}
                               {formatCommunityDate(review.createdAt)}
@@ -2522,7 +2968,7 @@ export default function GamePage() {
                             </span>
                             |
                             {review.status && (
-                              <span className="theme-accent-text inline-flex items-center gap-1.5 font-semibold">
+                              <span className="inline-flex items-center gap-1.5 font-semibold text-[#67e8f9]">
                                 {review.status === "Completed" ? (
                                   <div className="flex items-center gap-1.5">
                                     <FaTrophy />
@@ -2538,7 +2984,7 @@ export default function GamePage() {
                               <span
                                 className="h-4 w-4 rounded-full border border-white/20"
                                 style={{
-                                  background: `conic-gradient(rgb(var(--theme-accent-rgb)) ${Math.max(0, Math.min(100, review.progress))}%, rgba(255,255,255,0.08) 0)`,
+                                  background: `conic-gradient(rgb(34, 211, 238) ${Math.max(0, Math.min(100, review.progress))}%, rgba(255,255,255,0.08) 0)`,
                                 }}
                                 aria-hidden="true"
                               />
@@ -2552,7 +2998,7 @@ export default function GamePage() {
                                   <PlayedOnPlatformIcon
                                     key={platform}
                                     value={platform}
-                                    className="theme-accent-text"
+                                    className="text-[#67e8f9]"
                                   />
                                 ),
                               )}
@@ -2595,8 +3041,8 @@ export default function GamePage() {
                                   }
                                   className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                                     active
-                                      ? "theme-accent-soft-bg theme-accent-text border-[rgba(var(--theme-accent-rgb),0.5)]"
-                                      : "theme-surface theme-hover-surface theme-text-muted"
+                                      ? "border-[#22d3ee]/45 bg-[#22d3ee]/10 text-[#a5f3fc]"
+                                      : "border-white/12 bg-white/[0.035] text-white/55 hover:bg-white/10 hover:text-white"
                                   }`}
                                   aria-pressed={active}
                                 >
@@ -2613,45 +3059,54 @@ export default function GamePage() {
                     ))}
                 </div>
               ) : (
-                <p className="rounded-2xl border border-dashed border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-white/50">
-                  No user reviews yet. Be the first to review this game.
-                </p>
+                <div className="relative flex min-h-52 flex-col items-center justify-center overflow-hidden rounded-[22px] border border-dashed border-white/12 bg-white/[0.025] px-6 py-10 text-center">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.07),transparent_52%)]" />
+                  <div className="relative grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.07] text-2xl text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.08)]">
+                    <FiMessageSquare />
+                  </div>
+                  <p className="relative mt-4 text-base font-bold text-white/85">
+                    Start the conversation
+                  </p>
+                  <p className="relative mt-1 max-w-md text-sm leading-6 text-white/45">
+                    No community reviews yet. Share what you thought about the game and be the first one here.
+                  </p>
+                </div>
               )}
             </div>
-            <aside className="relative overflow-hidden rounded-4xl border border-white/12 bg-black/20 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.26)] backdrop-blur-sm sm:p-5 lg:sticky lg:top-24">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.14),transparent_48%)]" />
+            <aside className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/20 p-4 sm:p-5">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.09),transparent_48%)]" />
               <div className="relative">
-                <header className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <header className="border-b border-white/10 pb-4">
                   <div>
-                    <p className="theme-accent-text text-[14px] font-bold uppercase tracking-[0.2em]">
+                    <p className="text-[14px] font-bold uppercase tracking-[0.2em] text-[#67e8f9]">
                       My Review
                     </p>
-                    <p className="theme-text mt-1 text-xs font-normal">
+                    <p className="mt-1 text-xs font-normal text-white">
                       for {game.name}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2">
-                    <div className="theme-accent-soft-bg flex min-w-20 flex-col items-center justify-center rounded-xl border px-3 py-2 text-center">
-                      <p className="theme-text-muted text-[9px] font-semibold uppercase tracking-[0.12em]">
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-white/12 bg-white/[0.055] px-3 py-3 text-center">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
                         Playtime
                       </p>
-                      <p className="theme-accent-text text-lg font-black">
+                      <p className="text-lg font-black text-[#67e8f9]">
                         {trackedGameData?.playtime
                           ? `${Number.isInteger(trackedGameData.playtime) ? trackedGameData.playtime : trackedGameData.playtime.toFixed(1)}h`
                           : "0h"}
                       </p>
                     </div>
-                    <div className="theme-surface flex min-w-24 flex-col items-center justify-center rounded-xl border px-3 py-2 text-center">
-                      <p className="theme-text-muted text-[9px] font-semibold uppercase tracking-[0.12em]">
+                    <div className="flex flex-col items-center justify-center rounded-xl border border-white/12 bg-white/[0.035] px-3 py-3 text-center">
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
                         Played On
                       </p>
-                      <p className="theme-text mt-1 flex items-center gap-1.5 text-xs font-bold">
+                      <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-white">
                         {normalizePlayedOn(trackedGameData?.playedOn).map(
                           (platform) => (
                             <PlayedOnPlatformIcon
                               key={platform}
                               value={platform}
-                              className="theme-accent-text"
+                              className="text-[#67e8f9]"
                             />
                           ),
                         )}
@@ -2662,7 +3117,7 @@ export default function GamePage() {
                 </header>
 
                 <p
-                  className={`theme-text-muted py-4 whitespace-pre-wrap text-sm leading-6 ${trackedGameData?.review?.text?.trim() ? "" : "italic"}`}
+                  className={`py-4 whitespace-pre-wrap text-sm leading-6 text-white/55 ${trackedGameData?.review?.text?.trim() ? "" : "italic"}`}
                 >
                   {trackedGameData?.review?.text?.trim() ||
                     "You haven’t written a review for this game yet."}
@@ -2687,14 +3142,15 @@ export default function GamePage() {
                   type="button"
                   onClick={() => setTrackingModalOpen(true)}
                   disabled={!trackingModalGame}
-                  className="theme-accent-bg mt-4 w-full rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
+                  className="mt-4 w-full rounded-xl border border-[#67e8f9]/45 bg-[#22d3ee] px-4 py-2.5 text-sm font-bold text-black shadow-[0_0_18px_rgba(34,211,238,0.14)] transition hover:bg-[#67e8f9] disabled:opacity-40"
                 >
                   {trackedGameData?.review?.text?.trim()
                     ? "Edit my review"
-                    : `Review ${game.name}`}
+                    : `Write a review for ${game.name}`}
                 </button>
               </div>
             </aside>
+            </div>
           </div>
         </section>
 

@@ -96,6 +96,8 @@ export default function EditProfilePage() {
   /* Auth States */
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [currentPasswordTouched, setCurrentPasswordTouched] = useState(false);
+  const [newPasswordTouched, setNewPasswordTouched] = useState(false);
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [changingUsername, setChangingUsername] = useState(false);
@@ -248,6 +250,8 @@ export default function EditProfilePage() {
       setPasswordResetRequested(true);
       setCurrentPassword("");
       setNewPassword("");
+      setCurrentPasswordTouched(false);
+      setNewPasswordTouched(false);
     } catch {
       toast.error("Failed to send reset email");
     }
@@ -257,12 +261,6 @@ export default function EditProfilePage() {
 
   const onSelectImage = (file: File, type: "avatar" | "wallpaper") => {
     const isGif = file.type === "image/gif";
-
-    // 🔥 always clear previous media first
-    setDraft((p) => ({
-      ...(p ?? profile),
-      [type]: undefined,
-    }));
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -289,6 +287,14 @@ export default function EditProfilePage() {
     };
 
     reader.readAsDataURL(file);
+  };
+
+  const cancelCrop = () => {
+    setCropType(null);
+    setSelectedFile(null);
+    setCroppedPixels(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
   };
 
   const saveCrop = async () => {
@@ -458,7 +464,7 @@ export default function EditProfilePage() {
 
       /* ---------------- EMAIL CHANGE ---------------- */
       if (draft.email && draft.email !== original.email) {
-        if (!currentPassword) {
+        if (!currentPasswordTouched || !currentPassword) {
           abortSave(
             "Current password required",
             "Enter your current password to change email",
@@ -522,10 +528,11 @@ export default function EditProfilePage() {
       }
 
       /* ---------------- PASSWORD CHANGE ---------------- */
-      const wantsPasswordChange = newPassword.trim() !== "";
+      const wantsPasswordChange =
+        newPasswordTouched && newPassword.trim() !== "";
 
       if (wantsPasswordChange) {
-        if (!currentPassword) {
+        if (!currentPasswordTouched || !currentPassword) {
           abortSave(
             "Current password required",
             "Enter your current password to change password",
@@ -690,7 +697,9 @@ export default function EditProfilePage() {
                 playedOn: gameData.playedOn ?? null,
                 visibility: "public",
                 createdAt:
-                  gameData.review?.createdAt ?? gameData.lastUpdated ?? new Date(),
+                  gameData.review?.createdAt ??
+                  gameData.lastUpdated ??
+                  new Date(),
                 updatedAt: new Date(),
               },
               { merge: true },
@@ -713,6 +722,8 @@ export default function EditProfilePage() {
       setDraft(null);
       setCurrentPassword("");
       setNewPassword("");
+      setCurrentPasswordTouched(false);
+      setNewPasswordTouched(false);
       setPasswordResetRequested(false);
       uiSuccess("Profile updated", "Your changes were saved successfully");
     } catch (err: any) {
@@ -760,22 +771,26 @@ export default function EditProfilePage() {
   const discardChanges = () => {
     setDraft(original);
     setCurrentPassword("");
+    setCurrentPasswordTouched(false);
     setPasswordResetRequested(false);
     setNewPassword("");
+    setNewPasswordTouched(false);
     setSelectedFile(null);
     setCropType(null);
   };
 
-  const wantsPasswordChange = Boolean(newPassword);
+  const wantsPasswordChange = newPasswordTouched && Boolean(newPassword);
 
-  const passwordInvalid = Boolean(wantsPasswordChange && !currentPassword);
+  const passwordInvalid = Boolean(
+    wantsPasswordChange && (!currentPasswordTouched || !currentPassword),
+  );
   const otherModalOpen =
     Boolean(cropType && selectedFile) || changingUsername || isSaving;
 
   const hasChanges =
     JSON.stringify(draft) !== JSON.stringify(original) ||
-    currentPassword.trim() !== "" ||
-    newPassword.trim() !== "";
+    (currentPasswordTouched && currentPassword.trim() !== "") ||
+    (newPasswordTouched && newPassword.trim() !== "");
 
   /* ---------------- UI ---------------- */
 
@@ -980,9 +995,12 @@ export default function EditProfilePage() {
 
               <div className="mt-5 border-t theme-border pt-5">
                 <div className="mb-3">
-                  <h3 className="theme-text text-sm font-bold">Profile visibility</h3>
+                  <h3 className="theme-text text-sm font-bold">
+                    Profile visibility
+                  </h3>
                   <p className="theme-text-muted mt-1 text-xs">
-                    Choose who can open your profile, library, reviews, achievements, and screenshots.
+                    Choose who can open your profile, library, reviews,
+                    achievements, and screenshots.
                   </p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -1035,9 +1053,17 @@ export default function EditProfilePage() {
                         }`}
                         aria-pressed={selected}
                       >
-                        <Icon className={selected ? "theme-accent-text" : "theme-text-muted"} />
-                        <p className="theme-text mt-2 text-xs font-bold">{option.label}</p>
-                        <p className="theme-text-muted mt-0.5 text-[10px]">{option.description}</p>
+                        <Icon
+                          className={
+                            selected ? "theme-accent-text" : "theme-text-muted"
+                          }
+                        />
+                        <p className="theme-text mt-2 text-xs font-bold">
+                          {option.label}
+                        </p>
+                        <p className="theme-text-muted mt-0.5 text-[10px]">
+                          {option.description}
+                        </p>
                       </button>
                     );
                   })}
@@ -1064,19 +1090,31 @@ export default function EditProfilePage() {
               <div className="grid gap-4">
                 <AnimatedPasswordField
                   label="Current Password"
+                  name="playcrew-current-password"
                   value={currentPassword}
                   show={showCurrent}
                   toggle={() => setShowCurrent((current) => !current)}
                   onChange={setCurrentPassword}
+                  onFocus={() => {
+                    if (!currentPasswordTouched) setCurrentPassword("");
+                    setCurrentPasswordTouched(true);
+                  }}
                   disabled={passwordResetRequested}
+                  autoComplete="new-password"
                 />
                 <AnimatedPasswordField
                   label="New Password"
+                  name="playcrew-new-password"
                   value={newPassword}
                   show={showNew}
                   toggle={() => setShowNew((current) => !current)}
                   onChange={setNewPassword}
+                  onFocus={() => {
+                    if (!newPasswordTouched) setNewPassword("");
+                    setNewPasswordTouched(true);
+                  }}
                   disabled={passwordResetRequested}
+                  autoComplete="new-password"
                 />
               </div>
 
@@ -1147,7 +1185,7 @@ export default function EditProfilePage() {
               aspect={cropType === "avatar" ? 1 : 16 / 9}
               onComplete={setCroppedPixels}
               onSave={saveCrop}
-              onCancel={() => setCropType(null)}
+              onCancel={cancelCrop}
             />
           )}
         </AnimatePresence>

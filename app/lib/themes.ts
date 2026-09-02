@@ -4,8 +4,8 @@ export const THEME_PRESETS = [
     id: "neo-cyan",
     mode: "dark",
     name: "PlayCrew Classic",
-    description: "True black with bold PlayCrew blue accents.",
-    swatches: ["#000000", "#0a0f1c", "#2563eb", "#60a5fa"],
+    description: "True black with electric neon-cyan accents.",
+    swatches: ["#000000", "#020c0e", "#00e5ff", "#67e8f9"],
   },
   {
     id: "spider-suit",

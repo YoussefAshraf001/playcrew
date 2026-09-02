@@ -6,6 +6,8 @@ import { useUser } from "@/app/context/UserContext";
 import { refreshGameData, type RefreshableGame } from "@/app/utils/refreshGame";
 import { useSync } from "../context/SyncContext";
 import type { RefreshBlockField } from "@/app/types/trackedGame";
+import { doc, serverTimestamp, writeBatch } from "firebase/firestore";
+import { db } from "@/app/lib/firebase";
 
 type SyncGame = {
   id: string;
@@ -14,6 +16,11 @@ type SyncGame = {
   refreshExcluded?: boolean;
   refreshBlockedFields?: Partial<Record<RefreshBlockField, boolean>>;
   protectCustomCoverFromRefresh?: boolean;
+  customReleaseTime?: {
+    releasesAt?: unknown;
+  } | null;
+  customReleaseNotificationFor?: number | null;
+  customReleaseNotificationDocumentFor?: number | null;
   igdb?: {
     id?: number;
     name?: string;
@@ -22,6 +29,9 @@ type SyncGame = {
     rating?: number | null;
     platforms?: unknown;
     releaseDate?: unknown;
+    earlyAccessDate?: unknown;
+    fullReleaseDate?: unknown;
+    releaseDateKind?: "early-access" | "full-release" | "unknown" | null;
   };
 };
 
@@ -122,6 +132,99 @@ export default function ReleaseDateAutoSync() {
   const uid = user?.uid;
   const runningForUidRef = useRef<string | null>(null);
   const handledForceRequestRef = useRef(0);
+  const notifyingCustomReleasesRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!uid || gamesLoading || !games.length) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const processCustomReleases = async () => {
+      const now = Date.now();
+      let nextReleaseTime = Infinity;
+
+      const dueGames = (games as SyncGame[]).filter((game) => {
+        if (game.status !== "Want To Play") return false;
+
+        const releaseTime = toDate(
+          game.customReleaseTime?.releasesAt,
+        )?.getTime();
+        if (!releaseTime) return false;
+
+        if (releaseTime > now) {
+          nextReleaseTime = Math.min(nextReleaseTime, releaseTime);
+          return false;
+        }
+
+        return game.customReleaseNotificationDocumentFor !== releaseTime;
+      });
+
+      await Promise.all(
+        dueGames.map(async (game) => {
+          const releaseTime = toDate(
+            game.customReleaseTime?.releasesAt,
+          )?.getTime();
+          if (!releaseTime) return;
+
+          const notificationKey = `${uid}:${game.id}:${releaseTime}`;
+          if (notifyingCustomReleasesRef.current.has(notificationKey)) return;
+          notifyingCustomReleasesRef.current.add(notificationKey);
+
+          try {
+            const gameName = game.igdb?.name || "This game";
+            const batch = writeBatch(db);
+            batch.update(doc(db, "users", uid, "games_igdb", game.id), {
+              customReleaseNotificationFor: releaseTime,
+              customReleaseNotificationDocumentFor: releaseTime,
+            });
+            batch.set(
+              doc(
+                db,
+                "users",
+                uid,
+                "notifications",
+                `game-release-${game.id}-${releaseTime}`,
+              ),
+              {
+                type: "game_release",
+                gameId: game.igdb?.id ?? game.id,
+                gameName,
+                gameCover: game.igdb?.cover ?? null,
+                message: `${gameName} is now out and available to play.`,
+                releaseTime,
+                read: false,
+                createdAt: serverTimestamp(),
+              },
+            );
+            await batch.commit();
+          } catch (error) {
+            notifyingCustomReleasesRef.current.delete(notificationKey);
+            console.error("Failed to complete custom release countdown", {
+              gameId: game.id,
+              gameName: game.igdb?.name,
+              error,
+            });
+          }
+        }),
+      );
+
+      if (!cancelled && Number.isFinite(nextReleaseTime)) {
+        const delay = Math.min(
+          Math.max(250, nextReleaseTime - Date.now() + 250),
+          2_147_000_000,
+        );
+        timer = setTimeout(() => void processCustomReleases(), delay);
+      }
+    };
+
+    void processCustomReleases();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [games, gamesLoading, uid]);
 
   useEffect(() => {
     if (!uid || gamesLoading || !games.length) return;
@@ -142,6 +245,20 @@ export default function ReleaseDateAutoSync() {
           return false;
         }
         if (!isRefreshableGame(game)) return false;
+        if (isForcedSync) return true;
+
+        const earlyAccessDate = toDate(game.igdb.earlyAccessDate);
+        const fullReleaseDate = toDate(game.igdb.fullReleaseDate);
+
+        // Keep checking games that are publicly in Early Access until IGDB
+        // eventually adds a Full Release date.
+        if (
+          earlyAccessDate &&
+          earlyAccessDate.getTime() <= today.getTime() &&
+          !fullReleaseDate
+        ) {
+          return true;
+        }
 
         const releaseDate = toDate(game.igdb.releaseDate);
 

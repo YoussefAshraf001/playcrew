@@ -9,6 +9,7 @@ import {
   type ReleaseDatePrecision,
 } from "@/app/lib/releaseDates";
 import type { RefreshBlockField } from "@/app/types/trackedGame";
+import type { IgdbReleaseDateKind } from "@/app/lib/igdbReleasePhases";
 
 export type RefreshableGame = {
   name?: string;
@@ -24,6 +25,11 @@ export type RefreshableGame = {
     rating?: number | null;
     platforms?: unknown;
     releaseDate?: unknown;
+    earlyAccessDate?: unknown;
+    earlyAccessDatePrecision?: ReleaseDatePrecision | null;
+    fullReleaseDate?: unknown;
+    fullReleaseDatePrecision?: ReleaseDatePrecision | null;
+    releaseDateKind?: IgdbReleaseDateKind | null;
     releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 };
@@ -182,6 +188,11 @@ export async function refreshGameData(
     rating?: number | null;
     platforms?: unknown;
     releaseDate?: number | null;
+    earlyAccessDate?: number | null;
+    earlyAccessDatePrecision?: ReleaseDatePrecision | null;
+    fullReleaseDate?: number | null;
+    fullReleaseDatePrecision?: ReleaseDatePrecision | null;
+    releaseDateKind?: IgdbReleaseDateKind | null;
     releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 
@@ -267,6 +278,41 @@ export async function refreshGameData(
       igdb.releaseDatePrecision ?? null,
       game.igdb.releaseDatePrecision ?? null,
     );
+
+    const nextEarlyAccessDate =
+      typeof igdb.earlyAccessDate === "number"
+        ? new Date(igdb.earlyAccessDate * 1000)
+        : null;
+    const nextFullReleaseDate =
+      typeof igdb.fullReleaseDate === "number"
+        ? new Date(igdb.fullReleaseDate * 1000)
+        : null;
+
+    maybeUpdate(
+      "igdb.earlyAccessDate",
+      nextEarlyAccessDate,
+      game.igdb.earlyAccessDate ?? null,
+    );
+    maybeUpdate(
+      "igdb.earlyAccessDatePrecision",
+      igdb.earlyAccessDatePrecision ?? null,
+      game.igdb.earlyAccessDatePrecision ?? null,
+    );
+    maybeUpdate(
+      "igdb.fullReleaseDate",
+      nextFullReleaseDate,
+      game.igdb.fullReleaseDate ?? null,
+    );
+    maybeUpdate(
+      "igdb.fullReleaseDatePrecision",
+      igdb.fullReleaseDatePrecision ?? null,
+      game.igdb.fullReleaseDatePrecision ?? null,
+    );
+    maybeUpdate(
+      "igdb.releaseDateKind",
+      igdb.releaseDateKind ?? null,
+      game.igdb.releaseDateKind ?? null,
+    );
   }
 
   const changedFields = Object.keys(diff);
@@ -346,7 +392,7 @@ export async function refreshGameData(
   }
 
   const platformChange = diff["igdb.platforms"];
-  if (platformChange) {
+  if (platformChange && Array.isArray(platformChange.old)) {
     const previousPlatforms = new Set(
       getStringArray(platformChange.old).map((platform) =>
         platform.toLocaleLowerCase(),
@@ -364,7 +410,7 @@ export async function refreshGameData(
     );
   }
 
-  if (diff["igdb.genres"]) {
+  if (diff["igdb.genres"] && Array.isArray(diff["igdb.genres"].old)) {
     messages.push("Genre information was updated.");
   }
 

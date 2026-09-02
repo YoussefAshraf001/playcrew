@@ -1,5 +1,9 @@
 import { igdbGamesQuery } from "@/app/lib/igdb";
 import { NextResponse } from "next/server";
+import {
+  resolveIgdbReleasePhases,
+  type IgdbReleaseEntry,
+} from "@/app/lib/igdbReleasePhases";
 
 type IgdbSearchGame = {
   id: number;
@@ -8,6 +12,8 @@ type IgdbSearchGame = {
   follows?: number;
   hypes?: number;
   version_parent?: number;
+  first_release_date?: number;
+  release_dates?: IgdbReleaseEntry[];
   [key: string]: unknown;
 };
 
@@ -16,6 +22,9 @@ const SEARCH_FIELDS = `
   name,
   cover.url,
   first_release_date,
+  release_dates.date,
+  release_dates.human,
+  release_dates.status.name,
   total_rating_count,
   follows,
   hypes,
@@ -100,7 +109,22 @@ export async function POST(req: Request) {
           relevanceScore(b, searchTerm) - relevanceScore(a, searchTerm) ||
           String(a.name ?? "").localeCompare(String(b.name ?? "")),
       )
-      .slice(0, 200);
+      .slice(0, 200)
+      .map((game) => {
+        const phases = resolveIgdbReleasePhases(
+          game.release_dates ?? [],
+          game.first_release_date,
+        );
+        return {
+          ...game,
+          earlyAccessDate: phases.earlyAccessDate,
+          earlyAccessDatePrecision: phases.earlyAccessDatePrecision,
+          fullReleaseDate: phases.fullReleaseDate,
+          fullReleaseDatePrecision: phases.fullReleaseDatePrecision,
+          releaseDate: phases.releaseDate,
+          releaseDateKind: phases.releaseDateKind,
+        };
+      });
 
     return NextResponse.json(games);
   } catch (err) {

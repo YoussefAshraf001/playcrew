@@ -24,11 +24,11 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   return (
-    <div className="app-shell flex min-h-screen overflow-hidden">
+    <div className="app-shell flex h-svh overflow-hidden">
       <Navbar />
 
       <motion.main
-        className="max-w-full flex-1 overflow-y-auto"
+        className="min-w-0 max-w-full flex-1 overflow-y-auto"
         variants={CONTENT_VARIANTS}
         initial="hidden"
         animate="visible"

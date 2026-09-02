@@ -155,6 +155,7 @@ export default function Dashboard() {
     { label: "Continue", action: "continue" },
     { label: "New Game", action: "explore" },
     { label: "Library", action: "games" },
+    { label: "Calendar", action: "calendar" },
     { label: "Explore", action: "explore" },
     { label: "Gallery", action: "gallery" },
     user && { label: "Overview", action: "overview" },
@@ -208,6 +209,10 @@ export default function Dashboard() {
       case "games":
         startRouteLoading();
         router.push("/games");
+        break;
+      case "calendar":
+        startRouteLoading();
+        router.push("/calendar");
         break;
       case "explore":
         startRouteLoading();

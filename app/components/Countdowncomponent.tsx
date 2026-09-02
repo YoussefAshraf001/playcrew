@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { IoIosCheckmarkCircle } from "react-icons/io";
+import { FaCalendarCheck } from "react-icons/fa";
 
 export default function Countdown({ date }: { date: Date }) {
   const [time, setTime] = useState(() => date.getTime() - Date.now());
@@ -24,7 +24,7 @@ export default function Countdown({ date }: { date: Date }) {
         shadow-[0_0_12px_rgba(34,197,94,0.4)]
       "
       >
-        <IoIosCheckmarkCircle size={14} className="text-green-400" />
+        <FaCalendarCheck size={13} className="text-green-400" />
         Released
       </div>
     );

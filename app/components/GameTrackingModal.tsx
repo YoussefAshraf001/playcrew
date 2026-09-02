@@ -62,8 +62,13 @@ import { GAME_STICKERS } from "../lib/gameStickers";
 import { IoMdAdd } from "react-icons/io";
 import { useUser } from "../context/UserContext";
 import { db } from "../lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { deleteField, doc, updateDoc } from "firebase/firestore";
 import SteamAssetsModal, { type SteamAsset } from "./SteamAssetsModal";
+import ReleaseDateTimePicker from "./ReleaseDateTimePicker";
+import {
+  getAutomaticReleaseState,
+  isAutomaticallyInEarlyAccess,
+} from "@/app/lib/igdbReleasePhases";
 
 interface GameTrackingModalProps {
   open: boolean;
@@ -236,6 +241,111 @@ const RATING_PRESETS = [
 
 const GIPHY_PAGE_SIZE = 12;
 const MAX_GIPHY_RESULTS = 36;
+const FALLBACK_TIME_ZONES = [
+  "UTC",
+  "Europe/Warsaw",
+  "Europe/London",
+  "Europe/Berlin",
+  "Africa/Cairo",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+];
+
+const getBrowserTimeZone = () =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+const getTimeZoneOptions = () => {
+  try {
+    return Array.from(
+      new Set([
+        "UTC",
+        getBrowserTimeZone(),
+        "Europe/Warsaw",
+        ...Intl.supportedValuesOf("timeZone"),
+      ]),
+    );
+  } catch {
+    return FALLBACK_TIME_ZONES;
+  }
+};
+
+const getZonedDateParts = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    year: value("year"),
+    month: value("month"),
+    day: value("day"),
+    hour: value("hour"),
+    minute: value("minute"),
+    second: value("second"),
+  };
+};
+
+const formatDateTimeInZone = (date: Date, timeZone: string) => {
+  const parts = getZonedDateParts(date, timeZone);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
+};
+
+const zonedDateTimeToDate = (value: string, timeZone: string) => {
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/,
+  );
+  if (!match) return null;
+
+  const [, year, month, day, hour, minute] = match.map(Number);
+  const desiredWallTime = Date.UTC(year, month - 1, day, hour, minute);
+  let instant = desiredWallTime;
+
+  try {
+    // Iteratively move the instant until its wall-clock representation in the
+    // selected zone matches the user's input. This also accounts for DST.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const parts = getZonedDateParts(new Date(instant), timeZone);
+      const representedWallTime = Date.UTC(
+        parts.year,
+        parts.month - 1,
+        parts.day,
+        parts.hour,
+        parts.minute,
+      );
+      instant += desiredWallTime - representedWallTime;
+    }
+
+    const result = new Date(instant);
+    return formatDateTimeInZone(result, timeZone) === value ? result : null;
+  } catch {
+    return null;
+  }
+};
+
+const getUtcOffsetLabel = (date: Date, timeZone: string) => {
+  try {
+    const name = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      timeZoneName: "longOffset",
+    })
+      .formatToParts(date)
+      .find((part) => part.type === "timeZoneName")?.value;
+    return (name ?? "UTC").replace("GMT", "UTC");
+  } catch {
+    return "Invalid timezone";
+  }
+};
 
 type GiphySticker = {
   id: string;
@@ -351,6 +461,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     y: number;
   } | null>(null);
   const [steamAssetsOpen, setSteamAssetsOpen] = useState(false);
+  const [releaseTimeDialogOpen, setReleaseTimeDialogOpen] = useState(false);
+  const [releaseTimeInput, setReleaseTimeInput] = useState("");
+  const [releaseTimeZone, setReleaseTimeZone] = useState(getBrowserTimeZone);
+  const [savingReleaseTime, setSavingReleaseTime] = useState(false);
+  const timeZoneOptions = useMemo(getTimeZoneOptions, []);
 
   useEffect(() => {
     if (!open) return;
@@ -546,7 +661,29 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const bgUrl =
     coverOverride || game?.igdb.cover || "/placeholder-game.jpg";
   const releaseDate = normalizeDate(game?.igdb.releaseDate);
-  const gameIsReleased = !!releaseDate && releaseDate <= new Date();
+  const customReleaseDate = normalizeDate(
+    game?.customReleaseTime?.releasesAt,
+  );
+  const effectiveReleaseDate = customReleaseDate ?? releaseDate;
+  const hasStructuredReleasePhases = Boolean(
+    game?.igdb.earlyAccessDate ||
+    game?.igdb.fullReleaseDate ||
+    game?.igdb.releaseDateKind === "early-access" ||
+    game?.igdb.releaseDateKind === "full-release",
+  );
+  const gameIsReleased = customReleaseDate
+    ? customReleaseDate <= new Date()
+    : hasStructuredReleasePhases
+      ? getAutomaticReleaseState(
+          game?.igdb.earlyAccessDate,
+          game?.igdb.fullReleaseDate,
+          game?.igdb.releaseDate,
+        ) === "released"
+      : !!effectiveReleaseDate && effectiveReleaseDate <= new Date();
+  const automaticEarlyAccess = isAutomaticallyInEarlyAccess(
+    game?.igdb.earlyAccessDate,
+    game?.igdb.fullReleaseDate,
+  );
   // Temporarily disabled: unreleased-game edit confirmation gate.
   const showUnreleasedEditGate =
     false &&
@@ -600,6 +737,91 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
     setPendingAccessType(null);
     setAccessDialogOpen(false);
     toast.success("Pre-release access added. Save to apply it.");
+  };
+
+  const toDateTimeLocalValue = (date: Date) => {
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const openReleaseTimeDialog = () => {
+    const initialDate = customReleaseDate ?? releaseDate ?? new Date();
+    const initialTimeZone =
+      game?.customReleaseTime?.sourceTimeZone ||
+      game?.customReleaseTime?.timeZone ||
+      getBrowserTimeZone();
+    setReleaseTimeZone(initialTimeZone);
+    setReleaseTimeInput(
+      customReleaseDate
+        ? formatDateTimeInZone(initialDate, initialTimeZone)
+        : toDateTimeLocalValue(initialDate),
+    );
+    setReleaseTimeDialogOpen(true);
+  };
+
+  const parsedReleaseTime = useMemo(
+    () => zonedDateTimeToDate(releaseTimeInput, releaseTimeZone),
+    [releaseTimeInput, releaseTimeZone],
+  );
+
+  const saveReleaseTime = async () => {
+    if (!game || !user || !releaseTimeInput) return;
+    const releasesAt = parsedReleaseTime;
+    if (!releasesAt) {
+      toast.error("Enter a valid date, time, and timezone.");
+      return;
+    }
+
+    setSavingReleaseTime(true);
+    try {
+      await updateDoc(
+        doc(
+          db,
+          "users",
+          user.uid,
+          "games_igdb",
+          game._docId || String(game.igdb.id),
+        ),
+        {
+          customReleaseTime: {
+            releasesAt,
+            timeZone: getBrowserTimeZone(),
+            sourceTimeZone: releaseTimeZone,
+          },
+        },
+      );
+      setReleaseTimeDialogOpen(false);
+      toast.success("Exact release time saved.");
+    } catch (error) {
+      console.error("Failed to save exact release time", error);
+      toast.error("Could not save the release time.");
+    } finally {
+      setSavingReleaseTime(false);
+    }
+  };
+
+  const removeReleaseTime = async () => {
+    if (!game || !user) return;
+    setSavingReleaseTime(true);
+    try {
+      await updateDoc(
+        doc(
+          db,
+          "users",
+          user.uid,
+          "games_igdb",
+          game._docId || String(game.igdb.id),
+        ),
+        { customReleaseTime: deleteField() },
+      );
+      setReleaseTimeDialogOpen(false);
+      toast.success("Using the official release date again.");
+    } catch (error) {
+      console.error("Failed to remove exact release time", error);
+      toast.error("Could not remove the release time.");
+    } finally {
+      setSavingReleaseTime(false);
+    }
   };
 
   const progressRadius = 40;
@@ -799,7 +1021,23 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                               game?.igdb.releaseDatePrecision,
                             )}`}
                       </span>
-                      {!gameIsReleased && !preReleaseAccess && (
+                      {releaseDate && !gameIsReleased && (
+                        <button
+                          type="button"
+                          onClick={openReleaseTimeDialog}
+                          className="rounded-full border border-cyan-300/40 bg-cyan-500/15 px-3 py-1 text-xs font-bold text-cyan-100 transition hover:bg-cyan-500/25"
+                        >
+                          {customReleaseDate
+                            ? `Custom: ${customReleaseDate.toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : "Set exact time"}
+                        </button>
+                      )}
+                      {!gameIsReleased &&
+                        !preReleaseAccess &&
+                        !automaticEarlyAccess && (
                         <button
                           type="button"
                           onClick={() => setAccessDialogOpen(true)}
@@ -1879,6 +2117,174 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
               )}
             </AnimatePresence>
           </motion.div>
+
+          <AnimatePresence>
+            {releaseTimeDialogOpen && (
+              <motion.div
+                className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setReleaseTimeDialogOpen(false)}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                  onClick={(event) => event.stopPropagation()}
+                  className="relative max-h-[92dvh] w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-3xl border border-cyan-300/20 bg-zinc-950 p-5 shadow-[0_30px_100px_rgba(0,0,0,0.7)] sm:p-6"
+                >
+                  <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
+                  <div className="relative">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="rounded-full border border-cyan-300/25 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                        Countdown override
+                      </span>
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tight text-white">
+                      Set the exact launch
+                    </h3>
+                    <p className="mt-1.5 max-w-md text-sm leading-6 text-zinc-400">
+                      Enter the announced local launch time. The official IGDB
+                      date stays untouched.
+                    </p>
+
+                    <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,1.12fr)_minmax(290px,0.88fr)] md:items-stretch">
+                      <div className="min-w-0">
+                      <ReleaseDateTimePicker
+                        value={releaseTimeInput}
+                        onChange={setReleaseTimeInput}
+                      />
+                      </div>
+
+                      <div className="flex min-h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.025] p-4">
+
+                    <label className="block">
+                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                        Announced launch timezone
+                      </span>
+                      <select
+                        value={releaseTimeZone}
+                        onChange={(event) =>
+                          setReleaseTimeZone(event.target.value)
+                        }
+                        className="mt-2 h-12 w-full min-w-0 max-w-full cursor-pointer rounded-xl border border-white/15 bg-zinc-900 px-3 text-sm text-white outline-none transition focus:border-cyan-300/60"
+                      >
+                        <option value={getBrowserTimeZone()}>
+                          {getUtcOffsetLabel(
+                            parsedReleaseTime ?? new Date(),
+                            getBrowserTimeZone(),
+                          )}{" "}
+                          · {getBrowserTimeZone().replaceAll("_", " ")} (Your
+                          timezone)
+                        </option>
+                        <option disabled>
+                          ────────── Other timezones ──────────
+                        </option>
+                        {timeZoneOptions
+                          .filter(
+                            (timeZone) => timeZone !== getBrowserTimeZone(),
+                          )
+                          .map((timeZone) => (
+                          <option key={timeZone} value={timeZone}>
+                            {getUtcOffsetLabel(
+                              parsedReleaseTime ?? new Date(),
+                              timeZone,
+                            )}{" "}
+                            · {timeZone.replaceAll("_", " ")}
+                          </option>
+                          ))}
+                      </select>
+                      <p className="mt-2 text-xs leading-5 text-zinc-500">
+                        Pick the timezone used by the launch announcement. It
+                        will be converted into {getBrowserTimeZone()} for you.
+                      </p>
+                    </label>
+
+                    <div
+                      className={`mt-5 rounded-2xl border p-4 ${
+                        parsedReleaseTime
+                          ? "border-cyan-300/20 bg-cyan-400/[0.07]"
+                          : "border-red-400/20 bg-red-500/[0.07]"
+                      }`}
+                    >
+                      {parsedReleaseTime ? (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-sm font-bold text-white">
+                              {getUtcOffsetLabel(
+                                parsedReleaseTime,
+                                releaseTimeZone,
+                              )}{" "}
+                              · {releaseTimeZone.replaceAll("_", " ")}
+                            </span>
+                            <span className="rounded-full bg-black/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+                              Timezone aware
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-zinc-400">
+                            For you, this is{" "}
+                            <span className="font-semibold text-zinc-200">
+                              {parsedReleaseTime.toLocaleString([], {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                              })}
+                            </span>
+                            . Your saved timezone will be{" "}
+                            <span className="font-semibold text-zinc-200">
+                              {getBrowserTimeZone()}
+                            </span>
+                            .
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-red-200">
+                          Choose a valid timezone and local launch time.
+                        </p>
+                      )}
+                      {!preReleaseAccess && automaticEarlyAccess && (
+                        <PreReleaseBadge
+                          type="early-access"
+                          label="Early Access Available"
+                        />
+                      )}
+                    </div>
+
+                  <div className="mt-auto flex flex-wrap gap-2 pt-6">
+                    <button
+                      type="button"
+                      onClick={saveReleaseTime}
+                      disabled={!parsedReleaseTime || savingReleaseTime}
+                      className="flex-1 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {savingReleaseTime ? "Saving..." : "Save exact time"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReleaseTimeDialogOpen(false)}
+                      disabled={savingReleaseTime}
+                      className="rounded-xl border border-white/15 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {customReleaseDate && (
+                    <button
+                      type="button"
+                      onClick={removeReleaseTime}
+                      disabled={savingReleaseTime}
+                      className="mt-4 text-sm text-red-300 underline transition hover:text-red-200 disabled:opacity-50"
+                    >
+                      Remove custom time
+                    </button>
+                  )}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <AnimatePresence>
             {accessDialogOpen && (

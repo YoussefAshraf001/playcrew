@@ -7,44 +7,74 @@ import {
   FaArrowLeft,
   FaArrowRight,
   FaCrown,
+  FaInfoCircle,
   FaPause,
   FaPlay,
+  FaRegStar,
+  FaStar,
 } from "react-icons/fa";
-import { MdBlock, MdOutlineOnlinePrediction } from "react-icons/md";
-import { GiMouthWatering } from "react-icons/gi";
+import {
+  MdBlock,
+  MdOutlineAddToQueue,
+  MdOutlineOnlinePrediction,
+} from "react-icons/md";
 
 import Countdown from "@/app/components/Countdowncomponent";
 import PreReleaseBadge from "@/app/components/PreReleaseBadge";
 import { useGames } from "@/app/context/GameContext";
 import {
+  formatReleaseDate,
   hasConfirmedReleaseDay,
   parseReleaseDate,
   type ReleaseDatePrecision,
 } from "@/app/lib/releaseDates";
 import type { PreReleaseAccess } from "@/app/types/trackedGame";
 import { useUI } from "@/app/context/UIContext";
+import { useUser } from "@/app/context/UserContext";
+import { db } from "@/app/lib/firebase";
+import { isAutomaticallyInEarlyAccess } from "@/app/lib/igdbReleasePhases";
+import { deleteField, doc, writeBatch } from "firebase/firestore";
+import toast from "react-hot-toast";
 
 type CalendarGame = {
   id: string;
   name: string;
   status?: string;
+  calendarPrimary?: boolean;
+  releasePhase?: "early-access" | "full-release" | "standard";
   preReleaseAccess?: PreReleaseAccess | null;
+  customReleaseTime?: {
+    releasesAt?: unknown;
+    timeZone?: string;
+    sourceTimeZone?: string;
+  } | null;
   igdb?: {
     cover?: string;
     releaseDate?: unknown;
+    earlyAccessDate?: unknown;
+    earlyAccessDatePrecision?: ReleaseDatePrecision | null;
+    fullReleaseDate?: unknown;
+    fullReleaseDatePrecision?: ReleaseDatePrecision | null;
+    releaseDateKind?: "early-access" | "full-release" | "unknown" | null;
     releaseDatePrecision?: ReleaseDatePrecision | null;
   };
 };
 
 type GameWithParsedDate = CalendarGame & {
+  occurrenceId: string;
+  releasePhase: "early-access" | "full-release" | "standard";
   date: Date | null;
+  countdownDate: Date | null;
   datePrecision?: ReleaseDatePrecision | null;
 };
 type DatedGame = CalendarGame & {
+  occurrenceId: string;
+  releasePhase: "early-access" | "full-release" | "standard";
   date: Date;
+  countdownDate: Date | null;
   datePrecision?: ReleaseDatePrecision | null;
 };
-type CalendarPanel = "confirmed" | "tba";
+type CalendarPanel = "confirmed" | "windows" | "tba";
 
 const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const PRE_RELEASE_LABELS: Record<PreReleaseAccess["type"], string> = {
@@ -53,9 +83,15 @@ const PRE_RELEASE_LABELS: Record<PreReleaseAccess["type"], string> = {
   leaked: "Leaked",
 };
 const PRE_RELEASE_SHORT_LABELS: Record<PreReleaseAccess["type"], string> = {
-  "early-access": "EA",
-  "advanced-access": "AA",
+  "early-access": "Early Access",
+  "advanced-access": "Advanced Access",
   leaked: "Leaked",
+};
+
+const getCalendarCover = (cover?: string) => {
+  if (!cover) return "/placeholder-game.jpg";
+  if (!cover.toLowerCase().includes("igdb")) return cover;
+  return cover.replace(/\/t_[^/]+\//, "/t_1080p/");
 };
 const PANEL_TABS: Array<{
   id: CalendarPanel;
@@ -70,15 +106,22 @@ const PANEL_TABS: Array<{
     title: () => "Upcoming This Month",
   },
   {
+    id: "windows",
+    label: "Estimated",
+    eyebrow: "Release period known, exact day still unconfirmed.",
+    title: (year) => `Estimated Releases · ${year}`,
+  },
+  {
     id: "tba",
     label: "TBA",
-    eyebrow: "Expected this year, but no specific release day yet.",
-    title: (year) => `Coming in ${year}`,
+    eyebrow: "No usable release window has been announced yet.",
+    title: () => "Release Date TBA",
   },
 ];
 
 export default function CalendarPage() {
   const { games, gamesLoading } = useGames();
+  const { user } = useUser();
   const { navbarLayout } = useUI();
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
@@ -88,23 +131,92 @@ export default function CalendarPage() {
     null,
   );
   const [activePanel, setActivePanel] = useState<CalendarPanel>("confirmed");
+  const [countdownInfoOpen, setCountdownInfoOpen] = useState(false);
   const [panelDirection, setPanelDirection] = useState<1 | -1>(1);
+  const [estimatedQuarter, setEstimatedQuarter] = useState<
+    number | "year" | null
+  >(() => Math.floor(new Date().getMonth() / 3) + 1);
+  const [savingPrimaryGameId, setSavingPrimaryGameId] = useState<string | null>(
+    null,
+  );
 
   const month = cursor.getMonth();
   const year = cursor.getFullYear();
 
-  const parsedGames = useMemo(() => {
+  const moveToMonth = (nextCursor: Date) => {
+    setCursor(nextCursor);
+    setEstimatedQuarter(Math.floor(nextCursor.getMonth() / 3) + 1);
+  };
+
+  const parsedOccurrences = useMemo(() => {
     return (games as CalendarGame[])
-      .map(
-        (g): GameWithParsedDate => ({
-          ...g,
-          date: parseReleaseDate(g.igdb?.releaseDate),
-          datePrecision: g.igdb?.releaseDatePrecision,
-        }),
-      )
-      .filter((g): g is DatedGame => g.date instanceof Date)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
+      .flatMap((g): GameWithParsedDate[] => {
+        const earlyAccessDate = parseReleaseDate(g.igdb?.earlyAccessDate);
+        const fullReleaseDate = parseReleaseDate(g.igdb?.fullReleaseDate);
+        const exactTime = parseReleaseDate(g.customReleaseTime?.releasesAt);
+        const occurrences: GameWithParsedDate[] = [];
+
+        if (earlyAccessDate) {
+          occurrences.push({
+            ...g,
+            occurrenceId: `${g.id}-early-access`,
+            releasePhase: "early-access",
+            date: earlyAccessDate,
+            countdownDate:
+              g.igdb?.releaseDateKind === "early-access" ? exactTime : null,
+            datePrecision:
+              g.igdb?.earlyAccessDatePrecision ??
+              (g.igdb?.releaseDateKind === "early-access"
+                ? g.igdb?.releaseDatePrecision
+                : null) ??
+              "day",
+          });
+        }
+
+        if (fullReleaseDate) {
+          occurrences.push({
+            ...g,
+            occurrenceId: `${g.id}-full-release`,
+            releasePhase: "full-release",
+            date: fullReleaseDate,
+            countdownDate:
+              g.igdb?.releaseDateKind === "full-release" ? exactTime : null,
+            datePrecision:
+              g.igdb?.fullReleaseDatePrecision ??
+              (g.igdb?.releaseDateKind === "full-release"
+                ? g.igdb?.releaseDatePrecision
+                : null) ??
+              "day",
+          });
+        }
+
+        if (occurrences.length === 0) {
+          occurrences.push({
+            ...g,
+            occurrenceId: `${g.id}-standard`,
+            releasePhase: "standard",
+            date: parseReleaseDate(g.igdb?.releaseDate),
+            countdownDate: exactTime,
+            datePrecision: g.igdb?.releaseDatePrecision,
+          });
+        }
+
+        return occurrences;
+      })
+      .sort(
+        (a, b) =>
+          (a.date?.getTime() ?? Number.POSITIVE_INFINITY) -
+          (b.date?.getTime() ?? Number.POSITIVE_INFINITY),
+      );
   }, [games]);
+
+  const parsedGames = useMemo(
+    () =>
+      parsedOccurrences.filter(
+        (game): game is DatedGame => game.date instanceof Date,
+      ),
+    [parsedOccurrences],
+  );
 
   const monthGames = useMemo(() => {
     return parsedGames.filter(
@@ -125,15 +237,38 @@ export default function CalendarPage() {
     });
   }, [monthGames]);
 
-  const yearOnlyGames = useMemo(() => {
+  const releaseWindowGames = useMemo(() => {
     return parsedGames
-      .filter(
-        (g) =>
-          !hasConfirmedReleaseDay(g.date, g.datePrecision) &&
-          g.date.getFullYear() === year,
-      )
+      .filter((game) => {
+        if (hasConfirmedReleaseDay(game.date, game.datePrecision)) return false;
+
+        const precision = game.datePrecision;
+        const windowYear = game.date.getUTCFullYear();
+        if (windowYear !== year) return false;
+
+        if (estimatedQuarter === "year") return precision === "year";
+        if (precision === "year") return false;
+
+        if (precision === "month") {
+          return typeof estimatedQuarter === "number"
+            ? Math.floor(game.date.getUTCMonth() / 3) + 1 === estimatedQuarter
+            : game.date.getUTCMonth() === month;
+        }
+        if (precision === "quarter") {
+          const gameQuarter = Math.floor(game.date.getUTCMonth() / 3) + 1;
+          return typeof estimatedQuarter === "number"
+            ? gameQuarter === estimatedQuarter
+            : gameQuarter === Math.floor(month / 3) + 1;
+        }
+        return false;
+      })
       .sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [parsedGames, year]);
+  }, [estimatedQuarter, parsedGames, month, year]);
+
+  const tbaGames = useMemo(
+    () => parsedOccurrences.filter((game) => game.date === null),
+    [parsedOccurrences],
+  );
 
   const gamesByDay = useMemo(() => {
     const map = new Map<number, DatedGame[]>();
@@ -142,8 +277,55 @@ export default function CalendarPage() {
       if (!map.has(day)) map.set(day, []);
       map.get(day)!.push(g);
     });
+    map.forEach((dayGames) => {
+      dayGames.sort(
+        (a, b) =>
+          Number(Boolean(b.calendarPrimary)) -
+          Number(Boolean(a.calendarPrimary)),
+      );
+    });
     return map;
   }, [monthGames]);
+
+  const setPrimaryDayCover = async (
+    selectedGame: DatedGame,
+    dayGames: DatedGame[],
+  ) => {
+    if (!user || selectedGame.calendarPrimary) return;
+
+    setSavingPrimaryGameId(selectedGame.id);
+    try {
+      const batch = writeBatch(db);
+      Array.from(
+        new Map(dayGames.map((game) => [game.id, game])).values(),
+      ).forEach((game) => {
+        batch.update(doc(db, "users", user.uid, "games_igdb", game.id), {
+          calendarPrimary: game.id === selectedGame.id ? true : deleteField(),
+        });
+      });
+      await batch.commit();
+
+      setSelectedDayGames((current) => {
+        if (!current) return current;
+        return current
+          .map((game) => ({
+            ...game,
+            calendarPrimary: game.id === selectedGame.id,
+          }))
+          .sort(
+            (a, b) =>
+              Number(Boolean(b.calendarPrimary)) -
+              Number(Boolean(a.calendarPrimary)),
+          );
+      });
+      toast.success(`${selectedGame.name} is now the day cover.`);
+    } catch (error) {
+      console.error("Failed to set calendar day cover", error);
+      toast.error("Could not update the day cover.");
+    } finally {
+      setSavingPrimaryGameId(null);
+    }
+  };
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOffset = new Date(year, month, 1).getDay();
@@ -189,7 +371,7 @@ export default function CalendarPage() {
       case "Want To Play":
         return {
           label: "Want To Play",
-          icon: <GiMouthWatering size={11} />,
+          icon: <MdOutlineAddToQueue size={11} />,
           className: "border-cyan-300/35 bg-cyan-500/15 text-cyan-100",
         };
       default:
@@ -197,8 +379,57 @@ export default function CalendarPage() {
     }
   };
 
+  const hasAutomaticEarlyAccess = (game: CalendarGame) =>
+    isAutomaticallyInEarlyAccess(
+      game.igdb?.earlyAccessDate,
+      game.igdb?.fullReleaseDate,
+      today.getTime(),
+    );
+
   const getAccessType = (game: CalendarGame) =>
-    game.preReleaseAccess?.type ?? null;
+    (game.releasePhase === "early-access"
+      ? "early-access"
+      : game.preReleaseAccess?.type) ??
+    (hasAutomaticEarlyAccess(game) ? "early-access" : null);
+
+  const getAccessLabel = (game: CalendarGame) => {
+    const accessType = getAccessType(game);
+    if (!accessType) return null;
+    if (!game.preReleaseAccess && hasAutomaticEarlyAccess(game)) {
+      return "Early Access Available";
+    }
+    return PRE_RELEASE_LABELS[accessType];
+  };
+
+  const shouldShowFullReleaseBadge = (game: CalendarGame) =>
+    game.releasePhase === "full-release" &&
+    Boolean(parseReleaseDate(game.igdb?.earlyAccessDate));
+
+  const getReleasePhaseLabel = (game: DatedGame, compact = false) => {
+    if (game.releasePhase === "full-release") {
+      if (!shouldShowFullReleaseBadge(game)) return null;
+      return (
+        <span className="inline-flex w-fit items-center rounded-full border border-emerald-300/55 bg-emerald-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-emerald-200 shadow-[0_0_18px_rgba(52,211,153,0.2)] backdrop-blur-xl">
+          {compact ? "Full Release" : "Full Release"}
+        </span>
+      );
+    }
+
+    const accessType = getAccessType(game);
+    if (!accessType) return null;
+    return (
+      <PreReleaseBadge
+        type={accessType}
+        label={
+          compact
+            ? PRE_RELEASE_SHORT_LABELS[accessType]
+            : (getAccessLabel(game) ?? undefined)
+        }
+        compact
+        themeBackground={compact}
+      />
+    );
+  };
 
   const getLeakedOnLabel = (game: CalendarGame) => {
     if (game.preReleaseAccess?.type !== "leaked") return null;
@@ -285,7 +516,7 @@ export default function CalendarPage() {
                       type="button"
                       onClick={() => {
                         const now = new Date();
-                        setCursor(
+                        moveToMonth(
                           new Date(now.getFullYear(), now.getMonth(), 1),
                         );
                       }}
@@ -301,10 +532,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setCursor(
-                      (prev) =>
-                        new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
-                    )
+                    moveToMonth(new Date(year, month - 1, 1))
                   }
                   className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] transition hover:bg-[rgba(var(--theme-accent-rgb),0.16)]"
                 >
@@ -314,10 +542,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() =>
-                    setCursor(
-                      (prev) =>
-                        new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
-                    )
+                    moveToMonth(new Date(year, month + 1, 1))
                   }
                   className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] transition hover:bg-[rgba(var(--theme-accent-rgb),0.16)]"
                 >
@@ -350,7 +575,7 @@ export default function CalendarPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -14 }}
                     transition={{ duration: 0.22, ease: "easeOut" }}
-                    className="grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1.5 sm:gap-2"
+                    className="my-auto grid min-h-[430px] w-full flex-1 grid-cols-7 grid-rows-6 gap-1.5 sm:max-h-[620px] sm:gap-2"
                   >
                     {Array.from({ length: totalCalendarCells }).map((_, i) => {
                       const day = i - firstDayOffset + 1;
@@ -367,68 +592,98 @@ export default function CalendarPage() {
 
                       const dayGames = gamesByDay.get(day) || [];
                       const isToday = isCurrentMonth && day === today.getDate();
-                      const accessTypes = Array.from(
-                        new Set(
-                          dayGames
-                            .map(getAccessType)
-                            .filter(
-                              (type): type is PreReleaseAccess["type"] =>
-                                type !== null,
-                            ),
-                        ),
+                      const phaseBadges = dayGames.filter(
+                        (game, index, entries) => {
+                          const badge =
+                            shouldShowFullReleaseBadge(game)
+                              ? "full-release"
+                              : getAccessType(game);
+                          return (
+                            badge !== null &&
+                            entries.findIndex((candidate) =>
+                              shouldShowFullReleaseBadge(candidate)
+                                ? badge === "full-release"
+                                : getAccessType(candidate) === badge,
+                            ) === index
+                          );
+                        },
                       );
                       return (
                         <button
                           key={day}
                           type="button"
+                          aria-label={
+                            dayGames.length
+                              ? `${dayGames.length} ${dayGames.length === 1 ? "game" : "games"} releasing on ${cursor.toLocaleDateString("en-US", { month: "long" })} ${day}`
+                              : `${cursor.toLocaleDateString("en-US", { month: "long" })} ${day}, no releases`
+                          }
                           onClick={() => {
                             if (!dayGames.length) return;
                             setSelectedDayGames(dayGames);
                           }}
-                          className={`relative overflow-hidden rounded-xl border text-left transition ${
+                          className={`group relative overflow-hidden rounded-xl border text-left transition-[transform,border-color,box-shadow,background-color] duration-500 ease-in-out ${
                             dayGames.length
-                              ? "cursor-pointer hover:border-cyan-300/40"
-                              : "cursor-default"
+                              ? "cursor-pointer bg-[radial-gradient(circle_at_50%_56%,rgba(var(--theme-accent-rgb),0.18),transparent_58%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_22px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 hover:border-[rgba(var(--theme-accent-rgb),0.68)] hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22),0_0_28px_rgba(var(--theme-accent-rgb),0.13),0_14px_32px_rgba(0,0,0,0.25)]"
+                              : "cursor-default bg-black/20"
                           } ${
                             isToday
                               ? "border-cyan-400/80 shadow-[0_0_0_1px_rgba(34,211,238,0.55)]"
-                              : "border-white/10"
+                              : dayGames.length
+                                ? "border-[rgba(var(--theme-accent-rgb),0.28)]"
+                                : "border-white/[0.07]"
                           }`}
                         >
                           {dayGames.length > 0 && (
-                            <div
-                              className={`absolute inset-0 ${
-                                dayGames.length > 1 ? "grid grid-cols-2" : ""
-                              } ${dayGames.length > 2 ? "grid-rows-2" : ""}`}
-                            >
-                              {dayGames.slice(0, 4).map((g) => (
-                                <img
-                                  key={g.id}
-                                  src={g.igdb?.cover || "/placeholder-game.jpg"}
-                                  alt={g.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              ))}
-                            </div>
+                            <>
+                              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.05),transparent_38%,rgba(var(--theme-accent-rgb),0.1))]" />
+                              <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-[rgb(var(--theme-accent-rgb))] to-transparent opacity-45 transition-opacity duration-500 ease-in-out group-hover:opacity-90" />
+                              <span className="pointer-events-none absolute bottom-1.5 left-1.5 h-2.5 w-2.5 border-b border-l border-[rgba(var(--theme-accent-rgb),0.32)] transition-all duration-500 ease-in-out group-hover:h-4 group-hover:w-4 group-hover:border-[rgba(var(--theme-accent-rgb),0.65)]" />
+                              <span className="pointer-events-none absolute right-1.5 top-1.5 h-2.5 w-2.5 border-r border-t border-[rgba(var(--theme-accent-rgb),0.32)] transition-all duration-500 ease-in-out group-hover:h-4 group-hover:w-4 group-hover:border-[rgba(var(--theme-accent-rgb),0.65)]" />
+                            </>
                           )}
-
-                          <div className="absolute inset-0 bg-black/15 backdrop-blur-[0.5px]" />
 
                           <span className="absolute right-3 top-2 z-10 text-[11px] font-medium theme-text sm:text-xs">
                             {day}
                           </span>
 
-                          {accessTypes.length > 0 && (
+                          {phaseBadges.length > 0 && (
                             <div className="absolute left-1.5 top-1.5 z-10 flex max-w-[calc(100%-3.5rem)] gap-1 overflow-hidden">
-                              {accessTypes.map((type) => (
-                                <PreReleaseBadge
-                                  key={type}
-                                  type={type}
-                                  label={PRE_RELEASE_SHORT_LABELS[type]}
-                                  compact
-                                  themeBackground
-                                />
+                              {phaseBadges.map((game) => (
+                                <span key={game.occurrenceId}>
+                                  {getReleasePhaseLabel(game, true)}
+                                </span>
                               ))}
+                            </div>
+                          )}
+
+                          {dayGames.length > 0 && (
+                            <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center pt-3 text-center">
+                              <div className="relative grid h-11 w-11 place-items-center sm:h-14 sm:w-14">
+                                <span className="absolute inset-0 rounded-full border border-[rgba(var(--theme-accent-rgb),0.18)] transition-[transform,border-color] duration-500 ease-in-out group-hover:scale-110 group-hover:border-[rgba(var(--theme-accent-rgb),0.36)]" />
+                                <span className="absolute inset-1 rounded-full border border-dashed border-[rgba(var(--theme-accent-rgb),0.32)] transition-transform duration-700 ease-in-out group-hover:rotate-90" />
+                                <span className="absolute inset-2 rounded-full bg-[rgba(var(--theme-accent-rgb),0.09)] shadow-[inset_0_0_12px_rgba(var(--theme-accent-rgb),0.12),0_0_18px_rgba(var(--theme-accent-rgb),0.12)]" />
+                                <span className="relative font-mono text-xl font-black tabular-nums leading-none text-[rgb(var(--theme-accent-rgb))] drop-shadow-[0_0_12px_rgba(var(--theme-accent-rgb),0.65)] transition-transform duration-500 ease-in-out group-hover:scale-110 sm:text-2xl">
+                                  {dayGames.length}
+                                </span>
+                              </div>
+                              <span className="mt-1 text-[7px] font-bold uppercase tracking-[0.22em] text-white/55 sm:text-[8px]">
+                                {dayGames.length === 1 ? "Release" : "Releases"}
+                              </span>
+                              <span className="mt-1 hidden items-center gap-1 sm:flex">
+                                {Array.from({ length: Math.min(dayGames.length, 5) }).map(
+                                  (_, releaseIndex) => (
+                                    <span
+                                      key={releaseIndex}
+                                      className="h-1 w-1 rounded-full bg-[rgb(var(--theme-accent-rgb))] opacity-55 shadow-[0_0_5px_rgba(var(--theme-accent-rgb),0.7)]"
+                                    />
+                                  ),
+                                )}
+                                {dayGames.length > 5 && (
+                                  <span className="text-[6px] font-bold text-white/40">
+                                    +{dayGames.length - 5}
+                                  </span>
+                                )}
+                              </span>
                             </div>
                           )}
                         </button>
@@ -445,45 +700,111 @@ export default function CalendarPage() {
               >
                 <div className="border-b border-white/10 px-4 py-4 sm:px-5">
                   <div className="rounded-2xl border border-[var(--theme-border)] theme-surface p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {PANEL_TABS.map((tab) => {
                         const isActive = tab.id === activePanel;
+                        const count =
+                          tab.id === "confirmed"
+                            ? sidebarMonthGames.length
+                            : tab.id === "windows"
+                              ? releaseWindowGames.length
+                              : tbaGames.length;
                         return (
                           <button
                             key={tab.id}
                             type="button"
                             onClick={() => handlePanelChange(tab.id)}
-                            className={`relative overflow-hidden rounded-[18px] px-4 py-3 text-left transition ${
+                            className={`relative min-w-0 overflow-hidden rounded-xl border px-2 py-2.5 text-center transition-all duration-200 ${
                               isActive
-                                ? "bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] shadow-[0_14px_26px_rgba(var(--theme-accent-rgb),0.25)]"
+                                ? tab.id === "confirmed"
+                                  ? "border-cyan-300/40 bg-cyan-300 text-slate-950 shadow-[0_10px_24px_rgba(34,211,238,0.2)]"
+                                  : tab.id === "windows"
+                                    ? "border-amber-300/40 bg-amber-300 text-amber-950 shadow-[0_10px_24px_rgba(251,191,36,0.18)]"
+                                    : "border-violet-300/40 bg-violet-300 text-violet-950 shadow-[0_10px_24px_rgba(167,139,250,0.18)]"
                                 : tab.id === "confirmed"
-                                  ? "bg-cyan-500/8 text-cyan-100 hover:bg-cyan-500/14"
-                                  : "bg-amber-500/8 text-amber-100 hover:bg-amber-500/14"
+                                  ? "border-transparent bg-cyan-500/[0.06] text-cyan-100/75 hover:border-cyan-300/15 hover:bg-cyan-500/10 hover:text-cyan-50"
+                                  : tab.id === "windows"
+                                    ? "border-transparent bg-amber-500/[0.06] text-amber-100/75 hover:border-amber-300/15 hover:bg-amber-500/10 hover:text-amber-50"
+                                    : "border-transparent bg-violet-500/[0.06] text-violet-100/75 hover:border-violet-300/15 hover:bg-violet-500/10 hover:text-violet-50"
                             }`}
                           >
-                            <div
-                              className={`absolute inset-0 opacity-80 ${
-                                isActive
-                                  ? tab.id === "confirmed"
-                                    ? "bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.22),transparent_60%)]"
-                                    : "bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.22),transparent_60%)]"
-                                  : ""
-                              }`}
-                            />
                             <div className="relative z-10">
-                              <p className="text-[10px] uppercase tracking-[0.28em] text-current/65">
-                                {tab.id === "confirmed"
-                                  ? "Calendar"
-                                  : `${year} Window`}
-                              </p>
-                              <p className="mt-1 text-sm font-semibold tracking-wide">
-                                {tab.label}
-                              </p>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${
+                                    isActive
+                                      ? "bg-current opacity-65"
+                                      : tab.id === "confirmed"
+                                        ? "bg-cyan-300"
+                                        : tab.id === "windows"
+                                          ? "bg-amber-300"
+                                          : "bg-violet-300"
+                                  }`}
+                                />
+                                <p className="truncate text-[8px] font-bold uppercase tracking-[0.18em] opacity-65">
+                                  {tab.id === "confirmed"
+                                    ? "Exact"
+                                    : tab.id === "windows"
+                                      ? "Approx."
+                                      : "Unknown"}
+                                </p>
+                              </div>
+                              <div className="mt-1 flex items-center justify-center gap-1.5">
+                                <p className="truncate text-[13px] font-bold tracking-tight">
+                                  {tab.label}
+                                </p>
+                                <span className="inline-flex min-w-4.5 items-center justify-center rounded-full bg-black/15 px-1.5 py-0.5 text-[9px] font-black leading-none">
+                                  {count > 99 ? "99+" : count}
+                                </span>
+                              </div>
                             </div>
                           </button>
                         );
                       })}
                     </div>
+                    <AnimatePresence initial={false}>
+                      {activePanel === "windows" && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0, y: -8 }}
+                          animate={{ height: "auto", opacity: 1, y: 0 }}
+                          exit={{ height: 0, opacity: 0, y: -8 }}
+                          transition={{ duration: 0.22, ease: "easeOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-1.5 grid grid-cols-5 gap-1.5 border-t border-white/[0.07] pt-1.5">
+                            {([1, 2, 3, 4, "year"] as const).map((quarter) => {
+                              const isSelected = estimatedQuarter === quarter;
+                              return (
+                                <button
+                                  key={quarter}
+                                  type="button"
+                                  onClick={() =>
+                                    setEstimatedQuarter((current) =>
+                                      current === quarter ? null : quarter,
+                                    )
+                                  }
+                                  aria-pressed={isSelected}
+                                  title={
+                                    isSelected
+                                      ? "Return to the selected month"
+                                      : quarter === "year"
+                                        ? `Show releases listed only as ${year}`
+                                        : `Show all Q${quarter} release estimates`
+                                  }
+                                  className={`rounded-lg border px-2 py-1.5 text-[10px] font-black tracking-[0.12em] transition ${
+                                    isSelected
+                                      ? "border-amber-300/45 bg-amber-300 text-amber-950 shadow-[0_6px_16px_rgba(251,191,36,0.16)]"
+                                      : "border-transparent bg-amber-500/[0.06] text-amber-100/60 hover:border-amber-300/20 hover:bg-amber-500/12 hover:text-amber-100"
+                                  }`}
+                                >
+                                  {quarter === "year" ? "Year" : `Q${quarter}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
 
@@ -496,14 +817,36 @@ export default function CalendarPage() {
                       className={`text-[11px] font-semibold uppercase tracking-[0.28em] ${
                         activePanel === "confirmed"
                           ? "text-cyan-200/75"
-                          : "text-amber-200/75"
+                          : activePanel === "windows"
+                            ? "text-amber-200/75"
+                            : "text-violet-200/75"
                       }`}
                     >
                       {activeTab.eyebrow}
                     </p>
-                    <h2 className="mt-1 text-lg font-semibold text-white">
-                      {activeTab.title(year)}
-                    </h2>
+                    <div className="mt-1 flex items-center gap-2">
+                      <h2 className="text-lg font-semibold text-white">
+                        {activeTab.title(year)}
+                      </h2>
+                      {activePanel === "windows" && estimatedQuarter && (
+                        <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-200">
+                          {estimatedQuarter === "year"
+                            ? "Year only"
+                            : `Q${estimatedQuarter}`}
+                        </span>
+                      )}
+                      {activePanel === "confirmed" && (
+                        <button
+                          type="button"
+                          onClick={() => setCountdownInfoOpen(true)}
+                          aria-label="How release countdowns work"
+                          title="How release countdowns work"
+                          className="grid h-6 w-6 place-items-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-cyan-200/75 transition hover:border-cyan-300/50 hover:bg-cyan-400/20 hover:text-cyan-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+                        >
+                          <FaInfoCircle size={12} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="relative min-h-0 flex-1 overflow-hidden rounded-[26px] border border-[var(--theme-border)] theme-surface">
@@ -548,9 +891,9 @@ export default function CalendarPage() {
                                     g.date.getTime() <= today.getTime();
                                   return (
                                     <motion.div
-                                      key={g.id}
-                                      initial={{ opacity: 0, y: 10 }}
-                                      animate={{ opacity: 1, y: 0 }}
+                                      key={g.occurrenceId}
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
                                       transition={{
                                         duration: 0.2,
                                         delay: index * 0.03,
@@ -558,16 +901,16 @@ export default function CalendarPage() {
                                     >
                                       <Link
                                         href={`/game/${g.id}`}
-                                        className="group block overflow-hidden rounded-[22px] border border-[var(--theme-border)] theme-surface pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.15)] transition hover:-translate-y-0.5 hover:border-[rgba(var(--theme-accent-rgb),0.35)]"
+                                        className="group block overflow-hidden rounded-[22px] border border-[var(--theme-border)] theme-surface pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.15)] transition-[transform,border-color,box-shadow,background-color] duration-500 ease-in-out hover:-translate-y-1 hover:border-[rgba(var(--theme-accent-rgb),0.45)] hover:shadow-[0_22px_48px_rgba(0,0,0,0.24),0_0_24px_rgba(var(--theme-accent-rgb),0.09)]"
                                       >
                                         <div className="flex gap-3 px-2.5 py-2">
                                           <img
-                                            src={
-                                              g.igdb?.cover ||
-                                              "/placeholder-game.jpg"
-                                            }
+                                            src={getCalendarCover(
+                                              g.igdb?.cover,
+                                            )}
                                             alt={g.name}
-                                            className="h-28 w-20 shrink-0 rounded-[16px] object-cover"
+                                            decoding="async"
+                                            className="h-31 w-23 shrink-0 rounded-[16px] object-cover"
                                           />
 
                                           <div className="flex min-w-0 flex-1 flex-col">
@@ -584,21 +927,27 @@ export default function CalendarPage() {
                                                 },
                                               )}
                                             </p>
-                                            {accessType && (
+                                            {(accessType ||
+                                              shouldShowFullReleaseBadge(g)) && (
                                               <span className="mt-2 w-fit">
-                                                <PreReleaseBadge
-                                                  type={accessType}
-                                                  label={
-                                                    leakedOnLabel ??
-                                                    PRE_RELEASE_LABELS[accessType]
-                                                  }
-                                                  compact
-                                                />
+                                                {leakedOnLabel && accessType ? (
+                                                  <PreReleaseBadge
+                                                    type={accessType}
+                                                    label={leakedOnLabel}
+                                                    compact
+                                                  />
+                                                ) : (
+                                                  getReleasePhaseLabel(g)
+                                                )}
                                               </span>
                                             )}
                                             {isReleased ? (
                                               <div className="mt-auto flex flex-wrap items-center gap-2 pb-2">
-                                                <Countdown date={g.date} />
+                                                <Countdown
+                                                  date={
+                                                    g.countdownDate ?? g.date
+                                                  }
+                                                />
                                                 {statusBadge && (
                                                   <span
                                                     className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${statusBadge.className}`}
@@ -610,7 +959,11 @@ export default function CalendarPage() {
                                               </div>
                                             ) : (
                                               <div className="mt-2 text-xs text-cyan-300">
-                                                <Countdown date={g.date} />
+                                                <Countdown
+                                                  date={
+                                                    g.countdownDate ?? g.date
+                                                  }
+                                                />
                                               </div>
                                             )}
                                           </div>
@@ -621,47 +974,109 @@ export default function CalendarPage() {
                                 })}
                               </div>
                             )
-                          ) : yearOnlyGames.length === 0 ? (
+                          ) : activePanel === "windows" ? (
+                            releaseWindowGames.length === 0 ? (
+                              <div className="rounded-[22px] border border-white/10 bg-black/35 p-5 text-sm text-white/60">
+                                {estimatedQuarter
+                                  ? estimatedQuarter === "year"
+                                    ? `No year-only release estimates for ${year}.`
+                                    : `No estimated releases apply to Q${estimatedQuarter} ${year}.`
+                                  : "No estimated releases apply to this month."}
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-3 pr-1">
+                                {releaseWindowGames.map((g, index) => {
+                                  return (
+                                    <motion.div
+                                      key={g.occurrenceId}
+                                      initial={{
+                                        opacity: 0,
+                                        y: 18,
+                                        scale: 0.96,
+                                      }}
+                                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                                      transition={{
+                                        duration: 0.24,
+                                        delay: index * 0.04,
+                                      }}
+                                    >
+                                      <Link
+                                        href={`/game/${g.id}`}
+                                        className="group block overflow-hidden rounded-3xl border border-gray-600/50"
+                                      >
+                                        <div className="relative aspect-[0.72] overflow-hidden">
+                                          <img
+                                            src={
+                                              g.igdb?.cover ||
+                                              "/placeholder-game.jpg"
+                                            }
+                                            alt={g.name}
+                                            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                          />
+                                          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.18)_34%,rgba(7,5,2,0.88)_90%,rgba(7,5,2,0.98))]" />
+                                          <div className="absolute left-2.5 top-2.5">
+                                            {getReleasePhaseLabel(g, true)}
+                                          </div>
+                                          <div className="absolute inset-x-0 bottom-0 p-3.5">
+                                            <p className="line-clamp-3 text-[14px] font-semibold leading-[1.04] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                                              {g.name}
+                                            </p>
+                                            <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white/65">
+                                              {formatReleaseDate(
+                                                g.date,
+                                                g.datePrecision,
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </Link>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            )
+                          ) : tbaGames.length === 0 ? (
                             <div className="rounded-[22px] border border-white/10 bg-black/35 p-5 text-sm text-white/60">
-                              No year-only releases tracked for {year}.
+                              No games with an unannounced release date.
                             </div>
                           ) : (
                             <div className="grid grid-cols-2 gap-3 pr-1">
-                              {yearOnlyGames.map((g, index) => {
-                                return (
-                                  <motion.div
-                                    key={g.id}
-                                    initial={{ opacity: 0, y: 18, scale: 0.96 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    transition={{
-                                      duration: 0.24,
-                                      delay: index * 0.04,
-                                    }}
+                              {tbaGames.map((g, index) => (
+                                <motion.div
+                                  key={g.occurrenceId}
+                                  initial={{ opacity: 0, y: 18, scale: 0.96 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  transition={{
+                                    duration: 0.24,
+                                    delay: index * 0.04,
+                                  }}
+                                >
+                                  <Link
+                                    href={`/game/${g.id}`}
+                                    className="group block overflow-hidden rounded-3xl border border-violet-300/20"
                                   >
-                                    <Link
-                                      href={`/game/${g.id}`}
-                                      className="group block overflow-hidden rounded-3xl border border-gray-600/50"
-                                    >
-                                      <div className="relative aspect-[0.72] overflow-hidden">
-                                        <img
-                                          src={
-                                            g.igdb?.cover ||
-                                            "/placeholder-game.jpg"
-                                          }
-                                          alt={g.name}
-                                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                                        />
-                                        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.18)_34%,rgba(7,5,2,0.88)_90%,rgba(7,5,2,0.98))]" />
-                                        <div className="absolute inset-x-0 bottom-0 translate-y-2 p-3.5 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                                          <p className="line-clamp-3 text-[14px] font-semibold leading-[1.04] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-                                            {g.name}
-                                          </p>
-                                        </div>
+                                    <div className="relative aspect-[0.72] overflow-hidden">
+                                      <img
+                                        src={
+                                          g.igdb?.cover ||
+                                          "/placeholder-game.jpg"
+                                        }
+                                        alt={g.name}
+                                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                      />
+                                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08),rgba(0,0,0,0.18)_34%,rgba(7,5,2,0.88)_90%,rgba(7,5,2,0.98))]" />
+                                      <div className="absolute inset-x-0 bottom-0 p-3.5">
+                                        <p className="line-clamp-3 text-[14px] font-semibold leading-[1.04] tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+                                          {g.name}
+                                        </p>
+                                        <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200/75">
+                                          TBA
+                                        </p>
                                       </div>
-                                    </Link>
-                                  </motion.div>
-                                );
-                              })}
+                                    </div>
+                                  </Link>
+                                </motion.div>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -673,6 +1088,66 @@ export default function CalendarPage() {
             </div>
           </div>
         </section>
+
+        <AnimatePresence>
+          {countdownInfoOpen && (
+            <motion.div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setCountdownInfoOpen(false)}
+            >
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="countdown-info-title"
+                initial={{ opacity: 0, y: 18, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 18, scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                onClick={(event) => event.stopPropagation()}
+                className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-cyan-300/20 bg-zinc-950 p-6 shadow-[0_30px_100px_rgba(0,0,0,0.75)] sm:p-7"
+              >
+                <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
+                <div className="relative">
+                  <span className="inline-flex rounded-full border border-cyan-300/25 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    Release countdowns
+                  </span>
+                  <h2
+                    id="countdown-info-title"
+                    className="mt-3 text-2xl font-black tracking-tight text-white"
+                  >
+                    Why the time may not be exact
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-zinc-300">
+                    IGDB and game publishers usually provide a release day, but
+                    not an exact launch time. Until one is announced, PlayCrew
+                    calculates the countdown from the listed release date.
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-zinc-400">
+                    Exact launch times are often shared closer to release. If
+                    you know the confirmed time, edit the game tracker and
+                    choose{" "}
+                    <span className="font-bold text-cyan-200">
+                      Set exact time
+                    </span>
+                    . Select the announcement&apos;s timezone and PlayCrew will
+                    convert it into your local time automatically.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCountdownInfoOpen(false)}
+                    autoFocus
+                    className="mt-6 w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-black text-zinc-950 transition hover:bg-cyan-200"
+                  >
+                    Got it
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {selectedDayGames && (
@@ -740,17 +1215,16 @@ export default function CalendarPage() {
                     {selectedDayGames.map((g, index) => {
                       const statusBadge = getStatusBadge(g.status);
                       const accessType = getAccessType(g);
-                      const accessLabel = accessType
-                        ? PRE_RELEASE_LABELS[accessType]
-                        : null;
+                      const accessLabel = accessType ? getAccessLabel(g) : null;
                       const leakedOnLabel = getLeakedOnLabel(g);
 
                       return (
                         <motion.div
-                          key={g.id}
+                          key={g.occurrenceId}
                           initial={{ opacity: 0, y: 14 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.045 }}
+                          className="relative"
                         >
                           <Link
                             href={`/game/${g.id}`}
@@ -758,9 +1232,7 @@ export default function CalendarPage() {
                           >
                             <div className="relative w-24 shrink-0 overflow-hidden rounded-xl bg-black/30 sm:w-28">
                               <img
-                                src={
-                                  g.igdb?.cover || "/placeholder-game.jpg"
-                                }
+                                src={g.igdb?.cover || "/placeholder-game.jpg"}
                                 alt={g.name}
                                 className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                               />
@@ -769,13 +1241,17 @@ export default function CalendarPage() {
 
                             <div className="flex min-w-0 flex-1 flex-col p-2 sm:p-3">
                               <div className="flex flex-wrap gap-1.5">
-                                {accessLabel && (
-                                  <PreReleaseBadge
-                                    type={accessType!}
-                                    label={leakedOnLabel ?? accessLabel}
-                                    compact
-                                  />
-                                )}
+                                {(accessLabel ||
+                                  shouldShowFullReleaseBadge(g)) &&
+                                  (leakedOnLabel && accessType ? (
+                                    <PreReleaseBadge
+                                      type={accessType}
+                                      label={leakedOnLabel}
+                                      compact
+                                    />
+                                  ) : (
+                                    getReleasePhaseLabel(g)
+                                  ))}
                                 {statusBadge && (
                                   <span
                                     className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${statusBadge.className}`}
@@ -791,16 +1267,52 @@ export default function CalendarPage() {
                               <p className="mt-1 text-xs text-white/45">
                                 {leakedOnLabel
                                   ? leakedOnLabel
-                                  : accessLabel
-                                    ? `Marked as ${accessLabel}`
-                                  : "Official release"}
+                                  : g.releasePhase === "full-release"
+                                    ? "Official full release"
+                                    : accessLabel
+                                      ? `Marked as ${accessLabel}`
+                                      : "Official release"}
                               </p>
-                              <div className="mt-auto flex items-center gap-2 pt-3 text-xs font-semibold text-cyan-200 transition group-hover:text-cyan-100">
-                                View game
-                                <FaArrowRight size={10} />
-                              </div>
                             </div>
                           </Link>
+                          {selectedDayGames.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void setPrimaryDayCover(g, selectedDayGames)
+                              }
+                              disabled={
+                                g.calendarPrimary ||
+                                savingPrimaryGameId !== null
+                              }
+                              aria-label={
+                                g.calendarPrimary
+                                  ? `${g.name} is the day cover`
+                                  : `Use ${g.name} as the day cover`
+                              }
+                              title={
+                                g.calendarPrimary
+                                  ? "Current day cover"
+                                  : "Use as day cover"
+                              }
+                              className={`absolute bottom-4 right-4 z-20 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-bold shadow-lg backdrop-blur-md transition sm:bottom-5 sm:right-5 ${
+                                g.calendarPrimary
+                                  ? "cursor-default border-amber-300/40 bg-amber-400/20 text-amber-100"
+                                  : "border-white/15 bg-black/60 text-white/70 hover:border-amber-300/40 hover:bg-amber-400/15 hover:text-amber-100 disabled:cursor-wait disabled:opacity-50"
+                              }`}
+                            >
+                              {g.calendarPrimary ? (
+                                <FaStar size={10} />
+                              ) : (
+                                <FaRegStar size={10} />
+                              )}
+                              {savingPrimaryGameId === g.id
+                                ? "Saving..."
+                                : g.calendarPrimary
+                                  ? "Day cover"
+                                  : "Use as cover"}
+                            </button>
+                          )}
                         </motion.div>
                       );
                     })}

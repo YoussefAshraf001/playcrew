@@ -1,8 +1,8 @@
 [
   {
     "version": "2.0",
-    "title": "Enhanced",
-    "date": "2026-08-31",
+    "title": "Game Intelligence & Interface Overhaul",
+    "date": "2026-09-03",
     "featured": true,
     "changes": [
       {
@@ -14,6 +14,8 @@
           "Added persistent access badges that reveal with the rest of the GameCard content on hover",
           "Added granular refresh protection for titles, posters, platforms, and ratings, including automatic protection for custom covers",
           "Manual refresh can now temporarily override blocked fields after an explicit confirmation",
+          "Added custom release dates and times that drive launch countdowns and availability locks",
+          "Cracked and Mods links now unlock automatically at the custom release time, with Early Access and the normal release date used as fallbacks",
           "Expanded the developer game editor to manage tracking details, access dates, sessions, reviews, stickers, ratings, progress, and game metadata",
           "Removed Play Order sorting and retired unused save-game tracking logic"
         ]
@@ -24,6 +26,7 @@
           "Added a Community section to game pages with user reviews, profile images, ratings, playtime, progress, status, Played On platforms, and animated stickers",
           "Added a standalone My Review card and review modal that refreshes community reviews after saving",
           "Redesigned community review cards with a compact presentation, fixed sizing, loading skeletons, fade-in transitions, and arrow navigation",
+          "Rebuilt the Community section to match the game page content width, with a unified glass layout, improved review navigation, a richer empty state, and a cleaner My Review summary",
           "Added Helpful, Funny, 100%, and Glazing reactions with persistent per-user reaction data",
           "Added public community review support for migrated library reviews while preserving their original creation and update dates",
           "Improved animated GIF and WebP sticker playback with seamless looping and transparent presentation"
@@ -38,7 +41,10 @@
           "Added a one-row Achievements carousel with dimming navigation arrows and editable achievement definitions in achievements.json",
           "Added a collectible badge cabinet with automatic achievement synchronization",
           "Added paginated review browsing with title search, load-more behavior, sticker placeholders, and sticker loading skeletons",
-          "Improved review ordering so Recent Reviews consistently shows the newest entries first"
+          "Improved review ordering so Recent Reviews consistently shows the newest entries first",
+          "Redesigned the avatar and wallpaper crop editor with zoom controls, repositioning guidance, keyboard dismissal, and save progress",
+          "Changing an image and cancelling the crop now restores the previously saved image",
+          "Prevented browser password autofill from falsely triggering unsaved profile changes"
         ]
       },
       {
@@ -58,6 +64,10 @@
           "Added more specific release notifications for release windows and confirmed exact dates",
           "Improved the calendar day modal for browsing every game releasing on a selected date",
           "Added themed Early Access, Advanced Access, and Leaked badges to calendar entries while keeping games on their official calendar dates",
+          "Replaced duplicate calendar posters with centered release counts inside each day",
+          "Calendar quarter labels now update with the selected month span",
+          "Removed redundant Full Release badges when a game has no other release phase",
+          "Added smoother eased hover transitions to calendar days and the Upcoming Releases panel",
           "Leaked badges now display the recorded leak date inside the badge",
           "Added an administrator-only Force Refresh Now action to Release Sync settings",
           "Improved release synchronization and notification state handling to prevent old collection entries from reappearing as new notifications"
@@ -87,8 +97,11 @@
           "Added one new dark theme and one new light theme",
           "Reworked Crimson Spider into a true black-and-red theme with brighter gray text and deeper red accents",
           "Added V1 and V2 variants to Crimson Spider, including a true-black surface option inside the theme card",
-          "Reworked PlayCrew Classic into a darker black-and-blue theme",
-          "Improved theme palette coverage so interface colors and Opera GX range controls respond consistently across the website"
+          "Reworked PlayCrew Classic into a true-black theme with neon-cyan accents",
+          "Wallpaper controls now fade when no wallpaper is selected, and idle fading no longer affects the Library without a wallpaper",
+          "Wallpaper removal now displays an in-progress state while the change is being saved",
+          "Improved theme palette coverage so interface colors and Opera GX range controls respond consistently across the website",
+          "Made the top and sidebar navigation backgrounds more transparent while preserving blur and readability"
         ]
       },
       {
@@ -99,7 +112,16 @@
           "Improved GameCard access labels and hover presentation",
           "Added SteamDB artwork browsing from game posters with poster-sized previews, before-and-after comparison, loading skeletons, and current-artwork highlighting",
           "Changed the game page background from a screenshot slideshow to poster-based artwork and refined the poster aspect ratio",
+          "Revamped game detail pages with a clearer information hierarchy, translucent glass panels, and a brighter poster-derived backdrop",
+          "Added an IGDB Rating Analysis with an animated five-star meter and aggregate rating count",
+          "Added How Long to Beat estimates with main-story, extras, and completionist times",
+          "Expanded the poster sidebar with stacked personal rating and release cards plus IGDB-powered developer, publisher, franchise, engine, themes, perspective, age-rating, and release-status facts",
+          "Added a live launch countdown below the game story for upcoming releases",
+          "Redesigned PlayCrew Awards into a fixed-height archive strip with clearer previous-win and upcoming-ceremony labels",
+          "Removed the internal IGDB identifier from game detail pages",
+          "Removed the redundant All tab from Want To Play while preserving Released and Unreleased filtering",
           "Kept favorite stars, rating circles, crowns, and rating labels consistently golden across themes",
+          "Standardized the Want To Play icon across the calendar, dashboard hero, and game pages",
           "Improved platform icon colors so they match their real storefront or console branding",
           "Added more game quotes, including new Captain Price quotes",
           "Extended developer editor unlock sessions from 10 minutes to 1 hour"
@@ -134,7 +156,13 @@
           "Fixed achievement carousel scrollbars remaining visible",
           "Fixed profile screenshots and review data not appearing when visibility allowed access",
           "Fixed completion control wrapping past 100%",
-          "Fixed Game of the Year award container retaining an unintended themed border or glow"
+          "Fixed Game of the Year award container retaining an unintended themed border or glow",
+          "Fixed PlayCrew Awards loading states expanding and shrinking the game header",
+          "Fixed game pages showing duplicate document and app-content scrollbars",
+          "Fixed invalid or missing IGDB game responses crashing game pages, with a clear retry state for failed requests",
+          "Fixed IGDB Game Facts showing raw numeric engine IDs and corrected release-status field loading",
+          "Fixed Early Access games keeping Cracked and Mods links locked after becoming available",
+          "Fixed rating sources being visually inconsistent or showing an ambiguous empty score"
         ]
       }
     ]

@@ -1,4 +1,5 @@
 import { TrackedGame } from "@/app/types/trackedGame";
+import { isAutomaticallyInEarlyAccess } from "@/app/lib/igdbReleasePhases";
 
 export type SortBy =
   | "name"
@@ -52,6 +53,13 @@ export const getReleaseTime = (value: unknown): number => {
 // timeline date. The canonical IGDB date remains available for sync and for
 // deciding whether a pre-release ribbon is still active.
 export const getTimelineReleaseTime = (game: TrackedGame): number => {
+  const customReleaseTime = getReleaseTime(
+    game.customReleaseTime?.releasesAt,
+  );
+  if (customReleaseTime !== Infinity) {
+    return customReleaseTime;
+  }
+
   if (game.preReleaseAccess?.dateSource === "unlock") {
     return getReleaseTime(game.preReleaseAccess.unlockedAt);
   }
@@ -105,6 +113,15 @@ export const filterGames = ({
     const now = Date.now();
 
     list = list.filter((g) => {
+      const automaticEarlyAccess = isAutomaticallyInEarlyAccess(
+        g.igdb.earlyAccessDate,
+        g.igdb.fullReleaseDate,
+        now,
+      );
+      if (automaticEarlyAccess) {
+        return releaseFilter === "Released";
+      }
+
       const releaseTime = getTimelineReleaseTime(g);
 
       if (releaseTime === Infinity) {
@@ -127,7 +144,16 @@ export const filterGames = ({
     list = list.filter((g) => {
       // A pre-release game the user has unlocked is part of their playable
       // library even though its official release date is still in the future.
-      if (g.preReleaseAccess) return true;
+      if (
+        g.preReleaseAccess ||
+        isAutomaticallyInEarlyAccess(
+          g.igdb.earlyAccessDate,
+          g.igdb.fullReleaseDate,
+          now,
+        )
+      ) {
+        return true;
+      }
 
       const releaseTime = getTimelineReleaseTime(g);
 

@@ -125,19 +125,36 @@ const getRecentActivityKey = (game: TrackedGame) => {
 
 type SocialNotification = {
   id: string;
-  type: "friend_request" | "friend_accept";
+  type: "friend_request" | "friend_accept" | "game_release";
   fromUid?: string;
   senderUsername?: string;
   senderAvatar?: string | { data?: string };
+  gameId?: string | number;
+  gameName?: string;
+  gameCover?: string | null;
   message?: string;
   read: boolean;
   createdAt?: Timestamp | null;
 };
 
 const getSocialNotificationAvatar = (notification: SocialNotification) =>
-  typeof notification.senderAvatar === "string"
-    ? notification.senderAvatar
-    : (notification.senderAvatar?.data ?? "");
+  notification.type === "game_release"
+    ? (notification.gameCover ?? "")
+    : typeof notification.senderAvatar === "string"
+      ? notification.senderAvatar
+      : (notification.senderAvatar?.data ?? "");
+
+const getNotificationTitle = (notification: SocialNotification) =>
+  notification.type === "game_release"
+    ? "Game Now Available"
+    : notification.type === "friend_request"
+      ? "Friend Request"
+      : "Friend Request Accepted";
+
+const getNotificationFallback = (notification: SocialNotification) =>
+  (notification.type === "game_release"
+    ? notification.gameName
+    : notification.senderUsername) ?? "U";
 
 interface UserProfile {
   uid: string;
@@ -267,9 +284,13 @@ export default function GamesPage() {
   const [isIdle, setIsIdle] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAdmin = Boolean(localProfile?.admin ?? userProfile?.admin);
+  const wallpaperMedia = userProfile
+    ? userProfile.wallpaper
+    : localProfile?.wallpaper;
+  const canShowIdleWallpaper = Boolean(wallpaperMedia?.data);
 
   useEffect(() => {
-    if (!isAdmin || !idleModeEnabled) {
+    if (!isAdmin || !idleModeEnabled || !canShowIdleWallpaper) {
       setIsIdle(false);
 
       if (idleTimerRef.current) {
@@ -315,7 +336,12 @@ export default function GamesPage() {
         window.removeEventListener(event, resetIdleTimer);
       });
     };
-  }, [isAdmin, idleModeEnabled, idleWallpaperFadeSeconds]);
+  }, [
+    canShowIdleWallpaper,
+    isAdmin,
+    idleModeEnabled,
+    idleWallpaperFadeSeconds,
+  ]);
 
   const isDraggingRef = useRef(false);
   const canReorder = false;
@@ -718,7 +744,8 @@ export default function GamesPage() {
             .filter(
               (notification) =>
                 notification.type === "friend_request" ||
-                notification.type === "friend_accept",
+                notification.type === "friend_accept" ||
+                notification.type === "game_release",
             ),
         );
       },
@@ -1046,7 +1073,6 @@ export default function GamesPage() {
   const formattedDate = localProfile?.creationTime?.toLocaleDateString("en-GB");
   const profileUsername =
     localProfile?.username || userProfile?.username || "profile";
-  const wallpaperMedia = localProfile?.wallpaper || userProfile?.wallpaper;
 
   useEffect(() => {
     setWallpaperLoaded(false);
@@ -1561,7 +1587,7 @@ export default function GamesPage() {
          > */}
           <motion.div
             animate={{
-              opacity: isIdle ? 0 : 1,
+              opacity: isIdle && canShowIdleWallpaper ? 0 : 1,
             }}
             transition={{
               duration: 0.5,
@@ -1700,7 +1726,12 @@ export default function GamesPage() {
                               setShowFavoritesOnly(false);
 
                               setSelectedStatus(previousStatus);
-                              setReleaseFilter(previousReleaseFilter);
+                              setReleaseFilter(
+                                previousStatus === "Want To Play" &&
+                                  previousReleaseFilter === "All"
+                                  ? "Released"
+                                  : previousReleaseFilter,
+                              );
 
                               setCurrentPage(1);
                             }}
@@ -1772,7 +1803,7 @@ export default function GamesPage() {
                               }}
                               transition={{ duration: 0.22, ease: "easeInOut" }}
                             >
-                              {["All", "Released", "Unreleased"].map(
+                              {["Released", "Unreleased"].map(
                                 (filter) => (
                                   <button
                                     key={filter}
@@ -1783,7 +1814,6 @@ export default function GamesPage() {
                                     }`}
                                     onClick={() => {
                                       const nextFilter = filter as
-                                        | "All"
                                         | "Released"
                                         | "Unreleased";
 
@@ -1795,22 +1825,6 @@ export default function GamesPage() {
                                       } else if (nextFilter === "Unreleased") {
                                         setSortBy("release");
                                         setSortOrder("asc");
-                                      } else {
-                                        // All
-                                        const saved =
-                                          loadStatusSorts()["Want To Play"];
-
-                                        if (
-                                          saved &&
-                                          saved.sortBy !== "priority"
-                                        ) {
-                                          setSortBy(saved.sortBy);
-                                          setSortOrder(saved.sortOrder);
-                                        } else {
-                                          // Fallback if priority was accidentally saved
-                                          setSortBy("date");
-                                          setSortOrder("desc");
-                                        }
                                       }
 
                                       setCurrentPage(1);
@@ -2469,11 +2483,18 @@ export default function GamesPage() {
                                 key={notification.id}
                                 role="button"
                                 tabIndex={0}
-                                onClick={() =>
+                                onClick={() => {
+                                  if (
+                                    notification.type === "game_release" &&
+                                    notification.gameId
+                                  ) {
+                                    router.push(`/game/${notification.gameId}`);
+                                    return;
+                                  }
                                   window.dispatchEvent(
                                     new CustomEvent("playcrew:open-friends"),
-                                  )
-                                }
+                                  );
+                                }}
                                 onMouseEnter={() =>
                                   void markSocialNotificationRead(
                                     notification.id,
@@ -2488,21 +2509,19 @@ export default function GamesPage() {
                                 {avatar ? (
                                   <img
                                     src={avatar}
-                                    alt={notification.senderUsername ?? "User"}
-                                    className="h-12 w-12 rounded-full object-cover"
+                                    alt={getNotificationFallback(notification)}
+                                    className={`h-12 w-12 object-cover ${notification.type === "game_release" ? "rounded-lg" : "rounded-full"}`}
                                   />
                                 ) : (
                                   <div className="theme-accent-soft-bg flex h-12 w-12 shrink-0 items-center justify-center rounded-full border text-lg font-bold">
-                                    {(notification.senderUsername ?? "U")
+                                    {getNotificationFallback(notification)
                                       .charAt(0)
                                       .toUpperCase()}
                                   </div>
                                 )}
                                 <div className="min-w-0 flex-1">
                                   <span className="theme-text block truncate text-xs font-bold">
-                                    {notification.type === "friend_request"
-                                      ? "Friend Request"
-                                      : "Friend Request Accepted"}
+                                    {getNotificationTitle(notification)}
                                   </span>
                                   <p className="theme-text-muted mt-1 line-clamp-2 text-[11px]">
                                     {notification.message}
@@ -2771,6 +2790,13 @@ export default function GamesPage() {
                           tabIndex={0}
                           onClick={() => {
                             closeRecentActivityModal();
+                            if (
+                              notification.type === "game_release" &&
+                              notification.gameId
+                            ) {
+                              router.push(`/game/${notification.gameId}`);
+                              return;
+                            }
                             window.dispatchEvent(
                               new CustomEvent("playcrew:open-friends"),
                             );
@@ -2784,12 +2810,12 @@ export default function GamesPage() {
                           {avatar ? (
                             <img
                               src={avatar}
-                              alt={notification.senderUsername ?? "User"}
-                              className="h-16 w-16 rounded-full object-cover"
+                              alt={getNotificationFallback(notification)}
+                              className={`h-16 w-16 object-cover ${notification.type === "game_release" ? "rounded-xl" : "rounded-full"}`}
                             />
                           ) : (
                             <div className="theme-accent-soft-bg flex h-16 w-16 shrink-0 items-center justify-center rounded-full border text-2xl font-bold">
-                              {(notification.senderUsername ?? "U")
+                              {getNotificationFallback(notification)
                                 .charAt(0)
                                 .toUpperCase()}
                             </div>
@@ -2798,9 +2824,7 @@ export default function GamesPage() {
                             <div className="flex items-start justify-between gap-4">
                               <div>
                                 <h3 className="text-lg font-bold">
-                                  {notification.type === "friend_request"
-                                    ? "Friend Request"
-                                    : "Friend Request Accepted"}
+                                  {getNotificationTitle(notification)}
                                 </h3>
                                 <p className="mt-2 text-sm text-[var(--theme-accent-strong)]">
                                   {notification.message}
@@ -3028,7 +3052,7 @@ export default function GamesPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {isIdle && wallpaperMedia && (
+        {isIdle && canShowIdleWallpaper && wallpaperMedia && (
           <motion.div
             className="pointer-events-none fixed inset-0 z-[9998] overflow-hidden bg-[var(--theme-bg)]"
             initial={{ opacity: 0 }}

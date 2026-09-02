@@ -160,6 +160,7 @@ export default function SiteSettingsPage() {
   );
   const [gifCropMedia, setGifCropMedia] = useState<MediaValue | null>(null);
   const [savingWallpaper, setSavingWallpaper] = useState(false);
+  const [removingWallpaper, setRemovingWallpaper] = useState(false);
   const [wallpaperSourceOpen, setWallpaperSourceOpen] = useState(false);
   const [giphyPickerOpen, setGiphyPickerOpen] = useState(false);
   const [giphyQuery, setGiphyQuery] = useState("");
@@ -552,7 +553,7 @@ export default function SiteSettingsPage() {
   };
 
   const removeWallpaper = async () => {
-    if (!user || !profile) return;
+    if (!user || !profile || removingWallpaper) return;
 
     if (pendingWallpaper) {
       setPendingWallpaper(null);
@@ -562,6 +563,7 @@ export default function SiteSettingsPage() {
 
     if (!profile.wallpaper?.data) return;
 
+    setRemovingWallpaper(true);
     try {
       await fetch("/api/cloudinary/destroy", {
         method: "POST",
@@ -586,6 +588,8 @@ export default function SiteSettingsPage() {
     } catch (error) {
       console.error(error);
       toast.error("Failed to remove wallpaper");
+    } finally {
+      setRemovingWallpaper(false);
     }
   };
 
@@ -1062,14 +1066,28 @@ export default function SiteSettingsPage() {
 
                   <button
                     type="button"
-                    disabled={!hasPendingWallpaper && !hasSavedWallpaper}
+                    disabled={
+                      (!hasPendingWallpaper && !hasSavedWallpaper) ||
+                      removingWallpaper ||
+                      savingWallpaper
+                    }
                     onClick={removeWallpaper}
-                    className="theme-surface theme-hover-surface flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-center text-sm transition hover:scale-[1.02] disabled:opacity-50"
+                    aria-busy={removingWallpaper}
+                    className="theme-surface theme-hover-surface flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-center text-sm transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 disabled:hover:scale-100"
                   >
-                    <FiTrash2 size={22} />
-                    <span className="font-semibold">
-                      {hasPendingWallpaper ? "Discard" : "Remove"}
-                    </span>
+                    {removingWallpaper ? (
+                      <>
+                        <span className="loading loading-spinner loading-sm" />
+                        <span className="font-semibold">Removing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FiTrash2 size={22} />
+                        <span className="font-semibold">
+                          {hasPendingWallpaper ? "Discard" : "Remove"}
+                        </span>
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -1107,6 +1125,13 @@ export default function SiteSettingsPage() {
 
                 <div className="my-4 border-t border-[var(--theme-border)]" />
 
+                <div
+                  className={`transition-[opacity,filter] duration-300 ease-in-out ${
+                    hasWallpaper
+                      ? "opacity-100 saturate-100"
+                      : "opacity-30 saturate-50"
+                  }`}
+                >
                 {/* BLUR */}
                 <div className="mb-4">
                   <div className="mb-2 flex items-center justify-between">
@@ -1285,6 +1310,7 @@ export default function SiteSettingsPage() {
                         : "Preview Wallpaper"
                       : "No Wallpaper"}
                   </button>
+                </div>
                 </div>
 
                 <input

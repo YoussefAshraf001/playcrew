@@ -13,12 +13,17 @@ import { useUser } from "@/app/context/UserContext";
 import { useGames } from "@/app/context/GameContext";
 import { useRouter } from "next/navigation";
 import { IoCloseCircle } from "react-icons/io5";
+import { buildCanonicalTrackedGamePayload } from "@/app/lib/trackedGamePayload";
 
 type SearchGame = {
   id: number;
   name: string;
   cover?: { url: string };
   first_release_date?: number;
+  releaseDate?: number | null;
+  earlyAccessDate?: number | null;
+  fullReleaseDate?: number | null;
+  releaseDateKind?: "early-access" | "full-release" | "unknown" | null;
   version_parent?: number;
 };
 
@@ -28,8 +33,9 @@ const buildCoverUrl = (game?: SearchGame | null) => {
 };
 
 const getReleaseDate = (game?: SearchGame | null) => {
-  if (!game?.first_release_date) return null;
-  return new Date(game.first_release_date * 1000);
+  const releaseDate = game?.releaseDate ?? game?.first_release_date;
+  if (!releaseDate) return null;
+  return new Date(releaseDate * 1000);
 };
 
 export default function SearchModal({
@@ -237,35 +243,11 @@ export default function SearchModal({
     try {
       const gameRef = doc(db, "users", uid, "games_igdb", String(game.id));
 
-      await setDoc(gameRef, {
-        name: game.name,
-
-        igdb: {
-          id: game.id,
-          name: game.name,
-          cover: buildCoverUrl(game),
-          releaseDate: getReleaseDate(game),
-        },
-
-        my_rating: null,
-        playtime: 0,
-        progress: 0,
-
-        review: {
-          text: "",
-          sticker: null,
-        },
-
-        status: "Want To Play",
-        favorite: false,
-        notInterested: false,
-        playedSessions: [],
-
-        recentActionSummary: "Added to My Collection",
-        recentActionSource: "user",
-
-        lastUpdated: new Date(),
-      });
+      const payload = await buildCanonicalTrackedGamePayload(
+        game.id,
+        game.name,
+      );
+      await setDoc(gameRef, payload);
 
       toast.success(
         <span>

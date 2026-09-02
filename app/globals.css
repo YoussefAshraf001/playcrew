@@ -40,27 +40,27 @@
 :root[data-app-theme="neo-cyan"] {
   --theme-bg: #000000;
   --theme-bg-rgb: 0, 0, 0;
-  --theme-bg-elevated: rgba(7, 12, 24, 0.96);
-  --theme-surface: rgba(10, 18, 36, 0.8);
-  --theme-surface-strong: rgba(5, 10, 22, 0.97);
-  --theme-panel: rgba(4, 9, 20, 0.88);
-  --theme-panel-alt: rgba(10, 20, 42, 0.95);
-  --theme-border: rgba(37, 99, 235, 0.28);
-  --theme-border-strong: rgba(96, 165, 250, 0.78);
+  --theme-bg-elevated: rgba(2, 8, 10, 0.98);
+  --theme-surface: rgba(2, 12, 14, 0.84);
+  --theme-surface-strong: rgba(0, 7, 9, 0.98);
+  --theme-panel: rgba(1, 9, 11, 0.9);
+  --theme-panel-alt: rgba(3, 16, 19, 0.96);
+  --theme-border: rgba(0, 229, 255, 0.25);
+  --theme-border-strong: rgba(103, 232, 249, 0.82);
   --theme-text: #f8fafc;
-  --theme-text-muted: rgba(219, 234, 254, 0.76);
-  --theme-accent: #2563eb;
-  --theme-accent-strong: #60a5fa;
-  --theme-accent-contrast: #020817;
-  --theme-accent-rgb: 37, 99, 235;
+  --theme-text-muted: rgba(207, 250, 254, 0.74);
+  --theme-accent: #00e5ff;
+  --theme-accent-strong: #67e8f9;
+  --theme-accent-contrast: #001012;
+  --theme-accent-rgb: 0, 229, 255;
   --theme-shadow: 0 30px 110px rgba(0, 0, 0, 0.55);
-  --theme-tint-a: rgba(37, 99, 235, 0.2);
-  --theme-tint-b: rgba(96, 165, 250, 0.1);
-  --color-cyan-300: #93c5fd;
-  --color-cyan-400: #60a5fa;
-  --color-cyan-500: #3b82f6;
-  --color-cyan-600: #2563eb;
-  --color-cyan-700: #1d4ed8;
+  --theme-tint-a: rgba(0, 229, 255, 0.2);
+  --theme-tint-b: rgba(103, 232, 249, 0.1);
+  --color-cyan-300: #67e8f9;
+  --color-cyan-400: #22d3ee;
+  --color-cyan-500: #06b6d4;
+  --color-cyan-600: #0891b2;
+  --color-cyan-700: #0e7490;
 }
 
 /* Crimson Spider */
@@ -1265,7 +1265,7 @@ select {
 }
 
 .theme-nav {
-  background: color-mix(in srgb, var(--theme-panel-alt) 86%, transparent);
+  background: color-mix(in srgb, var(--theme-panel-alt) 76%, transparent);
   border-color: var(--theme-border-strong);
   color: var(--theme-text);
   box-shadow: 0 20px 54px rgba(0, 0, 0, 0.38);
