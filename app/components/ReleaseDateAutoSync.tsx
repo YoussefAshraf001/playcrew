@@ -81,7 +81,7 @@ const toDate = (value: unknown): Date | null => {
 
 const RELEASE_SYNC_INTERVAL_KEY = "playcrew-release-sync-interval-hours";
 const RELEASE_SYNC_LAST_RUN_KEY = "playcrew-release-sync-last-run";
-const RELEASE_SYNC_INTERVAL_OPTIONS = [8, 12, 24, 48] as const;
+const RELEASE_SYNC_INTERVAL_OPTIONS = [0, 8, 12, 24, 48] as const;
 const DEFAULT_RELEASE_SYNC_HOURS = 48;
 
 const getReleaseSyncInterval = () => {
@@ -105,6 +105,10 @@ const shouldRunReleaseSync = () => {
   const lastRun = Number(
     window.localStorage.getItem(RELEASE_SYNC_LAST_RUN_KEY),
   );
+
+  if (intervalHours === 0) {
+    return true;
+  }
 
   if (!lastRun || Number.isNaN(lastRun)) {
     return true;

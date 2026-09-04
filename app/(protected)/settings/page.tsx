@@ -71,7 +71,7 @@ const getErrorMessage = (error: unknown, fallback: string) =>
 const THEME_STORAGE_KEY = "playcrew-theme-preset";
 const FONT_STORAGE_KEY = "playcrew-font-preset";
 const RELEASE_SYNC_INTERVAL_KEY = "playcrew-release-sync-interval-hours";
-const RELEASE_SYNC_INTERVAL_OPTIONS = [8, 12, 24, 48] as const;
+const RELEASE_SYNC_INTERVAL_OPTIONS = [0, 8, 12, 24, 48] as const;
 const DEFAULT_RELEASE_SYNC_HOURS = 48;
 
 const formatFadeDuration = (seconds: number) => {
@@ -952,21 +952,23 @@ export default function SiteSettingsPage() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
                     {RELEASE_SYNC_INTERVAL_OPTIONS.map((hours) => {
                       const isSelected = releaseSyncInterval === hours;
+                      const label = hours === 0 ? "On open" : `${hours}h`;
+
                       return (
                         <button
                           key={hours}
                           type="button"
                           onClick={() => handleReleaseSyncIntervalChange(hours)}
-                          className={`rounded-xl border px-3 py-3 text-sm font-semibold transition-all duration-200 ${
+                          className={`min-h-[42px] rounded-xl border px-2 py-2 text-[11px] font-semibold transition-all duration-200 sm:text-xs ${
                             isSelected
                               ? "border-[var(--theme-accent)] bg-[rgba(var(--theme-accent-rgb),0.12)] shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22)]"
                               : "theme-surface theme-hover-surface"
                           }`}
                         >
-                          {hours}h
+                          {label}
                         </button>
                       );
                     })}
@@ -1132,185 +1134,185 @@ export default function SiteSettingsPage() {
                       : "opacity-30 saturate-50"
                   }`}
                 >
-                {/* BLUR */}
-                <div className="mb-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="theme-text text-sm font-semibold">
-                      Background Blur
-                    </span>
+                  {/* BLUR */}
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="theme-text text-sm font-semibold">
+                        Background Blur
+                      </span>
 
-                    <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-xs font-bold">
-                      {gamesBgBlur}px
-                    </span>
+                      <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-xs font-bold">
+                        {gamesBgBlur}px
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max="24"
+                      step="1"
+                      value={gamesBgBlur}
+                      disabled={!hasWallpaper}
+                      onChange={(event) =>
+                        setGamesBgBlur(
+                          clampGamesBgBlur(Number(event.target.value)),
+                        )
+                      }
+                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    />
                   </div>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="24"
-                    step="1"
-                    value={gamesBgBlur}
-                    disabled={!hasWallpaper}
-                    onChange={(event) =>
-                      setGamesBgBlur(
-                        clampGamesBgBlur(Number(event.target.value)),
-                      )
-                    }
-                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  />
-                </div>
+                  {/* OVERLAY */}
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="theme-text text-sm font-semibold">
+                        Dark Overlay
+                      </span>
 
-                {/* OVERLAY */}
-                <div className="mb-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="theme-text text-sm font-semibold">
-                      Dark Overlay
-                    </span>
+                      <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-xs font-bold">
+                        {gamesBgOverlay}%
+                      </span>
+                    </div>
 
-                    <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-xs font-bold">
-                      {gamesBgOverlay}%
-                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="85"
+                      step="1"
+                      value={gamesBgOverlay}
+                      disabled={!hasWallpaper}
+                      onChange={(event) =>
+                        setGamesBgOverlay(
+                          clampGamesBgOverlay(Number(event.target.value)),
+                        )
+                      }
+                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    />
                   </div>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="85"
-                    step="1"
-                    value={gamesBgOverlay}
-                    disabled={!hasWallpaper}
-                    onChange={(event) =>
-                      setGamesBgOverlay(
-                        clampGamesBgOverlay(Number(event.target.value)),
-                      )
-                    }
-                    className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  />
-                </div>
-
-                {isAdmin && (
-                  <div className="theme-surface mb-4 rounded-xl border p-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="theme-text text-sm font-semibold">
-                            Idle Wallpaper
+                  {isAdmin && (
+                    <div className="theme-surface mb-4 rounded-xl border p-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="theme-text text-sm font-semibold">
+                              Idle Wallpaper
+                            </p>
+                            <span className="theme-accent-soft-bg rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]">
+                              Library page only
+                            </span>
+                          </div>
+                          <p className="theme-text-muted mt-1 text-xs leading-4">
+                            Fade the Library page into your wallpaper after a
+                            period without activity. This feature only works on
+                            the Library page.
                           </p>
-                          <span className="theme-accent-soft-bg rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]">
-                            Library page only
+                        </div>
+
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={idleWallpaperEnabled}
+                          disabled={!hasWallpaper}
+                          onClick={() =>
+                            setIdleWallpaperEnabled((current) => !current)
+                          }
+                          className={`relative h-7 w-12 shrink-0 rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            idleWallpaperEnabled
+                              ? "border-[var(--theme-accent)] bg-[var(--theme-accent)]"
+                              : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)]"
+                          }`}
+                        >
+                          <span
+                            className={`absolute left-1 top-1 h-[18px] w-[18px] rounded-full bg-[var(--theme-accent-contrast)] shadow-sm transition-transform ${
+                              idleWallpaperEnabled
+                                ? "translate-x-5"
+                                : "translate-x-0"
+                            }`}
+                          />
+                          <span className="sr-only">
+                            {idleWallpaperEnabled
+                              ? "Disable idle wallpaper"
+                              : "Enable idle wallpaper"}
+                          </span>
+                        </button>
+                      </div>
+
+                      {!hasWallpaper && (
+                        <p className="theme-text-muted mt-2 text-[11px]">
+                          Add a wallpaper to enable this option.
+                        </p>
+                      )}
+
+                      <div className="mt-4 border-t border-[var(--theme-border)] pt-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <label
+                            htmlFor="idle-wallpaper-fade-speed"
+                            className="theme-text text-xs font-semibold"
+                          >
+                            Fade After
+                          </label>
+                          <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-[11px] font-bold">
+                            {formatFadeDuration(idleWallpaperFadeSeconds)}
                           </span>
                         </div>
-                        <p className="theme-text-muted mt-1 text-xs leading-4">
-                          Fade the Library page into your wallpaper after a
-                          period without activity. This feature only works on
-                          the Library page.
+                        <input
+                          id="idle-wallpaper-fade-speed"
+                          type="range"
+                          min="5"
+                          max="300"
+                          step="5"
+                          value={idleWallpaperFadeSeconds}
+                          disabled={!hasWallpaper || !idleWallpaperEnabled}
+                          onChange={(event) =>
+                            setIdleWallpaperFadeSeconds(
+                              clampIdleWallpaperFadeSeconds(
+                                Number(event.target.value),
+                              ),
+                            )
+                          }
+                          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        />
+                        <p className="theme-text-muted mt-2 text-[11px]">
+                          Controls how long the Library page waits before fading
+                          to the wallpaper.
                         </p>
                       </div>
-
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={idleWallpaperEnabled}
-                        disabled={!hasWallpaper}
-                        onClick={() =>
-                          setIdleWallpaperEnabled((current) => !current)
-                        }
-                        className={`relative h-7 w-12 shrink-0 rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                          idleWallpaperEnabled
-                            ? "border-[var(--theme-accent)] bg-[var(--theme-accent)]"
-                            : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)]"
-                        }`}
-                      >
-                        <span
-                          className={`absolute left-1 top-1 h-[18px] w-[18px] rounded-full bg-[var(--theme-accent-contrast)] shadow-sm transition-transform ${
-                            idleWallpaperEnabled
-                              ? "translate-x-5"
-                              : "translate-x-0"
-                          }`}
-                        />
-                        <span className="sr-only">
-                          {idleWallpaperEnabled
-                            ? "Disable idle wallpaper"
-                            : "Enable idle wallpaper"}
-                        </span>
-                      </button>
                     </div>
+                  )}
 
-                    {!hasWallpaper && (
-                      <p className="theme-text-muted mt-2 text-[11px]">
-                        Add a wallpaper to enable this option.
-                      </p>
-                    )}
+                  <div className="my-4 border-t border-[var(--theme-border)]" />
 
-                    <div className="mt-4 border-t border-[var(--theme-border)] pt-3">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <label
-                          htmlFor="idle-wallpaper-fade-speed"
-                          className="theme-text text-xs font-semibold"
-                        >
-                          Fade After
-                        </label>
-                        <span className="theme-accent-soft-bg rounded-full border px-2 py-1 text-[11px] font-bold">
-                          {formatFadeDuration(idleWallpaperFadeSeconds)}
-                        </span>
-                      </div>
-                      <input
-                        id="idle-wallpaper-fade-speed"
-                        type="range"
-                        min="5"
-                        max="300"
-                        step="5"
-                        value={idleWallpaperFadeSeconds}
-                        disabled={!hasWallpaper || !idleWallpaperEnabled}
-                        onChange={(event) =>
-                          setIdleWallpaperFadeSeconds(
-                            clampIdleWallpaperFadeSeconds(
-                              Number(event.target.value),
-                            ),
-                          )
-                        }
-                        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                      />
-                      <p className="theme-text-muted mt-2 text-[11px]">
-                        Controls how long the Library page waits before fading
-                        to the wallpaper.
-                      </p>
-                    </div>
+                  {/* FOOTER ACTIONS */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={resetGamesPageSettings}
+                      disabled={!hasWallpaper}
+                      className="theme-surface theme-hover-surface h-9 rounded-lg border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Reset Settings
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!hasWallpaper}
+                      onClick={() => setWallpaperPreview((v) => !v)}
+                      className={`h-9 rounded-lg text-sm font-semibold transition ${
+                        !hasWallpaper
+                          ? "theme-surface border opacity-50"
+                          : wallpaperPreview
+                            ? "theme-surface border"
+                            : "theme-accent-bg"
+                      }`}
+                    >
+                      {hasWallpaper
+                        ? wallpaperPreview
+                          ? "Close Preview"
+                          : "Preview Wallpaper"
+                        : "No Wallpaper"}
+                    </button>
                   </div>
-                )}
-
-                <div className="my-4 border-t border-[var(--theme-border)]" />
-
-                {/* FOOTER ACTIONS */}
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={resetGamesPageSettings}
-                    disabled={!hasWallpaper}
-                    className="theme-surface theme-hover-surface h-9 rounded-lg border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Reset Settings
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={!hasWallpaper}
-                    onClick={() => setWallpaperPreview((v) => !v)}
-                    className={`h-9 rounded-lg text-sm font-semibold transition ${
-                      !hasWallpaper
-                        ? "theme-surface border opacity-50"
-                        : wallpaperPreview
-                          ? "theme-surface border"
-                          : "theme-accent-bg"
-                    }`}
-                  >
-                    {hasWallpaper
-                      ? wallpaperPreview
-                        ? "Close Preview"
-                        : "Preview Wallpaper"
-                      : "No Wallpaper"}
-                  </button>
-                </div>
                 </div>
 
                 <input

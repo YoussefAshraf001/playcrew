@@ -531,9 +531,7 @@ export default function CalendarPage() {
               <div className="flex items-center gap-2 sm:gap-3">
                 <button
                   type="button"
-                  onClick={() =>
-                    moveToMonth(new Date(year, month - 1, 1))
-                  }
+                  onClick={() => moveToMonth(new Date(year, month - 1, 1))}
                   className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] transition hover:bg-[rgba(var(--theme-accent-rgb),0.16)]"
                 >
                   <FaArrowLeft />
@@ -541,9 +539,7 @@ export default function CalendarPage() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    moveToMonth(new Date(year, month + 1, 1))
-                  }
+                  onClick={() => moveToMonth(new Date(year, month + 1, 1))}
                   className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-panel-alt)] transition hover:bg-[rgba(var(--theme-accent-rgb),0.16)]"
                 >
                   <FaArrowRight />
@@ -591,13 +587,13 @@ export default function CalendarPage() {
                       }
 
                       const dayGames = gamesByDay.get(day) || [];
+                      const primaryReleaseGame = dayGames[0] ?? null;
                       const isToday = isCurrentMonth && day === today.getDate();
                       const phaseBadges = dayGames.filter(
                         (game, index, entries) => {
-                          const badge =
-                            shouldShowFullReleaseBadge(game)
-                              ? "full-release"
-                              : getAccessType(game);
+                          const badge = shouldShowFullReleaseBadge(game)
+                            ? "full-release"
+                            : getAccessType(game);
                           return (
                             badge !== null &&
                             entries.findIndex((candidate) =>
@@ -635,7 +631,17 @@ export default function CalendarPage() {
                         >
                           {dayGames.length > 0 && (
                             <>
-                              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(145deg,rgba(255,255,255,0.05),transparent_38%,rgba(var(--theme-accent-rgb),0.1))]" />
+                              <img
+                                src={getCalendarCover(
+                                  primaryReleaseGame?.igdb?.cover,
+                                )}
+                                alt={
+                                  primaryReleaseGame?.name ??
+                                  "Release game cover"
+                                }
+                                className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-80"
+                              />
+                              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(4,7,14,0.18),rgba(7,10,18,0.7)_58%,rgba(7,10,18,0.88))]" />
                               <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-[rgb(var(--theme-accent-rgb))] to-transparent opacity-45 transition-opacity duration-500 ease-in-out group-hover:opacity-90" />
                               <span className="pointer-events-none absolute bottom-1.5 left-1.5 h-2.5 w-2.5 border-b border-l border-[rgba(var(--theme-accent-rgb),0.32)] transition-all duration-500 ease-in-out group-hover:h-4 group-hover:w-4 group-hover:border-[rgba(var(--theme-accent-rgb),0.65)]" />
                               <span className="pointer-events-none absolute right-1.5 top-1.5 h-2.5 w-2.5 border-r border-t border-[rgba(var(--theme-accent-rgb),0.32)] transition-all duration-500 ease-in-out group-hover:h-4 group-hover:w-4 group-hover:border-[rgba(var(--theme-accent-rgb),0.65)]" />
@@ -656,36 +662,36 @@ export default function CalendarPage() {
                             </div>
                           )}
 
-                          {dayGames.length > 0 && (
-                            <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center pt-3 text-center">
+                          {/* {dayGames.length > 0 && (
+                            <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center pt-3 text-center text-white">
                               <div className="relative grid h-11 w-11 place-items-center sm:h-14 sm:w-14">
-                                <span className="absolute inset-0 rounded-full border border-[rgba(var(--theme-accent-rgb),0.18)] transition-[transform,border-color] duration-500 ease-in-out group-hover:scale-110 group-hover:border-[rgba(var(--theme-accent-rgb),0.36)]" />
-                                <span className="absolute inset-1 rounded-full border border-dashed border-[rgba(var(--theme-accent-rgb),0.32)] transition-transform duration-700 ease-in-out group-hover:rotate-90" />
-                                <span className="absolute inset-2 rounded-full bg-[rgba(var(--theme-accent-rgb),0.09)] shadow-[inset_0_0_12px_rgba(var(--theme-accent-rgb),0.12),0_0_18px_rgba(var(--theme-accent-rgb),0.12)]" />
-                                <span className="relative font-mono text-xl font-black tabular-nums leading-none text-[rgb(var(--theme-accent-rgb))] drop-shadow-[0_0_12px_rgba(var(--theme-accent-rgb),0.65)] transition-transform duration-500 ease-in-out group-hover:scale-110 sm:text-2xl">
+                                <span className="absolute inset-0 rounded-full border border-white/35 transition-[transform,border-color] duration-500 ease-in-out group-hover:scale-110 group-hover:border-white/60" />
+                                <span className="absolute inset-1 rounded-full border border-dashed border-white/40 transition-transform duration-700 ease-in-out group-hover:rotate-90" />
+                                <span className="absolute inset-2 rounded-full bg-white/10 shadow-[inset_0_0_12px_rgba(255,255,255,0.12),0_0_18px_rgba(255,255,255,0.12)]" />
+                                <span className="relative font-mono text-xl font-black tabular-nums leading-none text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] transition-transform duration-500 ease-in-out group-hover:scale-110 sm:text-2xl">
                                   {dayGames.length}
                                 </span>
                               </div>
-                              <span className="mt-1 text-[7px] font-bold uppercase tracking-[0.22em] text-white/55 sm:text-[8px]">
+                              <span className="mt-1 text-[7px] font-bold uppercase tracking-[0.22em] text-white/90 sm:text-[8px]">
                                 {dayGames.length === 1 ? "Release" : "Releases"}
                               </span>
                               <span className="mt-1 hidden items-center gap-1 sm:flex">
-                                {Array.from({ length: Math.min(dayGames.length, 5) }).map(
-                                  (_, releaseIndex) => (
-                                    <span
-                                      key={releaseIndex}
-                                      className="h-1 w-1 rounded-full bg-[rgb(var(--theme-accent-rgb))] opacity-55 shadow-[0_0_5px_rgba(var(--theme-accent-rgb),0.7)]"
-                                    />
-                                  ),
-                                )}
+                                {Array.from({
+                                  length: Math.min(dayGames.length, 5),
+                                }).map((_, releaseIndex) => (
+                                  <span
+                                    key={releaseIndex}
+                                    className="h-1 w-1 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.7)]"
+                                  />
+                                ))}
                                 {dayGames.length > 5 && (
-                                  <span className="text-[6px] font-bold text-white/40">
+                                  <span className="text-[6px] font-bold text-white/70">
                                     +{dayGames.length - 5}
                                   </span>
                                 )}
                               </span>
                             </div>
-                          )}
+                          )} */}
                         </button>
                       );
                     })}
@@ -928,7 +934,9 @@ export default function CalendarPage() {
                                               )}
                                             </p>
                                             {(accessType ||
-                                              shouldShowFullReleaseBadge(g)) && (
+                                              shouldShowFullReleaseBadge(
+                                                g,
+                                              )) && (
                                               <span className="mt-2 w-fit">
                                                 {leakedOnLabel && accessType ? (
                                                   <PreReleaseBadge

@@ -1,9 +1,39 @@
 [
   {
+    "version": "2.0.1",
+    "title": "Calendar Poster & Sync Tweaks",
+    "date": "2026-09-04",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Release Dates & Calendar",
+        "items": [
+          "Release day tiles now use the game poster art as the day cover image",
+          "Single-day and multi-day release cells now keep the day number readable over the poster image",
+          "Primary day cover selection remains visible and is used for the day preview card"
+        ]
+      },
+      {
+        "category": "Settings & Sync",
+        "items": [
+          "Added a new Release Sync Interval option: On app open",
+          "Release sync now respects the selected interval while still allowing a manual force refresh when needed"
+        ]
+      },
+      {
+        "category": "Fixes",
+        "items": [
+          "Last Updated now only changes when a game is in Want To Play and its refreshed metadata is relevant",
+          "Automatic refreshes no longer update last-edited timestamps for games outside Want To Play"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.0",
     "title": "Game Intelligence & Interface Overhaul",
     "date": "2026-09-03",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Game Tracking",
