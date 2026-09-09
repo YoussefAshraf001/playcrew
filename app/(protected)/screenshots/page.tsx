@@ -1189,12 +1189,14 @@ function ScreenshotsPageContent() {
 
     const dominantDelta =
       Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-    wheelDeltaRef.current += dominantDelta;
+    const normalizedDelta = dominantDelta * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? e.currentTarget.clientHeight : 1);
+    if (Math.sign(normalizedDelta) !== Math.sign(wheelDeltaRef.current)) wheelDeltaRef.current = 0;
+    wheelDeltaRef.current += normalizedDelta;
 
     const now = performance.now();
     if (
-      Math.abs(wheelDeltaRef.current) < 42 ||
-      now - lastWheelStepAtRef.current < 170
+      Math.abs(wheelDeltaRef.current) < 24 ||
+      now - lastWheelStepAtRef.current < 90
     ) {
       return;
     }

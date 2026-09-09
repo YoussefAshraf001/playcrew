@@ -16,6 +16,10 @@ import {
   FaArrowLeft,
   FaArrowRight,
   FaCheckCircle,
+  FaChevronDown,
+  FaChevronUp,
+  FaCloudUploadAlt,
+  FaExclamationCircle,
   FaImage,
   FaRegStar,
   FaStar,
@@ -77,6 +81,7 @@ type DeleteConfirmState =
   | null;
 
 const CAROUSEL_ACTIVE_FOLDER_KEY = "screenshots_carousel_active_folder_v1";
+const SORT_ORDER_KEY = "screenshots_sort_order_v1";
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -154,17 +159,10 @@ function FadeInImage({
   imgClassName = "",
   loading = "lazy",
 }: FadeInImageProps) {
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      setLoaded(false);
-      setFailed(false);
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [src]);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const loaded = loadedSrc === src;
+  const failed = failedSrc === src;
 
   return (
     <div className={`relative ${wrapperClassName}`}>
@@ -182,6 +180,10 @@ function FadeInImage({
         </div>
       ) : (
         <img
+          key={src}
+          ref={(image) => {
+            if (image?.complete && image.naturalWidth > 0) setLoadedSrc(src);
+          }}
           src={src}
           alt={alt}
           loading={loading}
@@ -192,11 +194,11 @@ function FadeInImage({
             } catch {
               // Reveal after load when explicit decoding is unavailable.
             }
-            setLoaded(true);
+            setLoadedSrc(src);
           }}
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
           style={{ contentVisibility: "auto" }}
-          className={`${imgClassName} opacity-0 transition-opacity duration-500 ${
+          className={`${imgClassName} opacity-0 transition-[opacity,scale,transform] duration-500 ease-in-out motion-reduce:transition-none ${
             loaded ? "opacity-100" : ""
           }`}
         />
@@ -215,6 +217,29 @@ export default function ScreenshotFolderPage() {
   const [shots, setShots] = useState<Shot[]>([]);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const uploadSummary = useMemo(() => {
+    const done = uploadItems.filter((item) => item.status === "done").length;
+    const errors = uploadItems.filter((item) => item.status === "error").length;
+    const totalBytes = uploadItems.reduce(
+      (sum, item) => sum + item.preparedBytes,
+      0,
+    );
+    const transferred = uploadItems.reduce(
+      (sum, item) =>
+        sum +
+        item.preparedBytes * (item.status === "done" ? 1 : item.progress / 100),
+      0,
+    );
+    return {
+      done,
+      errors,
+      active: uploadItems.length - done - errors,
+      progress: totalBytes
+        ? Math.min(100, Math.round((transferred / totalBytes) * 100))
+        : 0,
+    };
+  }, [uploadItems]);
   const [dragOverlayVisible, setDragOverlayVisible] = useState(false);
   const [coverCropShot, setCoverCropShot] = useState<Shot | null>(null);
   const [coverCrop, setCoverCrop] = useState({ x: 0, y: 0 });
@@ -230,6 +255,32 @@ export default function ScreenshotFolderPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState<"all" | "favorites">("all");
+  const [defaultTab, setDefaultTab] = useState<"all" | "favorites">("all");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+
+  useEffect(() => {
+    try {
+      setSortOrder(
+        localStorage.getItem(SORT_ORDER_KEY) === "oldest" ? "oldest" : "newest",
+      );
+    } catch {
+      // Keep newest first when browser storage is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const tab =
+        localStorage.getItem("screenshots_default_tab_v1") === "favorites"
+          ? "favorites"
+          : "all";
+      setDefaultTab(tab);
+      setActiveTab(tab);
+    } catch {
+      // Use All Screenshots when browser storage is unavailable.
+    }
+  }, []);
   const [sizeLoading, setSizeLoading] = useState(false);
   const dragDepthRef = useRef(0);
   const bytesBackfilledRef = useRef<Set<string>>(new Set());
@@ -240,17 +291,15 @@ export default function ScreenshotFolderPage() {
     [uploadItems],
   );
   const sortedShots = useMemo(() => {
-    const favorites = shots.filter((shot) => shot.favorite === true);
-    const regular = shots.filter((shot) => shot.favorite !== true);
-    return [...favorites, ...regular];
-  }, [shots]);
+    const visible =
+      activeTab === "favorites"
+        ? shots.filter((shot) => shot.favorite === true)
+        : shots;
+    return sortOrder === "oldest" ? [...visible].reverse() : visible;
+  }, [shots, activeTab, sortOrder]);
   const favoriteShots = useMemo(
-    () => sortedShots.filter((shot) => shot.favorite === true),
-    [sortedShots],
-  );
-  const regularShots = useMemo(
-    () => sortedShots.filter((shot) => shot.favorite !== true),
-    [sortedShots],
+    () => shots.filter((shot) => shot.favorite === true),
+    [shots],
   );
   const PAGE_SIZE = 6;
   const totalPages = useMemo(
@@ -423,7 +472,7 @@ export default function ScreenshotFolderPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [sortedShots.length]);
+  }, [sortedShots.length, activeTab, sortOrder, folderId]);
 
   useEffect(() => {
     if (!galleryScrollRef.current) return;
@@ -788,13 +837,6 @@ export default function ScreenshotFolderPage() {
     }
   };
 
-  const setAsCover = async (shot: Shot) => {
-    setCoverCropShot(shot);
-    setCoverCrop({ x: 0, y: 0 });
-    setCoverZoom(1);
-    setCoverCroppedPixels(null);
-  };
-
   const saveCroppedCover = async () => {
     if (!user || !folderId || !folder || !coverCropShot || !coverCroppedPixels)
       return;
@@ -1118,10 +1160,9 @@ export default function ScreenshotFolderPage() {
         initial={{ opacity: 0, y: 14, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -10, scale: 0.985 }}
-        whileHover={{ y: -3 }}
-        className={`group overflow-hidden rounded-[20px] border shadow-[0_18px_45px_rgba(0,0,0,0.4)] ${
+        className={`group overflow-hidden rounded-[20px] border-2 shadow-[0_18px_45px_rgba(0,0,0,0.4)] ${
           tone === "favorite"
-            ? "border-amber-300/35 bg-[rgba(var(--theme-accent-rgb),0.12)]"
+            ? "border-[#83670c] bg-[var(--theme-surface-strong)]"
             : "border-[var(--theme-border)] bg-[var(--theme-surface-strong)]"
         }`}
       >
@@ -1141,7 +1182,7 @@ export default function ScreenshotFolderPage() {
               src={shot.url}
               alt="Screenshot"
               wrapperClassName="h-48 sm:h-64 lg:h-72 w-full overflow-hidden"
-              imgClassName="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(.22,.61,.36,1)] group-hover:scale-[1.03]"
+              imgClassName="h-full w-full object-cover scale-100 group-hover:scale-[1.05] motion-reduce:group-hover:scale-100"
             />
             {selectionMode && (
               <span
@@ -1160,52 +1201,36 @@ export default function ScreenshotFolderPage() {
               </span>
             )}
           </button>
-          <motion.div
-            initial={false}
-            animate={{
-              y: selectionMode ? 72 : 0,
-              opacity: selectionMode ? 0 : 1,
-            }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className={`absolute inset-x-2 bottom-2 z-20 ${selectionMode ? "pointer-events-none" : ""}`}
-          >
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/60 p-1 backdrop-blur-sm">
-              {isCover ? (
-                <span className="rounded-lg border border-emerald-300/35 bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-100">
-                  Current Cover
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAsCover(shot)}
-                  disabled={savingCroppedCover}
-                  className="rounded-lg border border-white/15 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-200 transition hover:bg-zinc-800"
-                >
-                  Set Cover
-                </button>
-              )}
+          {!selectionMode && (
+            <div className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 motion-reduce:transition-none">
               <button
                 type="button"
                 onClick={() => toggleShotFavorite(shot)}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition ${
+                aria-label={shot.favorite ? "Remove from favorites" : "Add to favorites"}
+                title={shot.favorite ? "Remove from favorites" : "Add to favorites"}
+                aria-pressed={shot.favorite === true}
+                className={`group/favorite inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-black/75 backdrop-blur-sm transition-colors duration-500 ease-in-out hover:border-[#D4AF37]/80 hover:text-[#FFD76A] focus-visible:text-[#FFD76A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] motion-reduce:transition-none ${
                   shot.favorite
-                    ? "border-amber-300/35 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
-                    : "border-white/15 bg-zinc-900/60 text-zinc-200 hover:bg-zinc-800"
+                    ? "border-[#D4AF37]/60 text-[#D4AF37] hover:bg-black/90"
+                    : "border-white/20 text-white hover:bg-black/90"
                 }`}
               >
-                {shot.favorite ? <FaStar size={10} /> : <FaRegStar size={10} />}
-                {shot.favorite ? "Favorited" : "Favorite"}
+                <span aria-hidden="true" className="relative h-3.5 w-3.5 transition-[filter] duration-700 ease-in-out group-hover/favorite:drop-shadow-[0_0_6px_rgba(255,215,106,0.8)] group-focus-visible/favorite:drop-shadow-[0_0_6px_rgba(255,215,106,0.8)] motion-reduce:transition-none">
+                  <FaRegStar size={14} className="absolute inset-0" />
+                  <FaStar size={14} className={`absolute inset-0 text-[#FFD76A] transition-opacity duration-700 ease-in-out group-hover/favorite:opacity-100 group-focus-visible/favorite:opacity-100 motion-reduce:transition-none ${shot.favorite ? "opacity-100" : "opacity-0"}`} />
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteConfirm({ mode: "single", shot })}
-                className="inline-flex items-center gap-1 rounded-lg border border-red-300/35 bg-red-500/10 px-2.5 py-1 text-xs text-red-200 transition hover:bg-red-500/20"
+                aria-label="Delete screenshot"
+                title="Delete screenshot"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-300/35 bg-black/75 text-red-200 backdrop-blur-sm transition hover:bg-red-950/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <FaTrashAlt size={10} />
-                Delete
+                <FaTrashAlt size={13} />
               </button>
             </div>
-          </motion.div>
+          )}
         </div>
       </motion.article>
     );
@@ -1276,22 +1301,63 @@ export default function ScreenshotFolderPage() {
                 Content
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-white/12 bg-zinc-900/45 p-2">
+                <button
+                  type="button"
+                  aria-pressed={activeTab === "all"}
+                  onClick={() => {
+                    setActiveTab("all");
+                    setCurrentPage(1);
+                    setSelectedShotIds([]);
+                    setViewerIndex(null);
+                  }}
+                  className={`rounded-xl border bg-zinc-900/45 p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${activeTab === "all" ? "border-cyan-300/70" : "border-white/12 hover:border-cyan-300/35"}`}
+                >
                   <p className="text-[10px] uppercase tracking-[0.13em] text-zinc-400">
                     Screenshots
                   </p>
                   <p className="mt-1 text-lg font-bold text-zinc-100">
                     {shots.length}
                   </p>
-                </div>
-                <div className="rounded-xl border border-amber-300/25 bg-amber-500/10 p-2">
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={activeTab === "favorites"}
+                  onClick={() => {
+                    setActiveTab("favorites");
+                    setCurrentPage(1);
+                    setSelectedShotIds([]);
+                    setViewerIndex(null);
+                  }}
+                  className={`rounded-xl border bg-amber-500/10 p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activeTab === "favorites" ? "border-amber-300/70" : "border-white/12 hover:border-amber-300/35"}`}
+                >
                   <p className="text-[10px] uppercase tracking-[0.13em] text-amber-100/80">
                     Favorites
                   </p>
                   <p className="mt-1 text-lg font-bold text-amber-100">
                     {favoriteShots.length}
                   </p>
-                </div>
+                </button>
+                <label className="col-span-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300">
+                  Open by default
+                  <select
+                    value={defaultTab}
+                    onChange={(event) => {
+                      const tab = event.target.value as "all" | "favorites";
+                      setDefaultTab(tab);
+                      try {
+                        localStorage.setItem("screenshots_default_tab_v1", tab);
+                      } catch {
+                        toast.error(
+                          "Could not save the default tab in this browser",
+                        );
+                      }
+                    }}
+                    className="rounded-lg border border-white/12 bg-zinc-900 p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                  >
+                    <option value="all">Screenshots</option>
+                    <option value="favorites">Favorites</option>
+                  </select>
+                </label>
                 <div
                   className="col-span-2 rounded-xl border border-white/12 bg-zinc-900/45 p-2"
                   title={folderSizeTooltip}
@@ -1415,12 +1481,37 @@ export default function ScreenshotFolderPage() {
           </aside>
 
           <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-4">
-            <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center rounded-xl border border-white/10 bg-zinc-900/35 px-3 py-2">
-              <div />
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-zinc-900/35 px-3 py-2">
+              <div className="flex flex-wrap gap-2">
+                <label className="flex items-center gap-2 text-xs text-zinc-300">
+                  Sort
+                  <select
+                    value={sortOrder}
+                    onChange={(event) => {
+                      const order =
+                        event.target.value === "oldest" ? "oldest" : "newest";
+                      setSortOrder(order);
+                      setCurrentPage(1);
+                      setViewerIndex(null);
+                      try {
+                        localStorage.setItem(SORT_ORDER_KEY, order);
+                      } catch {
+                        toast.error(
+                          "Could not save the screenshot sort in this browser",
+                        );
+                      }
+                    }}
+                    className="rounded-lg bg-zinc-900 p-2"
+                  >
+                    <option value="newest">Newest to oldest</option>
+                    <option value="oldest">Oldest to newest</option>
+                  </select>
+                </label>
+              </div>
               <div className="flex items-center gap-2 justify-self-center">
                 <p className="text-xs text-zinc-300">
                   Favorites: {favoriteShots.length} • Others:{" "}
-                  {regularShots.length}
+                  {shots.length - favoriteShots.length}
                 </p>
               </div>
               <p className="justify-self-end text-xs text-zinc-400">
@@ -1434,7 +1525,7 @@ export default function ScreenshotFolderPage() {
             >
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
-                  key={`grid-page-${currentPage}`}
+                  key={`grid-${activeTab}-${sortOrder}-${currentPage}`}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
@@ -1452,7 +1543,11 @@ export default function ScreenshotFolderPage() {
 
               {!sortedShots.length && (
                 <div className="flex h-full min-h-[220px] items-center justify-center">
-                  <p className="text-sm text-zinc-400">No screenshots yet.</p>
+                  <p className="text-sm text-zinc-400">
+                    {activeTab === "favorites"
+                      ? "No favorites yet. Star a screenshot to add it here."
+                      : "No screenshots yet."}
+                  </p>
                 </div>
               )}
             </div>
@@ -1730,59 +1825,161 @@ export default function ScreenshotFolderPage() {
           </motion.div>
         )}
       </AnimatePresence>
-      {!!uploadItems.length && (
-        <div className="fixed bottom-4 right-4 z-50 w-[min(92vw,440px)] overflow-hidden rounded-xl border border-white/15 bg-zinc-950/95 p-3 shadow-[0_18px_45px_rgba(0,0,0,0.55)] backdrop-blur-sm">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-300">
-              Upload Queue
-            </p>
-            <button
-              type="button"
-              className="rounded-md border border-white/15 px-2 py-0.5 text-[10px] text-zinc-300 transition hover:bg-white/10"
-              onClick={() =>
-                setUploadItems((prev) =>
-                  prev.filter((item) => item.status === "uploading"),
-                )
-              }
-            >
-              Clear Finished
-            </button>
-          </div>
-          <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1">
-            {uploadItems.map((item) => (
+      <AnimatePresence>
+        {!!uploadItems.length && (
+          <motion.section
+            aria-label="Upload Queue"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 right-4 z-50 w-[min(calc(100vw-2rem),440px)] overflow-hidden rounded-2xl border border-cyan-300/20 bg-zinc-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-3 bg-gradient-to-r from-cyan-500/10 to-transparent px-4 py-4">
               <div
-                key={item.id}
-                className="rounded-lg border border-white/10 bg-black/35 p-2"
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${isUploading ? "border-cyan-300/25 bg-cyan-400/10 text-cyan-300" : uploadSummary.errors ? "border-amber-300/25 bg-amber-400/10 text-amber-300" : "border-emerald-300/25 bg-emerald-400/10 text-emerald-300"}`}
               >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <p className="min-w-0 flex-1 truncate text-xs text-zinc-100">
-                    {item.name}
-                  </p>
-                  <p className="shrink-0 whitespace-nowrap text-[11px] text-zinc-300">
-                    {formatBytes(item.originalBytes)}
-                    {" -> "}
-                    {item.uploadedBytes
-                      ? formatBytes(item.uploadedBytes)
-                      : formatBytes(item.preparedBytes)}
-                  </p>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-700/70">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      item.status === "error"
-                        ? "bg-red-400"
-                        : item.status === "done"
-                          ? "bg-emerald-400"
-                          : "bg-cyan-500"
-                    }`}
-                    style={{ width: `${item.progress}%` }}
-                  />
-                </div>
+                {isUploading ? (
+                  <FaCloudUploadAlt size={20} />
+                ) : uploadSummary.errors ? (
+                  <FaExclamationCircle size={18} />
+                ) : (
+                  <FaCheckCircle size={18} />
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-bold text-zinc-100">
+                  Upload Queue
+                </h2>
+                <p role="status" className="mt-0.5 text-xs text-zinc-400">
+                  {isUploading
+                    ? `${uploadSummary.active} uploading · ${uploadSummary.done} complete`
+                    : uploadSummary.errors
+                      ? `${uploadSummary.done} complete · ${uploadSummary.errors} failed`
+                      : "All screenshots uploaded"}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-expanded={!queueCollapsed}
+                aria-controls="upload-queue-details"
+                aria-label={
+                  queueCollapsed
+                    ? "Expand upload queue"
+                    : "Minimize upload queue"
+                }
+                onClick={() => setQueueCollapsed((prev) => !prev)}
+                className="rounded-lg p-2 text-zinc-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                {queueCollapsed ? (
+                  <FaChevronUp size={12} />
+                ) : (
+                  <FaChevronDown size={12} />
+                )}
+              </button>
+            </div>
+            {isUploading && (
+              <div
+                role="progressbar"
+                aria-label="Overall upload progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={uploadSummary.progress}
+                className="h-1 bg-white/5"
+              >
+                <div
+                  className="h-full bg-cyan-400 transition-[width] duration-300"
+                  style={{ width: `${uploadSummary.progress}%` }}
+                />
+              </div>
+            )}
+            <div id="upload-queue-details" hidden={queueCollapsed}>
+              <div className="flex items-center justify-between px-4 py-3 text-[11px]">
+                <span className="font-semibold uppercase tracking-wider text-zinc-500">
+                  {uploadItems.length}{" "}
+                  {uploadItems.length === 1 ? "screenshot" : "screenshots"}
+                </span>
+                <span className="font-medium text-cyan-300">
+                  {isUploading
+                    ? `${uploadSummary.progress}% transferred`
+                    : "Upload results"}
+                </span>
+              </div>
+              <div className="max-h-[min(42vh,360px)] space-y-2 overflow-y-auto overscroll-contain px-3 pb-3">
+                {uploadItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl border p-3 ${item.status === "error" ? "border-red-400/20 bg-red-400/5" : "border-white/8 bg-white/[0.025]"}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-0.5 rounded-lg bg-black/25 p-2 ${item.status === "done" ? "text-emerald-300" : item.status === "error" ? "text-red-300" : "text-cyan-300"}`}
+                      >
+                        {item.status === "done" ? (
+                          <FaCheckCircle size={14} />
+                        ) : item.status === "error" ? (
+                          <FaExclamationCircle size={14} />
+                        ) : (
+                          <FaImage size={14} />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          title={item.name}
+                          className="truncate text-xs font-medium text-zinc-100"
+                        >
+                          {item.name}
+                        </p>
+                        <p className="mt-1 text-[11px] text-zinc-500">
+                          {formatBytes(item.originalBytes)} →{" "}
+                          {formatBytes(
+                            item.uploadedBytes ?? item.preparedBytes,
+                          )}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-[10px] font-semibold ${item.status === "done" ? "text-emerald-300" : item.status === "error" ? "text-red-300" : "text-cyan-300"}`}
+                      >
+                        {item.status === "done"
+                          ? "Complete"
+                          : item.status === "error"
+                            ? "Failed"
+                            : item.progress >= 100
+                              ? "Saving…"
+                              : `${item.progress}%`}
+                      </span>
+                    </div>
+                    {item.status === "error" && (
+                      <p className="mt-2 break-words text-xs text-red-300/90">
+                        {item.error ||
+                          "Upload failed. Please try uploading this file again."}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-white/8 bg-black/20 px-4 py-3">
+                <p className="text-[11px] text-zinc-500">
+                  {isUploading
+                    ? "Keep this page open while uploading."
+                    : "Your queue is up to date."}
+                </p>
+                <button
+                  type="button"
+                  disabled={!uploadSummary.done && !uploadSummary.errors}
+                  onClick={() =>
+                    setUploadItems((prev) =>
+                      prev.filter((item) => item.status === "uploading"),
+                    )
+                  }
+                  className="shrink-0 rounded-lg border border-white/12 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  {isUploading ? "Clear finished" : "Dismiss"}
+                </button>
+              </div>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

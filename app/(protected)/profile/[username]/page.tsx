@@ -797,7 +797,7 @@ export default function EditProfilePage() {
   return (
     <>
       <motion.main
-        className="page-top-offset relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-3 pb-28 pt-20 sm:px-6 sm:pt-24 lg:px-8"
+        className="page-top-offset relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-3 pt-20 sm:px-6 lg:px-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
@@ -834,7 +834,7 @@ export default function EditProfilePage() {
           transition={{ duration: 0.22, ease: "easeOut" }}
         >
           <section className="theme-panel overflow-hidden rounded-[30px] border backdrop-blur-2xl sm:rounded-[36px]">
-            <div className="relative h-52 overflow-hidden sm:h-64 lg:h-72">
+            <div className="relative h-52 overflow-hidden sm:h-64 lg:h-64">
               {active?.wallpaper?.data ? (
                 <img
                   src={active.wallpaper.data}

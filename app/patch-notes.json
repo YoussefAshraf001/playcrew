@@ -1,9 +1,50 @@
 [
   {
+    "version": "2.0.2",
+    "title": "Screenshot Gallery & Upload Queue Refresh",
+    "date": "2026-09-09",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Screenshot Collections",
+        "items": [
+          "Made collection scrolling faster and more responsive",
+          "Added newest-to-oldest and oldest-to-newest screenshot sorting, with your choice remembered in this browser",
+          "Made the Screenshots and Favorites cards in Content clickable, with an active border and a saved default-view option",
+          "Favorites stay in their normal sorted position in All Screenshots and stand out with a gold border independent of the theme"
+        ]
+      },
+      {
+        "category": "Gallery Interactions",
+        "items": [
+          "Added smooth image-only zoom on hover while keeping screenshot cards still",
+          "Moved Favorite and Delete into compact top-right icons that appear on hover or keyboard focus",
+          "Added a gradual golden fill and glow when hovering over the favorite star",
+          "Removed the Set Cover action from screenshot cards"
+        ]
+      },
+      {
+        "category": "Upload Queue",
+        "items": [
+          "Redesigned the upload queue with a compact header, completion summary, and minimize control",
+          "Simplified progress to one overall bar with individual file percentages and saving states",
+          "Added clearer completion and error messages, plus controls to clear finished uploads or dismiss the queue"
+        ]
+      },
+      {
+        "category": "Fixes",
+        "items": [
+          "Fixed cached screenshots staying hidden when returning to a previously viewed gallery page",
+          "Fixed image zoom snapping instead of easing smoothly in and out"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.0.1",
     "title": "Calendar Poster & Sync Tweaks",
     "date": "2026-09-04",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Release Dates & Calendar",
