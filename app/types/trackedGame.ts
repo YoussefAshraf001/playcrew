@@ -2,6 +2,7 @@ import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
 import type { IgdbReleaseDateKind } from "@/app/lib/igdbReleasePhases";
 
 export type StoredRating = number | "excluded" | null;
+export type PlayAgain = "replay" | "another-chance" | null;
 export type RefreshBlockField =
   | "name"
   | "cover"
@@ -65,6 +66,31 @@ export interface CustomReleaseTime {
   sourceTimeZone?: string;
 }
 
+export interface GameRun {
+  number: number;
+  kind: PlayAgain;
+  startedAt: unknown;
+  archivedAt: unknown;
+  lastUpdated: unknown;
+  review: TrackedGame["review"];
+  my_rating: number | null;
+  playtime: number;
+  progress: number;
+  status: string;
+  playedSessions: PlaySession[];
+  playedOn: PlayedOnPlatform[];
+  favorite: boolean;
+  notInterested: boolean;
+  preReleaseAccess: PreReleaseAccess | null;
+}
+
+export interface GameRunState {
+  runNumber: number;
+  runKind: PlayAgain;
+  runStartedAt: unknown;
+  runHistory: GameRun[];
+}
+
 export interface TrackedGame {
   _docId: string;
 
@@ -82,6 +108,11 @@ export interface TrackedGame {
   };
 
   favorite?: boolean;
+  playAgain?: PlayAgain;
+  runNumber?: number;
+  runKind?: PlayAgain;
+  runStartedAt?: unknown;
+  runHistory?: GameRun[];
   favoriteOrder?: number;
   favoriteAllTime?: boolean;
   wantToPlayOrder?: number;

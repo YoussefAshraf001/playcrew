@@ -8,6 +8,7 @@ import { FaClock, FaExclamation, FaStar } from "react-icons/fa";
 import { formatReleaseDate, parseReleaseDate } from "@/app/lib/releaseDates";
 import { PiDotsNineLight } from "react-icons/pi";
 import PreReleaseBadge from "./PreReleaseBadge";
+import PlayAgainBadge from "./PlayAgainBadge";
 import {
   getAutomaticReleaseState,
   isAutomaticallyInEarlyAccess,
@@ -27,14 +28,30 @@ function DecodedGameCover({
 }) {
   const [ready, setReady] = useState(false);
   const [displayedSrc, setDisplayedSrc] = useState(src);
+  const mayBeAnimated =
+    /\.(?:webp|gif|apng)(?:[?#]|$)/i.test(displayedSrc) ||
+    /^data:image\/(?:webp|gif|apng)[;,]/i.test(displayedSrc) ||
+    /[?&](?:format|fm|f)=(?:webp|gif|apng)(?:&|$)/i.test(displayedSrc);
 
   return (
     <>
       <div
         className={`pointer-events-none absolute inset-0 bg-zinc-800 transition-opacity duration-500 ${
-          ready ? "opacity-0" : "animate-pulse opacity-100"
+          ready ? "opacity-0" : mayBeAnimated ? "opacity-100" : "animate-pulse opacity-100"
         }`}
       />
+      {!ready && mayBeAnimated && (
+        <div
+          role="status"
+          className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 px-4 text-center theme-text"
+        >
+          <span className="loading loading-spinner loading-md shrink-0" aria-hidden="true" />
+          <p className="text-xs font-semibold">Loading cover…</p>
+          <p className="max-w-48 text-[11px] leading-relaxed theme-text-muted">
+            This image may be animated and take longer to load.
+          </p>
+        </div>
+      )}
       <img
         src={displayedSrc}
         alt={alt}
@@ -200,7 +217,7 @@ export default function GameCard({
         ${posterLayout ? "w-full max-w-full" : "w-[225px] max-w-none"}
         transition-all
         duration-300
-        ${!reorderMode ? "hover:z-50 hover:scale-[1.005] hover:-translate-y-1" : "brightness-90"}
+        ${!reorderMode ? "hover:z-50 focus-within:z-[70] has-[button[aria-expanded=true]]:z-[70] hover:scale-[1.005] hover:-translate-y-1" : "brightness-90"}
       `}
     >
       {reorderMode ? (
@@ -227,17 +244,17 @@ export default function GameCard({
         <div
           className="
             absolute
-            right-0
+            inset-0
             z-[60]
-            opacity-0
-            scale-75
+            opacity-100
+            sm:opacity-0
             transition-all
             duration-300
             ease-out
             group-hover:opacity-100
-            group-hover:scale-100
+            group-focus-within:opacity-100
+            has-[button[aria-expanded=true]]:opacity-100
             pointer-events-none
-            group-hover:pointer-events-auto
           "
         >
           <GameActionsDropdown
@@ -248,6 +265,11 @@ export default function GameCard({
           />
         </div>
       ) : null}
+      {(game.playAgain || game.runKind) && !reorderMode && (
+        <div className="absolute bottom-2 right-2 z-50">
+          <PlayAgainBadge value={game.runKind ?? game.playAgain} runNumber={game.runNumber} />
+        </div>
+      )}
       <div
         className={`
           relative

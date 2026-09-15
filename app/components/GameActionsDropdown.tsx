@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { MdMoreVert, MdEdit, MdDelete, MdRefresh } from "react-icons/md";
+import { useState, useRef, useEffect, useId } from "react";
+import { MdMoreHoriz, MdEdit, MdDelete, MdRefresh } from "react-icons/md";
 import { FaCode } from "react-icons/fa";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { deleteDoc, doc } from "firebase/firestore";
 import toast from "react-hot-toast";
 
@@ -39,6 +39,14 @@ export default function GameActionsDropdown({
   const [devModalOpen, setDevModalOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuId = useId();
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (isHovered === false) setOpen(false);
+  }, [isHovered]);
 
   useEffect(() => {
     const closeOutside = (e: MouseEvent) => {
@@ -51,6 +59,7 @@ export default function GameActionsDropdown({
       if (e.key === "Escape") {
         setOpen(false);
         setRefreshOpen(false);
+        if (dropdownRef.current?.contains(document.activeElement)) triggerRef.current?.focus();
       }
     };
 
@@ -68,12 +77,6 @@ export default function GameActionsDropdown({
       setOpen(false);
     }
   }, [refreshOpen, devModalOpen]);
-
-  useEffect(() => {
-    if (isHovered === false) {
-      setOpen(false);
-    }
-  }, [isHovered]);
 
   const handleRefresh = async (fields: Record<RefreshField, boolean>) => {
     if (!user) return false;
@@ -164,14 +167,17 @@ export default function GameActionsDropdown({
   };
 
   const actionBtnClass =
-    "group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition duration-150";
+    "group/action flex h-10 w-full items-center gap-3 whitespace-nowrap rounded-lg px-3 text-left text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:bg-white/10";
 
   return (
-    <div className="relative text-sm" ref={dropdownRef}>
+    <div className="pointer-events-none relative h-full w-full text-sm" ref={dropdownRef}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}>
       <button
+        ref={triggerRef}
         type="button"
         onMouseDown={(e) => {
-          e.preventDefault();
           e.stopPropagation();
         }}
         onClick={(e) => {
@@ -179,87 +185,90 @@ export default function GameActionsDropdown({
           e.stopPropagation();
           setOpen((p) => !p);
         }}
-        aria-label="Game actions"
-        className={`absolute right-2 top-2 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/70 text-zinc-100 shadow-[0_8px_20px_rgba(0,0,0,0.45)] backdrop-blur-sm
-          opacity-0
-          scale-75
-          pointer-events-none
-
-          transition-all
-          duration-300
-
-          group-hover:opacity-100
-          group-hover:scale-100
-          group-hover:pointer-events-auto
-
-          hover:scale-105
-          hover:border-cyan-300/50
-          hover:bg-zinc-900/90
-          hover:text-cyan-100
-          ${
-            open
-              ? "opacity-100 scale-100 pointer-events-auto border-cyan-300/60 text-cyan-100"
-              : ""
-          }`}
+        aria-label={`Actions for ${game.name ?? "game"}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+        className={`pointer-events-auto absolute right-2 top-2 z-50 inline-flex h-9 w-9 items-center justify-center rounded-xl border text-zinc-100 shadow-lg backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${open ? "border-cyan-300/60 bg-zinc-900 shadow-cyan-500/15" : "border-white/25 bg-zinc-950/75 hover:border-white/50 hover:bg-zinc-800"}`}
       >
-        <MdMoreVert size={18} />
+        <MdMoreHoriz size={22} />
       </button>
 
+      <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.97, y: -6 }}
+          ref={menuRef}
+          id={menuId}
+          role="menu"
+          aria-label={`Actions for ${game.name ?? "game"}`}
+          initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.96, y: reduceMotion ? 0 : -8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.16, ease: "easeOut" }}
-          className="absolute right-2 top-14 z-50 w-56 overflow-hidden rounded-2xl border border-white/15 bg-zinc-950/95 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.55)] backdrop-blur-md"
+          exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.98, y: reduceMotion ? 0 : -4 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
+          onAnimationComplete={() => {
+            if (open && document.activeElement === triggerRef.current) menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+          }}
+          onKeyDown={(event) => {
+            const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)'));
+            const index = items.indexOf(document.activeElement as HTMLButtonElement);
+            if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+              event.preventDefault();
+              const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+              items[next]?.focus();
+            }
+          }}
+          className="pointer-events-auto absolute inset-x-2 top-12 z-50 max-h-[calc(100%-3.5rem)] origin-top-right overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border border-white/15 bg-zinc-950/95 p-1.5 backdrop-blur-xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="mb-2 rounded-lg border border-white/10 bg-white/3 px-3 py-2">
-            <p className="truncate text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-              Actions For
-            </p>
-            <p className="truncate text-sm font-semibold text-zinc-100">
-              {game?.name ?? "Game"}
-            </p>
-          </div>
-
           <button
-            onClick={() => {
-              setRefreshOpen(true);
-              setOpen(false);
-            }}
-            className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
-          >
-            <MdRefresh className="text-base text-cyan-300" />
-            <span>Refresh Game</span>
-          </button>
-
-          <button
+            type="button" role="menuitem" tabIndex={-1}
             onClick={() => {
               openEditModal(game);
               setOpen(false);
             }}
             className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
           >
-            <MdEdit className="text-base text-zinc-200" />
-            <span>Edit Game</span>
+            <MdEdit size={16} className="shrink-0 text-zinc-400" aria-hidden="true" />
+            <span>Edit game</span>
+          </button>
+
+          <button
+            type="button" role="menuitem" tabIndex={-1}
+            onClick={() => {
+              setRefreshOpen(true);
+              setOpen(false);
+            }}
+            className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
+          >
+            <MdRefresh size={16} className="shrink-0 text-zinc-400" aria-hidden="true" />
+            <span>Refresh details</span>
           </button>
 
           {isAdmin && (
             <button
+              type="button" role="menuitem" tabIndex={-1}
               onClick={() => {
                 setDevModalOpen(true);
                 setOpen(false);
               }}
-              className={`${actionBtnClass} text-indigo-200 hover:bg-indigo-500/15`}
+              className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
             >
-              <FaCode className="text-sm text-indigo-300" />
-              <span>Dev Mode</span>
+              <FaCode size={16} className="shrink-0 text-zinc-400" aria-hidden="true" />
+              <span>Dev mode</span>
             </button>
           )}
 
-          <div className="my-2 h-px bg-white/10" />
+          <div role="separator" className="mx-3 my-1 h-px bg-white/10" />
 
           <button
+            type="button" role="menuitem" tabIndex={-1}
+            disabled={!user}
             onClick={() => {
               openConfirmModal(`Delete "${game.name}"?`, async () => {
                 await deleteDoc(
@@ -276,13 +285,15 @@ export default function GameActionsDropdown({
             }}
             className={`${actionBtnClass} text-red-200 hover:bg-red-500/20`}
           >
-            <MdDelete className="text-base text-red-300" />
-            <span>Remove from Library</span>
+            <MdDelete size={16} className="shrink-0 text-red-300" aria-hidden="true" />
+            <span>Remove game</span>
           </button>
         </motion.div>
       )}
+      </AnimatePresence>
 
       {refreshOpen && (
+        <div className="pointer-events-auto">
         <RefreshModal
           open={refreshOpen}
           title="Refresh Game Data"
@@ -290,9 +301,11 @@ export default function GameActionsDropdown({
           onClose={() => setRefreshOpen(false)}
           onConfirm={handleRefresh}
         />
+        </div>
       )}
 
       {devModalOpen && user && (
+        <div className="pointer-events-auto">
         <DevGameEditor
           userId={user.uid}
           game={{
@@ -301,6 +314,7 @@ export default function GameActionsDropdown({
           }}
           onClose={() => setDevModalOpen(false)}
         />
+        </div>
       )}
     </div>
   );

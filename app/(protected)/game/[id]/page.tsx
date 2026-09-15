@@ -63,6 +63,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   where,
@@ -86,6 +87,10 @@ import LoadingSpinner from "@/app/components/LoadingSpinner";
 import ScreenshotsCarousel from "@/app/components/ScreenshotsCarousel";
 import VideoCarousel from "@/app/components/VideoCarousel";
 import GameTrackingModal from "@/app/components/GameTrackingModal";
+import GameRunHistory from "@/app/components/GameRunHistory";
+import { getGameRunState, getPlaythroughLabel } from "@/app/lib/gameRuns";
+import type { GameRunState } from "@/app/types/trackedGame";
+import PlayAgainBadge from "@/app/components/PlayAgainBadge";
 import SimilarGamesGrid from "@/app/components/SimilarGamesGrid";
 import GameSticker from "@/app/components/GameSticker";
 import { TrackedGame } from "@/app/types/trackedGame";
@@ -1090,6 +1095,10 @@ export default function GamePage() {
   const updateTrackedGame = async (data: any) => {
     if (!user || !game) return;
 
+    const requestedSummary = data.recentActionSummary;
+    // Quick status/favorite actions must preserve the active run's tracking.
+    data = { ...(trackedGameData ?? {}), ...data };
+
     const genres = normalizeGenres(game.genres);
     const platforms = normalizePlatforms(game.platforms);
 
@@ -1159,21 +1168,23 @@ export default function GamePage() {
       my_rating: data.my_rating ?? null,
       playtime: data.playtime ?? 0,
       progress: data.progress ?? 0,
-      review: {
-        text: data.review?.text ?? "",
-        sticker: data.review?.sticker ?? null,
-      },
+      review: data.review ?? { text: "", sticker: null },
       status: data.status,
       favorite: data.favorite ?? false,
 
       playedSessions: data.playedSessions ?? [],
+      playedOn: data.playedOn ?? [],
+      notInterested: data.notInterested ?? false,
+      preReleaseAccess: data.preReleaseAccess ?? null,
+      ...getGameRunState(data),
 
       recentActionSummary:
-        data.recentActionSummary ??
+        requestedSummary ??
         appendRecentGameActionSummary(
           previousTrackedGame?.recentActionSummary,
           getRecentGameActionSummary(previousTrackedGame, {
             favorite: data.favorite ?? false,
+            playAgain: data.playAgain === undefined ? previousTrackedGame?.playAgain : data.playAgain,
             notInterested: data.notInterested ?? false,
             status: data.status,
             progress: data.progress ?? 0,
@@ -1192,12 +1203,16 @@ export default function GamePage() {
     if (!shouldSkipLastUpdated) {
       payload.lastUpdated = serverTimestamp();
     }
+    if (data.playAgain !== undefined) payload.playAgain = data.playAgain;
 
-    await setDoc(
-      doc(db, "users", user.uid, "games_igdb", game.id.toString()),
-      payload,
-      { merge: true },
-    );
+    const gameRef = doc(db, "users", user.uid, "games_igdb", game.id.toString());
+    await runTransaction(db, async (transaction) => {
+      const latest = await transaction.get(gameRef);
+      if ((latest.data()?.runNumber ?? 1) !== (trackedGameData?.runNumber ?? 1)) {
+        throw new Error("This game's run changed in another window. Reopen the editor and try again.");
+      }
+      transaction.set(gameRef, payload, { merge: true });
+    });
   };
 
   const handleFavoriteToggle = async () => {
@@ -1619,6 +1634,8 @@ export default function GamePage() {
       playedOn: trackedGameData?.playedOn ?? [],
       notInterested: trackedGameData?.notInterested ?? false,
       preReleaseAccess: trackedGameData?.preReleaseAccess ?? null,
+      playAgain: trackedGameData?.playAgain ?? null,
+      ...getGameRunState(trackedGameData),
       customReleaseTime: trackedGameData?.customReleaseTime ?? null,
       igdb: {
         id: game.id,
@@ -1669,23 +1686,28 @@ export default function GamePage() {
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
     playedOn: TrackedGame["playedOn"],
     preReleaseAccess: TrackedGame["preReleaseAccess"],
+    playAgain: TrackedGame["playAgain"],
+    runState: GameRunState,
   ) => {
-    if (!user || !game || trackingSaving) return;
+    if (!user || !game || trackingSaving) return false;
 
     try {
       setTrackingSaving(true);
+      const startingNewRun = runState.runNumber !== (trackedGameData?.runNumber ?? 1);
       const reviewForSave = {
         ...review,
         createdAt: review.text.trim()
-          ? (trackedGameData?.review?.createdAt ??
+          ? (startingNewRun ? new Date() : (trackedGameData?.review?.createdAt ??
             (trackedGameData?.review?.text?.trim()
               ? trackedGameData.lastUpdated
               : null) ??
-            new Date())
+            new Date()))
           : null,
         updatedAt: review.text.trim() ? new Date() : null,
       };
       await updateTrackedGame({
+        ...runState,
+        ...(startingNewRun ? { recentActionSummary: `Started ${getPlaythroughLabel(runState.runNumber)} · ${runState.runKind === "replay" ? "Replay" : "Another chance"}` } : {}),
         review: reviewForSave,
         my_rating: rating,
         progress,
@@ -1696,6 +1718,7 @@ export default function GamePage() {
         playedSessions,
         playedOn,
         preReleaseAccess,
+        playAgain: playAgain ?? null,
         lastUpdated: serverTimestamp(),
       });
 
@@ -1741,6 +1764,7 @@ export default function GamePage() {
       setIsFavorited(favorite);
       setTrackedGameData((prev: any) => ({
         ...(prev ?? {}),
+        ...runState,
         review: reviewForSave,
         my_rating: rating,
         progress,
@@ -1751,6 +1775,7 @@ export default function GamePage() {
         playedSessions,
         playedOn,
         preReleaseAccess,
+        playAgain: playAgain ?? null,
       }));
       setTrackingModalOpen(false);
       toast.success(
@@ -1761,7 +1786,8 @@ export default function GamePage() {
       );
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save game.");
+      toast.error(err instanceof Error ? err.message : "Failed to save game.");
+      return false;
     } finally {
       setTrackingSaving(false);
     }
@@ -2091,6 +2117,13 @@ export default function GamePage() {
                         </div>
                       </div>
 
+                      {trackedGameData?.playAgain && (
+                        <div className="flex items-center gap-2 text-xs text-white/55">
+                          <span>Play again</span>
+                          <PlayAgainBadge value={trackedGameData.playAgain} showLabel />
+                        </div>
+                      )}
+                      {trackedGameData && <GameRunHistory state={getGameRunState(trackedGameData)} />}
                       <div className="flex flex-wrap gap-3">
                         {statuses.map((s) => {
                           const isSelected =
@@ -2107,7 +2140,7 @@ export default function GamePage() {
                               whileTap={{ scale: 0.96 }}
                               className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-[13px] ${
                                 isSelected
-                                  ? `${s.color} border-transparent text-white`
+                                  ? `${s.color} border-transparent text-[var(--theme-accent-contrast)]`
                                   : "border-white/12 bg-transparent text-white/88 hover:bg-white/14"
                               }`}
                             >

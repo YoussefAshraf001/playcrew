@@ -31,6 +31,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   Timestamp,
   updateDoc,
@@ -62,6 +63,7 @@ import GameCard from "@/app/components/GameCard";
 import GameQuote from "@/app/components/GameQuote";
 import { useGames } from "@/app/context/GameContext";
 import { TrackedGame } from "@/app/types/trackedGame";
+import type { GameRunState } from "@/app/types/trackedGame";
 import styles from "./OnlineToggle.module.css";
 import {
   clampGamesBgBlur,
@@ -1099,19 +1101,20 @@ export default function GamesPage() {
   const updateTrackedGame = async (
     gameId: string | number,
     patch: Partial<TrackedGame>,
+    expectedRunNumber: number,
   ) => {
     if (!user) return;
 
     const gameRef = doc(db, "users", user.uid, "games_igdb", String(gameId));
-    const snap = await getDoc(gameRef);
-
-    const updated = {
-      ...(snap.exists() ? snap.data() : {}),
-      ...patch,
-    };
-
-    await setDoc(gameRef, updated, { merge: true });
-    return updated as TrackedGame;
+    return runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(gameRef);
+      if ((snap.data()?.runNumber ?? 1) !== expectedRunNumber) {
+        throw new Error("This game's run changed in another window. Reopen the editor and try again.");
+      }
+      const updated = { ...(snap.exists() ? snap.data() : {}), ...patch };
+      transaction.set(gameRef, updated, { merge: true });
+      return updated as TrackedGame;
+    });
   };
 
   const openCardSteamAssetsMenu = (
@@ -1324,8 +1327,10 @@ export default function GamesPage() {
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
     playedOn: TrackedGame["playedOn"],
     preReleaseAccess: TrackedGame["preReleaseAccess"],
+    playAgain: TrackedGame["playAgain"],
+    runState: GameRunState,
   ) => {
-    if (!editingGame || saving) return;
+    if (!editingGame || !user || saving) return false;
 
     setSaving(true);
 
@@ -1333,22 +1338,25 @@ export default function GamesPage() {
       const targetDocId = editingGame._docId ?? String(editingGame.igdb.id);
 
       const prev = editingGame;
+      const startingNewRun = runState.runNumber !== (prev.runNumber ?? 1);
       const reviewForSave = {
         ...review,
         createdAt: review.text.trim()
-          ? (prev.review?.createdAt ??
+          ? (startingNewRun ? new Date() : (prev.review?.createdAt ??
             (prev.review?.text?.trim() ? prev.lastUpdated : null) ??
-            new Date())
+            new Date()))
           : null,
         updatedAt: review.text.trim() ? new Date() : null,
       };
 
       const nothingChanged =
+        !startingNewRun &&
         prev.my_rating === rating &&
         (prev.progress ?? 0) === progress &&
         (prev.playtime ?? 0) === playtime &&
         (prev.status ?? "Want To Play") === status &&
         (prev.favorite ?? false) === favorite &&
+        (prev.playAgain ?? null) === (playAgain ?? null) &&
         (prev.notInterested ?? false) === notInterested &&
         (prev.review?.text ?? "") === review.text &&
         (prev.review?.sticker ?? null) === review.sticker &&
@@ -1372,8 +1380,9 @@ export default function GamesPage() {
 
       const recentActionSummary = appendRecentGameActionSummary(
         prev.recentActionSummary,
-        getRecentGameActionSummary(prev, {
+        startingNewRun ? `Started Run ${runState.runNumber} · ${runState.runKind === "replay" ? "Replay" : "Another chance"}` : getRecentGameActionSummary(prev, {
           favorite,
+          playAgain,
           notInterested,
           status,
           progress,
@@ -1388,6 +1397,7 @@ export default function GamesPage() {
       /* ---------------- Save to Firestore ---------------- */
 
       const updatedGame = await updateTrackedGame(targetDocId, {
+        ...runState,
         my_rating: typeof rating === "number" ? rating : null,
         progress,
         playtime,
@@ -1398,10 +1408,11 @@ export default function GamesPage() {
         playedSessions,
         playedOn,
         preReleaseAccess,
+        playAgain: playAgain ?? null,
         lastUpdated: new Date(),
         recentActionSummary,
         recentActionSource: "user",
-      });
+      }, prev.runNumber ?? 1);
 
       if (user) {
         const communityReviewRef = doc(
@@ -1474,8 +1485,9 @@ export default function GamesPage() {
       );
 
       setModalOpen(false);
-    } catch {
-      toast.error("Failed to save game.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save game.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -1562,7 +1574,7 @@ export default function GamesPage() {
                 onLoad={() => setWallpaperLoaded(true)}
                 style={{
                   ...getMediaStyle(wallpaperMedia),
-                  filter: `blur(${bgBlur}px) brightness(0.75)`,
+                  filter: `blur(${bgBlur}px)`,
                 }}
                 alt=""
                 className={`w-full h-full object-cover transition-opacity duration-700 ease-out ${
@@ -1571,12 +1583,12 @@ export default function GamesPage() {
               />
 
               {/* dark overlay */}
-              {/* <div
+              <div
                 className="absolute inset-0"
                 style={{
                   backgroundColor: `rgba(0, 0, 0, ${bgOverlay / 100})`,
                 }}
-              /> */}
+              />
 
               {/* vignette */}
               {/* <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,rgba(0,0,0,0.85))]" /> */}
@@ -3066,7 +3078,7 @@ export default function GamesPage() {
               className="h-full w-full object-cover"
               style={{
                 ...getMediaStyle(wallpaperMedia),
-                filter: `blur(${bgBlur}px) brightness(0.75)`,
+                filter: `blur(${bgBlur}px)`,
               }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

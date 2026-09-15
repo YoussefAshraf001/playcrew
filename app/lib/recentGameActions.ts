@@ -1,6 +1,7 @@
 export interface RecentActionTrackedGame {
   name?: string;
   favorite?: boolean;
+  playAgain?: "replay" | "another-chance" | null;
   notInterested?: boolean;
   status?: string;
   progress?: number | null;
@@ -184,6 +185,7 @@ export function getRecentGameActionSummary(
     normalizeText(prev.review?.text) ||
     normalizeText(prev.review?.sticker) ||
     (prev.favorite ?? false) ||
+    Boolean(prev.playAgain) ||
     (prev.notInterested ?? false) ||
     normalizePlayedOn(prev.playedOn).length > 0 ||
     (prev.playedSessions?.length ?? 0) > 0,
@@ -196,6 +198,7 @@ export function getRecentGameActionSummary(
     !normalizeText(next.review?.text) &&
     !normalizeText(next.review?.sticker) &&
     !(next.favorite ?? false) &&
+    !next.playAgain &&
     !(next.notInterested ?? false) &&
     normalizePlayedOn(next.playedOn).length === 0 &&
     (next.playedSessions?.length ?? 0) === 0 &&
@@ -209,6 +212,9 @@ export function getRecentGameActionSummary(
     return "Game Cleared";
   }
   // Favorites
+  if ((prev.playAgain ?? null) !== (next.playAgain ?? null)) {
+    changes.push(next.playAgain === "replay" ? "Marked for Replay" : next.playAgain === "another-chance" ? "Marked for Another Chance" : "Removed Play Again marker");
+  }
   if ((prev.favorite ?? false) !== (next.favorite ?? false)) {
     changes.push(
       next.favorite ? "Added to Favorites" : "Removed from Favorites",

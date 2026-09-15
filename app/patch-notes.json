@@ -1,9 +1,36 @@
 [
   {
+    "version": "2.1",
+    "title": "Desktop App is now Available",
+    "date": "2026-09-15",
+    "featured": true,
+    "changes": [
+      {
+        "category": "What’s New",
+        "items": [
+          "Desktop app support is now available for PlayCrew",
+          "Added a more polished gallery experience with faster scrolling and smoother image interactions",
+          "Added screenshot sorting controls so you can switch between newest-first and oldest-first view",
+          "Added persistent default-view selection for Screenshots and Favorites cards in Content",
+          "Improved the upload queue with a cleaner layout, better overall progress tracking, and clearer completion states"
+        ]
+      },
+      {
+        "category": "Fixed",
+        "items": [
+          "Fixed screenshots staying hidden after returning to a previously viewed gallery page",
+          "Fixed image zoom snapping instead of easing smoothly in and out",
+          "Fixed favorite items appearing in the wrong visual order while preserving their original sort position",
+          "Fixed several gallery and queue interactions so the experience feels more responsive and consistent"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.0.2",
     "title": "Screenshot Gallery & Upload Queue Refresh",
     "date": "2026-09-09",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Screenshot Collections",

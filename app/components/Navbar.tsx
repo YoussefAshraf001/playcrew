@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { auth, db } from "@/app/lib/firebase";
@@ -30,7 +30,6 @@ import { GiGamepad } from "react-icons/gi";
 import {
   MdAutoAwesome,
   MdExplore,
-  MdMusicNote,
   MdMusicOff,
 } from "react-icons/md";
 import { GiTrophiesShelf } from "react-icons/gi";
@@ -46,6 +45,7 @@ import WhatsNewModal from "./WhatsNewModal";
 import FriendsModal from "./FriendsModal";
 import { useSync } from "../context/SyncContext";
 import { FiRefreshCw } from "react-icons/fi";
+import DesktopDownload from "./DesktopDownload";
 
 export default function Navbar() {
   const router = useRouter();
@@ -69,12 +69,39 @@ export default function Navbar() {
     closePlayer,
     currentTrack,
     isPlaying,
+    isActuallyPlaying,
     togglePlay,
     playPrev,
     playNext,
     volume,
     setVolume,
   } = useMusic();
+
+  const [failedMusicCover, setFailedMusicCover] = useState<string | null>(null);
+  const musicButtonLabel = `${playerVisible ? "Hide" : "Open"} music player${
+    isActuallyPlaying ? ` · Playing: ${currentTrack?.title ?? "Music"}` : " · Music paused"
+  }`;
+  const musicButtonIcon = isActuallyPlaying ? (
+    <span className="relative flex h-7 w-7 items-center justify-center">
+      <span className="pointer-events-none absolute -inset-1 rounded-full border border-[var(--theme-accent)] motion-safe:animate-pulse" aria-hidden="true" />
+      {currentTrack?.cover && failedMusicCover !== currentTrack.cover ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={currentTrack.cover}
+          alt=""
+          onError={() => setFailedMusicCover(currentTrack.cover ?? null)}
+          className="h-7 w-7 rounded-full object-cover"
+        />
+      ) : (
+        <FaPlay className="text-xs" aria-hidden="true" />
+      )}
+      <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[var(--theme-accent)] text-[var(--theme-accent-contrast)] motion-safe:animate-pulse" aria-hidden="true">
+        <FaPlay className="text-[7px]" />
+      </span>
+    </span>
+  ) : (
+    <MdMusicOff className="text-sm" aria-hidden="true" />
+  );
 
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [friendsModalOpen, setFriendsModalOpen] = useState(false);
@@ -376,6 +403,9 @@ export default function Navbar() {
                   >
                     <motion.button
                       data-music-toggle="true"
+                      aria-label={musicButtonLabel}
+                      aria-expanded={playerVisible}
+                      title={musicButtonLabel}
                       onClick={togglePlayerVisible}
                       whileTap={{ scale: 0.95 }}
                       transition={{
@@ -384,16 +414,12 @@ export default function Navbar() {
                         damping: 20,
                       }}
                       className={`hidden h-8 w-8 cursor-pointer select-none items-center justify-center rounded-full border transition-all duration-300 lg:flex ${
-                        playerVisible
+                        playerVisible || isActuallyPlaying
                           ? "theme-accent-soft-bg shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.35)]"
                           : "theme-surface theme-hover-surface"
                       }`}
                     >
-                      {playerVisible ? (
-                        <MdMusicNote className="text-sm" />
-                      ) : (
-                        <MdMusicOff className="text-sm" />
-                      )}
+                      {musicButtonIcon}
                     </motion.button>
                     <AnimatePresence>
                       {enableDesktopHoverNav &&
@@ -588,6 +614,7 @@ export default function Navbar() {
                                 Site Settings
                               </span>
                             </Link>
+                            <DesktopDownload onClick={() => setAccountOpen(false)} />
 
                             <button
                               type="button"
@@ -707,6 +734,7 @@ export default function Navbar() {
                                 Sign Up
                               </span>
                             </button>
+                            <DesktopDownload onClick={() => setAccountOpen(false)} />
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -883,6 +911,9 @@ export default function Navbar() {
                   >
                     <motion.button
                       data-music-toggle="true"
+                      aria-label={musicButtonLabel}
+                      aria-expanded={playerVisible}
+                      title={musicButtonLabel}
                       onClick={togglePlayerVisible}
                       whileTap={{ scale: 0.95 }}
                       transition={{
@@ -891,16 +922,12 @@ export default function Navbar() {
                         damping: 20,
                       }}
                       className={`hidden h-8 w-8 cursor-pointer select-none items-center justify-center rounded-full border transition-all duration-300 lg:flex ${
-                        playerVisible
+                        playerVisible || isActuallyPlaying
                           ? "theme-accent-soft-bg shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.35)]"
                           : "theme-surface theme-hover-surface"
                       }`}
                     >
-                      {playerVisible ? (
-                        <MdMusicNote className="text-sm" />
-                      ) : (
-                        <MdMusicOff className="text-sm" />
-                      )}
+                      {musicButtonIcon}
                     </motion.button>
                     <AnimatePresence>
                       {enableDesktopHoverNav &&
@@ -1094,6 +1121,7 @@ export default function Navbar() {
                                 Site Settings
                               </span>
                             </Link>
+                            <DesktopDownload onClick={() => setAccountOpen(false)} />
 
                             <button
                               type="button"
@@ -1212,6 +1240,7 @@ export default function Navbar() {
                                 Sign Up
                               </span>
                             </button>
+                            <DesktopDownload onClick={() => setAccountOpen(false)} />
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1516,6 +1545,7 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
+              <DesktopDownload onClick={() => setMobileMenuOpen(false)} />
             </motion.aside>
           </>
         )}

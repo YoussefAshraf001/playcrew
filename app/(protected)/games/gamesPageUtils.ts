@@ -87,6 +87,7 @@ export const filterGames = ({
   searchQuery: string;
 }) => {
   const normalizedQuery = normalizeGameName(searchQuery);
+  const compactQuery = normalizedQuery.replace(/\s/g, "");
   const hasSearchQuery = normalizedQuery.length > 0;
 
   let list = showFavoritesOnly
@@ -104,9 +105,14 @@ export const filterGames = ({
   }
 
   if (hasSearchQuery) {
-    list = list.filter(
-      (g) => g.name && normalizeGameName(g.name).includes(normalizedQuery),
-    );
+    list = list.filter((g) => {
+      if (!g.name) return false;
+      const normalizedName = normalizeGameName(g.name);
+      return (
+        normalizedName.includes(normalizedQuery) ||
+        normalizedName.replace(/\s/g, "").includes(compactQuery)
+      );
+    });
   }
 
   if (!hasSearchQuery && releaseFilter !== "All") {

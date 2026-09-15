@@ -1,0 +1,21 @@
+<div id="pc-again" aria-label="Play again preview">
+<style>
+#pc-again{font:14px system-ui;color:light-dark(#202024,#f4f4f5);--pc-bg:light-dark(#fff,#141416);--pc-line:light-dark(#dddde3,#303034);--pc-muted:light-dark(#666670,#a1a1aa);padding:8px 0}
+#pc-again *{box-sizing:border-box}#pc-again .window{background:var(--pc-bg);border:1px solid var(--pc-line);border-radius:16px;padding:24px;max-width:520px;margin:auto}
+#pc-again .eyebrow{color:var(--pc-muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}#pc-again h3{font-size:22px;margin:0 0 12px}#pc-again .meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--pc-muted)}#pc-again .status{color:light-dark(#18763f,#80d5a0)}#pc-again .marker{color:light-dark(#8639c7,#c084fc);display:inline-flex;align-items:center;gap:5px}#pc-again .marker svg{width:16px;height:16px}#pc-again .divider{height:1px;background:var(--pc-line);margin:26px 0}#pc-again .label{font-weight:600;margin-bottom:12px}#pc-again .choices{display:flex;gap:4px;background:light-dark(#f2f2f5,#202024);padding:4px;border-radius:10px}#pc-again button{flex:1;border:1px solid transparent;border-radius:7px;padding:11px 5px;background:transparent;color:var(--pc-muted);font:500 13px system-ui;cursor:pointer}#pc-again button[aria-pressed=true]{background:var(--pc-bg);border-color:var(--pc-line);color:light-dark(#8639c7,#c084fc)}#pc-again button:focus-visible{outline:2px solid #a855f7}#pc-again .description{color:var(--pc-muted);font-size:13px;line-height:1.5;min-height:40px;margin:14px 0 0}#pc-again .footer{display:flex;justify-content:space-between;gap:12px;margin-top:16px;font-size:12px;color:var(--pc-muted)}#pc-again .value{color:light-dark(#8639c7,#c084fc)}
+</style>
+<div class="window">
+<div class="eyebrow">Game card · preview</div>
+<h3>Elden Ring</h3>
+<div class="meta"><span class="status">Completed</span><span>124h</span><span>9 / 10</span><span class="marker" tabindex="0" aria-label="Replay" data-tooltip="Replay"><i data-lucide="rotate-ccw" aria-hidden="true"></i><span class="marker-label" hidden>Replay</span></span></div>
+<div class="divider"></div>
+<div class="eyebrow">Edit game</div>
+<div class="label">Play again</div>
+<div class="choices" role="group" aria-label="Play again"><button data-choice="None" aria-pressed="false">None</button><button data-choice="Replay" aria-pressed="true">Replay</button><button data-choice="Another chance" aria-pressed="false">Another chance</button></div>
+<p class="description" aria-live="polite">Loved it. Ready for another run.</p>
+<div class="footer"><span>Status <span class="status">Completed</span></span><span class="value">↻ Replay</span></div>
+</div>
+<script>
+(()=>{const root=document.getElementById('pc-again');const state={choice:'Replay',showLabel:false};const descriptions={None:'No plans to revisit this game.',Replay:'Loved it. Ready for another run.','Another chance':'It didn’t click before. Give it a fresh start.'};function render(){root.querySelectorAll('[data-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.choice===state.choice)));const marker=root.querySelector('.marker');marker.style.display=state.choice==='None'?'none':'inline-flex';marker.setAttribute('data-tooltip',state.choice);marker.setAttribute('aria-label',state.choice);const label=root.querySelector('.marker-label');label.hidden=!state.showLabel;label.textContent=state.choice;root.querySelector('.description').textContent=descriptions[state.choice];root.querySelector('.value').textContent=state.choice==='None'?'':'↻ '+state.choice}root.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{state.choice=b.dataset.choice;render()}));render();if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:render});tweak.addToggle(state,'showLabel',{label:'Show label on card'})}})();
+</script>
+</div>

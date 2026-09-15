@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion, type Variants } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import DesktopDownload from "@/app/components/DesktopDownload";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { collection, getDocs } from "firebase/firestore";
@@ -526,7 +527,8 @@ export default function Dashboard() {
               const isSoftDisabled = isExit && !user;
 
               return (
-                <li key={item.label}>
+                <Fragment key={item.label}>
+                <li>
                   <button
                     onMouseEnter={() => {
                       if (!isHardDisabled && !isSoftDisabled) setActive(index);
@@ -574,6 +576,8 @@ export default function Dashboard() {
                     </span>
                   </button>
                 </li>
+                {item.action === "about" && <DesktopDownload variant="dashboard" />}
+                </Fragment>
               );
             })}
           </ul>

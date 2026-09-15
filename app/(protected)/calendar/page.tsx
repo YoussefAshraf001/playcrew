@@ -617,7 +617,7 @@ export default function CalendarPage() {
                             if (!dayGames.length) return;
                             setSelectedDayGames(dayGames);
                           }}
-                          className={`group relative overflow-hidden rounded-xl border text-left transition-[transform,border-color,box-shadow,background-color] duration-500 ease-in-out ${
+                          className={`group relative overflow-hidden rounded-xl border text-left transition-[translate,transform,border-color,box-shadow,background-color] duration-500 ease-in-out motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${
                             dayGames.length
                               ? "cursor-pointer bg-[radial-gradient(circle_at_50%_56%,rgba(var(--theme-accent-rgb),0.18),transparent_58%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_8px_22px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 hover:border-[rgba(var(--theme-accent-rgb),0.68)] hover:shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.22),0_0_28px_rgba(var(--theme-accent-rgb),0.13),0_14px_32px_rgba(0,0,0,0.25)]"
                               : "cursor-default bg-black/20"
@@ -907,9 +907,10 @@ export default function CalendarPage() {
                                     >
                                       <Link
                                         href={`/game/${g.id}`}
-                                        className="group block overflow-hidden rounded-[22px] border border-[var(--theme-border)] theme-surface pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.15)] transition-[transform,border-color,box-shadow,background-color] duration-500 ease-in-out hover:-translate-y-1 hover:border-[rgba(var(--theme-accent-rgb),0.45)] hover:shadow-[0_22px_48px_rgba(0,0,0,0.24),0_0_24px_rgba(var(--theme-accent-rgb),0.09)]"
+                                        className="group/upcoming relative isolate block overflow-hidden rounded-[22px] border border-[var(--theme-border)] theme-surface pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.15)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-accent)]"
                                       >
-                                        <div className="flex gap-3 px-2.5 py-2">
+                                        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[21px] bg-[rgba(var(--theme-accent-rgb),0.055)] opacity-0 shadow-[inset_0_0_0_1px_rgba(var(--theme-accent-rgb),0.35),inset_0_0_24px_rgba(var(--theme-accent-rgb),0.06)] transition-opacity duration-300 ease-in-out group-hover/upcoming:opacity-100 group-focus-visible/upcoming:opacity-100 motion-reduce:transition-none" />
+                                        <div className="relative flex gap-3 px-2.5 py-2">
                                           <img
                                             src={getCalendarCover(
                                               g.igdb?.cover,

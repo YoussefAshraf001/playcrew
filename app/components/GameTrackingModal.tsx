@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -43,6 +43,9 @@ import type { IconType } from "react-icons";
 import { FaUnlockKeyhole } from "react-icons/fa6";
 
 import ConfirmModal from "./ConfirmModal";
+import GameRunHistory from "./GameRunHistory";
+import { getGameRunState, getPlaythroughLabel, startGameRun } from "@/app/lib/gameRuns";
+import type { GameRunState } from "@/app/types/trackedGame";
 import {
   PlayedOnPlatform,
   PlaySession,
@@ -106,7 +109,9 @@ interface GameTrackingModalProps {
     playedSessions: PlaySession[],
     playedOn: PlayedOnPlatform[],
     preReleaseAccess: PreReleaseAccess | null,
-  ) => Promise<void> | void;
+    playAgain: TrackedGame["playAgain"],
+    runState: GameRunState,
+  ) => Promise<void | boolean> | void | boolean;
 }
 
 const ACCESS_OPTIONS: Array<{
@@ -423,6 +428,12 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   );
   const [status, setStatus] = useState(initialStatus ?? "Playing");
   const [favorite, setFavorite] = useState(initialFavorite ?? false);
+  const [playAgain, setPlayAgain] = useState<TrackedGame["playAgain"]>(game?.playAgain ?? null);
+  const [runsOpen, setRunsOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const [runState, setRunState] = useState(() => getGameRunState(game));
+  const startingNewRun = runState.runNumber !== (game?.runNumber ?? 1);
+  const runPlaytimeBaseline = startingNewRun ? 0 : initialPlaytime;
   const [notInterested, setNotInterested] = useState(
     game?.notInterested === true ||
       initialStatus === "Not Interested" ||
@@ -487,9 +498,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   }, [open]);
 
   useEffect(() => {
+    if (startingNewRun) return;
     setNotes(initialReview.text ?? "");
     setSticker(initialReview.sticker ?? null);
-  }, [initialReview]);
+  }, [initialReview, startingNewRun]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -572,11 +584,11 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   const handleSave = async () => {
     const totalPlaytime = Number((hours + minutes / 60).toFixed(2));
     const nextPlayedSessions =
-      totalPlaytime > initialPlaytime
-        ? appendPlaySession(playedSessions, initialPlaytime, totalPlaytime)
+      totalPlaytime > runPlaytimeBaseline
+        ? appendPlaySession(playedSessions, runPlaytimeBaseline, totalPlaytime)
         : playedSessions;
 
-    await onSave(
+    return onSave(
       {
         text: notes,
         sticker,
@@ -590,11 +602,51 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       nextPlayedSessions,
       playedOn,
       preReleaseAccess,
+      playAgain,
+      runState,
     );
   };
 
+  const handleStartRun = () => {
+    if (!game || !playAgain || startingNewRun || saving) return;
+    const now = new Date();
+    const totalPlaytime = Number((hours + minutes / 60).toFixed(2));
+    const reviewChanged = notes !== (game.review?.text ?? "") || sticker !== (game.review?.sticker ?? null);
+    const next = startGameRun({
+      ...game,
+      ...runState,
+      review: {
+        text: notes,
+        sticker,
+        createdAt: notes.trim() ? (game.review?.createdAt ?? (game.review?.text?.trim() ? null : now)) : null,
+        updatedAt: reviewChanged ? now : (game.review?.updatedAt ?? null),
+      },
+      my_rating: rating,
+      progress,
+      playtime: totalPlaytime,
+      playedSessions: totalPlaytime > initialPlaytime ? appendPlaySession(playedSessions, initialPlaytime, totalPlaytime) : playedSessions,
+      status,
+      favorite,
+      notInterested,
+      playedOn,
+      preReleaseAccess,
+    }, playAgain, now);
+    setRunState(getGameRunState(next));
+    setNotes("");
+    setSticker(null);
+    setRating(null);
+    setProgress(0);
+    setHours(0);
+    setMinutes(0);
+    setPlayedSessions([]);
+    setPlayedOn([]);
+    setStatus("Playing");
+    setNotInterested(false);
+    setPlayAgain(null);
+  };
+
   const handleClean = async () => {
-    await onSave(
+    const saved = await onSave(
       {
         text: "",
         sticker: null,
@@ -608,7 +660,10 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       [],
       [],
       null,
+      null,
+      runState,
     );
+    if (saved === false) return;
     setConfirmCleanOpen(false);
     setUnreleasedEditApprovedFor(null);
     onClose();
@@ -1076,6 +1131,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                 <div className="flex max-w-[500px] flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
                   {showStatus && (
+                    <div className="flex min-w-[118px] flex-col gap-1.5">
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
@@ -1088,6 +1144,17 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       <option value="Online">Online</option>
                       <option value="Want To Play">Want To Play</option>
                     </select>
+                    <button
+                      type="button"
+                      aria-expanded={runsOpen}
+                      aria-controls="tracking-run-controls"
+                      onClick={() => setRunsOpen((current) => !current)}
+                      className={`inline-flex h-8 items-center justify-between gap-2 rounded-xl border px-3 text-[11px] font-medium transition ${runsOpen ? "border-purple-400/40 bg-purple-500/15 text-purple-200" : "border-white/15 bg-black/25 text-white/65 hover:bg-white/10 hover:text-white"}`}
+                    >
+                      <span>Runs &amp; play again</span>
+                      <FaChevronDown aria-hidden="true" className={`text-[10px] transition-transform motion-reduce:transition-none ${runsOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    </div>
                   )}
 
                   {showFavorite && (
@@ -1142,7 +1209,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                 </div>
               </header>
 
-              <div className="grid min-h-0 gap-3 overflow-y-auto pr-1">
+              <div className="grid min-h-0 auto-rows-max content-start gap-3 overflow-y-auto pr-1">
                 <div
                   className={`relative grid gap-3 md:grid-cols-[1.2fr_0.8fr] md:items-stretch ${
                     playedOnMenuOpen ? "z-30" : "z-0"
@@ -1604,6 +1671,52 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   </aside>
                 </div>
 
+                <AnimatePresence initial={false}>
+                  {runsOpen && (
+                    <motion.section
+                      id="tracking-run-controls"
+                      aria-label="Runs and play again"
+                      initial={{ height: 0, opacity: 0, y: reduceMotion ? 0 : -8 }}
+                      animate={{ height: "auto", opacity: 1, y: 0 }}
+                      exit={{ height: 0, opacity: 0, y: reduceMotion ? 0 : -8 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.25, ease: "easeInOut" }}
+                      className="min-h-0 overflow-hidden"
+                    >
+                      <div className="grid gap-3 p-0.5">
+                        <GameRunHistory state={runState} />
+                        <fieldset className="rounded-2xl border border-white/12 bg-black/20 p-4" disabled={saving}>
+                          <legend className="px-1 text-xs font-semibold text-white/80">Play again</legend>
+                          <div className="flex gap-1 rounded-xl bg-black/25 p-1">
+                            {([
+                              { value: null, label: "None" },
+                              { value: "replay", label: "Replay" },
+                              { value: "another-chance", label: "Another chance" },
+                            ] as const).map((option) => (
+                              <button key={option.label} type="button" aria-pressed={playAgain === option.value}
+                                onClick={() => setPlayAgain(option.value)}
+                                className={`flex-1 rounded-lg px-2 py-2 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-purple-400 ${playAgain === option.value ? "bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/40" : "text-white/55 hover:bg-white/5 hover:text-white"}`}>
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-xs text-white/50" aria-live="polite">
+                            {playAgain === "replay" ? "Loved it. Ready for another playthrough." : playAgain === "another-chance" ? "Give it a fresh start." : "Mark a game you want to revisit."}
+                          </p>
+                          {playAgain && !startingNewRun && (
+                            <button type="button" onClick={handleStartRun}
+                              className="mt-3 rounded-xl border border-purple-400/40 bg-purple-500/20 px-4 py-2 text-xs font-semibold text-purple-200 hover:bg-purple-500/30">
+                              Start {getPlaythroughLabel(runState.runNumber + 1)} · {playAgain === "replay" ? "Replay" : "Another chance"}
+                            </button>
+                          )}
+                          <p className="mt-2 text-xs text-white/50">
+                            {startingNewRun ? `Your ${getPlaythroughLabel(runState.runNumber - 1)} is archived in this draft. Save changes to keep both playthroughs, or close to cancel.` : "Starting a playthrough archives your current tracking and opens a fresh playthrough. Save changes to apply."}
+                          </p>
+                        </fieldset>
+                      </div>
+                    </motion.section>
+                  )}
+                </AnimatePresence>
+
                 <div className="relative z-0 grid gap-3 md:grid-cols-[1fr_280px]">
                   {/* REVIEW */}
 
@@ -1710,8 +1823,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   </button>
                   <button
                     onClick={async () => {
-                      await handleSave();
-                      handleModalClose();
+                      if (await handleSave() !== false) handleModalClose();
                     }}
                     disabled={saving || removing}
                     className={`rounded-xl bg-linear-to-r px-4 py-2 text-sm font-bold transition hover:brightness-105 disabled:opacity-60 ${MODAL_THEME.button}`}
@@ -1865,7 +1977,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             <ConfirmModal
               open={confirmCleanOpen}
               title="Clean game?"
-              message="This will clear the review, sticker, rating, progress, playtime, played-on platform, play sessions, favorite, not-interested status, and pre-release access. The game will remain in your collection."
+              message="This will clear the current run's review, sticker, rating, progress, playtime, played-on platform, play sessions, favorite, play-again marker, not-interested status, and pre-release access. Previous runs remain saved. The game will remain in your collection."
               confirmText={saving ? "Cleaning..." : "Yes, Clean"}
               cancelText="Cancel"
               onCancel={() => {

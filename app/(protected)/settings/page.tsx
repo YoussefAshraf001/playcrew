@@ -38,6 +38,7 @@ import {
 } from "@/app/lib/gamesPageSettings";
 import CropModal from "@/app/components/CropModal";
 import { IoIosCloudUpload } from "react-icons/io";
+import DesktopDownload from "@/app/components/DesktopDownload";
 
 type CropData = {
   x: number;
@@ -618,7 +619,7 @@ export default function SiteSettingsPage() {
             <img
               src={activeWallpaper.data}
               alt=""
-              className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45"
+              className="absolute inset-0 h-full w-full object-cover"
               style={{
                 ...getWallpaperCropStyle(activeWallpaper),
                 filter: "blur(var(--games-bg-blur, 14px))",
@@ -854,6 +855,7 @@ export default function SiteSettingsPage() {
             <section className="contents">
               {/* SIDEBAR */}
               <div className="space-y-3 xl:order-3 xl:max-h-full xl:overflow-y-auto">
+                {!wallpaperPreview && <DesktopDownload variant="settings" />}
                 <motion.section
                   className="theme-panel-strong rounded-xl border p-3"
                   initial={false}
