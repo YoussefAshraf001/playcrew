@@ -1,8 +1,12 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, contextBridge } = require('electron');
 
 // Keep Electron access in the isolated preload world. No generic IPC or Node
 // capabilities are exposed to the website. Controls are bundled with the app.
 if (process.isMainFrame) {
+  contextBridge.exposeInMainWorld('playcrewDesktop', {
+    getCloseBehavior: () => ipcRenderer.invoke('playcrew:close-behavior'),
+    setCloseBehavior: (value) => ipcRenderer.invoke('playcrew:close-behavior', value)
+  });
   window.addEventListener('DOMContentLoaded', () => {
     const controls = document.createElement('div');
     controls.id = 'playcrew-desktop-controls';
@@ -39,7 +43,8 @@ if (process.isMainFrame) {
       const side = document.querySelector('.navbar-sidebar-shell');
       const mobile = [...document.querySelectorAll('nav')].find((nav) => nav !== top && nav !== side && nav.getBoundingClientRect().height > 0);
       const visible = (node) => node && getComputedStyle(node).display !== 'none';
-      const target = visible(top) ? top : visible(side) ? side : mobile || document.body;
+      const gamingPill = document.documentElement.dataset.navbarLayout === 'sidebar';
+      const target = gamingPill ? document.body : visible(top) ? top : visible(side) ? side : mobile || document.body;
       const mode = target === top ? 'top' : target === side ? 'sidebar' : target === document.body ? 'floating' : 'top';
       if (controls.dataset.layout !== mode) controls.dataset.layout = mode;
       if (controls.parentElement !== target) target.append(controls);
@@ -58,6 +63,9 @@ if (process.isMainFrame) {
     new MutationObserver(scheduleMount).observe(document.documentElement, { attributes: true, attributeFilter: ['data-navbar-layout'] });
     window.addEventListener('resize', scheduleMount);
     ipcRenderer.on('playcrew:window-state', (_event, state) => {
+      const closeLabel = state.closeBehavior === 'quit' ? 'Close PlayCrew' : 'Close to tray';
+      buttons.close.title = closeLabel;
+      buttons.close.setAttribute('aria-label', closeLabel);
       const restored = state.maximized || state.fullscreen;
       const label = state.fullscreen ? 'Exit full screen' : restored ? 'Restore window' : 'Maximize window';
       buttons.maximize.title = label;

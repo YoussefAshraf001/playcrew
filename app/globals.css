@@ -63,6 +63,40 @@
   --color-cyan-700: #0e7490;
 }
 
+/* PlayCrew Classic V2 — dimmer neon and near-black surfaces */
+:root[data-app-theme="neo-cyan-v2"] {
+  --theme-bg: #000000;
+  --theme-bg-rgb: 0, 0, 0;
+  --theme-bg-elevated: rgba(1, 3, 3, 0.99);
+  --theme-surface: rgba(2, 5, 5, 0.94);
+  --theme-surface-strong: rgba(0, 2, 2, 0.99);
+  --theme-panel: rgba(1, 4, 4, 0.97);
+  --theme-panel-alt: rgba(3, 7, 7, 0.98);
+  --theme-border: rgba(57, 143, 152, 0.2);
+  --theme-border-strong: rgba(105, 173, 179, 0.48);
+  --theme-text: #e1e9ea;
+  --theme-text-muted: #8fa3a5;
+  --theme-text-accent: #69adb3;
+  --theme-accent: #398f98;
+  --theme-accent-strong: #69adb3;
+  --theme-accent-contrast: #000000;
+  --theme-accent-rgb: 57, 143, 152;
+  --theme-shadow: 0 30px 110px rgba(0, 0, 0, 0.85);
+  --theme-tint-a: rgba(57, 143, 152, 0.055);
+  --theme-tint-b: rgba(105, 173, 179, 0.025);
+  --color-cyan-50: #dbe9ea;
+  --color-cyan-100: #bed6d8;
+  --color-cyan-200: #92bfc3;
+  --color-cyan-300: #69adb3;
+  --color-cyan-400: #4c9ba3;
+  --color-cyan-500: #398f98;
+  --color-cyan-600: #2d7178;
+  --color-cyan-700: #23555b;
+  --color-cyan-800: #183b3f;
+  --color-cyan-900: #0e2528;
+  --color-cyan-950: #051113;
+}
+
 /* Crimson Spider */
 :root[data-app-theme="spider-suit"],
 :root[data-app-theme="spider-suit-black"] {

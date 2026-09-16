@@ -9,13 +9,13 @@ const path = require('node:path');
   const env = { ...process.env, PLAYCREW_DESKTOP_PROFILE: profile };
   delete env.ELECTRON_RUN_AS_NODE;
   const desktop = await electron.launch({
-    executablePath: path.resolve(__dirname, '../dist/win-unpacked/PlayCrew.exe'),
+    executablePath: process.env.PLAYCREW_TEST_SOURCE ? require('electron') : path.resolve(__dirname, '../dist/win-unpacked/PlayCrew.exe'),
     // Keep lifecycle tests deterministic and independent of production latency.
-    args: ['--host-resolver-rules=MAP playcrew.vercel.app ~NOTFOUND'],
+    args: [...(process.env.PLAYCREW_TEST_SOURCE ? [path.resolve(__dirname, '..')] : []), '--host-resolver-rules=MAP playcrew.vercel.app ~NOTFOUND'],
     env
   });
   try {
-    const page = await desktop.firstWindow();
+    const page = await require('./wait-main-window.cjs')(desktop);
     await page.getByRole('link', { name: 'Try again' }).waitFor();
     await page.evaluate(() => {
       const button = document.createElement('button');

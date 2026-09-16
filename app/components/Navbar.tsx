@@ -270,6 +270,8 @@ export default function Navbar() {
                   Play<span className="theme-accent-text font-black">Crew</span>
                 </span>
               </Link>
+              <div className="flex items-center gap-2">
+              <DesktopDownload variant="widget" />
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen((prev) => !prev)}
@@ -278,6 +280,7 @@ export default function Navbar() {
               >
                 {mobileMenuOpen ? <FaTimes /> : <FaBars />}
               </button>
+              </div>
             </div>
           </motion.nav>
 
@@ -486,6 +489,7 @@ export default function Navbar() {
                     </AnimatePresence>
                   </div>
 
+                  <DesktopDownload variant="widget" />
                   {profile ? (
                     <div
                       className={`relative top-[-1] ${
@@ -614,7 +618,6 @@ export default function Navbar() {
                                 Site Settings
                               </span>
                             </Link>
-                            <DesktopDownload onClick={() => setAccountOpen(false)} />
 
                             <button
                               type="button"
@@ -734,7 +737,6 @@ export default function Navbar() {
                                 Sign Up
                               </span>
                             </button>
-                            <DesktopDownload onClick={() => setAccountOpen(false)} />
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -994,6 +996,7 @@ export default function Navbar() {
                     </AnimatePresence>
                   </div>
 
+                  <DesktopDownload variant="widget" />
                   {profile ? (
                     <div
                       className={`relative top-1 ${
@@ -1121,7 +1124,6 @@ export default function Navbar() {
                                 Site Settings
                               </span>
                             </Link>
-                            <DesktopDownload onClick={() => setAccountOpen(false)} />
 
                             <button
                               type="button"
@@ -1240,7 +1242,6 @@ export default function Navbar() {
                                 Sign Up
                               </span>
                             </button>
-                            <DesktopDownload onClick={() => setAccountOpen(false)} />
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -1545,7 +1546,6 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
-              <DesktopDownload onClick={() => setMobileMenuOpen(false)} />
             </motion.aside>
           </>
         )}

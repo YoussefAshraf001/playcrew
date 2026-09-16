@@ -3078,16 +3078,12 @@ export default function GamesPage() {
               className="h-full w-full object-cover"
               style={{
                 ...getMediaStyle(wallpaperMedia),
-                filter: `blur(${bgBlur}px)`,
+                filter: "none",
               }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.7, ease: "easeOut" }}
-            />
-            <div
-              className="absolute inset-0 bg-black"
-              style={{ opacity: bgOverlay / 100 }}
             />
           </motion.div>
         )}

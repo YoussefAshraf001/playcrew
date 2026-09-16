@@ -37,8 +37,8 @@ import {
   PAGE_SETTINGS_STORAGE_KEY,
 } from "@/app/lib/gamesPageSettings";
 import CropModal from "@/app/components/CropModal";
-import { IoIosCloudUpload } from "react-icons/io";
 import DesktopDownload from "@/app/components/DesktopDownload";
+import DesktopSettings from "@/app/components/DesktopSettings";
 
 type CropData = {
   x: number;
@@ -161,6 +161,8 @@ export default function SiteSettingsPage() {
   );
   const [gifCropMedia, setGifCropMedia] = useState<MediaValue | null>(null);
   const [savingWallpaper, setSavingWallpaper] = useState(false);
+  const wallpaperSaveInFlight = useRef(false);
+  const [wallpaperSaveError, setWallpaperSaveError] = useState("");
   const [removingWallpaper, setRemovingWallpaper] = useState(false);
   const [wallpaperSourceOpen, setWallpaperSourceOpen] = useState(false);
   const [giphyPickerOpen, setGiphyPickerOpen] = useState(false);
@@ -199,7 +201,7 @@ export default function SiteSettingsPage() {
   };
 
   const [activeThemePreset, setActiveThemePreset] =
-    useState<ThemePreset>(DEFAULT_THEME_PRESET);
+    useState<ThemePreset | null>(null);
 
   const [activeFontPreset, setActiveFontPreset] =
     useState<FontPreset>(DEFAULT_FONT_PRESET);
@@ -219,13 +221,14 @@ export default function SiteSettingsPage() {
       : null;
 
   const resolvedThemePreset =
+    activeThemePreset ||
     (profile?.themePreset &&
       THEME_PRESETS.some((theme) => theme.id === profile.themePreset) &&
       profile.themePreset) ||
     (storedTheme &&
       THEME_PRESETS.some((theme) => theme.id === storedTheme) &&
       storedTheme) ||
-    activeThemePreset;
+    DEFAULT_THEME_PRESET;
 
   const resolvedFontPreset =
     (profile?.fontPreset &&
@@ -315,8 +318,6 @@ export default function SiteSettingsPage() {
   /* ---------------- HANDLERS ---------------- */
 
   const handleThemePresetChange = async (themePreset: ThemePreset) => {
-    if (!user || !profile) return;
-
     const previousThemePreset = resolvedThemePreset;
 
     try {
@@ -324,23 +325,20 @@ export default function SiteSettingsPage() {
       localStorage.setItem(THEME_STORAGE_KEY, themePreset);
 
       setActiveThemePreset(themePreset);
+      document.documentElement.dataset.appTheme = themePreset;
       setThemeModeOverride(
         THEME_PRESETS.find((theme) => theme.id === themePreset)?.mode ?? "dark",
       );
 
-      setProfile({
-        ...profile,
-        themePreset,
-      });
-
-      await updateDoc(doc(db, "users", user.uid), { themePreset });
+      if (user && profile) {
+        setProfile((current) => current ? { ...current, themePreset } : current);
+        await updateDoc(doc(db, "users", user.uid), { themePreset });
+      }
     } catch (error) {
       localStorage.setItem(THEME_STORAGE_KEY, previousThemePreset);
       setActiveThemePreset(previousThemePreset);
-      setProfile({
-        ...profile,
-        themePreset: previousThemePreset,
-      });
+      document.documentElement.dataset.appTheme = previousThemePreset;
+      setProfile((current) => current ? { ...current, themePreset: previousThemePreset } : current);
       console.error("Failed to update theme preset:", error);
       toast.error("Could not save your theme.");
     }
@@ -520,8 +518,10 @@ export default function SiteSettingsPage() {
   };
 
   const saveWallpaper = async () => {
-    if (!user || !profile || !pendingWallpaper || savingWallpaper) return;
+    if (!user || !profile || !pendingWallpaper || wallpaperSaveInFlight.current) return;
 
+    wallpaperSaveInFlight.current = true;
+    setWallpaperSaveError("");
     setSavingWallpaper(true);
 
     try {
@@ -532,10 +532,7 @@ export default function SiteSettingsPage() {
         wallpaper: savedWallpaper,
       });
 
-      setProfile({
-        ...profile,
-        wallpaper: savedWallpaper,
-      });
+      setProfile((current) => current ? { ...current, wallpaper: savedWallpaper } : current);
 
       setPendingWallpaper(null);
       toast.success(
@@ -545,10 +542,12 @@ export default function SiteSettingsPage() {
       );
     } catch (error) {
       console.error(error);
+      setWallpaperSaveError("Could not save your wallpaper. Your selection is still here—try again.");
       toast.error(
         `Failed to save wallpaper: ${getErrorMessage(error, "Unknown error")}`,
       );
     } finally {
+      wallpaperSaveInFlight.current = false;
       setSavingWallpaper(false);
     }
   };
@@ -558,6 +557,7 @@ export default function SiteSettingsPage() {
 
     if (pendingWallpaper) {
       setPendingWallpaper(null);
+      setWallpaperSaveError("");
       toast.success("Wallpaper changes discarded");
       return;
     }
@@ -686,17 +686,19 @@ export default function SiteSettingsPage() {
                   {THEME_PRESETS.filter(
                     (theme) =>
                       theme.mode === themeMode &&
-                      theme.id !== "spider-suit-black",
+                      theme.id !== "spider-suit-black" &&
+                      theme.id !== "neo-cyan-v2",
                   ).map((theme) => {
                     const isCrimsonSpider = theme.id === "spider-suit";
-                    const isSelected = isCrimsonSpider
-                      ? resolvedThemePreset === "spider-suit" ||
-                        resolvedThemePreset === "spider-suit-black"
-                      : resolvedThemePreset === theme.id;
-                    const selectedCrimsonVariant =
-                      resolvedThemePreset === "spider-suit-black"
-                        ? "spider-suit-black"
-                        : "spider-suit";
+                    const isClassic = theme.id === "neo-cyan";
+                    const variants: readonly (readonly [string, ThemePreset, string])[] = isCrimsonSpider
+                      ? [["V1", "spider-suit", "V1: dark grey and black"], ["V2", "spider-suit-black", "V2: true black"]]
+                      : isClassic
+                        ? [["V1", "neo-cyan", "V1: bright neon cyan"], ["V2", "neo-cyan-v2", "V2: darker panels and dimmer neon"]]
+                        : [];
+                    const isSelected = resolvedThemePreset === theme.id || variants.some(([, preset]) => preset === resolvedThemePreset);
+                    const selectedVariant = isSelected ? resolvedThemePreset : theme.id;
+                    const displayTheme = THEME_PRESETS.find((preset) => preset.id === selectedVariant) ?? theme;
 
                     return (
                       <div
@@ -705,15 +707,16 @@ export default function SiteSettingsPage() {
                         tabIndex={0}
                         onClick={() =>
                           handleThemePresetChange(
-                            isCrimsonSpider ? selectedCrimsonVariant : theme.id,
+                            selectedVariant,
                           )
                         }
                         onKeyDown={(event) => {
+                          if (event.target !== event.currentTarget) return;
                           if (event.key !== "Enter" && event.key !== " ")
                             return;
                           event.preventDefault();
                           void handleThemePresetChange(
-                            isCrimsonSpider ? selectedCrimsonVariant : theme.id,
+                            selectedVariant,
                           );
                         }}
                         className={`relative min-h-[78px] overflow-hidden rounded-lg border p-3.5 text-left transition-all duration-200 ${
@@ -722,17 +725,12 @@ export default function SiteSettingsPage() {
                             : "theme-surface theme-hover-surface"
                         } cursor-pointer`}
                       >
-                        {isCrimsonSpider && (
+                        {variants.length > 0 && (
                           <div
                             className="absolute right-1.5 top-1.5 z-10 inline-flex rounded-full border border-white/10 bg-black/60 backdrop-blur-sm text-[12px] font-black leading-3 text-white"
-                            aria-label="Crimson Spider variant"
+                            aria-label={isClassic ? "PlayCrew Classic variant" : "Crimson Spider variant"}
                           >
-                            {(
-                              [
-                                ["V1", "spider-suit"],
-                                ["V2", "spider-suit-black"],
-                              ] as const
-                            ).map(([label, preset]) => (
+                            {variants.map(([label, preset, title]) => (
                               <button
                                 key={preset}
                                 type="button"
@@ -742,15 +740,11 @@ export default function SiteSettingsPage() {
                                 }}
                                 className={`rounded-full px-2 py-1 transition ${
                                   resolvedThemePreset === preset
-                                    ? "bg-red-700 text-white shadow-sm px-2.5"
+                                    ? isCrimsonSpider ? "bg-red-700 text-white shadow-sm px-2.5" : "theme-accent-bg shadow-sm px-2.5"
                                     : "text-zinc-400 hover:bg-white/10 hover:text-white"
                                 }`}
                                 aria-pressed={resolvedThemePreset === preset}
-                                title={
-                                  preset === "spider-suit"
-                                    ? "V1: dark grey and black"
-                                    : "V2: true black"
-                                }
+                                title={title}
                               >
                                 {label}
                               </button>
@@ -761,10 +755,10 @@ export default function SiteSettingsPage() {
                         {/* SWATCHES */}
                         <div
                           className={`mb-2 flex items-center gap-1.5 ${
-                            isCrimsonSpider ? "pr-10" : ""
+                            variants.length > 0 ? "pr-10" : ""
                           }`}
                         >
-                          {theme.swatches.map((swatch) => (
+                          {displayTheme.swatches.map((swatch) => (
                             <span
                               key={`${theme.id}-${swatch}`}
                               className="h-4 w-4 rounded-full border border-white/10"
@@ -776,22 +770,24 @@ export default function SiteSettingsPage() {
                         </div>
 
                         {/* CONTENT */}
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-semibold theme-text">
-                              {theme.name}
+                        <div>
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1.5 font-semibold theme-text">
+                              <span className="min-w-0">
+                              {isClassic ? "PlayCrew Classic" : theme.name}
+                              </span>
+                              {isSelected && (
+                                <span className="theme-accent-soft-bg inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border" aria-label="Selected theme">
+                                  <FiCheck size={10} />
+                                </span>
+                              )}
                             </p>
 
                             <p className="theme-text-muted mt-1 text-[11px] leading-4">
-                              {theme.description}
+                              {displayTheme.description}
                             </p>
                           </div>
 
-                          {isSelected && (
-                            <span className="theme-accent-soft-bg inline-flex h-7 w-7 items-center justify-center rounded-full border">
-                              <FiCheck size={14} />
-                            </span>
-                          )}
                         </div>
                       </div>
                     );
@@ -856,6 +852,7 @@ export default function SiteSettingsPage() {
               {/* SIDEBAR */}
               <div className="space-y-3 xl:order-3 xl:max-h-full xl:overflow-y-auto">
                 {!wallpaperPreview && <DesktopDownload variant="settings" />}
+                {!wallpaperPreview && <DesktopSettings />}
                 <motion.section
                   className="theme-panel-strong rounded-xl border p-3"
                   initial={false}
@@ -1049,22 +1046,29 @@ export default function SiteSettingsPage() {
                 </div>
 
                 {/* ACTIONS */}
-                <div className="mb-4 grid gap-2 sm:grid-cols-3">
+                <div className="mb-4 grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setWallpaperSourceOpen(true)}
-                    className="theme-accent-bg flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center text-sm transition hover:scale-[1.02]"
+                    onClick={() => {
+                      if (hasPendingWallpaper) void saveWallpaper();
+                      else { setWallpaperSaveError(""); setWallpaperSourceOpen(true); }
+                    }}
+                    disabled={savingWallpaper || removingWallpaper}
+                    aria-busy={savingWallpaper}
+                    className="theme-accent-bg flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center text-sm transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-accent)]"
                   >
-                    {hasSavedWallpaper || hasPendingWallpaper ? (
+                    {savingWallpaper ? (
+                      <span className="loading loading-spinner loading-sm" aria-hidden="true" />
+                    ) : hasPendingWallpaper ? (
+                      <FaSave size={22} />
+                    ) : hasSavedWallpaper ? (
                       <FiImage size={22} />
                     ) : (
                       <MdAdd size={22} />
                     )}
 
                     <span className="font-semibold">
-                      {hasSavedWallpaper || hasPendingWallpaper
-                        ? "Change"
-                        : "Add"}
+                      {savingWallpaper ? "Saving…" : hasPendingWallpaper ? "Confirm" : hasSavedWallpaper ? "Change" : "Add"}
                     </span>
                   </button>
 
@@ -1077,7 +1081,7 @@ export default function SiteSettingsPage() {
                     }
                     onClick={removeWallpaper}
                     aria-busy={removingWallpaper}
-                    className="theme-surface theme-hover-surface flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-center text-sm transition hover:scale-[1.02] disabled:cursor-wait disabled:opacity-50 disabled:hover:scale-100"
+                    className="theme-surface theme-hover-surface flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-center text-sm transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:scale-100"
                   >
                     {removingWallpaper ? (
                       <>
@@ -1094,39 +1098,9 @@ export default function SiteSettingsPage() {
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    disabled={!hasPendingWallpaper || savingWallpaper}
-                    onClick={saveWallpaper}
-                    className={`
-                      flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-center
-                      transition-all duration-300 hover:scale-[1.02]
-                      ${
-                        hasPendingWallpaper
-                          ? "theme-accent-soft-bg animate-pulse shadow-[0_0_25px_rgba(var(--theme-accent-rgb),0.45)] border-[rgba(var(--theme-accent-rgb),0.5)]"
-                          : "theme-surface theme-hover-surface opacity-20"
-                      }
-                    `}
-                  >
-                    <span className="font-semibold">
-                      {savingWallpaper ? (
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <IoIosCloudUpload size={22} />
-                          <div className="flex items-center">
-                            <span>Uploading</span>
-                            <span className="loading loading-dots loading-xs relative top-1 ml-1"></span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <FaSave size={22} />
-                          <span>Confirm</span>
-                        </div>
-                      )}
-                    </span>
-                  </button>
                 </div>
 
+                {hasPendingWallpaper && wallpaperSaveError && <p role="alert" className="theme-text mb-4 text-xs">{wallpaperSaveError}</p>}
                 <div className="my-4 border-t border-[var(--theme-border)]" />
 
                 <div

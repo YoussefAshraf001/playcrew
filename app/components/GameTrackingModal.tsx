@@ -1045,7 +1045,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_1fr_auto] gap-3 p-3 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch] touch-pan-y sm:gap-4 sm:p-6">
               <div className="pointer-events-none absolute inset-x-6 top-0 h-32 rounded-full bg-amber-200/10 blur-3xl" />
 
-              <header className="grid gap-3 rounded-[24px] border border-white/12 bg-white/8 px-4 py-3 backdrop-blur-xl sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <header className="grid gap-4 rounded-2xl border border-white/10 bg-black/30 p-4 backdrop-blur-xl">
                 <div className="flex min-w-0 items-center gap-3">
                   <img
                     src={bgUrl}
@@ -1055,23 +1055,23 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     className="h-16 w-12 shrink-0 rounded-xl border border-white/20 object-cover shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
                   />
                   <div className="min-w-0">
-                    <h3 className="truncate text-lg font-bold text-white sm:text-[1.35rem]">
+                    <h3 className="line-clamp-2 text-lg font-bold leading-snug text-white sm:text-[1.35rem]">
                       {game?.name}
                     </h3>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold text-white ${
+                        className={`inline-flex items-center gap-1.5 text-xs font-medium ${
                           gameIsReleased
-                            ? "border-emerald-300 bg-emerald-500/25"
-                            : "border-red-400 bg-red-500/25"
+                            ? "text-white/55"
+                            : "text-amber-200/80"
                         }`}
                       >
                         {gameIsReleased
-                          ? `Released in: ${formatReleaseDate(
+                          ? `Released ${formatReleaseDate(
                               game?.igdb.releaseDate,
                               game?.igdb.releaseDatePrecision,
                             )}`
-                          : `Releasing in: ${formatReleaseDate(
+                          : `Releases ${formatReleaseDate(
                               game?.igdb.releaseDate,
                               game?.igdb.releaseDatePrecision,
                             )}`}
@@ -1129,13 +1129,14 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                   </div>
                 </div>
 
-                <div className="flex max-w-[500px] flex-wrap items-center justify-end gap-2 self-end sm:self-auto">
+                <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
                   {showStatus && (
-                    <div className="flex min-w-[118px] flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
                     <select
+                      aria-label="Tracking status"
                       value={status}
                       onChange={(e) => setStatus(e.target.value)}
-                      className="h-9 cursor-pointer min-w-[118px] rounded-xl border border-white/15 bg-black/35 px-3 text-xs text-white shadow-inner shadow-black/20"
+                      className="h-9 cursor-pointer min-w-[140px] rounded-lg border border-white/15 bg-black/30 px-3 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-cyan-300"
                     >
                       <option value="Playing">Playing</option>
                       <option value="Completed">Completed</option>
@@ -1149,7 +1150,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                       aria-expanded={runsOpen}
                       aria-controls="tracking-run-controls"
                       onClick={() => setRunsOpen((current) => !current)}
-                      className={`inline-flex h-8 items-center justify-between gap-2 rounded-xl border px-3 text-[11px] font-medium transition ${runsOpen ? "border-purple-400/40 bg-purple-500/15 text-purple-200" : "border-white/15 bg-black/25 text-white/65 hover:bg-white/10 hover:text-white"}`}
+                      className={`inline-flex h-9 items-center justify-between gap-2 rounded-lg border px-3 text-xs font-medium transition ${runsOpen ? "border-purple-400/40 bg-purple-500/15 text-purple-200" : "border-white/10 bg-white/5 text-white/65 hover:bg-white/10 hover:text-white"}`}
                     >
                       <span>Runs &amp; play again</span>
                       <FaChevronDown aria-hidden="true" className={`text-[10px] transition-transform motion-reduce:transition-none ${runsOpen ? "rotate-180" : ""}`} />
@@ -1159,6 +1160,8 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
                   {showFavorite && (
                     <motion.button
+                      type="button"
+                      aria-pressed={favorite}
                       onClick={() => setFavorite((f) => !f)}
                       whileHover={{ y: -2, scale: 1.03 }}
                       whileTap={{ scale: 0.95 }}
@@ -1181,28 +1184,31 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
                     whileTap={{ scale: 0.95 }}
                     animate={{ scale: 1 }}
                     transition={{ duration: 0.25, ease: "easeOut" }}
-                    className="relative inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-amber-300/35 bg-amber-500/12 px-3 text-[11px] font-medium text-amber-100 transition hover:bg-amber-500/22 disabled:opacity-60"
+                    className="relative inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent px-3 text-xs font-medium text-white/55 transition hover:border-white/10 hover:bg-white/5 hover:text-amber-100 disabled:opacity-60 sm:ml-auto"
                     disabled={saving || removing}
                     type="button"
                   >
                     <FaEraser />
-                    <span>Clean Game</span>
+                    <span>Reset tracking</span>
                   </motion.button>
 
                   {onRemove && (
                     <motion.button
+                      type="button"
+                      title="Remove game from collection"
+                      aria-label="Remove game from collection"
                       onClick={() => setConfirmRemoveOpen(true)}
                       whileHover={{ y: -2, scale: 1.03 }}
                       whileTap={{ scale: 0.95 }}
                       animate={{ scale: 1 }}
                       transition={{ duration: 0.25, ease: "easeOut" }}
-                      className="relative rounded-xl border border-red-300/35 bg-red-500/12 px-3 py-2 text-[11px] font-medium text-red-100 transition hover:bg-red-500/22 disabled:opacity-60 whitespace-nowrap"
+                      className="relative inline-flex h-9 items-center rounded-lg border border-transparent px-3 text-xs font-medium text-white/45 transition hover:border-red-300/20 hover:bg-red-500/10 hover:text-red-200 disabled:opacity-60 whitespace-nowrap"
                       disabled={saving || removing}
                     >
                       <span
                         className={`flex items-center justify-center gap-2 cursor-pointer ${removing ? "opacity-0" : ""}`}
                       >
-                        <MdBookmarkRemove /> Remove Game from collection
+                        <MdBookmarkRemove /> Remove
                       </span>
                     </motion.button>
                   )}
