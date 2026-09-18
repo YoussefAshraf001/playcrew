@@ -152,10 +152,15 @@ function createWindow() {
   startupWindow = new BrowserWindow({
     title: 'Starting PlayCrew', width: 460, height: 280, resizable: false,
     maximizable: false, minimizable: false, autoHideMenuBar: true,
-    backgroundColor: '#080b10', icon: path.join(__dirname, '../assets/icon.ico'),
+    frame: false, show: false, transparent: true,
+    backgroundColor: '#00000000', icon: path.join(__dirname, '../assets/icon.ico'),
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true }
   });
   startupWindow.setMenu(null);
+  startupWindow.once('ready-to-show', () => {
+    if (!startupWindow || startupWindow.isDestroyed()) return;
+    startupWindow.show();
+  });
   startupWindow.on('close', () => { if (!quitting) app.quit(); });
   void startupWindow.loadFile(path.join(__dirname, 'startup.html')).catch(finishStartup);
   // Slow or unreachable servers lead to the reconnect screen, never an endless splash.
@@ -167,7 +172,10 @@ function createWindow() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('before-quit', () => { quitting = true; clearTimeout(startupTimer); });
+  app.on('before-quit', () => {
+    quitting = true;
+    clearTimeout(startupTimer);
+  });
   app.on('will-quit', () => { if (tray && !tray.isDestroyed()) tray.destroy(); });
   app.on('second-instance', showMainWindow);
   app.whenReady().then(() => {

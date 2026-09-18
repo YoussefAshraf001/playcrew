@@ -165,12 +165,24 @@ function ReleaseCountdown({ date }: { date: Date }) {
   );
 
   useEffect(() => {
-    const updateRemaining = () =>
+    const updateRemaining = () => {
       setRemaining(Math.max(0, date.getTime() - Date.now()));
+    };
 
-    updateRemaining();
-    const timer = window.setInterval(updateRemaining, 1000);
-    return () => window.clearInterval(timer);
+    let timer: number | null = null;
+    const syncTimer = () => {
+      if (timer !== null) window.clearInterval(timer);
+      timer = document.hidden
+        ? null
+        : window.setInterval(updateRemaining, 1000);
+      if (!document.hidden) updateRemaining();
+    };
+    syncTimer();
+    document.addEventListener("visibilitychange", syncTimer);
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncTimer);
+    };
   }, [date]);
 
   const totalSeconds = Math.floor(remaining / 1000);

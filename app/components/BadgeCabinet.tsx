@@ -82,11 +82,22 @@ export default function BadgeCabinet({
   useEffect(() => {
     if (!compact || modalOpen) return;
 
-    const interval = window.setInterval(() => {
-      setActiveIndex((index) => (index + 1) % BADGES.length);
-    }, 5500);
+    let interval: number | null = null;
+    const syncInterval = () => {
+      if (interval !== null) window.clearInterval(interval);
+      interval = document.hidden
+        ? null
+        : window.setInterval(() => {
+            setActiveIndex((index) => (index + 1) % BADGES.length);
+          }, 5500);
+    };
+    syncInterval();
+    document.addEventListener("visibilitychange", syncInterval);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      if (interval !== null) window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", syncInterval);
+    };
   }, [compact, modalOpen]);
 
   useEffect(() => {

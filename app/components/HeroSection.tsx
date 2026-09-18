@@ -89,9 +89,11 @@ export default function HeroSection({
   const { startRouteLoading } = useUI();
   const { pause, isActuallyPlaying } = useMusic();
   const heroIsAudibleRef = useRef(false);
+  const resumeVideoWhenVisibleRef = useRef(false);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [pageVisible, setPageVisible] = useState(true);
 
   const [videoFailed, setVideoFailed] = useState(false);
   const playerRef = useRef<any>(null);
@@ -435,8 +437,14 @@ export default function HeroSection({
         } else {
           playerRef.current.unMute();
         }
-        playerRef.current.playVideo();
-        setIsPlaying(true);
+        if (document.hidden) {
+          resumeVideoWhenVisibleRef.current = true;
+          playerRef.current.pauseVideo();
+          setIsPlaying(false);
+        } else {
+          playerRef.current.playVideo();
+          setIsPlaying(true);
+        }
         requestAnimationFrame(syncHeroVideoLayout);
         return;
       }
@@ -466,8 +474,14 @@ export default function HeroSection({
 
             e.target.setVolume(Math.round(heroVolume * 100));
 
-            e.target.playVideo();
-            setIsPlaying(true);
+            if (document.hidden) {
+              resumeVideoWhenVisibleRef.current = true;
+              e.target.pauseVideo();
+              setIsPlaying(false);
+            } else {
+              e.target.playVideo();
+              setIsPlaying(true);
+            }
             requestAnimationFrame(syncHeroVideoLayout);
           },
 
@@ -540,6 +554,33 @@ export default function HeroSection({
   }, []);
 
   useEffect(() => {
+    const onVisibilityChange = () => {
+      setPageVisible(!document.hidden);
+      const player = playerRef.current;
+      if (!player) return;
+
+      if (document.hidden) {
+        resumeVideoWhenVisibleRef.current =
+          typeof player.getPlayerState === "function" &&
+          player.getPlayerState() === window.YT?.PlayerState?.PLAYING;
+        player.pauseVideo?.();
+        if (progressTimer.current) {
+          clearInterval(progressTimer.current);
+          progressTimer.current = null;
+        }
+      } else if (resumeVideoWhenVisibleRef.current) {
+        resumeVideoWhenVisibleRef.current = false;
+        player.playVideo?.();
+      }
+    };
+
+    onVisibilityChange();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
     const host = playerHostRef.current;
     if (!host || typeof ResizeObserver === "undefined") return;
 
@@ -554,6 +595,8 @@ export default function HeroSection({
     // âœ… Only run when we're showing the IMAGE fallback
     const imageFallbackActive = !media.video || videoFailed;
     if (!imageFallbackActive) return;
+
+    if (!pageVisible) return;
 
     let start = Date.now();
     const duration = 6000;
@@ -573,7 +616,7 @@ export default function HeroSection({
       clearTimeout(timeout);
       setProgress(0);
     };
-  }, [media.video, videoFailed, activeIndex]);
+  }, [media.video, videoFailed, activeIndex, pageVisible]);
 
   useEffect(() => {
     setVideoFailed(false);

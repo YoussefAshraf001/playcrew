@@ -87,9 +87,19 @@ function LoopingReviewSticker({ sticker }: { sticker: string }) {
     setStickerReady(false);
     let cancelled = false;
     let restart: number | undefined;
+    let duration = 4000;
+
+    const syncLoop = () => {
+      if (restart !== undefined) window.clearInterval(restart);
+      restart = undefined;
+      if (document.hidden || cancelled) return;
+      restart = window.setInterval(() => {
+        setStickerReady(false);
+        setPlayback((value) => value + 1);
+      }, Math.max(250, duration + 40));
+    };
 
     const scheduleLoop = async () => {
-      let duration = 4000;
       try {
         const response = await fetch(source);
         if (response.ok) {
@@ -101,13 +111,8 @@ function LoopingReviewSticker({ sticker }: { sticker: string }) {
       }
 
       if (!cancelled) {
-        restart = window.setInterval(
-          () => {
-            setStickerReady(false);
-            setPlayback((value) => value + 1);
-          },
-          Math.max(250, duration + 40),
-        );
+        syncLoop();
+        document.addEventListener("visibilitychange", syncLoop);
       }
     };
 
@@ -116,6 +121,7 @@ function LoopingReviewSticker({ sticker }: { sticker: string }) {
     return () => {
       cancelled = true;
       if (restart !== undefined) window.clearInterval(restart);
+      document.removeEventListener("visibilitychange", syncLoop);
     };
   }, [source]);
 

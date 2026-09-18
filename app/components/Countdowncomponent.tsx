@@ -5,10 +5,21 @@ export default function Countdown({ date }: { date: Date }) {
   const [time, setTime] = useState(() => date.getTime() - Date.now());
 
   useEffect(() => {
-    const t = setInterval(() => {
+    let timer: number | null = null;
+    const update = () => {
       setTime(date.getTime() - Date.now());
-    }, 1000);
-    return () => clearInterval(t);
+    };
+    const syncTimer = () => {
+      if (timer !== null) window.clearInterval(timer);
+      timer = document.hidden ? null : window.setInterval(update, 1000);
+      if (!document.hidden) update();
+    };
+    syncTimer();
+    document.addEventListener("visibilitychange", syncTimer);
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncTimer);
+    };
   }, [date]);
 
   if (time <= 0) {

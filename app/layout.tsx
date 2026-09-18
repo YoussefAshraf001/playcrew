@@ -13,6 +13,7 @@ import AppServices from "./components/AppServices";
 
 import { uiBootstrapScript } from "./lib/uiBootstrapScript";
 import ClientOnlyHooks from "./components/ClientOnlyHooks";
+import DesktopStartupIntro from "./components/DesktopStartupIntro";
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       </head>
 
       <body className="app-body antialiased">
+        <DesktopStartupIntro />
         <GlobalToaster />
 
         <Providers>

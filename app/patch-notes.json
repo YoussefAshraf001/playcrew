@@ -1,9 +1,33 @@
 [
   {
+    "version": "2.1.2",
+    "title": "Desktop Tray Performance Update and New Startup Intro",
+    "date": "2026-09-19",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Desktop Performance",
+        "items": [
+          "Added a cinematic PlayCrew startup sequence with a logo reveal, subtle glitch pulse, light sweep, and smooth transition into the app",
+          "Reduced CPU usage while PlayCrew is idle and hidden in the system tray",
+          "Paused background hero videos, visual rotations, animations, and countdown updates while the window is hidden",
+          "Stopped unnecessary music position saves while playback is paused",
+          "Kept active background music playback working normally in the system tray"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "2.1.1",
+    "title": "PlayCrew Desktop optimization, startup intro template.",
+    "date": "2026-09-17",
+    "featured": false
+  },
+  {
     "version": "2.1",
     "title": "Desktop App is now Available",
     "date": "2026-09-15",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "What’s New",

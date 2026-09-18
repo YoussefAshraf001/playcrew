@@ -1,4 +1,14 @@
-const APP_URL = 'https://playcrew.vercel.app';
+const PRODUCTION_APP_URL = 'https://playcrew.vercel.app';
+function localDevelopmentUrl(value) {
+  try {
+    const url = new URL(value);
+    const localHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    return url.protocol === 'http:' && localHost && !url.username && !url.password
+      ? url.origin
+      : null;
+  } catch { return null; }
+}
+const APP_URL = localDevelopmentUrl(process.env.PLAYCREW_DESKTOP_URL) || PRODUCTION_APP_URL;
 function parseUrl(value) {
   try { return new URL(value); } catch { return null; }
 }

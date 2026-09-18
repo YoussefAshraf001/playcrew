@@ -1,6 +1,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { APP_URL, isAppUrl, isExternalUrl, canGrantPermission } = require('../src/policy.cjs');
+test('uses the production application by default', () => {
+  assert.equal(APP_URL, 'https://playcrew.vercel.app');
+});
 test('only production PlayCrew pages can navigate within the app', () => {
   assert.equal(isAppUrl(`${APP_URL}/game/123?tab=review`), true);
   for (const url of ['http://playcrew.vercel.app', 'https://playcrew.vercel.app.evil.test', 'https://evil.test/?url=' + APP_URL, 'https://user:pass@playcrew.vercel.app', 'file:///etc/passwd', 'javascript:alert(1)', 'not a URL']) assert.equal(isAppUrl(url), false, url);

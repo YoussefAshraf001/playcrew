@@ -329,14 +329,17 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       );
     };
 
-    const id = setInterval(save, 1000);
+    // A paused player has no position changes to persist. Keeping this timer
+    // alive made an otherwise idle, tray-hidden renderer wake every second.
+    const id = isActuallyPlaying ? window.setInterval(save, 1000) : null;
+    if (!isActuallyPlaying) save();
     window.addEventListener("beforeunload", save);
 
     return () => {
-      clearInterval(id);
+      if (id !== null) window.clearInterval(id);
       window.removeEventListener("beforeunload", save);
     };
-  }, [trackIndex, currentTrack]);
+  }, [trackIndex, currentTrack, isActuallyPlaying]);
 
   /* ───────────────── USER GESTURE RESUME ───────────────── */
 

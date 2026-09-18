@@ -12,9 +12,16 @@ npm run desktop:test
 npm run desktop:dist
 ```
 
-Installer: `desktop/dist/PlayCrew-Setup-0.1.2-x64.exe`.
+Installer: `desktop/dist/PlayCrew-Setup-0.1.3-x64.exe`.
 
 For a local desktop preview against the live site: `npm run desktop:dev`.
+To preview unpublished React changes, start `npm run dev` in one terminal, then run the following in a second PowerShell terminal:
+
+```powershell
+$env:PLAYCREW_DESKTOP_URL = "http://localhost:3000"
+npm run desktop:dev
+```
+
 For an unpacked executable: `npm run desktop:pack` (keep the entire `win-unpacked` folder together).
 Run `npm --prefix desktop run smoke` after packaging to test the actual executable with an isolated account profile.
 
