@@ -1,9 +1,26 @@
 [
   {
+    "version": "2.1.5",
+    "title": "A Smarter PlayCrew Desktop Installer",
+    "date": "2026-09-19",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Desktop Installer",
+        "items": [
+          "Redesigned the Windows installer with new PlayCrew-branded artwork and application icons",
+          "Added automatic detection of existing PlayCrew installations",
+          "The installer now clearly presents an Update flow instead of an Install flow when PlayCrew is already installed",
+          "Desktop updates preserve existing settings and locally stored PlayCrew data"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.4",
     "title": "Desktop Wallpaper and Local Storage Improvements",
     "date": "2026-09-19",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Desktop Images",
