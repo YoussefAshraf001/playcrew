@@ -20,7 +20,7 @@ export default function DesktopStartupIntro() {
     }, 0);
     const timer = window.setTimeout(
       () => setVisible(false),
-      reduceMotion ? 350 : 5050,
+      reduceMotion ? 350 : 7050,
     );
     return () => {
       window.clearTimeout(showTimer);
@@ -47,7 +47,7 @@ export default function DesktopStartupIntro() {
       className={styles.intro}
       initial={{ opacity: 1 }}
       animate={{ opacity: [1, 1, 0] }}
-      transition={{ duration: 5, times: [0, 0.84, 1], ease: "easeInOut" }}
+      transition={{ duration: 7, times: [0, 0.886, 1], ease: "easeInOut" }}
       aria-hidden="true"
     >
       <div className={styles.vignette} />

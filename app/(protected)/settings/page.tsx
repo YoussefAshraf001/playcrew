@@ -39,7 +39,8 @@ import {
 import CropModal from "@/app/components/CropModal";
 import DesktopDownload from "@/app/components/DesktopDownload";
 import DesktopSettings from "@/app/components/DesktopSettings";
-import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
+import IdleWallpaperOverlay from "@/app/components/IdleWallpaperOverlay";
+import { saveImageLocally, shouldSaveImageLocally, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
 
 type CropData = {
   x: number;
@@ -451,7 +452,8 @@ export default function SiteSettingsPage() {
 
   const uploadWallpaperToCloudinary = async (media: MediaValue) => {
     if (isAdmin && media.data.startsWith("data:") && await shouldSaveImageLocally("wallpaper")) {
-      return { ...media, data: await saveImageLocally("wallpaper", `${user!.uid}-wallpaper`, media.data) };
+      const username = toLocalPathSegment(profile?.username ?? user!.uid, "user");
+      return { ...media, data: await saveImageLocally("wallpaper", ["profile", username, "wallpaper"], media.data) };
     }
     if (!user?.uid) throw new Error("Missing user");
     if (!media.data.startsWith("data:")) return media;
@@ -858,7 +860,6 @@ export default function SiteSettingsPage() {
               {/* SIDEBAR */}
               <div className="space-y-3 xl:order-3 xl:max-h-full xl:overflow-y-auto">
                 {!wallpaperPreview && <DesktopDownload variant="settings" />}
-                {!wallpaperPreview && <DesktopSettings isAdmin={isAdmin} />}
                 <motion.section
                   className="theme-panel-strong rounded-xl border p-3"
                   initial={false}
@@ -998,6 +999,7 @@ export default function SiteSettingsPage() {
                       )}
                     </button>
                   )}
+                  {!wallpaperPreview && <DesktopSettings isAdmin={isAdmin} />}
                 </div>
               </div>
 
@@ -1181,13 +1183,13 @@ export default function SiteSettingsPage() {
                               Idle Wallpaper
                             </p>
                             <span className="theme-accent-soft-bg rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]">
-                              Library page only
+                              Wallpaper pages
                             </span>
                           </div>
                           <p className="theme-text-muted mt-1 text-xs leading-4">
-                            Fade the Library page into your wallpaper after a
-                            period without activity. This feature only works on
-                            the Library page.
+                            Fade any page that uses your wallpaper background
+                            into the unobstructed image after a period without
+                            activity.
                           </p>
                         </div>
 
@@ -1256,8 +1258,8 @@ export default function SiteSettingsPage() {
                           className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                         />
                         <p className="theme-text-muted mt-2 text-[11px]">
-                          Controls how long the Library page waits before fading
-                          to the wallpaper.
+                          Controls how long wallpaper-backed pages wait before
+                          fading to the wallpaper.
                         </p>
                       </div>
                     </div>
@@ -1334,6 +1336,7 @@ export default function SiteSettingsPage() {
                     setCropType("wallpaper");
                     setCrop({ x: 0, y: 0 });
                     setZoom(1);
+                    setCroppedPixels(null);
                   }}
                 />
               </section>
@@ -1613,6 +1616,20 @@ export default function SiteSettingsPage() {
         )}
       </AnimatePresence>
 
+      <IdleWallpaperOverlay
+        enabled={
+          isAdmin &&
+          idleWallpaperEnabled &&
+          Boolean(activeWallpaper?.data) &&
+          !wallpaperPreview
+        }
+        fadeAfterSeconds={idleWallpaperFadeSeconds}
+        src={activeWallpaper?.data}
+        imageStyle={
+          activeWallpaper ? getWallpaperCropStyle(activeWallpaper) : undefined
+        }
+      />
+
       <AnimatePresence>
         {gifCropMedia?.type === "gif" && (
           <CropModal
@@ -1652,14 +1669,24 @@ export default function SiteSettingsPage() {
             aspect={16 / 9}
             onComplete={setCroppedPixels}
             onSave={async () => {
-              const base64 = await getCroppedImg(
-                URL.createObjectURL(selectedFile),
-                croppedPixels!,
-                3840,
-                0.92,
-                1920,
-                1080,
-              );
+              if (!croppedPixels) {
+                toast.error("The wallpaper is still loading. Please try again.");
+                return;
+              }
+              const sourceUrl = URL.createObjectURL(selectedFile);
+              let base64: string;
+              try {
+                base64 = await getCroppedImg(
+                  sourceUrl,
+                  croppedPixels,
+                  3840,
+                  0.92,
+                  1920,
+                  1080,
+                );
+              } finally {
+                URL.revokeObjectURL(sourceUrl);
+              }
 
               setPendingWallpaper({
                 type: "image",

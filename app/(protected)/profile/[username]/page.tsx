@@ -45,7 +45,7 @@ import AnimatedField from "@/app/components/AnimatedField";
 import Textarea from "@/app/components/Textarea";
 import CropModal from "@/app/components/CropModal";
 import ImageOverlay from "@/app/components/ImageOverlay";
-import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
+import { saveImageLocally, shouldSaveImageLocally, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
 import {
   FiCamera,
   FiCheck,
@@ -363,7 +363,9 @@ export default function EditProfilePage() {
 
       const category = kind === "avatar" ? "profileImage" : "wallpaper";
       if (isAdmin && await shouldSaveImageLocally(category)) {
-        const data = await saveImageLocally(category, `${user!.uid}-${kind}`, media.data);
+        const username = toLocalPathSegment(draft?.username ?? profile?.username ?? user!.uid, "user");
+        const filename = kind === "avatar" ? "profile-image" : "wallpaper";
+        const data = await saveImageLocally(category, ["profile", username, filename], media.data);
         return { ...media, data };
       }
 

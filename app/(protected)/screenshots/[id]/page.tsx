@@ -42,11 +42,12 @@ import { useUser } from "@/app/context/UserContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import { useUI } from "@/app/context/UIContext";
-import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
+import { saveImageLocally, shouldSaveImageLocally, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
 
 type Folder = {
   id: string;
   name: string;
+  igdbId?: number | null;
   igdbCoverUrl?: string | null;
   coverUrl?: string | null;
   coverPublicId?: string | null;
@@ -645,7 +646,9 @@ export default function ScreenshotFolderPage() {
     try {
       const assetId = crypto.randomUUID();
       if (isAdmin && await shouldSaveImageLocally("screenshots")) {
-        const localUrl = await saveImageLocally("screenshots", `${user.uid}-${folderId}-${assetId}`, uploadFile);
+        const gameId = toLocalPathSegment(folder.igdbId ?? folderId, "unknown-game");
+        const folderName = toLocalPathSegment(folder.name, "screenshots");
+        const localUrl = await saveImageLocally("screenshots", ["games", gameId, folderName, "screenshots", assetId], uploadFile);
         const shotsRef = collection(db, "users", user.uid, "screenshotFolders", folderId, "shots");
         const addedShotRef = await addDoc(shotsRef, {
           url: localUrl, publicId: localUrl, favorite: false, bytes: uploadFile.size, createdAt: serverTimestamp(),
@@ -875,7 +878,9 @@ export default function ScreenshotFolderPage() {
 
       const assetId = crypto.randomUUID();
       if (isAdmin && await shouldSaveImageLocally("customGameCovers")) {
-        const localUrl = await saveImageLocally("customGameCovers", `${user.uid}-${folderId}-cover-${assetId}`, croppedBlob);
+        const gameId = toLocalPathSegment(folder.igdbId ?? folderId, "unknown-game");
+        const folderName = toLocalPathSegment(folder.name, "screenshots");
+        const localUrl = await saveImageLocally("customGameCovers", ["games", gameId, folderName, "game-cover"], croppedBlob);
         const oldCustomCoverId = folder.customCoverPublicId ?? null;
         await updateDoc(doc(db, "users", user.uid, "screenshotFolders", folderId), {
           customCoverUrl: localUrl,

@@ -93,6 +93,7 @@ import { acceptFriendRequest, declineFriendRequest } from "@/app/lib/social";
 import SteamAssetsModal, {
   type SteamAsset,
 } from "@/app/components/SteamAssetsModal";
+import IdleWallpaperOverlay from "@/app/components/IdleWallpaperOverlay";
 import { SiSteam } from "react-icons/si";
 
 const STATUSES = [
@@ -283,67 +284,11 @@ export default function GamesPage() {
   const [idleWallpaperFadeSeconds, setIdleWallpaperFadeSeconds] = useState(
     DEFAULT_IDLE_WALLPAPER_FADE_SECONDS,
   );
-  const [isIdle, setIsIdle] = useState(false);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAdmin = Boolean(localProfile?.admin ?? userProfile?.admin);
   const wallpaperMedia = userProfile
     ? userProfile.wallpaper
     : localProfile?.wallpaper;
   const canShowIdleWallpaper = Boolean(wallpaperMedia?.data);
-
-  useEffect(() => {
-    if (!isAdmin || !idleModeEnabled || !canShowIdleWallpaper) {
-      setIsIdle(false);
-
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = null;
-      }
-
-      return;
-    }
-
-    const resetIdleTimer = () => {
-      setIsIdle(false);
-
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-      }
-
-      idleTimerRef.current = setTimeout(() => {
-        setIsIdle(true);
-      }, idleWallpaperFadeSeconds * 1000);
-    };
-
-    const events = [
-      "mousemove",
-      "mousedown",
-      "keydown",
-      "touchstart",
-      "scroll",
-    ];
-
-    events.forEach((event) => {
-      window.addEventListener(event, resetIdleTimer);
-    });
-
-    resetIdleTimer();
-
-    return () => {
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-      }
-
-      events.forEach((event) => {
-        window.removeEventListener(event, resetIdleTimer);
-      });
-    };
-  }, [
-    canShowIdleWallpaper,
-    isAdmin,
-    idleModeEnabled,
-    idleWallpaperFadeSeconds,
-  ]);
 
   const isDraggingRef = useRef(false);
   const canReorder = false;
@@ -1597,16 +1542,7 @@ export default function GamesPage() {
           {/* <div
            className={`max-w-[1850px] mx-auto flex flex-col gap-4 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6`}
          > */}
-          <motion.div
-            animate={{
-              opacity: isIdle && canShowIdleWallpaper ? 0 : 1,
-            }}
-            transition={{
-              duration: 0.5,
-              ease: "easeInOut",
-            }}
-            className="relative z-20"
-          >
+          <motion.div className="relative z-20">
             <div
               className={`max-w-[1850px] mx-auto flex flex-col gap-4 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6`}
             >
@@ -3063,31 +2999,12 @@ export default function GamesPage() {
         )}{" "}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isIdle && canShowIdleWallpaper && wallpaperMedia && (
-          <motion.div
-            className="pointer-events-none fixed inset-0 z-[9998] overflow-hidden bg-[var(--theme-bg)]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.65, ease: "easeInOut" }}
-          >
-            <motion.img
-              src={getMediaSrc(wallpaperMedia)}
-              alt="Idle wallpaper"
-              className="h-full w-full object-cover"
-              style={{
-                ...getMediaStyle(wallpaperMedia),
-                filter: "none",
-              }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.7, ease: "easeOut" }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <IdleWallpaperOverlay
+        enabled={isAdmin && idleModeEnabled && canShowIdleWallpaper}
+        fadeAfterSeconds={idleWallpaperFadeSeconds}
+        src={getMediaSrc(wallpaperMedia)}
+        imageStyle={getMediaStyle(wallpaperMedia)}
+      />
 
       <AnimatePresence>
         {cardSteamMenu && (

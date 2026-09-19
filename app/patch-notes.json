@@ -1,9 +1,34 @@
 [
   {
+    "version": "2.1.4",
+    "title": "Desktop Wallpaper and Local Storage Improvements",
+    "date": "2026-09-19",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Desktop Images",
+        "items": [
+          "Organized locally saved images into readable profile, game, collection, cover, and screenshot folders",
+          "Added a desktop setting to open the local image save location directly in File Explorer",
+          "Fixed locally saved profile images and wallpapers not displaying in the desktop app",
+          "Restored reliable wallpaper cropping in the desktop app"
+        ]
+      },
+      {
+        "category": "Desktop Experience",
+        "items": [
+          "Expanded Idle Wallpaper support to the Settings page and other wallpaper-backed views",
+          "Replaced the close-behavior dropdown with a toggle between minimizing to the tray and closing PlayCrew",
+          "Extended the desktop startup sequence by two seconds so the final tagline stays visible longer"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.3",
     "title": "Desktop Local Image Storage",
     "date": "2026-09-19",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Local Image Storage",

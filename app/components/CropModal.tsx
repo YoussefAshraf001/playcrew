@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Cropper, { Area } from "react-easy-crop";
 import { motion } from "framer-motion";
 import {
@@ -9,6 +10,10 @@ import {
   FiX,
   FiZoomIn,
 } from "react-icons/fi";
+
+const subscribeToBrowser = () => () => undefined;
+const getBrowserSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 export default function CropModal({
   file,
@@ -33,21 +38,26 @@ export default function CropModal({
   onSave: () => void | Promise<void>;
   onCancel: () => void;
 }) {
-  const objectUrl = useMemo(
-    () => (file ? URL.createObjectURL(file) : null),
-    [file],
+  const [fileSource, setFileSource] = useState<string | null>(null);
+  const source = image ?? fileSource;
+  const mounted = useSyncExternalStore(
+    subscribeToBrowser,
+    getBrowserSnapshot,
+    getServerSnapshot,
   );
-  const source = image ?? objectUrl;
   const [saving, setSaving] = useState(false);
   const isAvatar = aspect === 1;
   const zoomPercentage = Math.round(zoom * 100);
 
-  useEffect(
-    () => () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    },
-    [objectUrl],
-  );
+  useEffect(() => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setFileSource(String(reader.result));
+    reader.readAsDataURL(file);
+    return () => {
+      if (reader.readyState === FileReader.LOADING) reader.abort();
+    };
+  }, [file]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -75,9 +85,9 @@ export default function CropModal({
     }
   };
 
-  if (!source) return null;
+  if (!source || !mounted) return null;
 
-  return (
+  return createPortal(
     <motion.div
       className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/80 p-3 backdrop-blur-md sm:p-6"
       initial={{ opacity: 0 }}
@@ -231,6 +241,7 @@ export default function CropModal({
           </div>
         </footer>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }

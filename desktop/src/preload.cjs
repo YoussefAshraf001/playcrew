@@ -3,15 +3,45 @@ const { ipcRenderer, contextBridge } = require('electron');
 // Keep Electron access in the isolated preload world. No generic IPC or Node
 // capabilities are exposed to the website. Controls are bundled with the app.
 if (process.isMainFrame) {
+  const localImageCache = new Map();
+  async function resolveLocalImage(image) {
+    const source = image.getAttribute('src');
+    if (!source?.startsWith('playcrew-local://')) return;
+    try {
+      let resolved = localImageCache.get(source);
+      if (!resolved) {
+        resolved = await ipcRenderer.invoke('playcrew:read-local-image', source);
+        localImageCache.set(source, resolved);
+      }
+      if (image.getAttribute('src') === source) image.setAttribute('src', resolved);
+    } catch (error) {
+      console.error('Cannot display local PlayCrew image:', error.message);
+    }
+  }
+  function resolveLocalImages(root) {
+    if (root instanceof HTMLImageElement) void resolveLocalImage(root);
+    if (root.querySelectorAll) root.querySelectorAll('img[src^="playcrew-local://"]').forEach((image) => void resolveLocalImage(image));
+  }
+
   contextBridge.exposeInMainWorld('playcrewDesktop', {
     getCloseBehavior: () => ipcRenderer.invoke('playcrew:close-behavior'),
     setCloseBehavior: (value) => ipcRenderer.invoke('playcrew:close-behavior', value),
     getImageStorageSettings: () => ipcRenderer.invoke('playcrew:image-storage-settings'),
     setImageStorageSettings: (value) => ipcRenderer.invoke('playcrew:image-storage-settings', value),
+    openLocalImagesFolder: () => ipcRenderer.invoke('playcrew:open-local-images'),
     saveLocalImage: (category, key, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image', category, key, dataUrl),
+    saveLocalImageToPath: (category, pathSegments, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image-to-path', category, pathSegments, dataUrl),
     deleteLocalImage: (url) => ipcRenderer.invoke('playcrew:delete-local-image', url)
   });
   window.addEventListener('DOMContentLoaded', () => {
+    resolveLocalImages(document);
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') resolveLocalImages(mutation.target);
+        mutation.addedNodes.forEach(resolveLocalImages);
+      }
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
     const controls = document.createElement('div');
     controls.id = 'playcrew-desktop-controls';
     controls.setAttribute('role', 'group');

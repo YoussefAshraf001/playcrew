@@ -20,6 +20,7 @@ export default function DesktopSettings({ isAdmin = false }: { isAdmin?: boolean
   const [available, setAvailable] = useState(false);
   const [behavior, setBehavior] = useState<CloseBehavior | null>(null);
   const [saving, setSaving] = useState(false);
+  const [openingFolder, setOpeningFolder] = useState(false);
   const [error, setError] = useState("");
   const [imageStorage, setImageStorage] = useState<DesktopImageStorageSettings | null>(null);
   useEffect(() => {
@@ -40,16 +41,16 @@ export default function DesktopSettings({ isAdmin = false }: { isAdmin?: boolean
 
   if (!available) return null;
   return (
-    <section className="theme-panel-strong rounded-xl border p-3" aria-labelledby="desktop-settings-heading">
+    <section className="mt-4 border-t border-[var(--theme-border)] pt-4" aria-labelledby="desktop-settings-heading">
       <h2 id="desktop-settings-heading" className="theme-text text-base font-semibold">Desktop App</h2>
-      <label htmlFor="desktop-close-behavior" className="theme-text mt-3 block text-sm">When I close PlayCrew</label>
-      <select
-        id="desktop-close-behavior"
-        className="theme-panel-strong theme-text mt-2 min-h-11 w-full rounded-lg border px-3 py-2 text-sm"
-        value={behavior ?? ""}
+      <p className="theme-text mt-3 text-sm">When I close PlayCrew</p>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={behavior === "tray"}
         disabled={saving || behavior === null}
-        onChange={async (event) => {
-          const value = event.target.value as CloseBehavior;
+        onClick={async () => {
+          const value: CloseBehavior = behavior === "quit" ? "tray" : "quit";
           setSaving(true);
           setError("");
           try {
@@ -58,11 +59,19 @@ export default function DesktopSettings({ isAdmin = false }: { isAdmin?: boolean
           } catch { setError("Could not save this setting. Please try again."); }
           finally { setSaving(false); }
         }}
+        className={`mt-2 flex min-h-11 w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm transition disabled:opacity-60 ${behavior === "tray" ? "theme-accent-soft-bg" : "theme-surface opacity-70"}`}
       >
-        {behavior === null && <option value="">Loading…</option>}
-        <option value="tray">Minimize to tray</option>
-        <option value="quit">Close PlayCrew</option>
-      </select>
+        <span className="theme-text font-medium">
+          {behavior === null
+            ? "Loading..."
+            : behavior === "quit"
+              ? "Close PlayCrew"
+              : "Minimize to tray"}
+        </span>
+        <span className={`relative h-6 w-11 shrink-0 rounded-full border transition ${behavior === "tray" ? "border-[var(--theme-accent)] bg-[var(--theme-accent)]" : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)]"}`}>
+          <span className={`absolute top-1 h-4 w-4 rounded-full bg-[var(--theme-accent-contrast)] shadow-sm transition-transform ${behavior === "tray" ? "translate-x-6" : "translate-x-1"}`} />
+        </span>
+      </button>
       <p className="theme-text-muted mt-2 text-xs leading-relaxed">{behavior === "quit" ? "Exit completely and stop background playback." : "Keep PlayCrew running in the system tray, including music playback."} This setting is saved on this computer.</p>
       {isAdmin && imageStorage && (
         <div className="mt-4 border-t border-white/10 pt-4">
@@ -93,6 +102,29 @@ export default function DesktopSettings({ isAdmin = false }: { isAdmin?: boolean
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            disabled={openingFolder}
+            onClick={async () => {
+              setOpeningFolder(true);
+              setError("");
+              try {
+                const openFolder = window.playcrewDesktop?.openLocalImagesFolder;
+                if (!openFolder) {
+                  setError("This desktop build does not include folder access yet. Update PlayCrew Desktop to enable it.");
+                  return;
+                }
+                await openFolder();
+              } catch {
+                setError("Could not open the local image folder. Please try again.");
+              } finally {
+                setOpeningFolder(false);
+              }
+            }}
+            className="theme-surface theme-hover-surface mt-3 min-h-11 w-full rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-60"
+          >
+            {openingFolder ? "Opening folder…" : "Open image save location"}
+          </button>
         </div>
       )}
       {error && <p role="alert" className="mt-2 text-xs text-red-400">{error}</p>}

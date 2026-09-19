@@ -1,10 +1,10 @@
-const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray, protocol, net } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray, protocol } = require('electron');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 const fs = require('node:fs');
 const { APP_URL, isAppUrl, isExternalUrl, canGrantPermission } = require('./policy.cjs');
 
-protocol.registerSchemesAsPrivileged([{ scheme: 'playcrew-local', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'playcrew-local', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 
 // Automated checks use an isolated profile, without touching real accounts.
 if (process.env.PLAYCREW_DESKTOP_PROFILE) {
@@ -198,7 +198,19 @@ if (!app.requestSingleInstanceLock()) {
       const target = path.resolve(localImagesRoot, relative);
       const root = path.resolve(localImagesRoot) + path.sep;
       if (!target.startsWith(root)) return new Response('Not found', { status: 404 });
-      return net.fetch(pathToFileURL(target).href);
+      try {
+        const extension = path.extname(target).toLowerCase();
+        const contentType = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[extension];
+        if (!contentType) return new Response('Unsupported image', { status: 415 });
+        return new Response(fs.readFileSync(target), {
+          headers: {
+            'Content-Type': contentType,
+            'Access-Control-Allow-Origin': APP_URL
+          }
+        });
+      } catch {
+        return new Response('Not found', { status: 404 });
+      }
     });
     ipcMain.handle('playcrew:close-behavior', (event, value) => {
       if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame || !isAppUrl(event.senderFrame.url)) throw new Error('Untrusted settings request');
@@ -221,22 +233,38 @@ if (!app.requestSingleInstanceLock()) {
       writeDesktopSettings({ imageStorage: next });
       return next;
     });
-    ipcMain.handle('playcrew:save-local-image', (event, category, key, dataUrl) => {
+    ipcMain.handle('playcrew:open-local-images', async (event) => {
       assertTrusted(event);
+      fs.mkdirSync(localImagesRoot, { recursive: true });
+      const error = await shell.openPath(localImagesRoot);
+      if (error) await shell.openExternal(pathToFileURL(localImagesRoot).href);
+    });
+    const saveLocalImage = (category, pathSegments, dataUrl) => {
       if (!Object.keys(imageStorageDefaults).includes(category)) throw new Error('Invalid image category');
-      if (!/^[A-Za-z0-9_-]{1,180}$/.test(key)) throw new Error('Invalid image key');
+      if (!Array.isArray(pathSegments) || pathSegments.length < 2 || pathSegments.length > 6 || pathSegments.some((segment) => typeof segment !== 'string' || !/^[^<>:"/\\|?*\x00-\x1F]{1,120}$/.test(segment) || /[. ]$/.test(segment))) throw new Error('Invalid image path');
       const match = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
       if (!match) throw new Error('Unsupported image data');
       const bytes = Buffer.from(match[2], 'base64');
       if (!bytes.length || bytes.length > 30 * 1024 * 1024) throw new Error('Image must be 30 MB or smaller');
       const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[match[1]];
-      const directory = path.join(localImagesRoot, category);
+      const directory = path.join(localImagesRoot, ...pathSegments.slice(0, -1));
+      const key = pathSegments.at(-1);
       fs.mkdirSync(directory, { recursive: true });
       for (const oldExt of ['jpg', 'png', 'webp', 'gif']) {
         if (oldExt !== ext) try { fs.unlinkSync(path.join(directory, `${key}.${oldExt}`)); } catch { /* Missing is fine. */ }
       }
       fs.writeFileSync(path.join(directory, `${key}.${ext}`), bytes);
-      return `playcrew-local://${category}/${key}.${ext}?v=${Date.now()}`;
+      const relative = [...pathSegments.slice(0, -1), `${key}.${ext}`].map(encodeURIComponent).join('/');
+      return `playcrew-local://${relative}?v=${Date.now()}`;
+    };
+    ipcMain.handle('playcrew:save-local-image-to-path', (event, category, pathSegments, dataUrl) => {
+      assertTrusted(event);
+      return saveLocalImage(category, pathSegments, dataUrl);
+    });
+    ipcMain.handle('playcrew:save-local-image', (event, category, key, dataUrl) => {
+      assertTrusted(event);
+      if (typeof key !== 'string' || !/^[A-Za-z0-9_-]{1,180}$/.test(key)) throw new Error('Invalid image key');
+      return saveLocalImage(category, [category, key], dataUrl);
     });
     ipcMain.handle('playcrew:delete-local-image', (event, value) => {
       assertTrusted(event);
@@ -246,6 +274,20 @@ if (!app.requestSingleInstanceLock()) {
       const target = path.resolve(localImagesRoot, relative);
       if (!target.startsWith(path.resolve(localImagesRoot) + path.sep)) return false;
       try { fs.unlinkSync(target); return true; } catch { return false; }
+    });
+    ipcMain.handle('playcrew:read-local-image', (event, value) => {
+      assertTrusted(event);
+      if (typeof value !== 'string' || !value.startsWith('playcrew-local://')) throw new Error('Invalid local image URL');
+      const parsed = new URL(value);
+      const relative = decodeURIComponent(`${parsed.hostname}${parsed.pathname}`).replace(/^[/\\]+/, '');
+      const target = path.resolve(localImagesRoot, relative);
+      if (!target.startsWith(path.resolve(localImagesRoot) + path.sep)) throw new Error('Invalid local image path');
+      const extension = path.extname(target).toLowerCase();
+      const contentType = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[extension];
+      if (!contentType) throw new Error('Unsupported local image');
+      const bytes = fs.readFileSync(target);
+      if (!bytes.length || bytes.length > 30 * 1024 * 1024) throw new Error('Invalid local image size');
+      return `data:${contentType};base64,${bytes.toString('base64')}`;
     });
     ipcMain.on('playcrew:window-control', (event, action) => {
       // Accept only this window's top-level PlayCrew page or bundled reconnect page.

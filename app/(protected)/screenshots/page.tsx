@@ -42,7 +42,7 @@ import WheelLockSwitch from "@/app/components/WheelLockSwitch";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import ScreenshotsGamePickerModal from "@/app/components/ScreenshotsGamePickerModal";
 import { PickerGame } from "@/app/types/trackedGame";
-import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
+import { saveImageLocally, shouldSaveImageLocally, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
 
 export const dynamic = "force-dynamic";
 
@@ -910,7 +910,9 @@ function ScreenshotsPageContent() {
     try {
       const assetId = crypto.randomUUID();
       if (isAdmin && await shouldSaveImageLocally("customGameCovers")) {
-        const localUrl = await saveImageLocally("customGameCovers", `${user.uid}-${selectedFolder.id}-cover-${assetId}`, file);
+        const gameId = toLocalPathSegment(selectedFolder.igdbId ?? selectedFolder.id, "unknown-game");
+        const folderName = toLocalPathSegment(selectedFolder.name, "screenshots");
+        const localUrl = await saveImageLocally("customGameCovers", ["games", gameId, folderName, "game-cover"], file);
         const oldCustomCoverId = selectedFolder.customCoverPublicId ?? null;
         await updateDoc(doc(db, "users", user.uid, "screenshotFolders", selectedFolder.id), {
           customCoverUrl: localUrl,
