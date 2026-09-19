@@ -5,7 +5,11 @@ const { ipcRenderer, contextBridge } = require('electron');
 if (process.isMainFrame) {
   contextBridge.exposeInMainWorld('playcrewDesktop', {
     getCloseBehavior: () => ipcRenderer.invoke('playcrew:close-behavior'),
-    setCloseBehavior: (value) => ipcRenderer.invoke('playcrew:close-behavior', value)
+    setCloseBehavior: (value) => ipcRenderer.invoke('playcrew:close-behavior', value),
+    getImageStorageSettings: () => ipcRenderer.invoke('playcrew:image-storage-settings'),
+    setImageStorageSettings: (value) => ipcRenderer.invoke('playcrew:image-storage-settings', value),
+    saveLocalImage: (category, key, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image', category, key, dataUrl),
+    deleteLocalImage: (url) => ipcRenderer.invoke('playcrew:delete-local-image', url)
   });
   window.addEventListener('DOMContentLoaded', () => {
     const controls = document.createElement('div');

@@ -1,8 +1,10 @@
-const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray, protocol, net } = require('electron');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 const fs = require('node:fs');
 const { APP_URL, isAppUrl, isExternalUrl, canGrantPermission } = require('./policy.cjs');
+
+protocol.registerSchemesAsPrivileged([{ scheme: 'playcrew-local', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 // Automated checks use an isolated profile, without touching real accounts.
 if (process.env.PLAYCREW_DESKTOP_PROFILE) {
@@ -25,8 +27,19 @@ let hiddenToTray = false;
 let offline = false;
 let closeBehavior = 'tray';
 const settingsFile = path.join(app.getPath('userData'), 'desktop-settings.json');
+const localImagesRoot = path.join(app.getPath('userData'), 'images');
+const imageStorageDefaults = { profileImage: false, wallpaper: false, customGameCovers: false, screenshots: false };
+function readDesktopSettings() {
+  try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); } catch { return {}; }
+}
+function writeDesktopSettings(patch) {
+  const next = { ...readDesktopSettings(), ...patch };
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  fs.writeFileSync(settingsFile, JSON.stringify(next, null, 2));
+  return next;
+}
 try {
-  if (JSON.parse(fs.readFileSync(settingsFile, 'utf8')).closeBehavior === 'quit') closeBehavior = 'quit';
+  if (readDesktopSettings().closeBehavior === 'quit') closeBehavior = 'quit';
 } catch { /* Default to tray on first launch. */ }
 const offlineFile = path.join(__dirname, 'offline.html');
 const controlsCss = fs.readFileSync(path.join(__dirname, 'window-controls.css'), 'utf8');
@@ -179,16 +192,60 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', () => { if (tray && !tray.isDestroyed()) tray.destroy(); });
   app.on('second-instance', showMainWindow);
   app.whenReady().then(() => {
+    protocol.handle('playcrew-local', (request) => {
+      const parsed = new URL(request.url);
+      const relative = decodeURIComponent(`${parsed.hostname}${parsed.pathname}`).replace(/^[/\\]+/, '');
+      const target = path.resolve(localImagesRoot, relative);
+      const root = path.resolve(localImagesRoot) + path.sep;
+      if (!target.startsWith(root)) return new Response('Not found', { status: 404 });
+      return net.fetch(pathToFileURL(target).href);
+    });
     ipcMain.handle('playcrew:close-behavior', (event, value) => {
       if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame || !isAppUrl(event.senderFrame.url)) throw new Error('Untrusted settings request');
       if (value !== undefined) {
         if (value !== 'tray' && value !== 'quit') throw new Error('Invalid close behavior');
-        fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
-        fs.writeFileSync(settingsFile, JSON.stringify({ closeBehavior: value }));
+        writeDesktopSettings({ closeBehavior: value });
         closeBehavior = value;
         sendWindowState();
       }
       return closeBehavior;
+    });
+    const assertTrusted = (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame || !isAppUrl(event.senderFrame.url)) throw new Error('Untrusted settings request');
+    };
+    ipcMain.handle('playcrew:image-storage-settings', (event, value) => {
+      assertTrusted(event);
+      if (value === undefined) return { ...imageStorageDefaults, ...(readDesktopSettings().imageStorage || {}) };
+      const next = {};
+      for (const key of Object.keys(imageStorageDefaults)) next[key] = value?.[key] === true;
+      writeDesktopSettings({ imageStorage: next });
+      return next;
+    });
+    ipcMain.handle('playcrew:save-local-image', (event, category, key, dataUrl) => {
+      assertTrusted(event);
+      if (!Object.keys(imageStorageDefaults).includes(category)) throw new Error('Invalid image category');
+      if (!/^[A-Za-z0-9_-]{1,180}$/.test(key)) throw new Error('Invalid image key');
+      const match = /^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+      if (!match) throw new Error('Unsupported image data');
+      const bytes = Buffer.from(match[2], 'base64');
+      if (!bytes.length || bytes.length > 30 * 1024 * 1024) throw new Error('Image must be 30 MB or smaller');
+      const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[match[1]];
+      const directory = path.join(localImagesRoot, category);
+      fs.mkdirSync(directory, { recursive: true });
+      for (const oldExt of ['jpg', 'png', 'webp', 'gif']) {
+        if (oldExt !== ext) try { fs.unlinkSync(path.join(directory, `${key}.${oldExt}`)); } catch { /* Missing is fine. */ }
+      }
+      fs.writeFileSync(path.join(directory, `${key}.${ext}`), bytes);
+      return `playcrew-local://${category}/${key}.${ext}?v=${Date.now()}`;
+    });
+    ipcMain.handle('playcrew:delete-local-image', (event, value) => {
+      assertTrusted(event);
+      if (typeof value !== 'string' || !value.startsWith('playcrew-local://')) return false;
+      const parsed = new URL(value);
+      const relative = decodeURIComponent(`${parsed.hostname}${parsed.pathname}`).replace(/^[/\\]+/, '');
+      const target = path.resolve(localImagesRoot, relative);
+      if (!target.startsWith(path.resolve(localImagesRoot) + path.sep)) return false;
+      try { fs.unlinkSync(target); return true; } catch { return false; }
     });
     ipcMain.on('playcrew:window-control', (event, action) => {
       // Accept only this window's top-level PlayCrew page or bundled reconnect page.

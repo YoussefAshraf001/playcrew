@@ -45,6 +45,7 @@ import AnimatedField from "@/app/components/AnimatedField";
 import Textarea from "@/app/components/Textarea";
 import CropModal from "@/app/components/CropModal";
 import ImageOverlay from "@/app/components/ImageOverlay";
+import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
 import {
   FiCamera,
   FiCheck,
@@ -86,7 +87,7 @@ type UploadKind = "avatar" | "wallpaper";
 /* ---------------- COMPONENT ---------------- */
 
 export default function EditProfilePage() {
-  const { user, profile, setProfile, loading } = useUser();
+  const { user, profile, setProfile, loading, isAdmin } = useUser();
   const router = useRouter();
   const { startRouteLoading } = useUI();
   const { open } = useAuthModal();
@@ -359,6 +360,12 @@ export default function EditProfilePage() {
   ): Promise<MediaValue> => {
     try {
       if (!media.data.startsWith("data:")) return media;
+
+      const category = kind === "avatar" ? "profileImage" : "wallpaper";
+      if (isAdmin && await shouldSaveImageLocally(category)) {
+        const data = await saveImageLocally(category, `${user!.uid}-${kind}`, media.data);
+        return { ...media, data };
+      }
 
       const publicId = `playcrew/users/${user!.uid}/${kind}`;
       const assetFolder = `playcrew/users/${user!.uid}/profile`;

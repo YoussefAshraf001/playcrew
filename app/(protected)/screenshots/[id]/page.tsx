@@ -42,6 +42,7 @@ import { useUser } from "@/app/context/UserContext";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import { useUI } from "@/app/context/UIContext";
+import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
 
 type Folder = {
   id: string;
@@ -208,7 +209,7 @@ function FadeInImage({
 }
 
 export default function ScreenshotFolderPage() {
-  const { user, loading } = useUser();
+  const { user, loading, isAdmin } = useUser();
   const { navbarLayout } = useUI();
   const params = useParams<{ id: string }>();
   const folderId = useMemo(() => params?.id ?? "", [params]);
@@ -557,6 +558,10 @@ export default function ScreenshotFolderPage() {
   }, [shots, user, folderId]);
 
   const destroyInCloudinary = async (publicId: string) => {
+    if (publicId.startsWith("playcrew-local://")) {
+      await window.playcrewDesktop?.deleteLocalImage(publicId);
+      return;
+    }
     const res = await fetch("/api/cloudinary/destroy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -639,6 +644,23 @@ export default function ScreenshotFolderPage() {
 
     try {
       const assetId = crypto.randomUUID();
+      if (isAdmin && await shouldSaveImageLocally("screenshots")) {
+        const localUrl = await saveImageLocally("screenshots", `${user.uid}-${folderId}-${assetId}`, uploadFile);
+        const shotsRef = collection(db, "users", user.uid, "screenshotFolders", folderId, "shots");
+        const addedShotRef = await addDoc(shotsRef, {
+          url: localUrl, publicId: localUrl, favorite: false, bytes: uploadFile.size, createdAt: serverTimestamp(),
+        });
+        if (autoSetCover) {
+          markCoverSet();
+          await updateDoc(doc(db, "users", user.uid, "screenshotFolders", folderId), {
+            coverUrl: localUrl, coverPublicId: localUrl, coverSourceShotId: addedShotRef.id, customCoverSourceShotId: null,
+          });
+        }
+        setUploadItems((prev) => prev.map((item) => item.id === uploadId
+          ? { ...item, progress: 100, uploadedBytes: uploadFile.size, status: "done" }
+          : item));
+        return true;
+      }
       const publicId = `playcrew/users/${user.uid}/screenshots/${folderId}/${assetId}`;
       const assetFolder = `playcrew/users/${user.uid}/screenshots/${folderId}`;
 
@@ -852,6 +874,21 @@ export default function ScreenshotFolderPage() {
       const croppedBlob = await fetch(croppedBase64).then((res) => res.blob());
 
       const assetId = crypto.randomUUID();
+      if (isAdmin && await shouldSaveImageLocally("customGameCovers")) {
+        const localUrl = await saveImageLocally("customGameCovers", `${user.uid}-${folderId}-cover-${assetId}`, croppedBlob);
+        const oldCustomCoverId = folder.customCoverPublicId ?? null;
+        await updateDoc(doc(db, "users", user.uid, "screenshotFolders", folderId), {
+          customCoverUrl: localUrl,
+          customCoverPublicId: localUrl,
+          customCoverSourceShotId: coverCropShot.id,
+        });
+        if (oldCustomCoverId && oldCustomCoverId !== localUrl && !shots.some((shot) => shot.publicId === oldCustomCoverId)) {
+          await destroyInCloudinary(oldCustomCoverId).catch(() => undefined);
+        }
+        setCoverCropShot(null);
+        toast.success("Custom cover saved locally");
+        return;
+      }
       const publicId = `playcrew/users/${user.uid}/screenshots/${folderId}/cover-crop-${assetId}`;
       const assetFolder = `playcrew/users/${user.uid}/screenshots/${folderId}`;
 

@@ -39,6 +39,7 @@ import {
 import CropModal from "@/app/components/CropModal";
 import DesktopDownload from "@/app/components/DesktopDownload";
 import DesktopSettings from "@/app/components/DesktopSettings";
+import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
 
 type CropData = {
   x: number;
@@ -449,6 +450,9 @@ export default function SiteSettingsPage() {
   const hasWallpaper = hasSavedWallpaper || hasPendingWallpaper;
 
   const uploadWallpaperToCloudinary = async (media: MediaValue) => {
+    if (isAdmin && media.data.startsWith("data:") && await shouldSaveImageLocally("wallpaper")) {
+      return { ...media, data: await saveImageLocally("wallpaper", `${user!.uid}-wallpaper`, media.data) };
+    }
     if (!user?.uid) throw new Error("Missing user");
     if (!media.data.startsWith("data:")) return media;
 
@@ -566,7 +570,9 @@ export default function SiteSettingsPage() {
 
     setRemovingWallpaper(true);
     try {
-      await fetch("/api/cloudinary/destroy", {
+      if (profile.wallpaper.data.startsWith("playcrew-local://")) {
+        await window.playcrewDesktop?.deleteLocalImage(profile.wallpaper.data);
+      } else await fetch("/api/cloudinary/destroy", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -852,7 +858,7 @@ export default function SiteSettingsPage() {
               {/* SIDEBAR */}
               <div className="space-y-3 xl:order-3 xl:max-h-full xl:overflow-y-auto">
                 {!wallpaperPreview && <DesktopDownload variant="settings" />}
-                {!wallpaperPreview && <DesktopSettings />}
+                {!wallpaperPreview && <DesktopSettings isAdmin={isAdmin} />}
                 <motion.section
                   className="theme-panel-strong rounded-xl border p-3"
                   initial={false}

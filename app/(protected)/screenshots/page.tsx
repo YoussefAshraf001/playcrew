@@ -42,6 +42,7 @@ import WheelLockSwitch from "@/app/components/WheelLockSwitch";
 import getCroppedImg from "@/app/lib/getCroppedImg";
 import ScreenshotsGamePickerModal from "@/app/components/ScreenshotsGamePickerModal";
 import { PickerGame } from "@/app/types/trackedGame";
+import { saveImageLocally, shouldSaveImageLocally } from "@/app/lib/desktopImageStorage";
 
 export const dynamic = "force-dynamic";
 
@@ -152,7 +153,7 @@ const toHighQualityIgdbCover = (url?: string | null) => {
 
 function ScreenshotsPageContent() {
   const { navbarLayout } = useUI();
-  const { user, loading: userLoading } = useUser();
+  const { user, loading: userLoading, isAdmin } = useUser();
   const { games } = useGames();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -908,6 +909,20 @@ function ScreenshotsPageContent() {
     setCoverAction("upload");
     try {
       const assetId = crypto.randomUUID();
+      if (isAdmin && await shouldSaveImageLocally("customGameCovers")) {
+        const localUrl = await saveImageLocally("customGameCovers", `${user.uid}-${selectedFolder.id}-cover-${assetId}`, file);
+        const oldCustomCoverId = selectedFolder.customCoverPublicId ?? null;
+        await updateDoc(doc(db, "users", user.uid, "screenshotFolders", selectedFolder.id), {
+          customCoverUrl: localUrl,
+          customCoverPublicId: localUrl,
+          customCoverSourceShotId: null,
+        });
+        if (oldCustomCoverId && oldCustomCoverId !== localUrl && !shots.some((shot) => shot.publicId === oldCustomCoverId)) {
+          await destroyInCloudinary(oldCustomCoverId).catch(() => undefined);
+        }
+        toast.success("Custom cover saved locally");
+        return true;
+      }
       const publicId = `playcrew/users/${user.uid}/screenshots/${selectedFolder.id}/cover-${assetId}`;
       const assetFolder = `playcrew/users/${user.uid}/screenshots/${selectedFolder.id}`;
 
@@ -1065,6 +1080,10 @@ function ScreenshotsPageContent() {
   };
 
   const destroyInCloudinary = async (publicId: string) => {
+    if (publicId.startsWith("playcrew-local://")) {
+      await window.playcrewDesktop?.deleteLocalImage(publicId);
+      return;
+    }
     const res = await fetch("/api/cloudinary/destroy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

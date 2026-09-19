@@ -1,9 +1,25 @@
 [
   {
+    "version": "2.1.3",
+    "title": "Desktop Local Image Storage",
+    "date": "2026-09-19",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Local Image Storage",
+        "items": [
+          "Added admin-only (testing purposes) desktop settings to save profile images, wallpapers, custom game covers, and screenshots locally instead of uploading them to Cloudinary",
+          "Local image-storage choices are saved separately on each computer, with Cloudinary remaining the default",
+          "Added clear guidance that locally stored images are available only in the desktop app on that computer"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.2",
     "title": "Desktop Tray Performance Update and New Startup Intro",
     "date": "2026-09-19",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Desktop Performance",
