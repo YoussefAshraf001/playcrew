@@ -404,7 +404,7 @@ export default function Dashboard() {
               <div className="relative">
                 <img
                   src={profile.avatar?.data || user?.photoURL || "/logo.png"}
-                  alt={profile.username}
+                  alt=""
                   className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-white/30"
                 />
 
@@ -475,7 +475,7 @@ export default function Dashboard() {
               <div className="relative">
                 <img
                   src="/logo.png"
-                  alt="PlayCrew"
+                  alt=""
                   className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-contain"
                 />
               </div>
@@ -511,7 +511,7 @@ export default function Dashboard() {
             PLAY
             <img
               src="/logo.png"
-              alt="PlayCrew"
+              alt=""
               className="w-14 h-15 sm:w-16 sm:h-12 md:w-20 md:h-22 mr-1 sm:mr-2 md:mr-4"
             />
             CREW
@@ -528,19 +528,20 @@ export default function Dashboard() {
 
               return (
                 <Fragment key={item.label}>
-                <li>
-                  <button
-                    onMouseEnter={() => {
-                      if (!isHardDisabled && !isSoftDisabled) setActive(index);
-                    }}
-                    onClick={() => {
-                      if (!isHardDisabled) handleAction(item.action);
-                    }}
-                    className="group relative flex items-center gap-3 sm:gap-4 md:gap-5 text-left"
-                  >
-                    {/* Hover glass background */}
-                    <span
-                      className="
+                  <li>
+                    <button
+                      onMouseEnter={() => {
+                        if (!isHardDisabled && !isSoftDisabled)
+                          setActive(index);
+                      }}
+                      onClick={() => {
+                        if (!isHardDisabled) handleAction(item.action);
+                      }}
+                      className="group relative flex items-center gap-3 sm:gap-4 md:gap-5 text-left"
+                    >
+                      {/* Hover glass background */}
+                      <span
+                        className="
                           absolute -inset-y-1.5
                           -left-6 -right-8
                           rounded-xl
@@ -556,11 +557,11 @@ export default function Dashboard() {
                           group-hover:opacity-100
                           group-hover:scale-x-100
                         "
-                    />
+                      />
 
-                    {/* Text */}
-                    <span
-                      className={`
+                      {/* Text */}
+                      <span
+                        className={`
                           relative z-10
                           text-xl md:text-2xl tracking-wide transition-all duration-300
                           ${
@@ -571,12 +572,14 @@ export default function Dashboard() {
                                 : "text-zinc-400 group-hover:text-white group-hover:translate-x-1"
                           }
                         `}
-                    >
-                      {item.label}
-                    </span>
-                  </button>
-                </li>
-                {item.action === "about" && <DesktopDownload variant="dashboard" />}
+                      >
+                        {item.label}
+                      </span>
+                    </button>
+                  </li>
+                  {item.action === "about" && (
+                    <DesktopDownload variant="dashboard" />
+                  )}
                 </Fragment>
               );
             })}

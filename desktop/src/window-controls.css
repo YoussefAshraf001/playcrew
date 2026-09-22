@@ -16,6 +16,13 @@
   flex-direction: column; margin: 12px 0 0; padding: 10px 0 0;
   border-left: 0; border-top: 1px solid var(--theme-border, #ffffff24);
 }
+#playcrew-desktop-controls[data-layout="compact"] {
+  gap: 1px; margin: 0; padding: 0;
+  border: 0;
+}
+#playcrew-desktop-controls[data-layout="compact"] button {
+  width: 30px; height: 30px;
+}
 #playcrew-desktop-controls[data-layout="floating"] {
   position: fixed; top: 8px; right: 12px; z-index: 2147483647;
   margin: 0; padding: 3px; border: 1px solid var(--theme-border, #ffffff24);

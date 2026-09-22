@@ -199,15 +199,15 @@ function ReleaseCountdown({ date }: { date: Date }) {
       animate={{ opacity: 1, y: 0 }}
       className="relative isolate overflow-hidden rounded-[28px] border border-white/12 bg-black/12 p-5 shadow-[0_20px_55px_rgba(0,0,0,0.24)]"
     >
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_58%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(var(--theme-accent-rgb),0.12),transparent_58%)]" />
 
       <div className="mb-4 flex flex-col items-center justify-center gap-1.5 text-center">
         <div className="flex items-center justify-center gap-2">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#22d3ee] opacity-60" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#22d3ee] shadow-[0_0_14px_rgba(34,211,238,0.85)]" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--theme-accent)] opacity-60" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--theme-accent)] shadow-[0_0_14px_rgba(var(--theme-accent-rgb),0.85)]" />
           </span>
-          <span className="text-xs font-bold uppercase tracking-[0.26em] text-[#a5f3fc]">
+          <span className="theme-accent-soft-text text-xs font-bold uppercase tracking-[0.26em]">
             Launch countdown
           </span>
         </div>
@@ -226,7 +226,7 @@ function ReleaseCountdown({ date }: { date: Date }) {
             key={key}
             className="rounded-2xl border border-white/12 bg-white/[0.035] px-1 py-2.5 text-center shadow-inner backdrop-blur-md sm:py-3"
           >
-            <div className="font-mono text-xl font-black tabular-nums leading-none text-white drop-shadow-[0_0_12px_rgba(103,232,249,0.28)] sm:text-2xl lg:text-3xl">
+            <div className="font-mono text-xl font-black tabular-nums leading-none text-white drop-shadow-[0_0_12px_rgba(var(--theme-accent-rgb),0.28)] sm:text-2xl lg:text-3xl">
               {String(values[key]).padStart(2, "0")}
             </div>
             <div className="mt-1.5 text-[8px] font-semibold uppercase tracking-[0.14em] text-white/45 sm:text-[9px]">
@@ -258,7 +258,7 @@ function RatingAnalysis({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#67e8f9]">
+            <p className="theme-accent-soft-text text-[10px] font-bold uppercase tracking-[0.24em]">
               Rating Analysis
             </p>
             <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-white/45">
@@ -302,11 +302,11 @@ function RatingAnalysis({
         ))}
       </div>
 
-      <p className="border-t border-white/8 pt-3 text-[11px] text-white/45">
+      {/* <p className="border-t border-white/8 pt-3 text-[11px] text-white/45">
         {totalCount
           ? `${totalCount} IGDB rating${totalCount === 1 ? "" : "s"}`
           : "No IGDB ratings yet"}
-      </p>
+      </p> */}
     </section>
   );
 }
@@ -330,7 +330,7 @@ function TimeToBeat({ gameName, data }: { gameName: string; data?: any }) {
     <section className="flex h-full flex-col rounded-[26px] border border-white/12 bg-black/20 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)]">
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#67e8f9]">
+          <p className="theme-accent-soft-text text-[10px] font-bold uppercase tracking-[0.24em]">
             Playtime estimates
           </p>
           <h2 className="mt-1 text-xl font-bold">How Long to Beat</h2>
@@ -344,7 +344,7 @@ function TimeToBeat({ gameName, data }: { gameName: string; data?: any }) {
             key={label}
             className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-center"
           >
-            <div className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full border border-[#22d3ee]/30 bg-[#22d3ee]/8 text-[#67e8f9]">
+            <div className="theme-accent-soft-bg mx-auto mb-2 grid h-9 w-9 place-items-center rounded-full border">
               <FiClock />
             </div>
             <p className="text-xl font-black tabular-nums">
@@ -357,7 +357,7 @@ function TimeToBeat({ gameName, data }: { gameName: string; data?: any }) {
         ))}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[11px] text-white/45">
+      {/* <div className="flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[11px] text-white/45">
         <span>
           {hasData
             ? `${data?.count ?? 0} User submissions`
@@ -367,11 +367,11 @@ function TimeToBeat({ gameName, data }: { gameName: string; data?: any }) {
           href={`https://howlongtobeat.com/?q=${encodeURIComponent(gameName)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 font-semibold text-[#67e8f9] transition hover:text-[#a5f3fc]"
+          className="theme-accent-soft-text inline-flex items-center gap-1.5 font-semibold transition hover:brightness-125"
         >
           Check HLTB <FiExternalLink />
         </a>
-      </div>
+      </div> */}
     </section>
   );
 }
@@ -472,7 +472,13 @@ function PlayedOnPlatformIcon({
   }
 }
 
-function CommunityReviewSticker({ sticker }: { sticker: string }) {
+function CommunityReviewSticker({
+  sticker,
+  large = false,
+}: {
+  sticker: string;
+  large?: boolean;
+}) {
   const [activeLoop, setActiveLoop] = useState(0);
   const [pendingLoop, setPendingLoop] = useState<number | null>(null);
   const [initialReady, setInitialReady] = useState(false);
@@ -501,7 +507,7 @@ function CommunityReviewSticker({ sticker }: { sticker: string }) {
   if (!isLinkedSticker) {
     return (
       <span className="inline-flex rounded-md border border-white/15 bg-white/[0.035] p-2">
-        <GameSticker stickerId={sticker} />
+        <GameSticker stickerId={sticker} size={large ? 220 : 120} />
       </span>
     );
   }
@@ -593,6 +599,7 @@ export default function GamePage() {
   );
 
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [fullReviewOpen, setFullReviewOpen] = useState(false);
 
   const [tab, setTab] = useState<"screenshots" | "trailers" | "similar">(
     "screenshots",
@@ -605,7 +612,7 @@ export default function GamePage() {
   const [screenshotsReady, setScreenshotsReady] = useState(false);
 
   useEffect(() => {
-    if (!aboutOpen) return;
+    if (!aboutOpen && !fullReviewOpen) return;
 
     const previousOverflow = document.body.style.overflow;
     const previousPaddingRight = document.body.style.paddingRight;
@@ -617,11 +624,19 @@ export default function GamePage() {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (fullReviewOpen) setFullReviewOpen(false);
+      else setAboutOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+
     return () => {
+      window.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = previousOverflow;
       document.body.style.paddingRight = previousPaddingRight;
     };
-  }, [aboutOpen]);
+  }, [aboutOpen, fullReviewOpen]);
 
   const requireLogin = () => {
     if (!user) {
@@ -1196,7 +1211,10 @@ export default function GamePage() {
           previousTrackedGame?.recentActionSummary,
           getRecentGameActionSummary(previousTrackedGame, {
             favorite: data.favorite ?? false,
-            playAgain: data.playAgain === undefined ? previousTrackedGame?.playAgain : data.playAgain,
+            playAgain:
+              data.playAgain === undefined
+                ? previousTrackedGame?.playAgain
+                : data.playAgain,
             notInterested: data.notInterested ?? false,
             status: data.status,
             progress: data.progress ?? 0,
@@ -1217,11 +1235,21 @@ export default function GamePage() {
     }
     if (data.playAgain !== undefined) payload.playAgain = data.playAgain;
 
-    const gameRef = doc(db, "users", user.uid, "games_igdb", game.id.toString());
+    const gameRef = doc(
+      db,
+      "users",
+      user.uid,
+      "games_igdb",
+      game.id.toString(),
+    );
     await runTransaction(db, async (transaction) => {
       const latest = await transaction.get(gameRef);
-      if ((latest.data()?.runNumber ?? 1) !== (trackedGameData?.runNumber ?? 1)) {
-        throw new Error("This game's run changed in another window. Reopen the editor and try again.");
+      if (
+        (latest.data()?.runNumber ?? 1) !== (trackedGameData?.runNumber ?? 1)
+      ) {
+        throw new Error(
+          "This game's run changed in another window. Reopen the editor and try again.",
+        );
       }
       transaction.set(gameRef, payload, { merge: true });
     });
@@ -1608,6 +1636,10 @@ export default function GamePage() {
     ? customReleaseDate.getTime() <= Date.now()
     : isReleased || automaticReleaseState === "early-access";
   const showUnreleasedOverlay = !isAvailableToPlay;
+  const hasEligiblePreReleaseAccess =
+    trackedGameData?.preReleaseAccess?.type === "early-access" ||
+    trackedGameData?.preReleaseAccess?.type === "advanced-access";
+  const isCommunityLocked = !isAvailableToPlay && !hasEligiblePreReleaseAccess;
 
   const trackingModalGame = useMemo<TrackedGame | null>(() => {
     if (!game?.id) return null;
@@ -1705,21 +1737,28 @@ export default function GamePage() {
 
     try {
       setTrackingSaving(true);
-      const startingNewRun = runState.runNumber !== (trackedGameData?.runNumber ?? 1);
+      const startingNewRun =
+        runState.runNumber !== (trackedGameData?.runNumber ?? 1);
       const reviewForSave = {
         ...review,
         createdAt: review.text.trim()
-          ? (startingNewRun ? new Date() : (trackedGameData?.review?.createdAt ??
-            (trackedGameData?.review?.text?.trim()
-              ? trackedGameData.lastUpdated
-              : null) ??
-            new Date()))
+          ? startingNewRun
+            ? new Date()
+            : (trackedGameData?.review?.createdAt ??
+              (trackedGameData?.review?.text?.trim()
+                ? trackedGameData.lastUpdated
+                : null) ??
+              new Date())
           : null,
         updatedAt: review.text.trim() ? new Date() : null,
       };
       await updateTrackedGame({
         ...runState,
-        ...(startingNewRun ? { recentActionSummary: `Started ${getPlaythroughLabel(runState.runNumber)} · ${runState.runKind === "replay" ? "Replay" : "Another chance"}` } : {}),
+        ...(startingNewRun
+          ? {
+              recentActionSummary: `Started ${getPlaythroughLabel(runState.runNumber)} · ${runState.runKind === "replay" ? "Replay" : "Another chance"}`,
+            }
+          : {}),
         review: reviewForSave,
         my_rating: rating,
         progress,
@@ -1842,7 +1881,9 @@ export default function GamePage() {
     return (
       <div className="flex min-h-[60vh] items-center justify-center px-6 text-center">
         <div className="rounded-3xl border border-white/10 bg-black/25 px-8 py-10 backdrop-blur-xl">
-          <p className="text-lg font-semibold text-white">Unable to load game</p>
+          <p className="text-lg font-semibold text-white">
+            Unable to load game
+          </p>
           <p className="mt-2 text-sm text-white/55">
             {gameLoadError || "This game could not be found."}
           </p>
@@ -1916,7 +1957,7 @@ export default function GamePage() {
         animate={{ opacity: 1 }}
       >
         <motion.div
-          className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full"
+          className="h-16 w-16 rounded-full border-4 border-[var(--theme-accent)] border-t-transparent"
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
         />
@@ -2025,7 +2066,7 @@ export default function GamePage() {
                         <h3 className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/65">
                           Game Facts
                         </h3>
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#22d3ee] shadow-[0_0_9px_rgba(34,211,238,0.7)]" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-[var(--theme-accent)] shadow-[0_0_9px_rgba(var(--theme-accent-rgb),0.7)]" />
                       </div>
 
                       <dl className="space-y-2.5">
@@ -2132,10 +2173,17 @@ export default function GamePage() {
                       {trackedGameData?.playAgain && (
                         <div className="flex items-center gap-2 text-xs text-white/55">
                           <span>Play again</span>
-                          <PlayAgainBadge value={trackedGameData.playAgain} showLabel />
+                          <PlayAgainBadge
+                            value={trackedGameData.playAgain}
+                            showLabel
+                          />
                         </div>
                       )}
-                      {trackedGameData && <GameRunHistory state={getGameRunState(trackedGameData)} />}
+                      {trackedGameData && (
+                        <GameRunHistory
+                          state={getGameRunState(trackedGameData)}
+                        />
+                      )}
                       <div className="flex flex-wrap gap-3">
                         {statuses.map((s) => {
                           const isSelected =
@@ -2184,13 +2232,13 @@ export default function GamePage() {
                           opacity: loadingWinnerAwards ? 0.4 : 1,
                         }}
                         transition={{ duration: 0.5, ease: "easeOut" }}
-                        className="relative h-[112px] overflow-hidden rounded-[22px] border border-amber-200/15 bg-black/12 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        className="relative h-[112px] overflow-hidden rounded-[22px] border border-[#8F762F] bg-black/12 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_20px_rgba(143,118,47,0.1)]"
                       >
                         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(251,191,36,0.14),transparent_42%)]" />
                         {/* HEADER */}
                         <div className="relative mb-3 flex items-center justify-between gap-3">
                           <div className="flex min-w-0 items-center gap-2.5">
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-amber-200/20 bg-amber-300/10 text-amber-200 shadow-[0_0_18px_rgba(251,191,36,0.1)]">
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#8F762F] bg-none text-[#f3b50b] shadow-[0_0_18px_rgba(251,191,36,0.1)]">
                               <FaTrophy size={12} />
                             </span>
                             <div className="min-w-0">
@@ -2198,7 +2246,7 @@ export default function GamePage() {
                                 PlayCrew Awards
                               </p>
                               <p className="text-[8px] uppercase tracking-[0.15em] text-white/35">
-                                Recognition archive
+                                Trophy Case
                               </p>
                             </div>
                           </div>
@@ -2254,9 +2302,9 @@ export default function GamePage() {
                                 </div>
 
                                 <div className="hidden">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_9px_rgba(103,232,249,0.8)]" />
+                                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--theme-accent)] shadow-[0_0_9px_rgba(var(--theme-accent-rgb),0.8)]" />
                                   <div>
-                                    <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-cyan-200/65">
+                                    <p className="theme-accent-soft-text text-[8px] font-bold uppercase tracking-[0.18em] opacity-65">
                                       Next ceremony
                                     </p>
                                     <p className="text-[11px] font-bold text-white/85">
@@ -2384,7 +2432,7 @@ export default function GamePage() {
 
                             {description?.length > storyLimit && (
                               <button
-                                className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200 hover:underline"
+                                className="theme-accent-soft-text text-sm font-medium transition hover:brightness-125 hover:underline"
                                 onClick={() => setAboutOpen(true)}
                               >
                                 Read more
@@ -2417,7 +2465,7 @@ export default function GamePage() {
                               ease: "easeOut",
                               delay: 0.08,
                             }}
-                            className="relative z-0 w-full overflow-hidden rounded-[28px] bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.42),rgba(245,158,11,0.14)_38%,rgba(0,0,0,0.62)_82%)] px-4 pb-5 pt-4 text-center shadow-[0_24px_48px_rgba(0,0,0,0.34)]"
+                            className="relative z-0 w-full overflow-hidden rounded-[28px] border border-[#8F762F] bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.34),rgba(143,118,47,0.12)_38%,rgba(0,0,0,0.62)_82%)] px-4 pb-5 pt-4 text-center shadow-[0_24px_48px_rgba(0,0,0,0.34),0_0_24px_rgba(143,118,47,0.1)]"
                           >
                             {/* Trophy */}
                             <div className="mx-auto mt-2 flex h-35 w-35 items-center justify-center">
@@ -2475,7 +2523,7 @@ export default function GamePage() {
                   whileTap={{ scale: 0.96 }}
                   className={`rounded-full border px-4 py-2 ${
                     tab === "screenshots"
-                      ? "border-[#67e8f9]/50 bg-[#22d3ee] text-black shadow-[0_0_18px_rgba(34,211,238,0.18)]"
+                      ? "theme-accent-bg border shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.18)]"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
                   onClick={() => setTab("screenshots")}
@@ -2487,7 +2535,7 @@ export default function GamePage() {
                   whileTap={{ scale: 0.96 }}
                   className={`rounded-full border px-4 py-2 ${
                     tab === "trailers"
-                      ? "border-[#67e8f9]/50 bg-[#22d3ee] text-black shadow-[0_0_18px_rgba(34,211,238,0.18)]"
+                      ? "theme-accent-bg border shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.18)]"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
                   onClick={() => setTab("trailers")}
@@ -2499,7 +2547,7 @@ export default function GamePage() {
                   whileTap={{ scale: 0.96 }}
                   className={`rounded-full border px-4 py-2 ${
                     tab === "similar"
-                      ? "border-[#67e8f9]/50 bg-[#22d3ee] text-black shadow-[0_0_18px_rgba(34,211,238,0.18)]"
+                      ? "theme-accent-bg border shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.18)]"
                       : "border-white/12 bg-transparent text-white/85 hover:bg-white/14"
                   }`}
                   onClick={() => setTab("similar")}
@@ -2804,398 +2852,476 @@ export default function GamePage() {
 
         <section className="relative z-10 mx-auto mt-5 w-full max-w-[1780px] px-3 pb-8 sm:px-4 lg:px-6">
           <div className="relative overflow-hidden rounded-[34px] border border-white/12 bg-black/10 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.24)] backdrop-blur-sm sm:p-4">
-            <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-cyan-400/[0.06] blur-3xl" />
+            <div className="pointer-events-none absolute -left-24 top-0 h-64 w-64 rounded-full bg-[rgba(var(--theme-accent-rgb),0.06)] blur-3xl" />
             <div className="relative grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-stretch">
-            <div className="rounded-[26px] border border-white/10 bg-black/15 p-4 sm:p-5 xl:p-6">
-              <div className="mb-5 flex items-center justify-between gap-4 border-b border-white/8 pb-4">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#67e8f9]">
-                    Community
-                  </p>
-                  <h2 className="mt-1 text-2xl font-bold text-white">
-                    User Reviews
-                  </h2>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="hidden rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-100/65 sm:inline-flex">
-                    {gameReviews.length} {gameReviews.length === 1 ? "review" : "reviews"}
-                  </span>
-                  <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Previous review"
-                    disabled={
-                      activeReviewIndex === 0 || gameReviews.length === 0
-                    }
-                    onClick={() =>
-                      setActiveReviewIndex((current) =>
-                        Math.max(0, current - 1),
-                      )
-                    }
-                    className="grid h-9 w-9 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
-                  >
-                    <FaChevronLeft />
-                  </button>
-                  <span className="min-w-12 text-center text-xs tabular-nums text-white/55">
-                    {gameReviews.length
-                      ? `${activeReviewIndex + 1} / ${gameReviews.length}`
-                      : "0 / 0"}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Next review"
-                    disabled={
-                      gameReviews.length === 0 ||
-                      activeReviewIndex >= gameReviews.length - 1
-                    }
-                    onClick={() =>
-                      setActiveReviewIndex((current) =>
-                        Math.min(gameReviews.length - 1, current + 1),
-                      )
-                    }
-                    className="grid h-9 w-9 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
-                  >
-                    <FaChevronRight />
-                  </button>
+              <div className="rounded-[26px] border border-white/10 bg-black/15 p-4 sm:p-5 xl:p-6">
+                <div className="mb-5 flex items-center justify-between gap-4 border-b border-white/8 pb-4">
+                  <div>
+                    <p className="theme-accent-soft-text text-[11px] font-semibold uppercase tracking-[0.3em]">
+                      Community
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold text-white">
+                      User Reviews
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="theme-accent-soft-bg hidden rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] sm:inline-flex">
+                      {gameReviews.length}{" "}
+                      {gameReviews.length === 1 ? "review" : "reviews"}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        aria-label="Previous review"
+                        disabled={
+                          activeReviewIndex === 0 || gameReviews.length === 0
+                        }
+                        onClick={() =>
+                          setActiveReviewIndex((current) =>
+                            Math.max(0, current - 1),
+                          )
+                        }
+                        className="grid h-9 w-9 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
+                      >
+                        <FaChevronLeft />
+                      </button>
+                      <span className="min-w-12 text-center text-xs tabular-nums text-white/55">
+                        {gameReviews.length
+                          ? `${activeReviewIndex + 1} / ${gameReviews.length}`
+                          : "0 / 0"}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Next review"
+                        disabled={
+                          gameReviews.length === 0 ||
+                          activeReviewIndex >= gameReviews.length - 1
+                        }
+                        onClick={() =>
+                          setActiveReviewIndex((current) =>
+                            Math.min(gameReviews.length - 1, current + 1),
+                          )
+                        }
+                        className="grid h-9 w-9 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-default disabled:opacity-25 disabled:hover:border-white/10 disabled:hover:text-inherit"
+                      >
+                        <FaChevronRight />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {loadingGameReviews ? (
-                <div
-                  className="space-y-4"
-                  aria-label="Loading community reviews"
-                >
-                  {[0].map((item) => (
-                    <div
-                      key={item}
-                      className="h-[570px] animate-pulse overflow-hidden rounded-[26px] border border-white/10 bg-black/25 p-4 sm:h-[540px] sm:p-5 md:h-[410px]"
-                    >
-                      <div className="flex h-full flex-col">
-                        <div className="flex items-center justify-between border-b border-white/8 pb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-13 w-13 rounded-full bg-white/8" />
-                            <div className="space-y-2">
-                              <div className="h-4 w-32 rounded bg-white/8" />
-                              <div className="h-3 w-24 rounded bg-white/6" />
+                {loadingGameReviews ? (
+                  <div
+                    className="space-y-4"
+                    aria-label="Loading community reviews"
+                  >
+                    {[0].map((item) => (
+                      <div
+                        key={item}
+                        className="h-[570px] animate-pulse overflow-hidden rounded-[26px] border border-white/10 bg-black/25 p-4 sm:h-[540px] sm:p-5 md:h-[410px]"
+                      >
+                        <div className="flex h-full flex-col">
+                          <div className="flex items-center justify-between border-b border-white/8 pb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-13 w-13 rounded-full bg-white/8" />
+                              <div className="space-y-2">
+                                <div className="h-4 w-32 rounded bg-white/8" />
+                                <div className="h-3 w-24 rounded bg-white/6" />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <div className="h-16 w-16 rounded-full bg-white/8" />
+                              <div className="h-16 w-24 rounded-xl bg-white/8" />
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <div className="h-16 w-16 rounded-full bg-white/8" />
-                            <div className="h-16 w-24 rounded-xl bg-white/8" />
+                          <div className="grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] md:grid-cols-[minmax(0,1fr)_160px]">
+                            <div className="space-y-2">
+                              <div className="h-3 w-full rounded bg-white/8" />
+                              <div className="h-3 w-5/6 rounded bg-white/8" />
+                              <div className="h-3 w-2/3 rounded bg-white/8" />
+                            </div>
+                            <div className="hidden aspect-square rounded-2xl bg-white/7 md:block" />
                           </div>
-                        </div>
-                        <div className="grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] md:grid-cols-[minmax(0,1fr)_160px]">
-                          <div className="space-y-2">
-                            <div className="h-3 w-full rounded bg-white/8" />
-                            <div className="h-3 w-5/6 rounded bg-white/8" />
-                            <div className="h-3 w-2/3 rounded bg-white/8" />
+                          <div className="h-10 border-t border-white/8 pt-3">
+                            <div className="h-3 w-3/4 rounded bg-white/7" />
                           </div>
-                          <div className="hidden aspect-square rounded-2xl bg-white/7 md:block" />
-                        </div>
-                        <div className="h-10 border-t border-white/8 pt-3">
-                          <div className="h-3 w-3/4 rounded bg-white/7" />
-                        </div>
-                        <div className="mt-3 flex gap-2 border-t border-white/6 pt-3">
-                          {[0, 1, 2].map((reaction) => (
-                            <div
-                              key={reaction}
-                              className="h-8 w-24 rounded-xl bg-white/7"
-                            />
-                          ))}
+                          <div className="mt-3 flex gap-2 border-t border-white/6 pt-3">
+                            {[0, 1, 2].map((reaction) => (
+                              <div
+                                key={reaction}
+                                className="h-8 w-24 rounded-xl bg-white/7"
+                              />
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : gameReviewsError ? (
-                <p className="rounded-2xl border border-dashed border-amber-400/20 bg-amber-500/[0.06] px-4 py-8 text-center text-sm text-amber-100/65">
-                  Community reviews could not be loaded. Firestore denied the
-                  cross-user review query.
-                </p>
-              ) : gameReviews.length > 0 ? (
-                <div className="space-y-4">
-                  {gameReviews
-                    .slice(activeReviewIndex, activeReviewIndex + 1)
-                    .map((review) => (
-                      <motion.article
-                        key={review.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                        className="group relative h-[570px] overflow-hidden rounded-[26px] border border-white/12 bg-black/25 p-4 shadow-[0_16px_55px_rgba(0,0,0,0.22)] transition-[border-color] hover:border-white/30 sm:h-[540px] sm:p-5 md:h-[410px]"
-                      >
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.07),transparent_36%)] opacity-70" />
-                        <div className="relative flex h-full flex-col">
-                          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 xl:flex-row xl:items-center xl:justify-between">
-                            <div className="flex flex-wrap items-center gap-3 sm:gap-5">
-                              <Link
-                                href={`/users/${review.username}`}
-                                className="flex min-w-0 items-center gap-3.5"
-                              >
-                                <div className="h-13 w-13 shrink-0 overflow-hidden rounded-full border-2 border-white/25 bg-black/30 p-0.5">
-                                  {review.avatar ? (
-                                    <img
-                                      src={review.avatar}
-                                      alt={`${review.username}'s avatar`}
-                                      loading="lazy"
-                                      decoding="async"
-                                      className="h-full w-full rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center rounded-full border border-white/12 bg-white/10 text-xl font-black text-white">
-                                      {review.username.charAt(0).toUpperCase()}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="truncate text-lg font-black text-white hover:underline">
-                                    @{review.username}
-                                  </p>
-                                  <p className="mt-1 text-xs text-white/55">
-                                    Member since{" "}
-                                    {formatCommunityDate(review.memberSince)}
-                                  </p>
-                                </div>
-                              </Link>
-                            </div>
-
-                            <div className="flex items-stretch gap-2 self-end xl:self-auto">
-                              <div
-                                className="relative flex h-16 w-16 items-center justify-center rounded-full"
-                                style={{
-                                  background: `conic-gradient(rgb(34, 211, 238) ${Math.max(0, Math.min(10, review.rating ?? 0)) * 10}%, rgba(255,255,255,0.08) 0)`,
-                                }}
-                              >
-                                <div className="flex gap-0.5 h-13 w-13 items-center justify-center rounded-full bg-black/90">
-                                  <span className="text-xl font-black text-white">
-                                    {review.rating ?? "—"}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="flex min-w-24 flex-col justify-center rounded-xl border border-white/12 bg-white/[0.055] px-3 py-2 text-center">
-                                <p className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                                  <FiClock /> Playtime
-                                </p>
-                                <p className="mt-1 text-base font-black text-white">
-                                  {review.playtime > 0
-                                    ? `${Number.isInteger(review.playtime) ? review.playtime : review.playtime.toFixed(1)}h`
-                                    : "Not set"}
-                                </p>
-                              </div>
-                            </div>
-                          </header>
-
-                          <div
-                            className={`grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] ${review.sticker ? "md:grid-cols-[minmax(0,1fr)_160px]" : ""}`}
-                          >
-                            <p className="overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 text-white sm:text-base">
-                              {review.text}
-                            </p>
-                            {review.sticker && (
-                              <div className="flex aspect-square w-full max-w-[160px] items-center justify-center justify-self-center overflow-hidden p-2 md:justify-self-end">
-                                <CommunityReviewSticker
-                                  sticker={review.sticker}
-                                />
-                              </div>
-                            )}
-                          </div>
-
-                          <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-white/10 pt-3 text-xs text-white/55">
-                            <span className="inline-flex items-center gap-1.5">
-                              <FiCalendar /> Posted{" "}
-                              {formatCommunityDate(review.createdAt)}
-                            </span>
-                            |
-                            <span className="inline-flex items-center gap-1.5">
-                              <FiEdit3 /> Updated{" "}
-                              {formatCommunityDate(review.updatedAt)}
-                            </span>
-                            |
-                            {review.status && (
-                              <span className="inline-flex items-center gap-1.5 font-semibold text-[#67e8f9]">
-                                {review.status === "Completed" ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <FaTrophy />
-                                  </div>
-                                ) : (
-                                  <FiCheckCircle />
-                                )}
-                                {review.status}
-                              </span>
-                            )}
-                            |
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="h-4 w-4 rounded-full border border-white/20"
-                                style={{
-                                  background: `conic-gradient(rgb(34, 211, 238) ${Math.max(0, Math.min(100, review.progress))}%, rgba(255,255,255,0.08) 0)`,
-                                }}
-                                aria-hidden="true"
-                              />
-                              {review.progress}% progress
-                            </span>
-                            |
-                            <span className="inline-flex items-center gap-1.5">
-                              Played on:{" "}
-                              {normalizePlayedOn(review.playedOn).map(
-                                (platform) => (
-                                  <PlayedOnPlatformIcon
-                                    key={platform}
-                                    value={platform}
-                                    className="text-[#67e8f9]"
-                                  />
-                                ),
-                              )}
-                              {formatPlayedOn(review.playedOn)}
-                            </span>
-                          </footer>
-
-                          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
-                            {[
-                              {
-                                type: "helpful" as const,
-                                label: "Helpful",
-                                icon: FiThumbsUp,
-                              },
-                              {
-                                type: "funny" as const,
-                                label: "Funny",
-                                icon: FiSmile,
-                              },
-                              {
-                                type: "100-percent" as const,
-                                label: "100%",
-                                icon: FaFire,
-                              },
-                              {
-                                type: "glazzing" as const,
-                                label: "Glazzing",
-                                icon: FaCrown,
-                              },
-                            ].map((reaction) => {
-                              const Icon = reaction.icon;
-                              const active =
-                                review.myReaction === reaction.type;
-                              return (
-                                <button
-                                  key={reaction.type}
-                                  type="button"
-                                  onClick={() =>
-                                    reactToReview(review.id, reaction.type)
-                                  }
-                                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                                    active
-                                      ? "border-[#22d3ee]/45 bg-[#22d3ee]/10 text-[#a5f3fc]"
-                                      : "border-white/12 bg-white/[0.035] text-white/55 hover:bg-white/10 hover:text-white"
-                                  }`}
-                                  aria-pressed={active}
-                                >
-                                  <Icon /> {reaction.label}
-                                  <span className="opacity-60">
-                                    {review.reactions[reaction.type]}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </motion.article>
                     ))}
-                </div>
-              ) : (
-                <div className="relative flex min-h-52 flex-col items-center justify-center overflow-hidden rounded-[22px] border border-dashed border-white/12 bg-white/[0.025] px-6 py-10 text-center">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.07),transparent_52%)]" />
-                  <div className="relative grid h-14 w-14 place-items-center rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.07] text-2xl text-cyan-200 shadow-[0_0_28px_rgba(34,211,238,0.08)]">
-                    <FiMessageSquare />
                   </div>
-                  <p className="relative mt-4 text-base font-bold text-white/85">
-                    Start the conversation
+                ) : gameReviewsError ? (
+                  <p className="rounded-2xl border border-dashed border-amber-400/20 bg-amber-500/[0.06] px-4 py-8 text-center text-sm text-amber-100/65">
+                    Community reviews could not be loaded. Firestore denied the
+                    cross-user review query.
                   </p>
-                  <p className="relative mt-1 max-w-md text-sm leading-6 text-white/45">
-                    No community reviews yet. Share what you thought about the game and be the first one here.
-                  </p>
+                ) : gameReviews.length > 0 ? (
+                  <div className="space-y-4">
+                    {gameReviews
+                      .slice(activeReviewIndex, activeReviewIndex + 1)
+                      .map((review) => (
+                        <motion.article
+                          key={review.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.35, ease: "easeOut" }}
+                          className="group relative h-[570px] overflow-hidden rounded-[26px] border border-white/12 bg-black/25 p-4 shadow-[0_16px_55px_rgba(0,0,0,0.22)] transition-[border-color] hover:border-white/30 sm:h-[540px] sm:p-5 md:h-[410px]"
+                        >
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.07),transparent_36%)] opacity-70" />
+                          <div className="relative flex h-full flex-col">
+                            <header className="flex flex-col gap-4 border-b border-white/10 pb-4 xl:flex-row xl:items-center xl:justify-between">
+                              <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+                                <Link
+                                  href={`/users/${review.username}`}
+                                  className="flex min-w-0 items-center gap-3.5"
+                                >
+                                  <div className="h-13 w-13 shrink-0 overflow-hidden rounded-full border-2 border-white/25 bg-black/30 p-0.5">
+                                    {review.avatar ? (
+                                      <img
+                                        src={review.avatar}
+                                        alt={`${review.username}'s avatar`}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="h-full w-full rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center rounded-full border border-white/12 bg-white/10 text-xl font-black text-white">
+                                        {review.username
+                                          .charAt(0)
+                                          .toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="truncate text-lg font-black text-white hover:underline">
+                                      @{review.username}
+                                    </p>
+                                    <p className="mt-1 text-xs text-white/55">
+                                      Member since{" "}
+                                      {formatCommunityDate(review.memberSince)}
+                                    </p>
+                                  </div>
+                                </Link>
+                              </div>
+
+                              <div className="flex items-stretch gap-2 self-end xl:self-auto">
+                                <div
+                                  className="relative flex h-16 w-16 items-center justify-center rounded-full"
+                                  style={{
+                                    background: `conic-gradient(rgb(34, 211, 238) ${Math.max(0, Math.min(10, review.rating ?? 0)) * 10}%, rgba(255,255,255,0.08) 0)`,
+                                  }}
+                                >
+                                  <div className="flex gap-0.5 h-13 w-13 items-center justify-center rounded-full bg-black/90">
+                                    <span className="text-xl font-black text-white">
+                                      {review.rating ?? "—"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex min-w-24 flex-col justify-center rounded-xl border border-white/12 bg-white/[0.055] px-3 py-2 text-center">
+                                  <p className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                                    <FiClock /> Playtime
+                                  </p>
+                                  <p className="mt-1 text-base font-black text-white">
+                                    {review.playtime > 0
+                                      ? `${Number.isInteger(review.playtime) ? review.playtime : review.playtime.toFixed(1)}h`
+                                      : "Not set"}
+                                  </p>
+                                </div>
+                              </div>
+                            </header>
+
+                            <div
+                              className={`grid h-[300px] shrink-0 gap-4 py-4 md:h-[176px] ${review.sticker ? "md:grid-cols-[minmax(0,1fr)_160px]" : ""}`}
+                            >
+                              <p className="overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 text-white sm:text-base">
+                                {review.text}
+                              </p>
+                              {review.sticker && (
+                                <div className="flex aspect-square w-full max-w-[160px] items-center justify-center justify-self-center overflow-hidden p-2 md:justify-self-end">
+                                  <CommunityReviewSticker
+                                    sticker={review.sticker}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-white/10 pt-3 text-xs text-white/55">
+                              <span className="inline-flex items-center gap-1.5">
+                                <FiCalendar /> Posted{" "}
+                                {formatCommunityDate(review.createdAt)}
+                              </span>
+                              |
+                              <span className="inline-flex items-center gap-1.5">
+                                <FiEdit3 /> Updated{" "}
+                                {formatCommunityDate(review.updatedAt)}
+                              </span>
+                              |
+                              {review.status && (
+                                <span className="theme-accent-soft-text inline-flex items-center gap-1.5 font-semibold">
+                                  {review.status === "Completed" ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <FaTrophy />
+                                    </div>
+                                  ) : (
+                                    <FiCheckCircle />
+                                  )}
+                                  {review.status}
+                                </span>
+                              )}
+                              |
+                              <span className="inline-flex items-center gap-1.5">
+                                <span
+                                  className="h-4 w-4 rounded-full border border-white/20"
+                                  style={{
+                                    background: `conic-gradient(var(--theme-accent) ${Math.max(0, Math.min(100, review.progress))}%, rgba(255,255,255,0.08) 0)`,
+                                  }}
+                                  aria-hidden="true"
+                                />
+                                {review.progress}% progress
+                              </span>
+                              |
+                              <span className="inline-flex items-center gap-1.5">
+                                Played on:{" "}
+                                {normalizePlayedOn(review.playedOn).map(
+                                  (platform) => (
+                                    <PlayedOnPlatformIcon
+                                      key={platform}
+                                      value={platform}
+                                      className="theme-accent-soft-text"
+                                    />
+                                  ),
+                                )}
+                                {formatPlayedOn(review.playedOn)}
+                              </span>
+                            </footer>
+
+                            <div className="mt-3 flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+                              {[
+                                {
+                                  type: "helpful" as const,
+                                  label: "Helpful",
+                                  icon: FiThumbsUp,
+                                },
+                                {
+                                  type: "funny" as const,
+                                  label: "Funny",
+                                  icon: FiSmile,
+                                },
+                                {
+                                  type: "100-percent" as const,
+                                  label: "100%",
+                                  icon: FaFire,
+                                },
+                                {
+                                  type: "glazzing" as const,
+                                  label: "Glazzing",
+                                  icon: FaCrown,
+                                },
+                              ].map((reaction) => {
+                                const Icon = reaction.icon;
+                                const active =
+                                  review.myReaction === reaction.type;
+                                return (
+                                  <button
+                                    key={reaction.type}
+                                    type="button"
+                                    onClick={() =>
+                                      reactToReview(review.id, reaction.type)
+                                    }
+                                    className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                                      active
+                                        ? "theme-accent-soft-bg border"
+                                        : "border-white/12 bg-white/[0.035] text-white/55 hover:bg-white/10 hover:text-white"
+                                    }`}
+                                    aria-pressed={active}
+                                  >
+                                    <Icon /> {reaction.label}
+                                    <span className="opacity-60">
+                                      {review.reactions[reaction.type]}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </motion.article>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="relative flex min-h-52 flex-col items-center justify-center overflow-hidden rounded-[22px] border border-dashed border-white/12 bg-white/[0.025] px-6 py-10 text-center">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(var(--theme-accent-rgb),0.07),transparent_52%)]" />
+                    <div className="theme-accent-soft-bg relative grid h-14 w-14 place-items-center rounded-2xl border text-2xl shadow-[0_0_28px_rgba(var(--theme-accent-rgb),0.08)]">
+                      <FiMessageSquare />
+                    </div>
+                    <p className="relative mt-4 text-base font-bold text-white/85">
+                      Start the conversation
+                    </p>
+                    <p className="relative mt-1 max-w-md text-sm leading-6 text-white/45">
+                      No community reviews yet. Share what you thought about the
+                      game and be the first one here.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <aside className="theme-text relative overflow-hidden rounded-[26px] border border-[var(--theme-border)] bg-black/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_22px_55px_rgba(0,0,0,0.24),0_0_28px_rgba(var(--theme-accent-rgb),0.08)] backdrop-blur-2xl backdrop-saturate-150 sm:p-5">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(var(--theme-accent-rgb),0.14),transparent_48%)]" />
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent)] opacity-60" />
+                <div className="relative">
+                  <header className="border-b border-white/10 pb-4">
+                    <div>
+                      <p className="theme-accent-soft-text text-[14px] font-bold uppercase tracking-[0.2em]">
+                        My Review
+                      </p>
+                      <p className="theme-text mt-1 text-xs font-normal">
+                        for {game.name}
+                      </p>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="theme-accent-soft-bg flex flex-col items-center justify-center rounded-xl border px-2 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(var(--theme-accent-rgb),0.08)] backdrop-blur-md">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                          My Rating
+                        </p>
+                        <p className="theme-accent-soft-text mt-1 text-2xl font-black leading-none">
+                          {typeof trackedGameData?.my_rating === "number"
+                            ? trackedGameData.my_rating.toFixed(1)
+                            : "—"}
+                          <span className="text-[10px] font-bold text-white/40">
+                            /10
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-center justify-center rounded-xl border border-white/12 bg-white/[0.055] px-2 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-md">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                          Playtime
+                        </p>
+                        <p className="theme-accent-soft-text text-lg font-black">
+                          {trackedGameData?.playtime
+                            ? `${Number.isInteger(trackedGameData.playtime) ? trackedGameData.playtime : trackedGameData.playtime.toFixed(1)}h`
+                            : "0h"}
+                        </p>
+                      </div>
+                      <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-white/12 bg-white/[0.035] px-2 py-3 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] backdrop-blur-md">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                          Played On
+                        </p>
+                        <p className="mt-1 flex max-w-full items-center gap-1 text-[10px] font-bold leading-4 text-white">
+                          {normalizePlayedOn(trackedGameData?.playedOn).map(
+                            (platform) => (
+                              <PlayedOnPlatformIcon
+                                key={platform}
+                                value={platform}
+                                className="theme-accent-soft-text"
+                              />
+                            ),
+                          )}
+                          {formatPlayedOn(trackedGameData?.playedOn)}
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+
+                  <div className="border-b border-white/[0.06] py-4">
+                    {trackedGameData?.review?.text?.trim() ? (
+                      <>
+                        <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-white/60">
+                          {trackedGameData.review.text.trim()}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setFullReviewOpen(true)}
+                          className="group mt-3 flex w-full items-center justify-between rounded-xl border border-[rgba(var(--theme-accent-rgb),0.2)] bg-[rgba(var(--theme-accent-rgb),0.06)] px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md transition hover:border-[rgba(var(--theme-accent-rgb),0.4)] hover:bg-[rgba(var(--theme-accent-rgb),0.1)]"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="theme-accent-soft-bg grid h-7 w-7 place-items-center rounded-lg border">
+                              <FiMessageSquare size={13} aria-hidden="true" />
+                            </span>
+                            <span>
+                              <span className="block text-xs font-bold text-white/90">
+                                Read full review
+                              </span>
+                              <span className="mt-0.5 block text-[10px] text-white/40">
+                                Open the complete write-up
+                              </span>
+                            </span>
+                          </span>
+                          <FaChevronRight
+                            size={11}
+                            aria-hidden="true"
+                            className="theme-accent-soft-text transition-transform group-hover:translate-x-0.5"
+                          />
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-sm italic leading-6 text-white/45">
+                        You haven&apos;t written a review for this game yet.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex h-32 w-full items-center justify-center overflow-hidden p-3">
+                    {trackedGameData?.review?.sticker ? (
+                      <CommunityReviewSticker
+                        sticker={trackedGameData.review.sticker}
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center text-center text-white/25">
+                        <span className="text-2xl">⊘</span>
+                        <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em]">
+                          No sticker selected
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTrackingModalOpen(true)}
+                    disabled={!trackingModalGame}
+                    className="theme-accent-bg mt-4 w-full rounded-xl border px-4 py-2.5 text-sm font-bold shadow-[0_0_18px_rgba(var(--theme-accent-rgb),0.14)] transition hover:brightness-110 disabled:opacity-40"
+                  >
+                    {trackedGameData?.review?.text?.trim()
+                      ? "Edit my review"
+                      : `Write a review for ${game.name}`}
+                  </button>
                 </div>
-              )}
+              </aside>
             </div>
-            <aside className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/20 p-4 sm:p-5">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.09),transparent_48%)]" />
-              <div className="relative">
-                <header className="border-b border-white/10 pb-4">
-                  <div>
-                    <p className="text-[14px] font-bold uppercase tracking-[0.2em] text-[#67e8f9]">
-                      My Review
-                    </p>
-                    <p className="mt-1 text-xs font-normal text-white">
-                      for {game.name}
-                    </p>
+            {isCommunityLocked && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 p-5 backdrop-blur-md">
+                <div className="max-w-md text-center">
+                  <div className="theme-accent-soft-bg mx-auto grid h-14 w-14 place-items-center rounded-2xl border text-2xl">
+                    <FiClock aria-hidden="true" />
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <div className="flex flex-col items-center justify-center rounded-xl border border-white/12 bg-white/[0.055] px-3 py-3 text-center">
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                        Playtime
-                      </p>
-                      <p className="text-lg font-black text-[#67e8f9]">
-                        {trackedGameData?.playtime
-                          ? `${Number.isInteger(trackedGameData.playtime) ? trackedGameData.playtime : trackedGameData.playtime.toFixed(1)}h`
-                          : "0h"}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center justify-center rounded-xl border border-white/12 bg-white/[0.035] px-3 py-3 text-center">
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                        Played On
-                      </p>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-white">
-                        {normalizePlayedOn(trackedGameData?.playedOn).map(
-                          (platform) => (
-                            <PlayedOnPlatformIcon
-                              key={platform}
-                              value={platform}
-                              className="text-[#67e8f9]"
-                            />
-                          ),
-                        )}
-                        {formatPlayedOn(trackedGameData?.playedOn)}
-                      </p>
-                    </div>
-                  </div>
-                </header>
-
-                <p
-                  className={`py-4 whitespace-pre-wrap text-sm leading-6 text-white/55 ${trackedGameData?.review?.text?.trim() ? "" : "italic"}`}
-                >
-                  {trackedGameData?.review?.text?.trim() ||
-                    "You haven’t written a review for this game yet."}
-                </p>
-
-                <div className="flex w-full items-center justify-center overflow-hidden p-3">
-                  {trackedGameData?.review?.sticker ? (
-                    <CommunityReviewSticker
-                      sticker={trackedGameData.review.sticker}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center text-center text-white/25">
-                      <span className="text-2xl">⊘</span>
-                      <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em]">
-                        No sticker selected
-                      </span>
-                    </div>
+                  <p className="theme-accent-soft-text mt-4 text-[10px] font-bold uppercase tracking-[0.24em]">
+                    Community opens with access
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold text-white">
+                    Reviews are locked until release
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-white/55">
+                    The community becomes available when the game releases, or
+                    after you record Early Access or Advanced Access for this
+                    game.
+                  </p>
+                  {trackingModalGame && (
+                    <button
+                      type="button"
+                      onClick={() => setTrackingModalOpen(true)}
+                      className="theme-accent-bg mt-5 rounded-xl border px-4 py-2.5 text-sm font-bold transition hover:brightness-110"
+                    >
+                      Update game access
+                    </button>
                   )}
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setTrackingModalOpen(true)}
-                  disabled={!trackingModalGame}
-                  className="mt-4 w-full rounded-xl border border-[#67e8f9]/45 bg-[#22d3ee] px-4 py-2.5 text-sm font-bold text-black shadow-[0_0_18px_rgba(34,211,238,0.14)] transition hover:bg-[#67e8f9] disabled:opacity-40"
-                >
-                  {trackedGameData?.review?.text?.trim()
-                    ? "Edit my review"
-                    : `Write a review for ${game.name}`}
-                </button>
               </div>
-            </aside>
-            </div>
+            )}
           </div>
         </section>
 
@@ -3214,23 +3340,182 @@ export default function GamePage() {
 
               <motion.div
                 key="modal"
-                className="fixed inset-x-0 top-1/2 z-1000 mx-auto w-[94vw] max-w-2xl -translate-y-1/2 rounded-2xl border border-white/20 bg-black/75 p-4 shadow-2xl sm:w-[90vw] sm:p-5"
+                className="theme-panel-strong fixed inset-x-0 top-1/2 z-1000 mx-auto w-[94vw] max-w-2xl -translate-y-1/2 rounded-2xl border p-4 shadow-2xl sm:w-[90vw] sm:p-5"
                 initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 100, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 120, damping: 16 }}
               >
-                <p className="max-h-[72vh] overflow-y-auto pr-6 text-sm leading-relaxed text-white/85">
+                <p className="theme-text max-h-[72vh] overflow-y-auto pr-6 text-sm leading-relaxed opacity-85">
                   {description}
                 </p>
 
                 <button
                   onClick={() => setAboutOpen(false)}
-                  className="absolute right-3 top-3 text-white/70 hover:text-white"
+                  className="theme-text absolute right-3 top-3 opacity-70 transition hover:opacity-100"
                 >
                   <IoCloseCircle size={30} />
                 </button>
               </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {fullReviewOpen && trackedGameData?.review?.text?.trim() && (
+            <>
+              <motion.button
+                type="button"
+                aria-label="Close full review"
+                className="fixed inset-0 z-[1090] bg-black/75 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setFullReviewOpen(false)}
+              />
+              <motion.section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="full-review-title"
+                initial={{ opacity: 0, y: 28, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.98 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="theme-panel-strong fixed inset-x-3 top-1/2 z-[1100] mx-auto flex max-h-[88svh] w-auto max-w-4xl -translate-y-1/2 flex-col overflow-hidden rounded-2xl border shadow-[0_28px_90px_rgba(0,0,0,0.72)] sm:inset-x-6"
+              >
+                <header className="relative flex items-start justify-between gap-4 overflow-hidden border-b border-white/10 p-4 sm:p-6">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(var(--theme-accent-rgb),0.12),transparent_48%)]" />
+                  <div className="relative min-w-0">
+                    <p className="theme-accent-soft-text text-[10px] font-bold uppercase tracking-[0.22em]">
+                      My PlayCrew Review
+                    </p>
+                    <h2
+                      id="full-review-title"
+                      className="mt-1 truncate text-xl font-black text-white sm:text-2xl"
+                    >
+                      {game.name}
+                    </h2>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-white/45">
+                      <span>
+                        Posted{" "}
+                        {formatCommunityDate(trackedGameData.review.createdAt)}
+                      </span>
+                      <span aria-hidden="true">•</span>
+                      <span>
+                        Updated{" "}
+                        {formatCommunityDate(trackedGameData.review.updatedAt)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="relative flex shrink-0 items-start gap-2">
+                    <div className="theme-accent-soft-bg rounded-xl border px-3 py-2 text-center">
+                      <p className="theme-accent-soft-text text-2xl font-black leading-none">
+                        {typeof trackedGameData?.my_rating === "number"
+                          ? trackedGameData.my_rating.toFixed(1)
+                          : "—"}
+                        <span className="text-[10px] text-white/40">/10</span>
+                      </p>
+                      <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.12em] text-white/40">
+                        PlayCrew rating
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFullReviewOpen(false)}
+                      aria-label="Close full review"
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/[0.04] text-white/70 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <IoCloseCircle size={24} aria-hidden="true" />
+                    </button>
+                  </div>
+                </header>
+                <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
+                  <div className="mb-5 grid grid-cols-3 divide-x divide-white/10 border-y border-white/10 py-3 text-center">
+                    <div className="px-2">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
+                        Playtime
+                      </p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {trackedGameData?.playtime
+                          ? `${Number.isInteger(trackedGameData.playtime) ? trackedGameData.playtime : trackedGameData.playtime.toFixed(1)}h`
+                          : "0h"}
+                      </p>
+                    </div>
+                    <div className="px-2">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
+                        Status
+                      </p>
+                      <p className="mt-1 truncate text-sm font-black text-white">
+                        {trackedGameData?.status ?? "Not set"}
+                      </p>
+                    </div>
+                    <div className="px-2">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
+                        Progress
+                      </p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {trackedGameData?.progress ?? 0}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`grid gap-6 ${trackedGameData?.review?.sticker ? "md:grid-cols-[minmax(0,1fr)_260px]" : ""}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
+                        Full review
+                      </p>
+                      <p className="whitespace-pre-wrap text-sm leading-7 text-white/75 sm:text-base sm:leading-8">
+                        {trackedGameData.review.text.trim()}
+                      </p>
+
+                      <div className="mt-6 border-t border-white/10 pt-4">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/35">
+                          Played on
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {normalizePlayedOn(trackedGameData?.playedOn)
+                            .length ? (
+                            normalizePlayedOn(trackedGameData?.playedOn).map(
+                              (platform) => (
+                                <span
+                                  key={platform}
+                                  className="inline-flex items-center gap-2 rounded-lg border border-white/12 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/75"
+                                >
+                                  <PlayedOnPlatformIcon
+                                    value={platform}
+                                    className="theme-accent-soft-text"
+                                  />
+                                  {formatPlayedOn(platform)}
+                                </span>
+                              ),
+                            )
+                          ) : (
+                            <span className="text-xs text-white/40">
+                              Not set
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {trackedGameData?.review?.sticker && (
+                      <aside className="flex min-h-64 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                        <p className="theme-accent-soft-text mb-2 text-center text-[9px] font-bold uppercase tracking-[0.16em]">
+                          Review emotion
+                        </p>
+                        <div className="flex min-h-0 flex-1 items-center justify-center">
+                          <CommunityReviewSticker
+                            sticker={trackedGameData.review.sticker}
+                            large
+                          />
+                        </div>
+                      </aside>
+                    )}
+                  </div>
+                </div>
+              </motion.section>
             </>
           )}
         </AnimatePresence>

@@ -75,11 +75,13 @@ if (process.isMainFrame) {
     function mount() {
       const top = document.querySelector('.navbar-top-shell');
       const side = document.querySelector('.navbar-sidebar-shell');
+      const compactSlot = document.querySelector('[data-playcrew-desktop-controls-slot]');
       const mobile = [...document.querySelectorAll('nav')].find((nav) => nav !== top && nav !== side && nav.getBoundingClientRect().height > 0);
       const visible = (node) => node && getComputedStyle(node).display !== 'none';
+      const compactNavbar = window.matchMedia('(min-width: 640px) and (max-width: 1023px)').matches && visible(compactSlot);
       const gamingPill = document.documentElement.dataset.navbarLayout === 'sidebar';
-      const target = gamingPill ? document.body : visible(top) ? top : visible(side) ? side : mobile || document.body;
-      const mode = target === top ? 'top' : target === side ? 'sidebar' : target === document.body ? 'floating' : 'top';
+      const target = compactNavbar ? compactSlot : gamingPill ? document.body : visible(top) ? top : visible(side) ? side : mobile || document.body;
+      const mode = target === compactSlot ? 'compact' : target === top ? 'top' : target === side ? 'sidebar' : target === document.body ? 'floating' : 'top';
       if (controls.dataset.layout !== mode) controls.dataset.layout = mode;
       if (controls.parentElement !== target) target.append(controls);
       if (!drag.isConnected) document.body.append(drag);

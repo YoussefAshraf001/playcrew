@@ -3,8 +3,10 @@ import { GAME_STICKERS } from "../lib/gameStickers";
 
 export default function GameSticker({
   stickerId,
+  size = 120,
 }: {
   stickerId?: string | null;
+  size?: number;
 }) {
   const sticker = GAME_STICKERS.find((s) => s.id === stickerId);
 
@@ -16,8 +18,8 @@ export default function GameSticker({
     <Image
       src={sticker.image}
       alt={sticker.label}
-      width={120}
-      height={120}
+      width={size}
+      height={size}
       unoptimized={isAnimatedFormat}
       className="object-contain rounded-md"
     />

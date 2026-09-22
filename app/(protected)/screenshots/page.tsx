@@ -12,7 +12,7 @@ import {
   FaArrowRight,
   FaArrowLeft,
 } from "react-icons/fa";
-import { FiCheck, FiEdit2, FiPlus, FiTrash2, FiX } from "react-icons/fi";
+import { FiCheck, FiEdit2, FiMapPin, FiPlus, FiTrash2, FiX } from "react-icons/fi";
 import toast from "react-hot-toast";
 import {
   addDoc,
@@ -59,6 +59,7 @@ type Folder = {
   coverPublicId?: string | null;
   customCoverUrl?: string | null;
   customCoverPublicId?: string | null;
+  featured?: boolean;
   createdAt?: unknown;
 };
 
@@ -176,6 +177,7 @@ function ScreenshotsPageContent() {
   >(null);
   const [deletingFolder, setDeletingFolder] = useState(false);
   const [deletingFolderId, setDeletingFolderId] = useState<string | null>(null);
+  const [pinningFolderId, setPinningFolderId] = useState<string | null>(null);
   const [gamePickerOpen, setGamePickerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -448,11 +450,12 @@ function ScreenshotsPageContent() {
                 ...d.data(),
               }) as Folder,
           )
-          .sort((a, b) =>
-            (a.name ?? "").localeCompare(b.name ?? "", undefined, {
+          .sort((a, b) => {
+            if (a.featured !== b.featured) return a.featured ? -1 : 1;
+            return (a.name ?? "").localeCompare(b.name ?? "", undefined, {
               sensitivity: "base",
-            }),
-          );
+            });
+          });
 
         setFolders(next);
         setSelectedFolderId((prev) => {
@@ -1187,6 +1190,28 @@ function ScreenshotsPageContent() {
     setRenaming(true);
   };
 
+  const toggleFeaturedFolder = async (folder: Folder) => {
+    if (!user || pinningFolderId) return;
+
+    setPinningFolderId(folder.id);
+    try {
+      await updateDoc(
+        doc(db, "users", user.uid, "screenshotFolders", folder.id),
+        { featured: !folder.featured },
+      );
+      toast.success(
+        folder.featured
+          ? `${folder.name} is no longer pinned`
+          : `${folder.name} is now pinned`,
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not update pinned collection");
+    } finally {
+      setPinningFolderId(null);
+    }
+  };
+
   const rotateCarousel = (steps: number) => {
     if (!steps) return;
 
@@ -1548,9 +1573,13 @@ function ScreenshotsPageContent() {
                                   className={`absolute inset-0 overflow-hidden rounded-xl border bg-[var(--theme-surface-strong)] transition-[border-color,box-shadow] duration-200 ${
                                     isCarouselMoving
                                       ? "shadow-none"
-                                      : "shadow-[var(--theme-shadow)]"
+                                      : folder.featured
+                                        ? "shadow-[0_0_0_1px_rgba(var(--theme-accent-rgb),0.35),0_0_30px_rgba(var(--theme-accent-rgb),0.28),var(--theme-shadow)]"
+                                        : "shadow-[var(--theme-shadow)]"
                                   } ${
-                                    isSelected
+                                    folder.featured
+                                      ? "border-[var(--theme-accent-strong)] ring-2 ring-[rgba(var(--theme-accent-rgb),0.28)] ring-inset"
+                                      : isSelected
                                       ? "border-cyan-500/80"
                                       : "border-white/15"
                                   }`}
@@ -1559,6 +1588,42 @@ function ScreenshotsPageContent() {
                                     key={coverSrc}
                                     src={coverSrc}
                                   />
+                                  <button
+                                    type="button"
+                                    aria-pressed={folder.featured === true}
+                                    aria-label={
+                                      folder.featured
+                                        ? `Unpin ${folder.name}`
+                                        : `Pin ${folder.name}`
+                                    }
+                                    disabled={pinningFolderId !== null}
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      void toggleFeaturedFolder(folder);
+                                    }}
+                                    onKeyDown={(event) => event.stopPropagation()}
+                                    className={`group/pin absolute left-3 top-3 z-30 inline-flex h-9 items-center overflow-hidden rounded-xl border px-2.5 shadow-lg backdrop-blur-md transition-[max-width,background-color,border-color,color,opacity] duration-200 disabled:cursor-wait disabled:opacity-55 ${
+                                      folder.featured
+                                        ? "max-w-24 border-[rgba(var(--theme-accent-rgb),0.65)] bg-[rgba(var(--theme-accent-rgb),0.2)] text-[var(--theme-accent-strong)]"
+                                        : "max-w-9 border-white/25 bg-black/55 text-white/80 hover:max-w-20 hover:border-[rgba(var(--theme-accent-rgb),0.55)] hover:text-[var(--theme-accent-strong)] focus:max-w-20 focus:border-[rgba(var(--theme-accent-rgb),0.55)] focus:text-[var(--theme-accent-strong)]"
+                                    }`}
+                                  >
+                                    <FiMapPin
+                                      size={15}
+                                      className="shrink-0"
+                                      aria-hidden="true"
+                                    />
+                                    <span
+                                      className={`ml-1.5 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.1em] transition-[opacity,transform] duration-200 ease-out ${
+                                        folder.featured
+                                          ? "translate-x-0 opacity-100"
+                                          : "translate-x-1 opacity-0 delay-0 group-hover/pin:translate-x-0 group-hover/pin:opacity-100 group-hover/pin:delay-75 group-focus/pin:translate-x-0 group-focus/pin:opacity-100 group-focus/pin:delay-75"
+                                      }`}
+                                    >
+                                      {folder.featured ? "Pinned" : "Pin"}
+                                    </span>
+                                  </button>
                                   {isDeletingThisFolder && (
                                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
                                       <div className="rounded-xl border border-red-300/35 bg-[var(--theme-surface-strong)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">

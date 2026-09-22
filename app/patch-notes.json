@@ -1,9 +1,77 @@
 [
   {
+    "version": "2.1.6",
+    "title": "Game Pages, Screenshots & UI Polish",
+    "date": "2026-09-22",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Game Pages",
+        "items": [
+          "Updated Game ID pages so colors dynamically respond to the active theme",
+          "Added skeleton loading states and animations to Similar Games, screenshots, trailers, and the screenshot modal",
+          "Redesigned the Community section with a new look",
+          "Community features are now locked behind an informational overlay for unreleased games unless Early Access or Advanced Access is available",
+          "Similar Games now rotate automatically and reveal carousel controls on hover"
+        ]
+      },
+      {
+        "category": "Screenshots",
+        "items": [
+          "Added the ability to pin games in Screenshots",
+          "Screenshots can now be set directly as your PlayCrew site wallpaper",
+          "Added support for reordering your screenshots",
+          "Revamped the screenshot modal with an updated design and experience"
+        ]
+      },
+      {
+        "category": "Reviews",
+        "items": [
+          "Added a new review modal for viewing your full reviews",
+          "Revamped the My Review section with a new design"
+        ]
+      },
+      {
+        "category": "Navigation & Layout",
+        "items": [
+          "Revamped the mobile menu",
+          "Library content is now properly centered when the Gaming Pill sidebar is enabled",
+          "Applied the same centered layout behavior to Profile and Site Settings pages",
+          "On small and medium screens, Desktop controls now live directly in the mobile navbar beside the hamburger menu instead of inside the menu"
+        ]
+      },
+      {
+        "category": "Profiles",
+        "items": [
+          "Profile GIFs can now be cropped before saving, just like wallpapers"
+        ]
+      },
+      {
+        "category": "Themes",
+        "items": [
+          "Darkened the V2 Crimson Spider theme for a deeper overall appearance"
+        ]
+      },
+      {
+        "category": "Desktop App",
+        "items": [
+          "Moved the Desktop glimmer animation from its container directly onto the Desktop icon",
+          "Fixed an issue where notifications marked as read in the Desktop app could sometimes appear as new again when opening the website"
+        ]
+      },
+      {
+        "category": "Admin",
+        "items": [
+          "Made the Desktop App section collapsible with animated open and close transitions"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.5",
     "title": "A Smarter PlayCrew Desktop Installer",
     "date": "2026-09-19",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Desktop Installer",

@@ -22,6 +22,7 @@ export default function ScreenshotsCarousel({
   const [isHovered, setIsHovered] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [modalImageLoaded, setModalImageLoaded] = useState(false);
   const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
 
   const scrollPosRef = useRef(0);
@@ -55,6 +56,7 @@ export default function ScreenshotsCarousel({
 
   const handleOpenModal = (index: number) => {
     setActiveIndex(index);
+    setModalImageLoaded(false);
     setModalOpen(true);
   };
 
@@ -81,13 +83,17 @@ export default function ScreenshotsCarousel({
     }
   };
 
-  const handlePrev = () =>
+  const handlePrev = () => {
+    setModalImageLoaded(false);
     setActiveIndex(
       (prev) => (prev - 1 + screenshots.length) % screenshots.length,
     );
+  };
 
-  const handleNext = () =>
+  const handleNext = () => {
+    setModalImageLoaded(false);
     setActiveIndex((prev) => (prev + 1) % screenshots.length);
+  };
 
   const allScreenshots =
     screenshots.length > 1 ? [...screenshots, ...screenshots] : screenshots;
@@ -174,16 +180,36 @@ export default function ScreenshotsCarousel({
               </button>
 
               {/* Carousel image */}
-              <motion.img
-                key={activeIndex}
-                src={screenshots[activeIndex].image}
-                alt={`screenshot ${activeIndex + 1}`}
-                className="w-[70vw] h-[70vh] object-contain rounded-lg shadow-lg bg-black/40"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3 }}
-              />
+              <div className="relative h-[70vh] w-[90vw] max-w-[1400px] overflow-hidden rounded-lg bg-black/40 shadow-lg sm:w-[82vw] lg:w-[70vw]">
+                <AnimatePresence>
+                  {!modalImageLoaded && (
+                    <motion.div
+                      key={`skeleton-${activeIndex}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 overflow-hidden bg-zinc-900"
+                      aria-label="Loading screenshot"
+                    >
+                      <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_20%,rgba(255,255,255,0.08)_45%,transparent_70%)]" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <motion.img
+                  key={activeIndex}
+                  src={screenshots[activeIndex].image}
+                  alt={`screenshot ${activeIndex + 1}`}
+                  onLoad={() => setModalImageLoaded(true)}
+                  className="absolute inset-0 h-full w-full object-contain"
+                  initial={{ opacity: 0, scale: 0.985 }}
+                  animate={{
+                    opacity: modalImageLoaded ? 1 : 0,
+                    scale: modalImageLoaded ? 1 : 0.985,
+                  }}
+                  exit={{ opacity: 0, scale: 0.985 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                />
+              </div>
 
               {/* Navigation buttons */}
               <div className="absolute inset-x-0 flex justify-between top-1/2 transform -translate-y-1/2 px-4">

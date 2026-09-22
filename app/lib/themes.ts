@@ -26,7 +26,7 @@ export const THEME_PRESETS = [
     mode: "dark",
     name: "Crimson Spider — Black",
     description: "The same crimson style with true-black surfaces.",
-    swatches: ["#000000", "#030303", "#6f0000", "#b80000"],
+    swatches: ["#000000", "#030303", "#501010", "#781414"],
   },
   {
     id: "obsidian-ember",

@@ -1,7 +1,7 @@
 {
   "name": "playcrew-desktop",
   "productName": "PlayCrew",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "PlayCrew for Windows",
   "author": "PlayCrew",
   "private": true,
@@ -21,12 +21,26 @@
   "build": {
     "appId": "app.playcrew.desktop",
     "productName": "PlayCrew",
-    "directories": { "output": "dist", "buildResources": "assets" },
-    "files": ["src/**/*", "assets/icon.ico", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/icon.ico",
+      "package.json"
+    ],
     "asar": true,
     "npmRebuild": false,
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icon.ico",
       "artifactName": "PlayCrew-Setup-${version}-${arch}.${ext}"
     },

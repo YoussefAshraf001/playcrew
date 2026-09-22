@@ -645,7 +645,11 @@ export default function SiteSettingsPage() {
 
         <div className="relative z-10 mx-auto w-full max-w-[1900px] xl:h-[calc(100svh-4rem)]">
           {/* LAYOUT */}
-          <div className="grid gap-3 xl:h-full xl:grid-cols-3 xl:items-start">
+          <div
+            className={`grid gap-3 xl:h-full xl:grid-cols-3 ${
+              navbarLayout === "sidebar" ? "xl:items-center" : "xl:items-start"
+            }`}
+          >
             {/* THEMES */}
             <motion.section
               className="theme-panel-strong rounded-xl border p-3 xl:order-1 xl:max-h-full xl:overflow-y-auto"
@@ -748,7 +752,7 @@ export default function SiteSettingsPage() {
                                 }}
                                 className={`rounded-full px-2 py-1 transition ${
                                   resolvedThemePreset === preset
-                                    ? isCrimsonSpider ? "bg-red-700 text-white shadow-sm px-2.5" : "theme-accent-bg shadow-sm px-2.5"
+                                    ? isCrimsonSpider ? "bg-[var(--theme-accent)] text-white shadow-sm px-2.5" : "theme-accent-bg shadow-sm px-2.5"
                                     : "text-zinc-400 hover:bg-white/10 hover:text-white"
                                 }`}
                                 aria-pressed={resolvedThemePreset === preset}

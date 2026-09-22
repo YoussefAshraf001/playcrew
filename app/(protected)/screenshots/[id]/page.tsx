@@ -23,6 +23,7 @@ import {
   FaImage,
   FaRegStar,
   FaStar,
+  FaTimes,
   FaTrashAlt,
 } from "react-icons/fa";
 import {
@@ -62,6 +63,7 @@ type Shot = {
   url: string;
   publicId: string;
   favorite?: boolean;
+  order?: number;
   bytes?: number;
   createdAt?: unknown;
 };
@@ -259,12 +261,19 @@ export default function ScreenshotFolderPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<"all" | "favorites">("all");
   const [defaultTab, setDefaultTab] = useState<"all" | "favorites">("all");
-  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [sortOrder, setSortOrder] = useState<"manual" | "newest" | "oldest">(
+    "newest",
+  );
+  const [wallpaperSavingId, setWallpaperSavingId] = useState<string | null>(
+    null,
+  );
+  const [wallpaperConfirm, setWallpaperConfirm] = useState<Shot | null>(null);
 
   useEffect(() => {
     try {
+      const stored = localStorage.getItem(SORT_ORDER_KEY);
       setSortOrder(
-        localStorage.getItem(SORT_ORDER_KEY) === "oldest" ? "oldest" : "newest",
+        stored === "oldest" || stored === "manual" ? stored : "newest",
       );
     } catch {
       // Keep newest first when browser storage is unavailable.
@@ -297,6 +306,13 @@ export default function ScreenshotFolderPage() {
       activeTab === "favorites"
         ? shots.filter((shot) => shot.favorite === true)
         : shots;
+    if (sortOrder === "manual") {
+      return [...visible].sort(
+        (a, b) =>
+          (a.order ?? Number.MAX_SAFE_INTEGER) -
+          (b.order ?? Number.MAX_SAFE_INTEGER),
+      );
+    }
     return sortOrder === "oldest" ? [...visible].reverse() : visible;
   }, [shots, activeTab, sortOrder]);
   const favoriteShots = useMemo(
@@ -402,7 +418,9 @@ export default function ScreenshotFolderPage() {
     );
     const q = query(shotsRef, orderBy("createdAt", "desc"));
     const unsubscribeShots = onSnapshot(q, (snap) => {
-      const next = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Shot);
+      const next = snap.docs.map(
+        (d, index) => ({ id: d.id, order: index, ...d.data() }) as Shot,
+      );
       setShots(next);
     });
 
@@ -651,7 +669,7 @@ export default function ScreenshotFolderPage() {
         const localUrl = await saveImageLocally("screenshots", ["games", gameId, folderName, "screenshots", assetId], uploadFile);
         const shotsRef = collection(db, "users", user.uid, "screenshotFolders", folderId, "shots");
         const addedShotRef = await addDoc(shotsRef, {
-          url: localUrl, publicId: localUrl, favorite: false, bytes: uploadFile.size, createdAt: serverTimestamp(),
+          url: localUrl, publicId: localUrl, favorite: false, order: -Date.now(), bytes: uploadFile.size, createdAt: serverTimestamp(),
         });
         if (autoSetCover) {
           markCoverSet();
@@ -730,6 +748,7 @@ export default function ScreenshotFolderPage() {
         url: uploadJson.secure_url,
         publicId: uploadJson.public_id,
         favorite: false,
+        order: -Date.now(),
         bytes: uploadJson.bytes ?? uploadFile.size,
         createdAt: serverTimestamp(),
       });
@@ -1185,8 +1204,85 @@ export default function ScreenshotFolderPage() {
     }
   };
 
+  const moveScreenshot = async (shotId: string, direction: -1 | 1) => {
+    if (!user || !folderId) return;
+
+    const ordered = [...shots].sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) -
+        (b.order ?? Number.MAX_SAFE_INTEGER),
+    );
+    const currentIndex = ordered.findIndex((shot) => shot.id === shotId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ordered.length) {
+      return;
+    }
+
+    [ordered[currentIndex], ordered[targetIndex]] = [
+      ordered[targetIndex],
+      ordered[currentIndex],
+    ];
+    setSortOrder("manual");
+    setCurrentPage(1);
+    try {
+      localStorage.setItem(SORT_ORDER_KEY, "manual");
+      await Promise.all(
+        ordered.map((shot, order) =>
+          updateDoc(
+            doc(
+              db,
+              "users",
+              user.uid,
+              "screenshotFolders",
+              folderId,
+              "shots",
+              shot.id,
+            ),
+            { order },
+          ),
+        ),
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not reorder screenshots");
+    }
+  };
+
+  const setScreenshotAsWallpaper = async (shot: Shot) => {
+    if (!user || wallpaperSavingId) return;
+
+    setWallpaperSavingId(shot.id);
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        wallpaper: {
+          type: "image",
+          data: shot.url,
+          name: `${folder?.name ?? "Game"} screenshot`,
+        },
+      });
+      toast.success("Screenshot set as site wallpaper");
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not set site wallpaper");
+    } finally {
+      setWallpaperSavingId(null);
+    }
+  };
+
+  const confirmWallpaperAction = async () => {
+    if (!wallpaperConfirm || wallpaperSavingId) return;
+    await setScreenshotAsWallpaper(wallpaperConfirm);
+    setWallpaperConfirm(null);
+  };
+
   const renderShotCard = (shot: Shot, tone: "favorite" | "regular") => {
     const idx = shotIndexById.get(shot.id) ?? -1;
+    const manualOrder = [...shots].sort(
+      (a, b) =>
+        (a.order ?? Number.MAX_SAFE_INTEGER) -
+        (b.order ?? Number.MAX_SAFE_INTEGER),
+    );
+    const manualIndex = manualOrder.findIndex((item) => item.id === shot.id);
     const activeCoverPublicId =
       folder?.customCoverPublicId ?? folder?.coverPublicId ?? null;
     const activeCoverSourceShotId = folder?.customCoverPublicId
@@ -1244,14 +1340,61 @@ export default function ScreenshotFolderPage() {
             )}
           </button>
           {!selectionMode && (
-            <div className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 motion-reduce:transition-none">
+            <div className="absolute right-2 top-2 z-20 flex items-center gap-2 opacity-100 transition-opacity duration-200 sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 motion-reduce:transition-none">
+              <div className="flex overflow-hidden rounded-lg border border-white/20 bg-black/75 backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={() => void moveScreenshot(shot.id, -1)}
+                  disabled={manualIndex <= 0}
+                  aria-label="Move screenshot earlier"
+                  title="Move earlier"
+                  className="group/control inline-flex h-9 max-w-8 items-center overflow-hidden px-2 text-white transition-[max-width,background-color] duration-200 hover:max-w-24 hover:bg-white/15 focus-visible:max-w-24 disabled:opacity-30"
+                >
+                  <FaChevronUp size={12} className="shrink-0" aria-hidden="true" />
+                  <span className="ml-1.5 translate-x-1 whitespace-nowrap text-[10px] font-semibold opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                    Earlier
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void moveScreenshot(shot.id, 1)}
+                  disabled={
+                    manualIndex < 0 || manualIndex >= manualOrder.length - 1
+                  }
+                  aria-label="Move screenshot later"
+                  title="Move later"
+                  className="group/control inline-flex h-9 max-w-8 items-center overflow-hidden border-l border-white/15 px-2 text-white transition-[max-width,background-color] duration-200 hover:max-w-20 hover:bg-white/15 focus-visible:max-w-20 disabled:opacity-30"
+                >
+                  <FaChevronDown size={12} className="shrink-0" aria-hidden="true" />
+                  <span className="ml-1.5 translate-x-1 whitespace-nowrap text-[10px] font-semibold opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                    Later
+                  </span>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWallpaperConfirm(shot)}
+                disabled={wallpaperSavingId !== null}
+                aria-label="Set screenshot as site wallpaper"
+                title="Set as site wallpaper"
+                className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-cyan-300/35 bg-black/75 px-2.5 text-cyan-200 backdrop-blur-sm transition-[max-width,background-color] duration-200 hover:max-w-28 hover:bg-black/90 focus-visible:max-w-28 disabled:opacity-45"
+              >
+                {wallpaperSavingId === shot.id ? (
+                  <span className="loading loading-spinner loading-xs" />
+                ) : (
+                  <FaImage size={13} className="shrink-0" aria-hidden="true" />
+                )}
+                <span className="ml-1.5 translate-x-1 whitespace-nowrap text-[10px] font-semibold opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                  Wallpaper
+                </span>
+              </button>
               <button
                 type="button"
                 onClick={() => toggleShotFavorite(shot)}
                 aria-label={shot.favorite ? "Remove from favorites" : "Add to favorites"}
                 title={shot.favorite ? "Remove from favorites" : "Add to favorites"}
                 aria-pressed={shot.favorite === true}
-                className={`group/favorite inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-black/75 backdrop-blur-sm transition-colors duration-500 ease-in-out hover:border-[#D4AF37]/80 hover:text-[#FFD76A] focus-visible:text-[#FFD76A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] motion-reduce:transition-none ${
+                className={`group/favorite inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border bg-black/75 px-2.5 backdrop-blur-sm transition-[max-width,border-color,color,background-color] duration-300 ease-in-out hover:max-w-24 hover:border-[#D4AF37]/80 hover:text-[#FFD76A] focus-visible:max-w-24 focus-visible:text-[#FFD76A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] motion-reduce:transition-none ${
                   shot.favorite
                     ? "border-[#D4AF37]/60 text-[#D4AF37] hover:bg-black/90"
                     : "border-white/20 text-white hover:bg-black/90"
@@ -1261,15 +1404,21 @@ export default function ScreenshotFolderPage() {
                   <FaRegStar size={14} className="absolute inset-0" />
                   <FaStar size={14} className={`absolute inset-0 text-[#FFD76A] transition-opacity duration-700 ease-in-out group-hover/favorite:opacity-100 group-focus-visible/favorite:opacity-100 motion-reduce:transition-none ${shot.favorite ? "opacity-100" : "opacity-0"}`} />
                 </span>
+                <span className="ml-1.5 translate-x-1 whitespace-nowrap text-[10px] font-semibold opacity-0 transition-[opacity,transform] duration-200 group-hover/favorite:translate-x-0 group-hover/favorite:opacity-100 group-focus-visible/favorite:translate-x-0 group-focus-visible/favorite:opacity-100">
+                  {shot.favorite ? "Favorited" : "Favorite"}
+                </span>
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteConfirm({ mode: "single", shot })}
                 aria-label="Delete screenshot"
                 title="Delete screenshot"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-300/35 bg-black/75 text-red-200 backdrop-blur-sm transition hover:bg-red-950/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-red-300/35 bg-black/75 px-2.5 text-red-200 backdrop-blur-sm transition-[max-width,background-color] duration-200 hover:max-w-20 hover:bg-red-950/90 focus-visible:max-w-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <FaTrashAlt size={13} />
+                <FaTrashAlt size={13} className="shrink-0" />
+                <span className="ml-1.5 translate-x-1 whitespace-nowrap text-[10px] font-semibold opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                  Delete
+                </span>
               </button>
             </div>
           )}
@@ -1530,8 +1679,11 @@ export default function ScreenshotFolderPage() {
                   <select
                     value={sortOrder}
                     onChange={(event) => {
+                      const value = event.target.value;
                       const order =
-                        event.target.value === "oldest" ? "oldest" : "newest";
+                        value === "oldest" || value === "manual"
+                          ? value
+                          : "newest";
                       setSortOrder(order);
                       setCurrentPage(1);
                       setViewerIndex(null);
@@ -1545,6 +1697,7 @@ export default function ScreenshotFolderPage() {
                     }}
                     className="rounded-lg bg-zinc-900 p-2"
                   >
+                    <option value="manual">Manual order</option>
                     <option value="newest">Newest to oldest</option>
                     <option value="oldest">Oldest to newest</option>
                   </select>
@@ -1682,6 +1835,77 @@ export default function ScreenshotFolderPage() {
         )}
       </AnimatePresence>
       <AnimatePresence>
+        {wallpaperConfirm && (
+          <motion.div
+            className="fixed inset-0 z-[1600] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => {
+              if (!wallpaperSavingId) setWallpaperConfirm(null);
+            }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="wallpaper-confirm-title"
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.97 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              onClick={(event) => event.stopPropagation()}
+              className="theme-panel-strong w-full max-w-md overflow-hidden rounded-2xl border border-[var(--theme-border)] shadow-[var(--theme-shadow)]"
+            >
+              <div className="relative aspect-video overflow-hidden bg-black/35">
+                <FadeInImage
+                  src={wallpaperConfirm.url}
+                  alt="Wallpaper preview"
+                  wrapperClassName="absolute inset-0 h-full w-full"
+                  imgClassName="h-full w-full object-cover"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/65 via-transparent to-transparent" />
+                <span className="theme-accent-soft-bg absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] backdrop-blur-md">
+                  <FaImage size={11} aria-hidden="true" /> Site wallpaper
+                </span>
+              </div>
+              <div className="p-4 sm:p-5">
+                <h3
+                  id="wallpaper-confirm-title"
+                  className="theme-text text-lg font-bold"
+                >
+                  Set this screenshot as your wallpaper?
+                </h3>
+                <p className="theme-text-muted mt-2 text-sm leading-6">
+                  This will replace the wallpaper currently used across the site.
+                </p>
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={wallpaperSavingId !== null}
+                    onClick={() => setWallpaperConfirm(null)}
+                    className="theme-surface theme-hover-surface rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={wallpaperSavingId !== null}
+                    onClick={() => void confirmWallpaperAction()}
+                    className="theme-accent-bg inline-flex min-w-32 items-center justify-center rounded-lg border px-4 py-2 text-sm font-bold transition hover:brightness-110 disabled:opacity-50"
+                  >
+                    {wallpaperSavingId ? (
+                      <span className="loading loading-spinner loading-sm" />
+                    ) : (
+                      "Set wallpaper"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
         {coverCropShot && (
           <motion.div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
@@ -1755,43 +1979,90 @@ export default function ScreenshotFolderPage() {
       <AnimatePresence>
         {viewerShot && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 mt-14"
+            className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/90 p-2 backdrop-blur-md sm:p-5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={() => setViewerIndex(null)}
           >
-            <div
-              className="relative flex max-h-[96vh] w-full max-w-[1320px] flex-col gap-3"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.985, y: 8 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="theme-panel-strong relative flex h-full max-h-[calc(100svh-1rem)] w-full max-w-[1500px] flex-col overflow-hidden rounded-2xl border p-2 shadow-[0_28px_100px_rgba(0,0,0,0.7)] sm:max-h-[calc(100svh-2.5rem)] sm:p-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="absolute right-2 top-2 z-20 flex items-center gap-2 px-4 py-2 bg-zinc-900/85 rounded-2xl">
+              <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-1 pb-3 sm:px-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-zinc-100">
+                    {folder?.name ?? "Screenshot"}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-zinc-400">
+                    {viewerIndex !== null ? viewerIndex + 1 : 0} of {sortedShots.length}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWallpaperConfirm(viewerShot)}
+                  disabled={wallpaperSavingId !== null}
+                  aria-label="Set screenshot as site wallpaper"
+                  title="Set as site wallpaper"
+                  className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-cyan-300/35 bg-cyan-500/15 px-2.5 text-xs font-semibold text-cyan-100 transition-[max-width,background-color] duration-200 hover:max-w-28 hover:bg-cyan-500/25 focus-visible:max-w-28 disabled:opacity-45"
+                >
+                  {wallpaperSavingId === viewerShot.id ? (
+                    <span className="loading loading-spinner loading-xs" />
+                  ) : (
+                    <FaImage size={11} className="shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="ml-1.5 translate-x-1 whitespace-nowrap opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                    Wallpaper
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => toggleShotFavorite(viewerShot)}
-                  className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-2 text-xs font-semibold transition ${
+                  className={`group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border px-2.5 text-xs font-semibold transition-[max-width,background-color] duration-200 hover:max-w-24 focus-visible:max-w-24 ${
                     viewerShot.favorite
                       ? "border-amber-300/35 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
                       : "border-white/50 bg-black text-zinc-100 hover:bg-black/75"
                   }`}
                 >
                   {viewerShot.favorite ? (
-                    <FaStar size={11} />
+                    <FaStar size={11} className="shrink-0" />
                   ) : (
-                    <FaRegStar size={11} />
+                    <FaRegStar size={11} className="shrink-0" />
                   )}
+                  <span className="ml-1.5 translate-x-1 whitespace-nowrap opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                    {viewerShot.favorite ? "Favorited" : "Favorite"}
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() =>
                     setDeleteConfirm({ mode: "single", shot: viewerShot })
                   }
-                  className="inline-flex items-center gap-1 rounded-lg border border-red-300/35 bg-red-500/15 px-2.5 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/25"
+                  className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-red-300/35 bg-red-500/15 px-2.5 text-xs font-semibold text-red-200 transition-[max-width,background-color] duration-200 hover:max-w-20 hover:bg-red-500/25 focus-visible:max-w-20"
                 >
-                  <FaTrashAlt size={11} />
+                  <FaTrashAlt size={11} className="shrink-0" />
+                  <span className="ml-1.5 translate-x-1 whitespace-nowrap opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                    Delete
+                  </span>
                 </button>
-              </div>
-              <div className="relative flex min-h-0 flex-1 items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => setViewerIndex(null)}
+                  aria-label="Close screenshot viewer"
+                  title="Close"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/[0.04] text-zinc-200 transition hover:bg-white/10"
+                >
+                  <FaTimes size={13} aria-hidden="true" />
+                </button>
+                </div>
+              </header>
+              <div className="relative my-2 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl bg-black/45 sm:my-3">
                 {sortedShots.length > 1 && (
                   <button
                     type="button"
@@ -1803,13 +2074,14 @@ export default function ScreenshotFolderPage() {
                         );
                       })
                     }
-                    className="absolute left-2 z-10 rounded-full border border-white/20 bg-black/60 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black/80"
+                    aria-label="Previous screenshot"
+                    className="absolute left-2 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-black/65 text-white shadow-lg transition hover:bg-black/90 sm:left-4"
                   >
                     <FaArrowLeft />
                   </button>
                 )}
                 <motion.div
-                  className="max-h-[82vh] max-w-[96vw] rounded-lg object-contain shadow-[0_18px_45px_rgba(0,0,0,0.65)]"
+                  className="flex h-full w-full items-center justify-center"
                   initial={{ scale: 0.96, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.98, opacity: 0 }}
@@ -1819,8 +2091,8 @@ export default function ScreenshotFolderPage() {
                     src={viewerShot.url}
                     alt="Screenshot preview"
                     loading="eager"
-                    wrapperClassName="max-h-[82vh] max-w-[96vw] overflow-hidden rounded-lg"
-                    imgClassName="max-h-[82vh] max-w-[96vw] object-contain"
+                    wrapperClassName="flex h-full w-full items-center justify-center overflow-hidden rounded-lg"
+                    imgClassName="max-h-full max-w-full object-contain"
                   />
                 </motion.div>
                 {sortedShots.length > 1 && (
@@ -1832,21 +2104,22 @@ export default function ScreenshotFolderPage() {
                         return (prev + 1) % sortedShots.length;
                       })
                     }
-                    className="absolute right-2 z-10 rounded-full border border-white/20 bg-black/60 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black/80"
+                    aria-label="Next screenshot"
+                    className="absolute right-2 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-black/65 text-white shadow-lg transition hover:bg-black/90 sm:right-4"
                   >
                     <FaArrowRight />
                   </button>
                 )}
               </div>
               {sortedShots.length > 1 && (
-                <div className="overflow-x-auto rounded-lg border border-white/10 bg-black/45 p-2">
-                  <div className="flex justify-center gap-2">
+                <div className="shrink-0 overflow-x-auto rounded-xl border border-white/10 bg-black/35 p-2">
+                  <div className="flex w-max min-w-full justify-center gap-2">
                     {sortedShots.map((shot, idx) => (
                       <button
                         key={`thumb-${shot.id}`}
                         type="button"
                         onClick={() => setViewerIndex(idx)}
-                        className={`h-16 w-28 shrink-0 overflow-hidden rounded-md border transition ${
+                        className={`h-14 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-16 sm:w-28 ${
                           viewerIndex === idx
                             ? "border-cyan-500/70"
                             : "border-white/15 hover:border-white/40"
@@ -1863,7 +2136,7 @@ export default function ScreenshotFolderPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

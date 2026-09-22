@@ -22,6 +22,7 @@ import {
 } from "@dnd-kit/sortable";
 import Link from "next/link";
 import {
+  arrayUnion,
   collection,
   doc,
   deleteDoc,
@@ -32,6 +33,7 @@ import {
   orderBy,
   query,
   runTransaction,
+  serverTimestamp,
   setDoc,
   Timestamp,
   updateDoc,
@@ -767,24 +769,74 @@ export default function GamesPage() {
     }
 
     const stored = window.localStorage.getItem(recentReadStorageKey);
-    if (stored === null) {
-      const baseline = new Set(
-        recentGamesWithSummary.map(getRecentActivityKey),
-      );
-      window.localStorage.setItem(
-        recentReadStorageKey,
-        JSON.stringify([...baseline]),
-      );
-      setReadRecentActivityKeys(baseline);
-    } else {
+    let localKeys: string[] | null = null;
+    if (stored !== null) {
       try {
-        setReadRecentActivityKeys(new Set(JSON.parse(stored) as string[]));
+        localKeys = JSON.parse(stored) as string[];
       } catch {
-        setReadRecentActivityKeys(new Set());
+        localKeys = [];
       }
     }
 
-    setRecentReadStateHydrated(true);
+    const readStateRef = doc(db, "users", uid!);
+
+    return onSnapshot(
+      readStateRef,
+      (snapshot) => {
+        const cloudKeys = snapshot.exists()
+          ? ((snapshot.data().recentActivityReadKeys as
+              | string[]
+              | undefined) ?? [])
+          : [];
+        if (
+          snapshot.metadata.fromCache &&
+          localKeys === null &&
+          cloudKeys.length === 0
+        ) {
+          setRecentReadStateHydrated(false);
+          return;
+        }
+        const baseline =
+          localKeys === null && !snapshot.exists()
+            ? recentGamesWithSummary.map(getRecentActivityKey)
+            : [];
+        const merged = new Set([...cloudKeys, ...(localKeys ?? []), ...baseline]);
+
+        setReadRecentActivityKeys(merged);
+        window.localStorage.setItem(
+          recentReadStorageKey,
+          JSON.stringify([...merged]),
+        );
+        setRecentReadStateHydrated(true);
+
+        const missingFromCloud = [...merged].filter(
+          (key) => !cloudKeys.includes(key),
+        );
+        if (!snapshot.exists() || missingFromCloud.length > 0) {
+          void setDoc(
+            readStateRef,
+            {
+              recentActivityReadKeys:
+                missingFromCloud.length > 0
+                  ? arrayUnion(...missingFromCloud)
+                  : [],
+              recentActivityReadUpdatedAt: serverTimestamp(),
+            },
+            { merge: true },
+          ).catch((error) => {
+            console.error("Failed to sync notification read state", error);
+          });
+        }
+      },
+      (error) => {
+        console.error("Failed to load notification read state", error);
+        const fallback = new Set(
+          localKeys ?? recentGamesWithSummary.map(getRecentActivityKey),
+        );
+        setReadRecentActivityKeys(fallback);
+        setRecentReadStateHydrated(true);
+      },
+    );
   }, [gamesLoading, recentReadStorageKey, recentGamesWithSummary]);
 
   const saveReadRecentActivityKeys = (keys: Set<string>) => {
@@ -794,6 +846,18 @@ export default function GamesPage() {
         recentReadStorageKey,
         JSON.stringify([...keys]),
       );
+    }
+    if (uid && keys.size > 0) {
+      void setDoc(
+        doc(db, "users", uid),
+        {
+          recentActivityReadKeys: arrayUnion(...keys),
+          recentActivityReadUpdatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ).catch((error) => {
+        console.error("Failed to save notification read state", error);
+      });
     }
   };
 
@@ -1542,9 +1606,13 @@ export default function GamesPage() {
           {/* <div
            className={`max-w-[1850px] mx-auto flex flex-col gap-4 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6`}
          > */}
-          <motion.div className="relative z-20">
+          <motion.div className="relative z-20 lg:h-full">
             <div
-              className={`max-w-[1850px] mx-auto flex flex-col gap-4 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6`}
+              className={`mx-auto flex max-w-[1850px] flex-col gap-4 sm:px-4 md:px-5 lg:h-full lg:min-h-0 lg:flex-row lg:gap-8 lg:px-6 ${
+                navbarLayout === "sidebar"
+                  ? "lg:items-center lg:justify-center"
+                  : ""
+              }`}
             >
               {/* Left Panel (Stats) */}
               <div className="w-full lg:w-72 lg:h-[calc(100svh-4.5rem)] shrink-0 px-4 relative z-10 pt-3">

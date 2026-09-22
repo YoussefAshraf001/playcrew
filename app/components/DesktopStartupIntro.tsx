@@ -82,7 +82,15 @@ export default function DesktopStartupIntro() {
             initial={{ x: "-160%", opacity: 0 }}
             animate={{ x: "190%", opacity: [0, 0.8, 0] }}
             transition={{ duration: 0.9, delay: 2.3, ease: "easeInOut" }}
-          />
+          >
+            <Image
+              className={styles.sweepLogo}
+              src="/logo.png"
+              alt=""
+              width={168}
+              height={168}
+            />
+          </motion.div>
         </div>
 
         <motion.div

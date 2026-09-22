@@ -1,7 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { FaWindows } from "react-icons/fa";
+import { FiChevronDown } from "react-icons/fi";
 
 export const DESKTOP_VERSION = "0.1.2";
 export const DESKTOP_DOWNLOAD_URL =
@@ -19,6 +21,7 @@ export default function DesktopDownload({
   onClick?: () => void;
 }) {
   const desktop = useSyncExternalStore(subscribe, isDesktop, serverSnapshot);
+  const [isOpen, setIsOpen] = useState(true);
   if (desktop) return null;
 
   const icon = <FaWindows className="shrink-0" aria-hidden="true" />;
@@ -54,12 +57,33 @@ export default function DesktopDownload({
         className="theme-panel-strong hidden lg:block min-w-0 rounded-xl border p-3"
         aria-labelledby="desktop-app-heading"
       >
-        <h2
-          id="desktop-app-heading"
-          className="theme-text flex items-center gap-2 text-base font-semibold"
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls="desktop-app-download-content"
+          onClick={() => setIsOpen((open) => !open)}
+          className="theme-text flex w-full items-center justify-between gap-3 text-left text-base font-semibold"
         >
-          {icon} Desktop App
-        </h2>
+          <span id="desktop-app-heading" className="flex items-center gap-2">
+            {icon} Desktop App
+          </span>
+          <motion.span
+            animate={{ rotate: isOpen ? 180 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <FiChevronDown aria-hidden="true" />
+          </motion.span>
+        </button>
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              id="desktop-app-download-content"
+              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: "easeInOut" }}
+            >
         <p className="theme-text-muted mt-2 text-xs leading-relaxed">
           Keep PlayCrew on your desktop, with music in the background and quick
           access from the system tray.
@@ -74,6 +98,9 @@ export default function DesktopDownload({
         <p className="theme-text-muted mt-2 text-[11px] leading-relaxed">
           Version {DESKTOP_VERSION} · Windows 64-bit · 112 MB
         </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
     );
   }

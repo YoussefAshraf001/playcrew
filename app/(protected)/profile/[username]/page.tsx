@@ -45,7 +45,11 @@ import AnimatedField from "@/app/components/AnimatedField";
 import Textarea from "@/app/components/Textarea";
 import CropModal from "@/app/components/CropModal";
 import ImageOverlay from "@/app/components/ImageOverlay";
-import { saveImageLocally, shouldSaveImageLocally, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
+import {
+  saveImageLocally,
+  shouldSaveImageLocally,
+  toLocalPathSegment,
+} from "@/app/lib/desktopImageStorage";
 import {
   FiCamera,
   FiCheck,
@@ -84,12 +88,27 @@ type UserProfile = {
 
 type UploadKind = "avatar" | "wallpaper";
 
+const usesTransformCrop = (file: File) =>
+  file.type === "image/gif" ||
+  file.type === "image/webp" ||
+  file.type === "image/apng" ||
+  /\.(gif|webp|apng)$/i.test(file.name);
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Could not read image"));
+    reader.readAsDataURL(file);
+  });
+
 /* ---------------- COMPONENT ---------------- */
 
 export default function EditProfilePage() {
   const { user, profile, setProfile, loading, isAdmin } = useUser();
   const router = useRouter();
-  const { startRouteLoading } = useUI();
+  const { startRouteLoading, navbarLayout } = useUI();
   const { open } = useAuthModal();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -261,33 +280,11 @@ export default function EditProfilePage() {
   /* ---------------- IMAGE ---------------- */
 
   const onSelectImage = (file: File, type: "avatar" | "wallpaper") => {
-    const isGif = file.type === "image/gif";
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (isGif) {
-        // ⛔ no real crop — store transform instead
-        setDraft((p) => ({
-          ...(p ?? profile),
-          [type]: {
-            type: "gif",
-            data: reader.result as string,
-            crop: { x: 0, y: 0, zoom: 1 },
-          },
-        }));
-
-        toast("GIF crop is applied live", { icon: "🎞️" });
-        return;
-      }
-
-      // normal image → open crop modal
-      setSelectedFile(file);
-      setCropType(type);
-      setCrop({ x: 0, y: 0 });
-      setZoom(1);
-    };
-
-    reader.readAsDataURL(file);
+    setSelectedFile(file);
+    setCropType(type);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedPixels(null);
   };
 
   const cancelCrop = () => {
@@ -299,25 +296,28 @@ export default function EditProfilePage() {
   };
 
   const saveCrop = async () => {
-    if (!cropType) return;
+    if (!cropType || !selectedFile) return;
 
-    const isGif = selectedFile?.type === "image/gif";
+    const preserveAnimation = usesTransformCrop(selectedFile);
 
-    if (isGif) {
+    if (preserveAnimation) {
+      const data = await readFileAsDataUrl(selectedFile);
       setDraft((p) => ({
         ...(p ?? profile),
         [cropType]: {
-          ...(p?.[cropType] as any),
+          type: "gif",
+          data,
           crop: { x: crop.x, y: crop.y, zoom },
+          name: selectedFile.name,
         },
       }));
 
-      toast.success("GIF crop applied");
+      toast.success("Animated image crop applied");
     } else {
-      // existing image crop
+      if (!croppedPixels) return;
       const base64 = await getCroppedImg(
-        URL.createObjectURL(selectedFile!),
-        croppedPixels!,
+        URL.createObjectURL(selectedFile),
+        croppedPixels,
         cropType === "wallpaper" ? 3840 : 1280,
         cropType === "wallpaper" ? 0.92 : 0.7,
         cropType === "wallpaper" ? 1920 : undefined,
@@ -362,10 +362,17 @@ export default function EditProfilePage() {
       if (!media.data.startsWith("data:")) return media;
 
       const category = kind === "avatar" ? "profileImage" : "wallpaper";
-      if (isAdmin && await shouldSaveImageLocally(category)) {
-        const username = toLocalPathSegment(draft?.username ?? profile?.username ?? user!.uid, "user");
+      if (isAdmin && (await shouldSaveImageLocally(category))) {
+        const username = toLocalPathSegment(
+          draft?.username ?? profile?.username ?? user!.uid,
+          "user",
+        );
         const filename = kind === "avatar" ? "profile-image" : "wallpaper";
-        const data = await saveImageLocally(category, ["profile", username, filename], media.data);
+        const data = await saveImageLocally(
+          category,
+          ["profile", username, filename],
+          media.data,
+        );
         return { ...media, data };
       }
 
@@ -806,7 +813,9 @@ export default function EditProfilePage() {
   return (
     <>
       <motion.main
-        className="page-top-offset relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-3 pt-20 sm:px-6 lg:px-8"
+        className={`page-top-offset relative min-h-screen overflow-hidden bg-[var(--theme-bg)] px-3 pt-20 sm:px-6 lg:px-8 ${
+          navbarLayout === "sidebar" ? "xl:flex xl:items-center xl:py-6" : ""
+        }`}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
@@ -847,7 +856,7 @@ export default function EditProfilePage() {
               {active?.wallpaper?.data ? (
                 <img
                   src={active.wallpaper.data}
-                  alt="Profile wallpaper"
+                  alt=""
                   className="h-full w-full object-cover"
                   style={
                     active.wallpaper.type === "gif" && active.wallpaper.crop

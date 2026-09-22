@@ -148,8 +148,18 @@ export default function Navbar() {
       },
     },
   ];
-  const mobileMainLabels = ["Dashboard", "Library", "Calendar", "Screenshots"];
-  const mobileExtraLabels = ["Explore", "For You", "Shelf", "Friends"];
+  const mobileMainLabels = [
+    "Dashboard",
+    "Library",
+    "Releases Calendar",
+    "Screenshots",
+  ];
+  const mobileExtraLabels = [
+    "Explore",
+    "For You",
+    "PlayCrew Awards",
+    "Friends",
+  ];
   const mobileMainItems = navItems.filter((item) =>
     mobileMainLabels.includes(item.label),
   );
@@ -271,15 +281,19 @@ export default function Navbar() {
                 </span>
               </Link>
               <div className="flex items-center gap-2">
-              <DesktopDownload variant="widget" />
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen((prev) => !prev)}
-                className="theme-surface theme-hover-surface inline-flex h-9 w-9 items-center justify-center rounded-full border transition"
-                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-              >
-                {mobileMenuOpen ? <FaTimes /> : <FaBars />}
-              </button>
+                <DesktopDownload variant="widget" />
+                <div
+                  data-playcrew-desktop-controls-slot
+                  className="hidden shrink-0 items-center sm:flex lg:hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen((prev) => !prev)}
+                  className="theme-surface theme-hover-surface inline-flex h-9 w-9 items-center justify-center rounded-full border transition"
+                  aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                >
+                  {mobileMenuOpen ? <FaTimes /> : <FaBars />}
+                </button>
               </div>
             </div>
           </motion.nav>
@@ -1257,14 +1271,50 @@ export default function Navbar() {
       <AnimatePresence>
         {mobileMenuOpen && !isDashboard && (
           <>
+            <motion.button
+              type="button"
+              aria-label="Close mobile menu"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileMenuOpen(false)}
+              className="fixed inset-0 z-1300 bg-black/65 backdrop-blur-sm lg:hidden"
+            />
             <motion.aside
-              initial={{ opacity: 0, y: -14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -14 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="theme-panel-strong fixed left-2 right-2 top-14 z-1310 rounded-2xl border p-3 shadow-[0_20px_60px_rgba(0,0,0,0.55)] lg:hidden"
+              initial={{ opacity: 0, x: 36 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 36 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              aria-label="Mobile navigation"
+              className="theme-panel-strong fixed inset-y-0 right-0 z-1310 flex w-[min(92vw,420px)] flex-col overflow-hidden border-l shadow-[-24px_0_70px_rgba(0,0,0,0.58)] lg:hidden"
             >
-              <div className="space-y-3">
+              <header className="flex shrink-0 items-center gap-3 border-b border-[var(--theme-border)] px-4 py-4">
+                <div className="theme-accent-soft-bg grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl border">
+                  {avatarSrc ? (
+                    <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <GiGamepad className="text-lg" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="theme-text text-sm font-bold">
+                    {profile?.username ? `@${profile.username}` : "PlayCrew"}
+                  </p>
+                  <p className="theme-text-muted truncate text-xs">
+                    {profile ? "Navigation and account" : "Explore your games"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="theme-surface theme-hover-surface grid h-10 w-10 place-items-center rounded-xl border"
+                >
+                  <FaTimes aria-hidden="true" />
+                </button>
+              </header>
+
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
                 <div>
                   <p className="theme-text-muted px-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
                     Main
@@ -1277,7 +1327,11 @@ export default function Navbar() {
                             key={`mobile-main-${label}`}
                             href={href}
                             onClick={() => setMobileMenuOpen(false)}
-                            className="theme-surface theme-hover-surface theme-text relative inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                            className={`theme-hover-surface theme-text relative inline-flex min-h-14 items-center gap-3 rounded-xl border px-3 text-sm font-semibold transition ${
+                              pathname.startsWith(href)
+                                ? "theme-accent-soft-bg"
+                                : "theme-surface"
+                            }`}
                           >
                             <Icon className="text-sm" />
                             {label}
@@ -1295,7 +1349,7 @@ export default function Navbar() {
                               onClick?.();
                               setMobileMenuOpen(false);
                             }}
-                            className="theme-surface theme-hover-surface theme-text relative inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                            className="theme-surface theme-hover-surface theme-text relative inline-flex min-h-14 items-center gap-3 rounded-xl border px-3 text-sm font-semibold transition"
                           >
                             <Icon className="text-sm" />
                             {label}
@@ -1322,7 +1376,11 @@ export default function Navbar() {
                             key={`mobile-extra-${label}`}
                             href={href}
                             onClick={() => setMobileMenuOpen(false)}
-                            className="theme-surface theme-hover-surface theme-text inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                            className={`theme-hover-surface theme-text inline-flex min-h-14 items-center gap-3 rounded-xl border px-3 text-sm font-semibold transition ${
+                              pathname.startsWith(href)
+                                ? "theme-accent-soft-bg"
+                                : "theme-surface"
+                            }`}
                           >
                             <Icon className="text-sm" />
                             {label}
@@ -1335,7 +1393,7 @@ export default function Navbar() {
                               onClick?.();
                               setMobileMenuOpen(false);
                             }}
-                            className="theme-surface theme-hover-surface theme-text inline-flex h-12 items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                            className="theme-surface theme-hover-surface theme-text inline-flex min-h-14 items-center gap-3 rounded-xl border px-3 text-sm font-semibold transition"
                           >
                             <Icon className="text-sm" />
                             {label}
@@ -1353,7 +1411,7 @@ export default function Navbar() {
                         mobileSearchItem.onClick?.();
                         setMobileMenuOpen(false);
                       }}
-                      className="theme-surface theme-hover-surface theme-text inline-flex h-12 w-full items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                      className="theme-accent-soft-bg theme-text inline-flex h-12 w-full items-center gap-3 rounded-xl border px-4 text-sm font-semibold transition hover:brightness-110"
                     >
                       {MobileSearchIcon && (
                         <MobileSearchIcon className="text-sm" />
