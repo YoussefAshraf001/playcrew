@@ -5,9 +5,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FaWindows } from "react-icons/fa";
 import { FiChevronDown } from "react-icons/fi";
 
-export const DESKTOP_VERSION = "0.1.2";
+export const DESKTOP_VERSION = "0.1.16";
 export const DESKTOP_DOWNLOAD_URL =
-  "https://github.com/YoussefAshraf001/playcrew/releases/download/desktop-v0.1.2/PlayCrew-Setup-0.1.2-x64.exe";
+  "https://github.com/YoussefAshraf001/playcrew/releases/download/desktop-v0.1.16/PlayCrew-Setup-0.1.16-x64.exe";
 
 const subscribe = () => () => {};
 const isDesktop = () => /\bElectron\//i.test(navigator.userAgent);

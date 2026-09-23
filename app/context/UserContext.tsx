@@ -19,11 +19,12 @@ type CropData = {
   x: number;
   y: number;
   zoom: number;
+  area?: { x: number; y: number; width: number; height: number };
 };
 
 type MediaValue =
-  | { type: "image"; data: string; name?: string }
-  | { type: "gif"; data: string; crop: CropData; name?: string };
+  | { type: "image"; data: string; localData?: string; name?: string }
+  | { type: "gif"; data: string; localData?: string; crop: CropData; name?: string };
 
 interface UserProfile {
   uid: string;

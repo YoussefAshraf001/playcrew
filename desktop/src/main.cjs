@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray, protocol } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray, protocol, net } = require('electron');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -29,6 +29,17 @@ let closeBehavior = 'tray';
 const settingsFile = path.join(app.getPath('userData'), 'desktop-settings.json');
 const localImagesRoot = path.join(app.getPath('userData'), 'images');
 const imageStorageDefaults = { profileImage: false, wallpaper: false, customGameCovers: false, screenshots: false };
+const cloudCopyDefaults = { profileImage: true, wallpaper: true, customGameCovers: true, screenshots: true };
+const desktopReleasesUrl = 'https://api.github.com/repos/YoussefAshraf001/playcrew/releases?per_page=20';
+const desktopReleaseTagPattern = /^desktop-v(\d+\.\d+\.\d+)$/;
+const compareVersions = (left, right) => {
+  const a = left.split('.').map(Number);
+  const b = right.split('.').map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    if ((a[index] || 0) !== (b[index] || 0)) return (a[index] || 0) - (b[index] || 0);
+  }
+  return 0;
+};
 function readDesktopSettings() {
   try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); } catch { return {}; }
 }
@@ -232,6 +243,44 @@ if (!app.requestSingleInstanceLock()) {
       for (const key of Object.keys(imageStorageDefaults)) next[key] = value?.[key] === true;
       writeDesktopSettings({ imageStorage: next });
       return next;
+    });
+    ipcMain.handle('playcrew:cloud-copy-settings', (event, value) => {
+      assertTrusted(event);
+      if (value === undefined) return { ...cloudCopyDefaults, ...(readDesktopSettings().cloudCopies || {}) };
+      const next = {};
+      for (const key of Object.keys(cloudCopyDefaults)) next[key] = value?.[key] !== false;
+      writeDesktopSettings({ cloudCopies: next });
+      return next;
+    });
+    ipcMain.handle('playcrew:check-for-update', async (event) => {
+      assertTrusted(event);
+      const response = await net.fetch(desktopReleasesUrl, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'PlayCrew-Desktop' }
+      });
+      if (!response.ok) throw new Error(`GitHub update check failed (${response.status})`);
+      const releases = await response.json();
+      const release = Array.isArray(releases)
+        ? releases.find((item) => !item?.draft && !item?.prerelease && desktopReleaseTagPattern.test(item?.tag_name || ''))
+        : null;
+      if (!release) throw new Error('No PlayCrew Desktop release was found');
+      const latestVersion = desktopReleaseTagPattern.exec(release.tag_name)?.[1];
+      if (!latestVersion) throw new Error('Invalid PlayCrew Desktop release tag');
+      const installer = Array.isArray(release.assets)
+        ? release.assets.find((asset) => /^PlayCrew-Setup-.*-x64\.exe$/i.test(asset?.name || ''))
+        : null;
+      return {
+        currentVersion: app.getVersion(),
+        latestVersion,
+        updateAvailable: compareVersions(latestVersion, app.getVersion()) > 0,
+        downloadUrl: installer?.browser_download_url || release.html_url
+      };
+    });
+    ipcMain.handle('playcrew:open-update-download', async (event, value) => {
+      assertTrusted(event);
+      const url = typeof value === 'string' ? new URL(value) : null;
+      if (!url || url.protocol !== 'https:' || !['github.com', 'objects.githubusercontent.com'].includes(url.hostname)) throw new Error('Invalid update URL');
+      await shell.openExternal(url.href);
+      return true;
     });
     ipcMain.handle('playcrew:open-local-images', async (event) => {
       assertTrusted(event);

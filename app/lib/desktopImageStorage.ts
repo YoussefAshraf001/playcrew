@@ -13,6 +13,13 @@ export const DEFAULT_DESKTOP_IMAGE_STORAGE: DesktopImageStorageSettings = {
   screenshots: false,
 };
 
+export const DEFAULT_DESKTOP_CLOUD_COPIES: DesktopImageStorageSettings = {
+  profileImage: true,
+  wallpaper: true,
+  customGameCovers: true,
+  screenshots: true,
+};
+
 declare global {
   interface Window {
     playcrewDesktop?: {
@@ -20,6 +27,15 @@ declare global {
       setCloseBehavior: (value: "tray" | "quit") => Promise<"tray" | "quit">;
       getImageStorageSettings: () => Promise<DesktopImageStorageSettings>;
       setImageStorageSettings: (value: DesktopImageStorageSettings) => Promise<DesktopImageStorageSettings>;
+      getCloudCopySettings: () => Promise<DesktopImageStorageSettings>;
+      setCloudCopySettings: (value: DesktopImageStorageSettings) => Promise<DesktopImageStorageSettings>;
+      checkForUpdate: () => Promise<{
+        currentVersion: string;
+        latestVersion: string;
+        updateAvailable: boolean;
+        downloadUrl: string;
+      }>;
+      openUpdateDownload: (url: string) => Promise<boolean>;
       openLocalImagesFolder: () => Promise<void>;
       saveLocalImage: (category: DesktopImageCategory, key: string, dataUrl: string) => Promise<string>;
       saveLocalImageToPath?: (category: DesktopImageCategory, pathSegments: string[], dataUrl: string) => Promise<string>;
@@ -41,6 +57,13 @@ export async function shouldSaveImageLocally(category: DesktopImageCategory) {
   if (!desktop) return false;
   const settings = await desktop.getImageStorageSettings();
   return settings[category] === true;
+}
+
+export async function shouldUploadCloudCopy(category: DesktopImageCategory) {
+  const desktop = window.playcrewDesktop;
+  if (!desktop) return true;
+  const settings = await desktop.getCloudCopySettings();
+  return settings[category] !== false;
 }
 
 export const toLocalPathSegment = (value: string | number, fallback: string) => {

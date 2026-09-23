@@ -48,6 +48,7 @@ import ImageOverlay from "@/app/components/ImageOverlay";
 import {
   saveImageLocally,
   shouldSaveImageLocally,
+  shouldUploadCloudCopy,
   toLocalPathSegment,
 } from "@/app/lib/desktopImageStorage";
 import {
@@ -69,11 +70,12 @@ type CropData = {
   x: number;
   y: number;
   zoom: number;
+  area?: { x: number; y: number; width: number; height: number };
 };
 
 type MediaValue =
-  | { type: "image"; data: string; name?: string }
-  | { type: "gif"; data: string; crop: CropData; name?: string };
+  | { type: "image"; data: string; localData?: string; name?: string }
+  | { type: "gif"; data: string; localData?: string; crop: CropData; name?: string };
 
 type UserProfile = {
   uid: string;
@@ -130,6 +132,7 @@ export default function EditProfilePage() {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedPixels, setCroppedPixels] = useState<Area | null>(null);
+  const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [passwordResetRequested, setPasswordResetRequested] = useState(false);
   const [wallpaperLoaded, setWallpaperLoaded] = useState(false);
   const [gamesBgBlur, setGamesBgBlur] = useState(DEFAULT_BG_BLUR);
@@ -285,12 +288,14 @@ export default function EditProfilePage() {
     setCrop({ x: 0, y: 0 });
     setZoom(1);
     setCroppedPixels(null);
+    setCroppedArea(null);
   };
 
   const cancelCrop = () => {
     setCropType(null);
     setSelectedFile(null);
     setCroppedPixels(null);
+    setCroppedArea(null);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
   };
@@ -307,7 +312,12 @@ export default function EditProfilePage() {
         [cropType]: {
           type: "gif",
           data,
-          crop: { x: crop.x, y: crop.y, zoom },
+          crop: {
+            x: crop.x,
+            y: crop.y,
+            zoom,
+            area: croppedArea ?? undefined,
+          },
           name: selectedFile.name,
         },
       }));
@@ -362,18 +372,21 @@ export default function EditProfilePage() {
       if (!media.data.startsWith("data:")) return media;
 
       const category = kind === "avatar" ? "profileImage" : "wallpaper";
+      let localData: string | undefined;
       if (isAdmin && (await shouldSaveImageLocally(category))) {
         const username = toLocalPathSegment(
           draft?.username ?? profile?.username ?? user!.uid,
           "user",
         );
         const filename = kind === "avatar" ? "profile-image" : "wallpaper";
-        const data = await saveImageLocally(
+        localData = await saveImageLocally(
           category,
           ["profile", username, filename],
           media.data,
         );
-        return { ...media, data };
+        if (!(await shouldUploadCloudCopy(category))) {
+          return { ...media, data: localData };
+        }
       }
 
       const publicId = `playcrew/users/${user!.uid}/${kind}`;
@@ -382,7 +395,11 @@ export default function EditProfilePage() {
       const signRes = await fetch("/api/cloudinary/sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publicId, assetFolder }),
+        body: JSON.stringify({
+          publicId,
+          assetFolder,
+          ...(localData ? { previewKind: kind } : {}),
+        }),
       });
 
       if (!signRes.ok) {
@@ -396,6 +413,7 @@ export default function EditProfilePage() {
         signature,
         publicId: signedPublicId,
         assetFolder: signedAssetFolder,
+        transformation,
       } = (await signRes.json()) as {
         cloudName: string;
         apiKey: string;
@@ -403,6 +421,7 @@ export default function EditProfilePage() {
         signature: string;
         publicId: string;
         assetFolder?: string | null;
+        transformation?: string | null;
       };
 
       const blob = await fetch(media.data).then((r) => r.blob());
@@ -415,6 +434,7 @@ export default function EditProfilePage() {
       body.append("signature", signature);
       body.append("public_id", signedPublicId);
       if (signedAssetFolder) body.append("asset_folder", signedAssetFolder);
+      if (transformation) body.append("transformation", transformation);
       body.append("overwrite", "true");
       body.append("invalidate", "true");
 
@@ -435,7 +455,7 @@ export default function EditProfilePage() {
         throw new Error(uploadJson.error?.message || "Upload failed");
       }
 
-      return { ...media, data: uploadJson.secure_url };
+      return { ...media, data: uploadJson.secure_url, ...(localData ? { localData } : {}) };
     } catch (error: unknown) {
       const reason =
         error instanceof Error ? error.message : "Unknown upload failure";
@@ -670,58 +690,73 @@ export default function EditProfilePage() {
 
       if (visibilityChanged) {
         const visibility = draft.privacy?.profile ?? "public";
-        const gamesSnapshot = await getDocs(
-          collection(db, "users", user!.uid, "games_igdb"),
-        );
+        const userId = user!.uid;
+        const reviewUsername = draft.username ?? "PlayCrew User";
 
-        await Promise.all(
-          gamesSnapshot.docs.map(async (gameDocument) => {
-            const gameData = gameDocument.data();
-            const reviewText = gameData.review?.text?.trim();
-            if (!reviewText) return;
-
-            const gameId = Number(gameData.igdb?.id ?? gameDocument.id);
-            const communityRef = doc(
-              db,
-              "communityReviews",
-              `${user!.uid}_${gameId}`,
+        // Review publication can involve many documents. Keep it consistent in
+        // the background without holding the profile-save overlay open.
+        void (async () => {
+          try {
+            const gamesSnapshot = await getDocs(
+              collection(db, "users", userId, "games_igdb"),
             );
 
-            if (visibility !== "public") {
-              await deleteDoc(communityRef).catch(() => undefined);
-              return;
-            }
+            await Promise.all(
+              gamesSnapshot.docs.map(async (gameDocument) => {
+                const gameData = gameDocument.data();
+                const reviewText = gameData.review?.text?.trim();
+                if (!reviewText) return;
 
-            await setDoc(
-              communityRef,
-              {
-                userId: user!.uid,
-                username: draft.username ?? "PlayCrew User",
-                gameId,
-                gameName: gameData.name ?? gameData.igdb?.name ?? "Game",
-                text: reviewText,
-                sticker: gameData.review?.sticker ?? null,
-                rating:
-                  typeof gameData.my_rating === "number"
-                    ? gameData.my_rating
-                    : null,
-                playtime:
-                  typeof gameData.playtime === "number" ? gameData.playtime : 0,
-                status: gameData.status ?? null,
-                progress:
-                  typeof gameData.progress === "number" ? gameData.progress : 0,
-                playedOn: gameData.playedOn ?? null,
-                visibility: "public",
-                createdAt:
-                  gameData.review?.createdAt ??
-                  gameData.lastUpdated ??
-                  new Date(),
-                updatedAt: new Date(),
-              },
-              { merge: true },
+                const gameId = Number(gameData.igdb?.id ?? gameDocument.id);
+                const communityRef = doc(
+                  db,
+                  "communityReviews",
+                  `${userId}_${gameId}`,
+                );
+
+                if (visibility !== "public") {
+                  await deleteDoc(communityRef).catch(() => undefined);
+                  return;
+                }
+
+                await setDoc(
+                  communityRef,
+                  {
+                    userId,
+                    username: reviewUsername,
+                    gameId,
+                    gameName: gameData.name ?? gameData.igdb?.name ?? "Game",
+                    text: reviewText,
+                    sticker: gameData.review?.sticker ?? null,
+                    rating:
+                      typeof gameData.my_rating === "number"
+                        ? gameData.my_rating
+                        : null,
+                    playtime:
+                      typeof gameData.playtime === "number"
+                        ? gameData.playtime
+                        : 0,
+                    status: gameData.status ?? null,
+                    progress:
+                      typeof gameData.progress === "number"
+                        ? gameData.progress
+                        : 0,
+                    playedOn: gameData.playedOn ?? null,
+                    visibility: "public",
+                    createdAt:
+                      gameData.review?.createdAt ??
+                      gameData.lastUpdated ??
+                      new Date(),
+                    updatedAt: new Date(),
+                  },
+                  { merge: true },
+                );
+              }),
             );
-          }),
-        );
+          } catch (reviewSyncError) {
+            console.error("Community review visibility sync failed:", reviewSyncError);
+          }
+        })();
       }
 
       if (updates.username) {
@@ -914,7 +949,7 @@ export default function EditProfilePage() {
 
             <div className="relative px-4 pb-5 sm:px-7 sm:pb-7 lg:px-9">
               <div className="-mt-16 flex flex-col items-center gap-4 sm:-mt-20 sm:flex-row sm:items-end">
-                <div className="rounded-full border-4 border-[var(--theme-bg)] bg-[var(--theme-bg)] shadow-2xl">
+                <div className="rounded-lg border-4 border-[var(--theme-bg)] bg-[var(--theme-bg)] shadow-2xl">
                   <ImageOverlay
                     label="Avatar"
                     media={active?.avatar}
@@ -1066,7 +1101,7 @@ export default function EditProfilePage() {
                         }
                         className={`rounded-2xl border p-3 text-left transition ${
                           selected
-                            ? "theme-accent-soft-bg border-[rgba(var(--theme-accent-rgb),0.55)]"
+                            ? "theme-accent-soft-bg border-[var(--theme-accent)] ring-2 ring-[rgba(var(--theme-accent-rgb),0.38)] shadow-[0_0_20px_rgba(var(--theme-accent-rgb),0.16)]"
                             : "theme-surface theme-hover-surface"
                         }`}
                         aria-pressed={selected}
@@ -1076,9 +1111,16 @@ export default function EditProfilePage() {
                             selected ? "theme-accent-text" : "theme-text-muted"
                           }
                         />
-                        <p className="theme-text mt-2 text-xs font-bold">
-                          {option.label}
-                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <p className="theme-text text-xs font-bold">
+                            {option.label}
+                          </p>
+                          {selected && (
+                            <span className="theme-accent-bg grid h-4 w-4 place-items-center rounded-full text-[var(--theme-accent-contrast)]">
+                              <FiCheck size={10} strokeWidth={3} />
+                            </span>
+                          )}
+                        </div>
                         <p className="theme-text-muted mt-0.5 text-[10px]">
                           {option.description}
                         </p>
@@ -1201,7 +1243,10 @@ export default function EditProfilePage() {
               setCrop={setCrop}
               setZoom={setZoom}
               aspect={cropType === "avatar" ? 1 : 16 / 9}
-              onComplete={setCroppedPixels}
+              onComplete={(pixels, areaPercent) => {
+                setCroppedPixels(pixels);
+                setCroppedArea(areaPercent ?? null);
+              }}
               onSave={saveCrop}
               onCancel={cancelCrop}
             />

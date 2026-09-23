@@ -1,9 +1,59 @@
 [
   {
+    "version": "2.1.7",
+    "title": "Profile Media & Desktop Storage Update",
+    "date": "2026-09-23",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Profiles",
+        "items": [
+          "Fixed cropped profile GIFs appearing offset or escaping their avatar frame across Profile and Library views",
+          "Profile GIF crops now scale consistently between editor, library, and public profile sizes",
+          "Added a fixed-position profile image preview with Cropped and Full Image views and a smooth crossfade between them",
+          "Added a subtle outline around the Library profile image on hover"
+        ]
+      },
+      {
+        "category": "Privacy",
+        "items": [
+          "Profile visibility changes now finish quickly while community review visibility synchronizes in the background",
+          "Added a stronger border, glow, and check indicator to the active profile visibility option"
+        ]
+      },
+      {
+        "category": "Desktop Images",
+        "items": [
+          "Added independent controls for saving profile images and wallpapers locally or also uploading a web-accessible Cloudinary copy",
+          "Desktop uses the full local original while the website uses a smaller optimized cloud copy",
+          "Added clearer disabled states and an information tooltip explaining local image storage benefits",
+          "Added automatic fallback to the cloud copy when a local desktop image is unavailable"
+        ]
+      },
+      {
+        "category": "Desktop Updates",
+        "items": [
+          "Added automatic GitHub release checks to Desktop App settings",
+          "A new Update Now button appears when a newer PlayCrew Desktop installer is available"
+        ]
+      },
+      {
+        "category": "Developer Tools",
+        "items": [
+          "Replaced raw play-session JSON with readable session cards, local date and time controls, and separate hour and minute fields",
+          "Play-session dates and times are prefilled from Firestore timestamps and preserve their original stored timestamp type when edited",
+          "Added paginated play-session editing with previous and next controls that return the editor to the top of the session list",
+          "Moved Dev Mode out of the normal game menu and placed it beneath SteamDB in the game card right-click menu",
+          "Moved Refresh Details above Edit Game in the game action menu"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.6",
     "title": "Game Pages, Screenshots & UI Polish",
     "date": "2026-09-22",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Game Pages",

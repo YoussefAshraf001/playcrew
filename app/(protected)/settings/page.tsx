@@ -40,7 +40,7 @@ import CropModal from "@/app/components/CropModal";
 import DesktopDownload from "@/app/components/DesktopDownload";
 import DesktopSettings from "@/app/components/DesktopSettings";
 import IdleWallpaperOverlay from "@/app/components/IdleWallpaperOverlay";
-import { saveImageLocally, shouldSaveImageLocally, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
+import { saveImageLocally, shouldSaveImageLocally, shouldUploadCloudCopy, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
 
 type CropData = {
   x: number;
@@ -49,8 +49,8 @@ type CropData = {
 };
 
 type MediaValue =
-  | { type: "image"; data: string; name?: string; size?: number }
-  | { type: "gif"; data: string; crop: CropData; name?: string; size?: number };
+  | { type: "image"; data: string; localData?: string; name?: string; size?: number }
+  | { type: "gif"; data: string; localData?: string; crop: CropData; name?: string; size?: number };
 
 type GiphyWallpaper = {
   id: string;
@@ -446,14 +446,20 @@ export default function SiteSettingsPage() {
       : undefined;
 
   const activeWallpaper = pendingWallpaper ?? profile?.wallpaper ?? null;
+  const activeWallpaperSource =
+    activeWallpaper && typeof window !== "undefined" && window.playcrewDesktop && activeWallpaper.localData
+      ? activeWallpaper.localData
+      : activeWallpaper?.data;
   const hasSavedWallpaper = Boolean(profile?.wallpaper?.data);
   const hasPendingWallpaper = Boolean(pendingWallpaper);
   const hasWallpaper = hasSavedWallpaper || hasPendingWallpaper;
 
   const uploadWallpaperToCloudinary = async (media: MediaValue) => {
+    let localData: string | undefined;
     if (isAdmin && media.data.startsWith("data:") && await shouldSaveImageLocally("wallpaper")) {
       const username = toLocalPathSegment(profile?.username ?? user!.uid, "user");
-      return { ...media, data: await saveImageLocally("wallpaper", ["profile", username, "wallpaper"], media.data) };
+      localData = await saveImageLocally("wallpaper", ["profile", username, "wallpaper"], media.data);
+      if (!(await shouldUploadCloudCopy("wallpaper"))) return { ...media, data: localData };
     }
     if (!user?.uid) throw new Error("Missing user");
     if (!media.data.startsWith("data:")) return media;
@@ -464,7 +470,11 @@ export default function SiteSettingsPage() {
     const signRes = await fetch("/api/cloudinary/sign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ publicId, assetFolder }),
+      body: JSON.stringify({
+        publicId,
+        assetFolder,
+        ...(localData ? { previewKind: "wallpaper" } : {}),
+      }),
     });
 
     if (!signRes.ok) {
@@ -481,6 +491,7 @@ export default function SiteSettingsPage() {
       signature,
       publicId: signedPublicId,
       assetFolder: signedAssetFolder,
+      transformation,
     } = (await signRes.json()) as {
       cloudName: string;
       apiKey: string;
@@ -488,6 +499,7 @@ export default function SiteSettingsPage() {
       signature: string;
       publicId: string;
       assetFolder?: string | null;
+      transformation?: string | null;
     };
 
     const blob = await fetch(media.data).then((response) => response.blob());
@@ -500,6 +512,7 @@ export default function SiteSettingsPage() {
     form.append("signature", signature);
     form.append("public_id", signedPublicId);
     if (signedAssetFolder) form.append("asset_folder", signedAssetFolder);
+    if (transformation) form.append("transformation", transformation);
     form.append("overwrite", "true");
     form.append("invalidate", "true");
 
@@ -520,7 +533,7 @@ export default function SiteSettingsPage() {
       throw new Error(uploadJson.error?.message || "Upload failed");
     }
 
-    return { ...media, data: uploadJson.secure_url };
+    return { ...media, data: uploadJson.secure_url, ...(localData ? { localData } : {}) };
   };
 
   const saveWallpaper = async () => {
@@ -572,6 +585,9 @@ export default function SiteSettingsPage() {
 
     setRemovingWallpaper(true);
     try {
+      if (profile.wallpaper.localData?.startsWith("playcrew-local://")) {
+        await window.playcrewDesktop?.deleteLocalImage(profile.wallpaper.localData);
+      }
       if (profile.wallpaper.data.startsWith("playcrew-local://")) {
         await window.playcrewDesktop?.deleteLocalImage(profile.wallpaper.data);
       } else await fetch("/api/cloudinary/destroy", {
@@ -622,10 +638,10 @@ export default function SiteSettingsPage() {
         transition={{ duration: 0.25 }}
       >
         {/* WALLPAPER */}
-        {activeWallpaper?.data && (
+        {activeWallpaperSource && (
           <div className="absolute inset-0 bg-black">
             <img
-              src={activeWallpaper.data}
+              src={activeWallpaperSource}
               alt=""
               className="absolute inset-0 h-full w-full object-cover"
               style={{
@@ -1579,7 +1595,7 @@ export default function SiteSettingsPage() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {wallpaperPreview && activeWallpaper?.data && (
+        {wallpaperPreview && activeWallpaperSource && (
           <motion.div
             className="fixed inset-0 z-[10000] overflow-hidden bg-black"
             initial={{ opacity: 0 }}
@@ -1588,7 +1604,7 @@ export default function SiteSettingsPage() {
             transition={{ duration: 0.32, ease: "easeInOut" }}
           >
             <motion.img
-              src={activeWallpaper.data}
+              src={activeWallpaperSource}
               alt="Wallpaper preview"
               className="absolute inset-0 h-full w-full object-cover"
               style={{
@@ -1624,11 +1640,11 @@ export default function SiteSettingsPage() {
         enabled={
           isAdmin &&
           idleWallpaperEnabled &&
-          Boolean(activeWallpaper?.data) &&
+          Boolean(activeWallpaperSource) &&
           !wallpaperPreview
         }
         fadeAfterSeconds={idleWallpaperFadeSeconds}
-        src={activeWallpaper?.data}
+        src={activeWallpaperSource}
         imageStyle={
           activeWallpaper ? getWallpaperCropStyle(activeWallpaper) : undefined
         }

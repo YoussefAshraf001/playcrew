@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent,
 } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
@@ -97,6 +98,8 @@ import SteamAssetsModal, {
 } from "@/app/components/SteamAssetsModal";
 import IdleWallpaperOverlay from "@/app/components/IdleWallpaperOverlay";
 import { SiSteam } from "react-icons/si";
+import { FaCode } from "react-icons/fa";
+import DevGameEditor from "@/app/components/DevButton";
 
 const STATUSES = [
   "All",
@@ -171,13 +174,25 @@ interface UserProfile {
   avatar?: {
     type: "image" | "gif";
     data: string;
-    crop?: { x: number; y: number; zoom: number };
+    localData?: string;
+    crop?: {
+      x: number;
+      y: number;
+      zoom: number;
+      area?: { x: number; y: number; width: number; height: number };
+    };
   };
 
   wallpaper?: {
     type: "image" | "gif";
     data: string;
-    crop?: { x: number; y: number; zoom: number };
+    localData?: string;
+    crop?: {
+      x: number;
+      y: number;
+      zoom: number;
+      area?: { x: number; y: number; width: number; height: number };
+    };
   };
 
   trackedGames: Record<string, TrackedGame>;
@@ -264,14 +279,20 @@ export default function GamesPage() {
   const [coverPreview, setCoverPreview] = useState<{
     src: string;
     alt: string;
+    cropStyle?: CSSProperties;
   } | null>(null);
+  const [coverPreviewMode, setCoverPreviewMode] = useState<
+    "cropped" | "original"
+  >("cropped");
   const [cardSteamMenu, setCardSteamMenu] = useState<{
     game: TrackedGame;
     x: number;
     y: number;
   } | null>(null);
-  const [steamAssetsGame, setSteamAssetsGame] =
-    useState<TrackedGame | null>(null);
+  const [steamAssetsGame, setSteamAssetsGame] = useState<TrackedGame | null>(
+    null,
+  );
+  const [devEditorGame, setDevEditorGame] = useState<TrackedGame | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -298,8 +319,13 @@ export default function GamesPage() {
   const compactStatusTabs =
     !showFavoritesOnly && selectedStatus === "Want To Play";
 
-  const openCoverPreview = (src: string, alt: string) => {
-    setCoverPreview({ src, alt });
+  const openCoverPreview = (
+    src: string,
+    alt: string,
+    cropStyle?: CSSProperties,
+  ) => {
+    setCoverPreviewMode(cropStyle ? "cropped" : "original");
+    setCoverPreview({ src, alt, cropStyle });
   };
 
   const closeCoverPreview = () => {
@@ -433,15 +459,27 @@ export default function GamesPage() {
   const getMediaSrc = (media?: ProfileMedia, legacy?: string) => {
     if (!media && legacy) return legacy;
     if (!media) return undefined;
-    return media.data;
+    return window.playcrewDesktop && media.localData
+      ? media.localData
+      : media.data;
   };
 
   const getMediaStyle = (media?: ProfileMedia) => {
     if (!media || media.type !== "gif" || !media.crop) return undefined;
 
-    const { x, y, zoom } = media.crop;
+    const { area } = media.crop;
+    if (!area) {
+      return {
+        transform: `translate(${media.crop.x / 4.4}%, ${media.crop.y / 4.4}%) scale(${media.crop.zoom})`,
+      };
+    }
     return {
-      transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+      position: "absolute" as const,
+      left: `${(-area.x / area.width) * 100}%`,
+      top: `${(-area.y / area.height) * 100}%`,
+      width: `${10000 / area.width}%`,
+      height: `${10000 / area.height}%`,
+      maxWidth: "none",
     };
   };
 
@@ -784,9 +822,8 @@ export default function GamesPage() {
       readStateRef,
       (snapshot) => {
         const cloudKeys = snapshot.exists()
-          ? ((snapshot.data().recentActivityReadKeys as
-              | string[]
-              | undefined) ?? [])
+          ? ((snapshot.data().recentActivityReadKeys as string[] | undefined) ??
+            [])
           : [];
         if (
           snapshot.metadata.fromCache &&
@@ -800,7 +837,11 @@ export default function GamesPage() {
           localKeys === null && !snapshot.exists()
             ? recentGamesWithSummary.map(getRecentActivityKey)
             : [];
-        const merged = new Set([...cloudKeys, ...(localKeys ?? []), ...baseline]);
+        const merged = new Set([
+          ...cloudKeys,
+          ...(localKeys ?? []),
+          ...baseline,
+        ]);
 
         setReadRecentActivityKeys(merged);
         window.localStorage.setItem(
@@ -1118,7 +1159,9 @@ export default function GamesPage() {
     return runTransaction(db, async (transaction) => {
       const snap = await transaction.get(gameRef);
       if ((snap.data()?.runNumber ?? 1) !== expectedRunNumber) {
-        throw new Error("This game's run changed in another window. Reopen the editor and try again.");
+        throw new Error(
+          "This game's run changed in another window. Reopen the editor and try again.",
+        );
       }
       const updated = { ...(snap.exists() ? snap.data() : {}), ...patch };
       transaction.set(gameRef, updated, { merge: true });
@@ -1351,9 +1394,11 @@ export default function GamesPage() {
       const reviewForSave = {
         ...review,
         createdAt: review.text.trim()
-          ? (startingNewRun ? new Date() : (prev.review?.createdAt ??
-            (prev.review?.text?.trim() ? prev.lastUpdated : null) ??
-            new Date()))
+          ? startingNewRun
+            ? new Date()
+            : (prev.review?.createdAt ??
+              (prev.review?.text?.trim() ? prev.lastUpdated : null) ??
+              new Date())
           : null,
         updatedAt: review.text.trim() ? new Date() : null,
       };
@@ -1389,39 +1434,45 @@ export default function GamesPage() {
 
       const recentActionSummary = appendRecentGameActionSummary(
         prev.recentActionSummary,
-        startingNewRun ? `Started Run ${runState.runNumber} · ${runState.runKind === "replay" ? "Replay" : "Another chance"}` : getRecentGameActionSummary(prev, {
-          favorite,
-          playAgain,
-          notInterested,
-          status,
-          progress,
-          my_rating: typeof rating === "number" ? rating : null,
-          review: reviewForSave,
-          playtime,
-          playedSessions,
-          playedOn,
-        }),
+        startingNewRun
+          ? `Started Run ${runState.runNumber} · ${runState.runKind === "replay" ? "Replay" : "Another chance"}`
+          : getRecentGameActionSummary(prev, {
+              favorite,
+              playAgain,
+              notInterested,
+              status,
+              progress,
+              my_rating: typeof rating === "number" ? rating : null,
+              review: reviewForSave,
+              playtime,
+              playedSessions,
+              playedOn,
+            }),
       );
 
       /* ---------------- Save to Firestore ---------------- */
 
-      const updatedGame = await updateTrackedGame(targetDocId, {
-        ...runState,
-        my_rating: typeof rating === "number" ? rating : null,
-        progress,
-        playtime,
-        status,
-        favorite,
-        notInterested,
-        review: reviewForSave,
-        playedSessions,
-        playedOn,
-        preReleaseAccess,
-        playAgain: playAgain ?? null,
-        lastUpdated: new Date(),
-        recentActionSummary,
-        recentActionSource: "user",
-      }, prev.runNumber ?? 1);
+      const updatedGame = await updateTrackedGame(
+        targetDocId,
+        {
+          ...runState,
+          my_rating: typeof rating === "number" ? rating : null,
+          progress,
+          playtime,
+          status,
+          favorite,
+          notInterested,
+          review: reviewForSave,
+          playedSessions,
+          playedOn,
+          preReleaseAccess,
+          playAgain: playAgain ?? null,
+          lastUpdated: new Date(),
+          recentActionSummary,
+          recentActionSource: "user",
+        },
+        prev.runNumber ?? 1,
+      );
 
       if (user) {
         const communityReviewRef = doc(
@@ -1495,7 +1546,9 @@ export default function GamesPage() {
 
       setModalOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save game.");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save game.",
+      );
       return false;
     } finally {
       setSaving(false);
@@ -1627,9 +1680,12 @@ export default function GamesPage() {
                               localProfile?.avatar || userProfile?.avatar,
                             ) ?? "",
                             localProfile?.username ?? "User",
+                            getMediaStyle(
+                              localProfile?.avatar || userProfile?.avatar,
+                            ),
                           )
                         }
-                        className="block rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                        className="relative block h-28 w-28 overflow-hidden rounded-[30px] border border-transparent transition-[border-color,box-shadow] duration-200 hover:border-cyan-300/80 hover:shadow-[0_0_0_3px_rgba(103,232,249,0.12)] focus:outline-none focus:ring-2 focus:ring-cyan-400/70 sm:h-32 sm:w-32"
                         aria-label={`Preview avatar for ${
                           localProfile?.username ?? "User"
                         }`}
@@ -1642,7 +1698,7 @@ export default function GamesPage() {
                             localProfile?.avatar || userProfile?.avatar,
                           )}
                           alt={localProfile?.username ?? "User"}
-                          className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg transition-transform duration-200 group-hover:scale-105"
+                          className="h-full w-full object-cover shadow-lg"
                         />
                       </button>
                     ) : (
@@ -1819,37 +1875,35 @@ export default function GamesPage() {
                               }}
                               transition={{ duration: 0.22, ease: "easeInOut" }}
                             >
-                              {["Released", "Unreleased"].map(
-                                (filter) => (
-                                  <button
-                                    key={filter}
-                                    className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition-all duration-200 ${
-                                      releaseFilter === filter
-                                        ? "border-cyan-300/40 bg-cyan-500 text-black shadow-[0_0_16px_rgba(34,211,238,0.18)]"
-                                        : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] theme-text hover:border-cyan-300/24 hover:bg-[rgba(var(--theme-accent-rgb),0.08)]"
-                                    }`}
-                                    onClick={() => {
-                                      const nextFilter = filter as
-                                        | "Released"
-                                        | "Unreleased";
+                              {["Released", "Unreleased"].map((filter) => (
+                                <button
+                                  key={filter}
+                                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide whitespace-nowrap transition-all duration-200 ${
+                                    releaseFilter === filter
+                                      ? "border-cyan-300/40 bg-cyan-500 text-black shadow-[0_0_16px_rgba(34,211,238,0.18)]"
+                                      : "border-[var(--theme-border)] bg-[var(--theme-panel-alt)] theme-text hover:border-cyan-300/24 hover:bg-[rgba(var(--theme-accent-rgb),0.08)]"
+                                  }`}
+                                  onClick={() => {
+                                    const nextFilter = filter as
+                                      | "Released"
+                                      | "Unreleased";
 
-                                      setReleaseFilter(nextFilter);
+                                    setReleaseFilter(nextFilter);
 
-                                      if (nextFilter === "Released") {
-                                        setSortBy("date");
-                                        setSortOrder("desc");
-                                      } else if (nextFilter === "Unreleased") {
-                                        setSortBy("release");
-                                        setSortOrder("asc");
-                                      }
+                                    if (nextFilter === "Released") {
+                                      setSortBy("date");
+                                      setSortOrder("desc");
+                                    } else if (nextFilter === "Unreleased") {
+                                      setSortBy("release");
+                                      setSortOrder("asc");
+                                    }
 
-                                      setCurrentPage(1);
-                                    }}
-                                  >
-                                    {filter}
-                                  </button>
-                                ),
-                              )}
+                                    setCurrentPage(1);
+                                  }}
+                                >
+                                  {filter}
+                                </button>
+                              ))}
                             </motion.div>
                           )}
                         </AnimatePresence>
@@ -2902,9 +2956,8 @@ export default function GamesPage() {
                       g.recentActionSource !== "user" &&
                       !readRecentActivityKeys.has(getRecentActivityKey(g));
                     const recentGameDocId = getRecentGameDocId(g);
-                    const isSelected = selectedRecentGameIds.has(
-                      recentGameDocId,
-                    );
+                    const isSelected =
+                      selectedRecentGameIds.has(recentGameDocId);
 
                     return (
                       <motion.div
@@ -2924,8 +2977,8 @@ export default function GamesPage() {
                             isSelected
                               ? "border-cyan-300/70 bg-cyan-500/10 ring-2 ring-cyan-400/25"
                               : isUnread
-                              ? "border-[rgba(var(--theme-accent-rgb),0.55)] bg-[rgba(var(--theme-accent-rgb),0.1)] shadow-[0_0_26px_rgba(var(--theme-accent-rgb),0.3)]"
-                              : "border-white/10 bg-white/[0.03]"
+                                ? "border-[rgba(var(--theme-accent-rgb),0.55)] bg-[rgba(var(--theme-accent-rgb),0.1)] shadow-[0_0_26px_rgba(var(--theme-accent-rgb),0.3)]"
+                                : "border-white/10 bg-white/[0.03]"
                           }`}
                         >
                           {isAdmin && recentGameDocId && (
@@ -3099,8 +3152,21 @@ export default function GamesPage() {
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 <SiSteam className="text-lg text-[#66c0f4]" />
-                Use SteamDB images
+                SteamDB
               </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDevEditorGame(cardSteamMenu.game);
+                    setCardSteamMenu(null);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  <FaCode className="text-base text-cyan-300" />
+                  Dev mode
+                </button>
+              )}
             </motion.div>
           </>
         )}
@@ -3114,6 +3180,18 @@ export default function GamesPage() {
           currentCoverUrl={steamAssetsGame.igdb.cover}
           onClose={() => setSteamAssetsGame(null)}
           onUseAsset={useCardSteamAssetAsCover}
+        />
+      )}
+
+      {devEditorGame && user && (
+        <DevGameEditor
+          userId={user.uid}
+          game={{
+            ...devEditorGame,
+            _docId:
+              devEditorGame._docId ?? devEditorGame.igdb.id.toString(),
+          }}
+          onClose={() => setDevEditorGame(null)}
         />
       )}
 
@@ -3142,14 +3220,63 @@ export default function GamesPage() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.82, opacity: 0, y: 18 }}
               transition={{ type: "spring", stiffness: 220, damping: 26 }}
-              className="max-h-[88vh] max-w-[92vw] overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950 shadow-[0_30px_120px_rgba(0,0,0,0.65)]"
+              className={`relative overflow-hidden rounded-[28px] border border-white/10 bg-zinc-950 shadow-[0_30px_120px_rgba(0,0,0,0.65)] ${
+                coverPreview.cropStyle
+                  ? "h-[min(78vh,82vw)] w-[min(78vh,82vw)]"
+                  : "max-h-[88vh] max-w-[92vw]"
+              }`}
               onClick={(e) => e.stopPropagation()}
             >
-              <img
-                src={coverPreview.src}
-                alt={coverPreview.alt}
-                className="max-h-[88vh] max-w-[92vw] object-contain"
-              />
+              {coverPreview.cropStyle && (
+                <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 rounded-full border border-white/15 bg-black/65 p-1 shadow-xl backdrop-blur-xl">
+                  {(["cropped", "original"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      aria-pressed={coverPreviewMode === mode}
+                      onClick={() => setCoverPreviewMode(mode)}
+                      className={`rounded-full px-4 py-2 text-xs font-bold capitalize transition ${
+                        coverPreviewMode === mode
+                          ? "bg-cyan-300 text-black shadow-[0_0_14px_rgba(103,232,249,0.4)]"
+                          : "text-white/60 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      {mode === "original" ? "Full image" : "Cropped"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {coverPreview.cropStyle ? (
+                <>
+                  <motion.img
+                    src={coverPreview.src}
+                    alt={`${coverPreview.alt} full image`}
+                    initial={false}
+                    animate={{
+                      opacity: coverPreviewMode === "original" ? 1 : 0,
+                    }}
+                    transition={{ duration: 0.22, ease: "easeInOut" }}
+                    className="absolute inset-0 h-full w-full object-contain"
+                  />
+                  <motion.img
+                    src={coverPreview.src}
+                    alt={`${coverPreview.alt} cropped`}
+                    initial={false}
+                    animate={{
+                      opacity: coverPreviewMode === "cropped" ? 1 : 0,
+                    }}
+                    transition={{ duration: 0.22, ease: "easeInOut" }}
+                    style={coverPreview.cropStyle}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                </>
+              ) : (
+                <motion.img
+                  src={coverPreview.src}
+                  alt={coverPreview.alt}
+                  className="max-h-[88vh] max-w-[92vw] object-contain"
+                />
+              )}
             </motion.div>
           </motion.div>
         )}

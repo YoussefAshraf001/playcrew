@@ -59,7 +59,12 @@ export default function Navbar() {
     useSync();
 
   const newUserImage = user?.photoURL;
-  const avatarSrc = profile?.avatar?.data || newUserImage || "";
+  const avatarSrc =
+    (typeof window !== "undefined" &&
+    window.playcrewDesktop &&
+    profile?.avatar?.localData
+      ? profile.avatar.localData
+      : profile?.avatar?.data) || newUserImage || "";
   const [loadedAvatarSrc, setLoadedAvatarSrc] = useState<string | null>(null);
   const avatarLoaded = !avatarSrc || loadedAvatarSrc === avatarSrc;
 

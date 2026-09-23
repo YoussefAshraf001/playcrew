@@ -8,7 +8,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { RiShieldKeyholeFill } from "react-icons/ri";
@@ -65,6 +65,7 @@ interface GameData {
 const DEV_KEY = "dev_unlock";
 const DEV_PASSWORD = process.env.NEXT_PUBLIC_DEV_PASSWORD!;
 const DEV_UNLOCK_DURATION_MS = 60 * 60 * 1000;
+const PLAY_SESSIONS_PER_PAGE = 1;
 const STATUS_OPTIONS = [
   "Playing",
   "Completed",
@@ -98,7 +99,8 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
   const isClosingRef = useRef(false);
   const [genresInput, setGenresInput] = useState("");
   const [platformsInput, setPlatformsInput] = useState("");
-  const [playedSessionsInput, setPlayedSessionsInput] = useState("[]");
+  const [sessionPage, setSessionPage] = useState(0);
+  const sessionsTopRef = useRef<HTMLDivElement | null>(null);
 
   const requestClose = useCallback(() => {
     if (isClosingRef.current) return;
@@ -141,9 +143,6 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     if (!gameData) return;
     setGenresInput((gameData.igdb.genres || []).join(", "));
     setPlatformsInput((gameData.igdb.platforms || []).join(", "));
-    setPlayedSessionsInput(
-      JSON.stringify(gameData.playedSessions ?? [], null, 2),
-    );
   }, [gameData]);
 
   useEffect(() => {
@@ -160,6 +159,26 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
   const selectedSticker = GAME_STICKERS.find(
     (s) => s.id === gameData?.review?.sticker,
   );
+  const playSessions = gameData?.playedSessions ?? [];
+  const sessionPageCount = Math.max(
+    1,
+    Math.ceil(playSessions.length / PLAY_SESSIONS_PER_PAGE),
+  );
+  const visibleSessionPage = Math.min(sessionPage, sessionPageCount - 1);
+  const visiblePlaySessions = playSessions.slice(
+    visibleSessionPage * PLAY_SESSIONS_PER_PAGE,
+    (visibleSessionPage + 1) * PLAY_SESSIONS_PER_PAGE,
+  );
+
+  const goToSessionPage = (nextPage: number) => {
+    setSessionPage(Math.max(0, Math.min(sessionPageCount - 1, nextPage)));
+    requestAnimationFrame(() =>
+      sessionsTopRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    );
+  };
 
   const handleCorrectPin = () => {
     localStorage.setItem(DEV_KEY, String(Date.now()));
@@ -215,6 +234,27 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
       return value;
     }
 
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      (("seconds" in value &&
+        typeof (value as { seconds?: unknown }).seconds === "number") ||
+        ("_seconds" in value &&
+          typeof (value as { _seconds?: unknown })._seconds === "number"))
+    ) {
+      const seconds =
+        "seconds" in value
+          ? (value as { seconds: number }).seconds
+          : (value as { _seconds: number })._seconds;
+      const nanoseconds =
+        "nanoseconds" in value
+          ? Number((value as { nanoseconds?: unknown }).nanoseconds) || 0
+          : "_nanoseconds" in value
+            ? Number((value as { _nanoseconds?: unknown })._nanoseconds) || 0
+            : 0;
+      return new Date(seconds * 1000 + nanoseconds / 1_000_000);
+    }
+
     if (typeof value === "number") {
       return new Date(value);
     }
@@ -253,19 +293,93 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     updateField("lastUpdated", value ? new Date(value) : null);
   };
 
+  const preserveTimestampType = (original: unknown, date: Date) => {
+    if (
+      typeof original === "object" &&
+      original !== null &&
+      "toDate" in original &&
+      typeof (original as { toDate?: unknown }).toDate === "function"
+    ) {
+      return Timestamp.fromDate(date);
+    }
+    if (original instanceof Date) return date;
+    if (
+      typeof original === "object" &&
+      original !== null &&
+      ("seconds" in original || "_seconds" in original)
+    ) {
+      const next = {
+        ...original,
+      };
+      const seconds = Math.floor(date.getTime() / 1000);
+      const nanoseconds = (date.getTime() % 1000) * 1_000_000;
+      if ("_seconds" in original) {
+        return { ...next, _seconds: seconds, _nanoseconds: nanoseconds };
+      }
+      return { ...next, seconds, nanoseconds };
+    }
+    if (typeof original === "string") return date.toISOString();
+    if (typeof original === "number") return date.getTime();
+    return Timestamp.fromDate(date);
+  };
+
+  const updatePlaySession = (
+    index: number,
+    update: (session: PlaySession) => PlaySession,
+  ) => {
+    setGameData((current) => {
+      if (!current) return current;
+      const sessions = [...(current.playedSessions ?? [])];
+      const session = sessions[index];
+      if (!session) return current;
+      sessions[index] = update(session);
+      return { ...current, playedSessions: sessions };
+    });
+  };
+
+  const removePlaySession = (index: number) => {
+    if (!gameData) return;
+    const nextSessions = (gameData.playedSessions ?? []).filter(
+      (_, sessionIndex) => sessionIndex !== index,
+    );
+    setGameData({ ...gameData, playedSessions: nextSessions });
+    setSessionPage((page) =>
+      Math.min(
+        page,
+        Math.max(
+          0,
+          Math.ceil(nextSessions.length / PLAY_SESSIONS_PER_PAGE) - 1,
+        ),
+      ),
+    );
+  };
+
+  const addPlaySession = () => {
+    if (!gameData) return;
+    const nextSessions = [
+      ...(gameData.playedSessions ?? []),
+      { playedAt: Timestamp.now(), durationHours: 1 },
+    ];
+    setGameData({ ...gameData, playedSessions: nextSessions });
+    setSessionPage(
+      Math.max(0, Math.ceil(nextSessions.length / PLAY_SESSIONS_PER_PAGE) - 1),
+    );
+    requestAnimationFrame(() =>
+      sessionsTopRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
+    );
+  };
+
   const saveChanges = async () => {
     if (!gameData) return;
     setSaving(true);
 
     try {
-      const playedSessions = JSON.parse(playedSessionsInput);
-      if (!Array.isArray(playedSessions)) {
-        throw new Error("Play sessions must be a JSON array.");
-      }
-
       await updateDoc(doc(db, "users", userId, "games_igdb", game._docId), {
         ...gameData,
-        playedSessions,
+        playedSessions: gameData.playedSessions ?? [],
         igdb: {
           ...gameData.igdb,
           releaseDate: gameData.igdb.releaseDate ?? null,
@@ -845,7 +959,10 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                     </div>
                   </section>
 
-                  <section className="space-y-4">
+                  <section
+                    ref={sessionsTopRef}
+                    className="scroll-mt-4 space-y-4"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
@@ -857,49 +974,164 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          try {
-                            const sessions = JSON.parse(playedSessionsInput);
-                            setPlayedSessionsInput(
-                              JSON.stringify(
-                                [
-                                  ...(Array.isArray(sessions) ? sessions : []),
-                                  {
-                                    playedAt: new Date().toISOString(),
-                                    durationHours: 1,
-                                  },
-                                ],
-                                null,
-                                2,
-                              ),
-                            );
-                          } catch {
-                            toast.error(
-                              "Fix the sessions JSON before adding one.",
-                            );
-                          }
-                        }}
+                        onClick={addPlaySession}
                         className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-500/20"
                       >
                         + Add session
                       </button>
                     </div>
 
-                    <div className="grid gap-4">
-                      <label className="flex flex-col gap-1">
-                        <span className="text-xs text-zinc-400">
-                          Played sessions
-                        </span>
-                        <textarea
-                          spellCheck={false}
-                          className="min-h-56 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface-strong)] p-3 font-mono text-xs leading-relaxed text-cyan-50 focus:border-cyan-400/40 focus:outline-none"
-                          value={playedSessionsInput}
-                          onChange={(e) =>
-                            setPlayedSessionsInput(e.target.value)
+                    {(gameData.playedSessions ?? []).length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-white/10 bg-zinc-900/50 px-4 py-8 text-center text-sm text-zinc-500">
+                        No play sessions recorded.
+                      </div>
+                    ) : (
+                      <div className="grid gap-3">
+                        {visiblePlaySessions.map((session, pageIndex) => {
+                          const index =
+                            visibleSessionPage * PLAY_SESSIONS_PER_PAGE +
+                            pageIndex;
+                          const duration = getPlaytimeParts(
+                            session.durationHours,
+                          );
+                          const playedAt = parseDateValue(session.playedAt);
+
+                          return (
+                            <div
+                              key={index}
+                              className="rounded-xl border border-white/10 bg-zinc-800/65 p-4 shadow-sm"
+                            >
+                              <div className="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-zinc-100">
+                                    Session {index + 1}
+                                  </p>
+                                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                                    {playedAt
+                                      ? playedAt.toLocaleString()
+                                      : "No valid play date"}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removePlaySession(index)}
+                                  className="rounded-lg border border-red-400/20 bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-200 transition hover:border-red-400/40 hover:bg-red-500/20"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+
+                              <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_minmax(90px,0.5fr)_minmax(90px,0.5fr)]">
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[11px] font-medium text-zinc-400">
+                                    Played at
+                                  </span>
+                                  <input
+                                    type="datetime-local"
+                                    className="rounded-lg border border-white/10 bg-zinc-900 p-2.5 text-sm text-zinc-100"
+                                    value={toLocalDateTimeInput(
+                                      session.playedAt,
+                                    )}
+                                    onChange={(event) => {
+                                      if (!event.target.value) return;
+                                      const date = new Date(event.target.value);
+                                      updatePlaySession(index, (current) => ({
+                                        ...current,
+                                        playedAt: preserveTimestampType(
+                                          current.playedAt,
+                                          date,
+                                        ),
+                                      }));
+                                    }}
+                                  />
+                                </label>
+
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[11px] font-medium text-zinc-400">
+                                    Hours
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    className="rounded-lg border border-white/10 bg-zinc-900 p-2.5 text-sm text-zinc-100"
+                                    value={duration.hours}
+                                    onChange={(event) => {
+                                      const hours = Math.max(
+                                        0,
+                                        Math.floor(
+                                          parseNumber(event.target.value),
+                                        ),
+                                      );
+                                      updatePlaySession(index, (current) => ({
+                                        ...current,
+                                        durationHours:
+                                          hours + duration.minutes / 60,
+                                      }));
+                                    }}
+                                  />
+                                </label>
+
+                                <label className="flex flex-col gap-1">
+                                  <span className="text-[11px] font-medium text-zinc-400">
+                                    Minutes
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={59}
+                                    className="rounded-lg border border-white/10 bg-zinc-900 p-2.5 text-sm text-zinc-100"
+                                    value={duration.minutes}
+                                    onChange={(event) => {
+                                      const minutes = Math.max(
+                                        0,
+                                        Math.min(
+                                          59,
+                                          Math.floor(
+                                            parseNumber(event.target.value),
+                                          ),
+                                        ),
+                                      );
+                                      updatePlaySession(index, (current) => ({
+                                        ...current,
+                                        durationHours:
+                                          duration.hours + minutes / 60,
+                                      }));
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {sessionPageCount > 1 && (
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-zinc-900/60 p-2">
+                        <button
+                          type="button"
+                          disabled={visibleSessionPage === 0}
+                          onClick={() =>
+                            goToSessionPage(visibleSessionPage - 1)
                           }
-                        />
-                      </label>
-                    </div>
+                          className="rounded-lg border border-white/10 bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-35"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-xs font-medium tabular-nums text-zinc-400">
+                          Page {visibleSessionPage + 1} of {sessionPageCount}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={visibleSessionPage >= sessionPageCount - 1}
+                          onClick={() =>
+                            goToSessionPage(visibleSessionPage + 1)
+                          }
+                          className="rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-35"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
                   </section>
 
                   <section className="space-y-4">

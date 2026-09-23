@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useId } from "react";
 import { MdMoreHoriz, MdEdit, MdDelete, MdRefresh } from "react-icons/md";
-import { FaCode } from "react-icons/fa";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { deleteDoc, doc } from "firebase/firestore";
 import toast from "react-hot-toast";
@@ -14,7 +13,6 @@ import {
   refreshGameData,
 } from "../utils/refreshGame";
 import { useUser } from "../context/UserContext";
-import DevGameEditor from "./DevButton";
 
 interface Props {
   game: any;
@@ -32,11 +30,10 @@ export default function GameActionsDropdown({
   openConfirmModal,
   isHovered,
 }: Props) {
-  const { user, isAdmin } = useUser();
+  const { user } = useUser();
 
   const [open, setOpen] = useState(false);
   const [refreshOpen, setRefreshOpen] = useState(false);
-  const [devModalOpen, setDevModalOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -73,10 +70,10 @@ export default function GameActionsDropdown({
   }, []);
 
   useEffect(() => {
-    if (refreshOpen || devModalOpen) {
+    if (refreshOpen) {
       setOpen(false);
     }
-  }, [refreshOpen, devModalOpen]);
+  }, [refreshOpen]);
 
   const handleRefresh = async (fields: Record<RefreshField, boolean>) => {
     if (!user) return false;
@@ -229,18 +226,6 @@ export default function GameActionsDropdown({
           <button
             type="button" role="menuitem" tabIndex={-1}
             onClick={() => {
-              openEditModal(game);
-              setOpen(false);
-            }}
-            className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
-          >
-            <MdEdit size={16} className="shrink-0 text-zinc-400" aria-hidden="true" />
-            <span>Edit game</span>
-          </button>
-
-          <button
-            type="button" role="menuitem" tabIndex={-1}
-            onClick={() => {
               setRefreshOpen(true);
               setOpen(false);
             }}
@@ -250,19 +235,17 @@ export default function GameActionsDropdown({
             <span>Refresh details</span>
           </button>
 
-          {isAdmin && (
-            <button
-              type="button" role="menuitem" tabIndex={-1}
-              onClick={() => {
-                setDevModalOpen(true);
-                setOpen(false);
-              }}
-              className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
-            >
-              <FaCode size={16} className="shrink-0 text-zinc-400" aria-hidden="true" />
-              <span>Dev mode</span>
-            </button>
-          )}
+          <button
+            type="button" role="menuitem" tabIndex={-1}
+            onClick={() => {
+              openEditModal(game);
+              setOpen(false);
+            }}
+            className={`${actionBtnClass} text-zinc-100 hover:bg-white/10`}
+          >
+            <MdEdit size={16} className="shrink-0 text-zinc-400" aria-hidden="true" />
+            <span>Edit game</span>
+          </button>
 
           <div role="separator" className="mx-3 my-1 h-px bg-white/10" />
 
@@ -304,18 +287,6 @@ export default function GameActionsDropdown({
         </div>
       )}
 
-      {devModalOpen && user && (
-        <div className="pointer-events-auto">
-        <DevGameEditor
-          userId={user.uid}
-          game={{
-            ...game,
-            _docId: game._docId ?? game.igdb.id.toString(),
-          }}
-          onClose={() => setDevModalOpen(false)}
-        />
-        </div>
-      )}
     </div>
   );
 }

@@ -34,7 +34,7 @@ export default function CropModal({
   setCrop: (v: { x: number; y: number }) => void;
   setZoom: (v: number) => void;
   aspect: number;
-  onComplete: (area: Area) => void;
+  onComplete: (area: Area, areaPercent?: Area) => void;
   onSave: () => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -151,7 +151,9 @@ export default function CropModal({
                 aspect={aspect}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
-                onCropComplete={(_, area) => onComplete(area)}
+                onCropComplete={(areaPercent, area) =>
+                  onComplete(area, areaPercent)
+                }
               />
             </div>
           </div>

@@ -165,13 +165,32 @@ type UserProfile = {
   wallpaper?:
     | {
         data?: string;
+        localData?: string;
         url?: string;
         type?: "image" | "gif";
-        crop?: { x: number; y: number; zoom: number };
+        crop?: {
+          x: number;
+          y: number;
+          zoom: number;
+          area?: { x: number; y: number; width: number; height: number };
+        };
       }
     | string
     | null;
-  avatar?: string | { data?: string } | null;
+  avatar?:
+    | string
+    | {
+        data?: string;
+        localData?: string;
+        type?: "image" | "gif";
+        crop?: {
+          x: number;
+          y: number;
+          zoom: number;
+          area?: { x: number; y: number; width: number; height: number };
+        };
+      }
+    | null;
   unlockedBadgeIds?: string[];
   themePreset?: string;
 };
@@ -747,7 +766,11 @@ export default function UserProfileDashboard({
   const wallpaper =
     typeof profile?.wallpaper === "string"
       ? profile.wallpaper
-      : (profile?.wallpaper?.data ?? profile?.wallpaper?.url ?? null);
+      : (typeof window !== "undefined" &&
+          window.playcrewDesktop &&
+          profile?.wallpaper?.localData
+          ? profile.wallpaper.localData
+          : (profile?.wallpaper?.data ?? profile?.wallpaper?.url ?? null));
   const wallpaperCropStyle =
     typeof profile?.wallpaper === "object" &&
     profile.wallpaper?.type === "gif" &&
@@ -759,7 +782,30 @@ export default function UserProfileDashboard({
   const avatar =
     typeof profile.avatar === "string"
       ? profile.avatar
-      : (profile.avatar?.data ?? null);
+      : (typeof window !== "undefined" &&
+          window.playcrewDesktop &&
+          profile.avatar?.localData
+          ? profile.avatar.localData
+          : (profile.avatar?.data ?? null));
+  const avatarCrop =
+    typeof profile.avatar === "object" && profile.avatar?.type === "gif"
+      ? profile.avatar.crop
+      : undefined;
+  const avatarCropArea = avatarCrop?.area;
+  const avatarCropStyle = avatarCropArea
+    ? {
+        position: "absolute" as const,
+        left: `${(-avatarCropArea.x / avatarCropArea.width) * 100}%`,
+        top: `${(-avatarCropArea.y / avatarCropArea.height) * 100}%`,
+        width: `${10000 / avatarCropArea.width}%`,
+        height: `${10000 / avatarCropArea.height}%`,
+        maxWidth: "none",
+      }
+    : avatarCrop
+      ? {
+          transform: `translate(${avatarCrop.x / 4.4}%, ${avatarCrop.y / 4.4}%) scale(${avatarCrop.zoom})`,
+        }
+      : undefined;
   const displayUsername = profile.displayName || profile.username || username;
   const profileThemeAccent =
     THEME_PRESETS.find((theme) => theme.id === profile.themePreset)
@@ -841,6 +887,7 @@ export default function UserProfileDashboard({
                                 src={avatar}
                                 alt={`${displayUsername}'s avatar`}
                                 className="h-full w-full object-cover"
+                                style={avatarCropStyle}
                               />
                             ) : (
                               <div className="theme-accent-bg flex h-full w-full items-center justify-center">

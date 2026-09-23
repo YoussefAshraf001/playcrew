@@ -24,9 +24,16 @@ export async function POST(req: Request) {
     const body = (await req.json()) as {
       publicId?: string;
       assetFolder?: string;
+      previewKind?: "avatar" | "wallpaper";
     };
     const publicId = body.publicId?.trim();
     const assetFolder = body.assetFolder?.trim();
+    const transformation =
+      body.previewKind === "avatar"
+        ? "c_limit,h_512,q_auto:eco,w_512"
+        : body.previewKind === "wallpaper"
+          ? "c_limit,h_900,q_auto:eco,w_1600"
+          : null;
 
     if (!publicId || !PUBLIC_ID_PATTERN.test(publicId)) {
       return NextResponse.json(
@@ -48,6 +55,7 @@ export async function POST(req: Request) {
       "overwrite=true",
       `public_id=${publicId}`,
       `timestamp=${timestamp}`,
+      ...(transformation ? [`transformation=${transformation}`] : []),
     ].join("&");
 
     const signature = crypto
@@ -62,6 +70,7 @@ export async function POST(req: Request) {
       signature,
       publicId,
       assetFolder: assetFolder ?? null,
+      transformation,
     });
   } catch (error) {
     console.error("Cloudinary sign route failed", error);
