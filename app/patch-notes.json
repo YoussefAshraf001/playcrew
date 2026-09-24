@@ -1,9 +1,52 @@
 [
   {
+    "version": "2.1.8",
+    "title": "Achievements & Profile Experience",
+    "date": "2026-09-24",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Achievements",
+        "items": [
+          "Expanded achievements from 15 to 50 across completion, playtime, reviews, collection, replays, ratings, perfected games, genre variety, platforms, and play sessions",
+          "Added unique tier-colored artwork for every achievement across cards, the full cabinet, and unlock notifications",
+          "Made high-tier achievements substantially harder and replaced favorite-count milestones with meaningful replay achievements",
+          "Added custom achievement unlock notifications and persistent unlock dates with local date and time display",
+          "Added an administrator-only developer tool for logically estimating missing historical unlock dates without replacing recorded timestamps"
+        ]
+      },
+      {
+        "category": "Profiles",
+        "items": [
+          "Added complete genre breakdowns without grouping less common genres under Other",
+          "Standardized Overview, Library, Reviews, and Screenshots into a consistent fixed content frame",
+          "Added a shared fixed pagination footer for Library, Reviews, and Screenshots",
+          "Added screenshot search by screenshot or associated game title",
+          "Sorted public Game Libraries by newest release date, with undated games last",
+          "Added animated review page transitions, review-card hover effects, and sticker playback on hover or keyboard focus"
+        ]
+      },
+      {
+        "category": "IGDB Sync",
+        "items": [
+          "Replaced loading dots in the IGDB library sync modal with live completion percentage"
+        ]
+      },
+      {
+        "category": "Desktop",
+        "items": [
+          "Slowed the startup logo glimmer for a smoother reveal",
+          "Added an in-app desktop updater with automatic update detection, installed and latest version comparison, download progress, silent installation, and automatic restart",
+          "Added a PlayCrew Desktop version button to profile menus for manually opening the updater"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.7",
     "title": "Profile Media & Desktop Storage Update",
     "date": "2026-09-23",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Profiles",
@@ -497,7 +540,6 @@
       }
     ]
   },
-
   {
     "version": "7.5.2",
     "title": "Notification, Sticker, Rating & Progress Improvements",
@@ -706,7 +748,9 @@
       },
       {
         "category": "✖️ Removed",
-        "items": ["A Soulmate Who Wasn't Meant to Be — Jess Benko"]
+        "items": [
+          "A Soulmate Who Wasn't Meant to Be — Jess Benko"
+        ]
       }
     ]
   },

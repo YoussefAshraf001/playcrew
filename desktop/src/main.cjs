@@ -2,6 +2,8 @@ const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, Tray, protoco
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 const fs = require('node:fs');
+const { once } = require('node:events');
+const { spawn } = require('node:child_process');
 const { APP_URL, isAppUrl, isExternalUrl, canGrantPermission } = require('./policy.cjs');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'playcrew-local', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
@@ -32,6 +34,8 @@ const imageStorageDefaults = { profileImage: false, wallpaper: false, customGame
 const cloudCopyDefaults = { profileImage: true, wallpaper: true, customGameCovers: true, screenshots: true };
 const desktopReleasesUrl = 'https://api.github.com/repos/YoussefAshraf001/playcrew/releases?per_page=20';
 const desktopReleaseTagPattern = /^desktop-v(\d+\.\d+\.\d+)$/;
+const trustedUpdateHosts = new Set(['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']);
+let updateDownloadActive = false;
 const compareVersions = (left, right) => {
   const a = left.split('.').map(Number);
   const b = right.split('.').map(Number);
@@ -236,6 +240,10 @@ if (!app.requestSingleInstanceLock()) {
     const assertTrusted = (event) => {
       if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame || !isAppUrl(event.senderFrame.url)) throw new Error('Untrusted settings request');
     };
+    ipcMain.handle('playcrew:version', (event) => {
+      assertTrusted(event);
+      return app.getVersion();
+    });
     ipcMain.handle('playcrew:image-storage-settings', (event, value) => {
       assertTrusted(event);
       if (value === undefined) return { ...imageStorageDefaults, ...(readDesktopSettings().imageStorage || {}) };
@@ -268,11 +276,12 @@ if (!app.requestSingleInstanceLock()) {
       const installer = Array.isArray(release.assets)
         ? release.assets.find((asset) => /^PlayCrew-Setup-.*-x64\.exe$/i.test(asset?.name || ''))
         : null;
+      if (!installer?.browser_download_url) throw new Error('The desktop installer is not attached to this release');
       return {
         currentVersion: app.getVersion(),
         latestVersion,
         updateAvailable: compareVersions(latestVersion, app.getVersion()) > 0,
-        downloadUrl: installer?.browser_download_url || release.html_url
+        downloadUrl: installer.browser_download_url
       };
     });
     ipcMain.handle('playcrew:open-update-download', async (event, value) => {
@@ -281,6 +290,59 @@ if (!app.requestSingleInstanceLock()) {
       if (!url || url.protocol !== 'https:' || !['github.com', 'objects.githubusercontent.com'].includes(url.hostname)) throw new Error('Invalid update URL');
       await shell.openExternal(url.href);
       return true;
+    });
+    ipcMain.handle('playcrew:install-update', async (event, value) => {
+      assertTrusted(event);
+      if (updateDownloadActive) throw new Error('An update is already downloading');
+      const requestedUrl = typeof value?.downloadUrl === 'string' ? new URL(value.downloadUrl) : null;
+      const version = typeof value?.version === 'string' && /^\d+\.\d+\.\d+$/.test(value.version) ? value.version : null;
+      if (!requestedUrl || requestedUrl.protocol !== 'https:' || !trustedUpdateHosts.has(requestedUrl.hostname) || !version || !/^PlayCrew-Setup-.*-x64\.exe$/i.test(path.basename(requestedUrl.pathname))) throw new Error('Invalid update installer');
+      updateDownloadActive = true;
+      const installerPath = path.join(app.getPath('temp'), `PlayCrew-Setup-${version}-x64.exe`);
+      const sendProgress = (payload) => {
+        if (!mainWindow?.isDestroyed()) mainWindow.webContents.send('playcrew:update-progress', payload);
+      };
+      try {
+        sendProgress({ status: 'downloading', percent: 0, transferred: 0, total: 0 });
+        const response = await net.fetch(requestedUrl.href, {
+          headers: { Accept: 'application/octet-stream', 'User-Agent': 'PlayCrew-Desktop' }
+        });
+        if (!response.ok || !response.body) throw new Error(`Update download failed (${response.status})`);
+        const total = Number(response.headers.get('content-length')) || 0;
+        const writer = fs.createWriteStream(installerPath);
+        const reader = response.body.getReader();
+        let transferred = 0;
+        while (true) {
+          const { done, value: chunk } = await reader.read();
+          if (done) break;
+          const buffer = Buffer.from(chunk);
+          transferred += buffer.length;
+          if (!writer.write(buffer)) await once(writer, 'drain');
+          sendProgress({
+            status: 'downloading',
+            percent: total ? Math.min(100, Math.round((transferred / total) * 100)) : null,
+            transferred,
+            total
+          });
+        }
+        writer.end();
+        await once(writer, 'finish');
+        sendProgress({ status: 'installing', percent: 100, transferred, total });
+        const installer = spawn(installerPath, ['--updated', '/S', '--force-run'], {
+          detached: true,
+          stdio: 'ignore'
+        });
+        installer.unref();
+        quitting = true;
+        setTimeout(() => app.quit(), 700).unref();
+        return true;
+      } catch (error) {
+        try { fs.unlinkSync(installerPath); } catch { /* Missing partial file is fine. */ }
+        sendProgress({ status: 'error', message: error.message });
+        throw error;
+      } finally {
+        updateDownloadActive = false;
+      }
     });
     ipcMain.handle('playcrew:open-local-images', async (event) => {
       assertTrusted(event);

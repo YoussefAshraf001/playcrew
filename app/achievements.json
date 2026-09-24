@@ -1,17 +1,417 @@
 [
-  { "id": "completed-1", "family": "completed", "title": "First Victory", "description": "Complete your first game.", "threshold": 1, "icon": "🏁", "tier": "bronze" },
-  { "id": "completed-10", "family": "completed", "title": "Finisher", "description": "Complete 10 games.", "threshold": 10, "icon": "🏆", "tier": "silver" },
-  { "id": "completed-25", "family": "completed", "title": "Seasoned Finisher", "description": "Complete 25 games.", "threshold": 25, "icon": "👑", "tier": "gold" },
-  { "id": "completed-50", "family": "completed", "title": "Completionist", "description": "Complete 50 games.", "threshold": 50, "icon": "💎", "tier": "platinum" },
-  { "id": "completed-100", "family": "completed", "title": "Centurion", "description": "Complete 100 games.", "threshold": 100, "icon": "💯", "tier": "diamond" },
-  { "id": "playtime-10", "family": "playtime", "title": "Getting Started", "description": "Track 10 hours of playtime.", "threshold": 10, "icon": "⏱️", "tier": "bronze" },
-  { "id": "playtime-100", "family": "playtime", "title": "Game Night Regular", "description": "Track 100 hours of playtime.", "threshold": 100, "icon": "🌙", "tier": "silver" },
-  { "id": "playtime-500", "family": "playtime", "title": "Time Traveler", "description": "Track 500 hours of playtime.", "threshold": 500, "icon": "⌛", "tier": "gold" },
-  { "id": "playtime-1000", "family": "playtime", "title": "Thousand-Hour Club", "description": "Track 1,000 hours of playtime.", "threshold": 1000, "icon": "🔥", "tier": "platinum" },
-  { "id": "playtime-5000", "family": "playtime", "title": "Lifetime Gamer", "description": "Track 5,000 hours of playtime.", "threshold": 5000, "icon": "♾️", "tier": "diamond" },
-  { "id": "reviews-1", "family": "reviews", "title": "First Impression", "description": "Write your first review.", "threshold": 1, "icon": "✍️", "tier": "bronze" },
-  { "id": "reviews-10", "family": "reviews", "title": "Critic", "description": "Write 10 reviews.", "threshold": 10, "icon": "📝", "tier": "silver" },
-  { "id": "reviews-25", "family": "reviews", "title": "Trusted Voice", "description": "Write 25 reviews.", "threshold": 25, "icon": "🎙️", "tier": "gold" },
-  { "id": "reviews-50", "family": "reviews", "title": "Veteran Critic", "description": "Write 50 reviews.", "threshold": 50, "icon": "📰", "tier": "platinum" },
-  { "id": "reviews-100", "family": "reviews", "title": "Master Reviewer", "description": "Write 100 reviews.", "threshold": 100, "icon": "🌟", "tier": "diamond" }
+  {
+    "id": "completed-1",
+    "family": "completed",
+    "title": "First Victory",
+    "description": "Complete your first game.",
+    "threshold": 1,
+    "icon": "🏆",
+    "tier": "bronze"
+  },
+  {
+    "id": "completed-10",
+    "family": "completed",
+    "title": "Finisher",
+    "description": "Complete 15 games.",
+    "threshold": 15,
+    "icon": "🏆",
+    "tier": "silver"
+  },
+  {
+    "id": "completed-25",
+    "family": "completed",
+    "title": "Seasoned Finisher",
+    "description": "Complete 50 games.",
+    "threshold": 50,
+    "icon": "🏆",
+    "tier": "gold"
+  },
+  {
+    "id": "completed-50",
+    "family": "completed",
+    "title": "Completionist",
+    "description": "Complete 100 games.",
+    "threshold": 100,
+    "icon": "🏆",
+    "tier": "platinum"
+  },
+  {
+    "id": "completed-100",
+    "family": "completed",
+    "title": "Centurion",
+    "description": "Complete 250 games.",
+    "threshold": 250,
+    "icon": "🏆",
+    "tier": "diamond"
+  },
+  {
+    "id": "playtime-10",
+    "family": "playtime",
+    "title": "Getting Started",
+    "description": "Track 10 hours of playtime.",
+    "threshold": 10,
+    "icon": "⏱",
+    "tier": "bronze"
+  },
+  {
+    "id": "playtime-100",
+    "family": "playtime",
+    "title": "Game Night Regular",
+    "description": "Track 150 hours of playtime.",
+    "threshold": 150,
+    "icon": "⏱",
+    "tier": "silver"
+  },
+  {
+    "id": "playtime-500",
+    "family": "playtime",
+    "title": "Time Traveler",
+    "description": "Track 750 hours of playtime.",
+    "threshold": 750,
+    "icon": "⏱",
+    "tier": "gold"
+  },
+  {
+    "id": "playtime-1000",
+    "family": "playtime",
+    "title": "Thousand-Hour Club",
+    "description": "Track 2,000 hours of playtime.",
+    "threshold": 2000,
+    "icon": "⏱",
+    "tier": "platinum"
+  },
+  {
+    "id": "playtime-5000",
+    "family": "playtime",
+    "title": "Lifetime Gamer",
+    "description": "Track 10,000 hours of playtime.",
+    "threshold": 10000,
+    "icon": "⏱",
+    "tier": "diamond"
+  },
+  {
+    "id": "reviews-1",
+    "family": "reviews",
+    "title": "First Impression",
+    "description": "Write your first review.",
+    "threshold": 1,
+    "icon": "📝",
+    "tier": "bronze"
+  },
+  {
+    "id": "reviews-10",
+    "family": "reviews",
+    "title": "Critic",
+    "description": "Write 10 reviews.",
+    "threshold": 10,
+    "icon": "📝",
+    "tier": "silver"
+  },
+  {
+    "id": "reviews-25",
+    "family": "reviews",
+    "title": "Trusted Voice",
+    "description": "Write 30 reviews.",
+    "threshold": 30,
+    "icon": "📝",
+    "tier": "gold"
+  },
+  {
+    "id": "reviews-50",
+    "family": "reviews",
+    "title": "Veteran Critic",
+    "description": "Write 75 reviews.",
+    "threshold": 75,
+    "icon": "📝",
+    "tier": "platinum"
+  },
+  {
+    "id": "reviews-100",
+    "family": "reviews",
+    "title": "Master Reviewer",
+    "description": "Write 200 reviews.",
+    "threshold": 200,
+    "icon": "📝",
+    "tier": "diamond"
+  },
+  {
+    "id": "collection-5",
+    "family": "collection",
+    "title": "Foot in the Door",
+    "description": "Build a collection of 5 games.",
+    "threshold": 5,
+    "icon": "🗃",
+    "tier": "bronze"
+  },
+  {
+    "id": "collection-25",
+    "family": "collection",
+    "title": "Shelf Curator",
+    "description": "Build a collection of 25 games.",
+    "threshold": 25,
+    "icon": "🗃",
+    "tier": "silver"
+  },
+  {
+    "id": "collection-100",
+    "family": "collection",
+    "title": "Archive Builder",
+    "description": "Build a collection of 100 games.",
+    "threshold": 100,
+    "icon": "🗃",
+    "tier": "gold"
+  },
+  {
+    "id": "collection-300",
+    "family": "collection",
+    "title": "Grand Librarian",
+    "description": "Build a collection of 300 games.",
+    "threshold": 300,
+    "icon": "🗃",
+    "tier": "platinum"
+  },
+  {
+    "id": "collection-1000",
+    "family": "collection",
+    "title": "The Endless Archive",
+    "description": "Build a collection of 1,000 games.",
+    "threshold": 1000,
+    "icon": "🗃",
+    "tier": "diamond"
+  },
+  {
+    "id": "favorites-1",
+    "family": "favorites",
+    "title": "The Keeper",
+    "description": "Mark your first favorite game.",
+    "threshold": 1,
+    "icon": "❤",
+    "tier": "gold"
+  },
+
+  {
+    "id": "ratings-1",
+    "family": "ratings",
+    "title": "First Verdict",
+    "description": "Rate your first game.",
+    "threshold": 1,
+    "icon": "⚖",
+    "tier": "bronze"
+  },
+  {
+    "id": "ratings-25",
+    "family": "ratings",
+    "title": "Scorekeeper",
+    "description": "Rate 25 games.",
+    "threshold": 25,
+    "icon": "⚖",
+    "tier": "silver"
+  },
+  {
+    "id": "ratings-75",
+    "family": "ratings",
+    "title": "Tastemaker",
+    "description": "Rate 75 games.",
+    "threshold": 75,
+    "icon": "⚖",
+    "tier": "gold"
+  },
+  {
+    "id": "ratings-200",
+    "family": "ratings",
+    "title": "Jury Foreman",
+    "description": "Rate 200 games.",
+    "threshold": 200,
+    "icon": "⚖",
+    "tier": "platinum"
+  },
+  {
+    "id": "ratings-500",
+    "family": "ratings",
+    "title": "Final Authority",
+    "description": "Rate 500 games.",
+    "threshold": 500,
+    "icon": "⚖",
+    "tier": "diamond"
+  },
+  {
+    "id": "perfected-1",
+    "family": "perfected",
+    "title": "Flawless Finish",
+    "description": "Reach 100% progress in one game.",
+    "threshold": 1,
+    "icon": "✨",
+    "tier": "bronze"
+  },
+  {
+    "id": "perfected-5",
+    "family": "perfected",
+    "title": "Polished to a Shine",
+    "description": "Reach 100% progress in 5 games.",
+    "threshold": 5,
+    "icon": "✨",
+    "tier": "silver"
+  },
+  {
+    "id": "perfected-20",
+    "family": "perfected",
+    "title": "No Loose Ends",
+    "description": "Reach 100% progress in 20 games.",
+    "threshold": 20,
+    "icon": "✨",
+    "tier": "gold"
+  },
+  {
+    "id": "perfected-50",
+    "family": "perfected",
+    "title": "Masterwork",
+    "description": "Reach 100% progress in 50 games.",
+    "threshold": 50,
+    "icon": "✨",
+    "tier": "platinum"
+  },
+  {
+    "id": "perfected-100",
+    "family": "perfected",
+    "title": "The Absolute",
+    "description": "Reach 100% progress in 100 games.",
+    "threshold": 100,
+    "icon": "✨",
+    "tier": "diamond"
+  },
+  {
+    "id": "genres-3",
+    "family": "genres",
+    "title": "Curious Mind",
+    "description": "Play games across 3 genres.",
+    "threshold": 3,
+    "icon": "🎭",
+    "tier": "bronze"
+  },
+  {
+    "id": "genres-8",
+    "family": "genres",
+    "title": "Genre Hopper",
+    "description": "Play games across 8 genres.",
+    "threshold": 8,
+    "icon": "🎭",
+    "tier": "silver"
+  },
+  {
+    "id": "genres-15",
+    "family": "genres",
+    "title": "The Omnivore",
+    "description": "Play games across 15 genres.",
+    "threshold": 15,
+    "icon": "🎭",
+    "tier": "gold"
+  },
+  {
+    "id": "genres-25",
+    "family": "genres",
+    "title": "Boundary Breaker",
+    "description": "Play games across 25 genres.",
+    "threshold": 25,
+    "icon": "🎭",
+    "tier": "platinum"
+  },
+  {
+    "id": "genres-40",
+    "family": "genres",
+    "title": "Universal Player",
+    "description": "Play games across 40 genres.",
+    "threshold": 40,
+    "icon": "🎭",
+    "tier": "diamond"
+  },
+  {
+    "id": "platforms-2",
+    "family": "platforms",
+    "title": "First Port",
+    "description": "Collect games across 2 platforms.",
+    "threshold": 2,
+    "icon": "🕹",
+    "tier": "bronze"
+  },
+  {
+    "id": "platforms-5",
+    "family": "platforms",
+    "title": "Cross-System",
+    "description": "Collect games across 5 platforms.",
+    "threshold": 5,
+    "icon": "🕹",
+    "tier": "silver"
+  },
+  {
+    "id": "platforms-10",
+    "family": "platforms",
+    "title": "Platform Nomad",
+    "description": "Collect games across 10 platforms.",
+    "threshold": 10,
+    "icon": "🕹",
+    "tier": "gold"
+  },
+  {
+    "id": "platforms-20",
+    "family": "platforms",
+    "title": "Hardware Historian",
+    "description": "Collect games across 20 platforms.",
+    "threshold": 20,
+    "icon": "🕹",
+    "tier": "platinum"
+  },
+  {
+    "id": "platforms-35",
+    "family": "platforms",
+    "title": "Everywhere at Once",
+    "description": "Collect games across 35 platforms.",
+    "threshold": 35,
+    "icon": "🕹",
+    "tier": "diamond"
+  },
+  {
+    "id": "sessions-1",
+    "family": "sessions",
+    "title": "Press Start",
+    "description": "Record your first play session.",
+    "threshold": 1,
+    "icon": "🎮",
+    "tier": "bronze"
+  },
+  {
+    "id": "sessions-25",
+    "family": "sessions",
+    "title": "Regular Check-In",
+    "description": "Record 25 play sessions.",
+    "threshold": 25,
+    "icon": "🎮",
+    "tier": "silver"
+  },
+  {
+    "id": "sessions-100",
+    "family": "sessions",
+    "title": "Ritual Player",
+    "description": "Record 100 play sessions.",
+    "threshold": 100,
+    "icon": "🎮",
+    "tier": "gold"
+  },
+  {
+    "id": "sessions-500",
+    "family": "sessions",
+    "title": "A Thousand Nights",
+    "description": "Record 500 play sessions.",
+    "threshold": 500,
+    "icon": "🎮",
+    "tier": "platinum"
+  },
+  {
+    "id": "sessions-2000",
+    "family": "sessions",
+    "title": "Never Logged Off",
+    "description": "Record 2,000 play sessions.",
+    "threshold": 2000,
+    "icon": "🎮",
+    "tier": "diamond"
+  }
 ]

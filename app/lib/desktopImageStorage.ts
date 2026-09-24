@@ -23,6 +23,7 @@ export const DEFAULT_DESKTOP_CLOUD_COPIES: DesktopImageStorageSettings = {
 declare global {
   interface Window {
     playcrewDesktop?: {
+      getVersion: () => Promise<string>;
       getCloseBehavior: () => Promise<"tray" | "quit">;
       setCloseBehavior: (value: "tray" | "quit") => Promise<"tray" | "quit">;
       getImageStorageSettings: () => Promise<DesktopImageStorageSettings>;
@@ -36,6 +37,14 @@ declare global {
         downloadUrl: string;
       }>;
       openUpdateDownload: (url: string) => Promise<boolean>;
+      installUpdate: (update: { downloadUrl: string; version: string }) => Promise<boolean>;
+      onUpdateProgress: (listener: (progress: {
+        status: "downloading" | "installing" | "error";
+        percent?: number | null;
+        transferred?: number;
+        total?: number;
+        message?: string;
+      }) => void) => () => void;
       openLocalImagesFolder: () => Promise<void>;
       saveLocalImage: (category: DesktopImageCategory, key: string, dataUrl: string) => Promise<string>;
       saveLocalImageToPath?: (category: DesktopImageCategory, pathSegments: string[], dataUrl: string) => Promise<string>;

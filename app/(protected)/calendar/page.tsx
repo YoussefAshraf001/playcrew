@@ -909,7 +909,10 @@ export default function CalendarPage() {
                                         href={`/game/${g.id}`}
                                         className="group/upcoming relative isolate block overflow-hidden rounded-[22px] border border-[var(--theme-border)] theme-surface pt-2 shadow-[0_18px_38px_rgba(0,0,0,0.15)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-accent)]"
                                       >
-                                        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[21px] bg-[rgba(var(--theme-accent-rgb),0.055)] opacity-0 shadow-[inset_0_0_0_1px_rgba(var(--theme-accent-rgb),0.35),inset_0_0_24px_rgba(var(--theme-accent-rgb),0.06)] transition-opacity duration-300 ease-in-out group-hover/upcoming:opacity-100 group-focus-visible/upcoming:opacity-100 motion-reduce:transition-none" />
+                                        <div
+                                          aria-hidden="true"
+                                          className="pointer-events-none absolute inset-0 rounded-[21px] bg-[rgba(var(--theme-accent-rgb),0.055)] opacity-0 shadow-[inset_0_0_0_1px_rgba(var(--theme-accent-rgb),0.35),inset_0_0_24px_rgba(var(--theme-accent-rgb),0.06)] transition-opacity duration-300 ease-in-out group-hover/upcoming:opacity-100 group-focus-visible/upcoming:opacity-100 motion-reduce:transition-none"
+                                        />
                                         <div className="relative flex gap-3 px-2.5 py-2">
                                           <img
                                             src={getCalendarCover(

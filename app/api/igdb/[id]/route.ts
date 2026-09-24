@@ -26,7 +26,9 @@ export async function GET(req: Request) {
     name,
     cover.image_id,
     genres.name,
+    franchises.name,
     rating,
+    total_rating_count,
     platforms.name,
     first_release_date;
   where id = ${id};
@@ -76,7 +78,9 @@ export async function GET(req: Request) {
         ? `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${game.cover.image_id}.jpg`
         : null,
       genres: game.genres?.map((g: any) => g.name) ?? [],
+      franchises: game.franchises?.map((franchise: any) => franchise.name) ?? [],
       rating: game.rating ?? null,
+      totalRatingCount: game.total_rating_count ?? 0,
       platforms: game.platforms?.map((p: any) => p.name) ?? [],
       releaseDate: releasePhases.releaseDate,
       earlyAccessDate: releasePhases.earlyAccessDate,

@@ -106,6 +106,7 @@ interface GameTrackingModalProps {
     status: string,
     favorite: boolean,
     notInterested: boolean,
+    lostInterestMessage: string,
     playedSessions: PlaySession[],
     playedOn: PlayedOnPlatform[],
     preReleaseAccess: PreReleaseAccess | null,
@@ -441,6 +442,9 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
   );
   const [confirmNotInterestedOpen, setConfirmNotInterestedOpen] =
     useState(false);
+  const [lostInterestMessage, setLostInterestMessage] = useState(
+    game?.lostInterestMessage ?? "",
+  );
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
   const [confirmCleanOpen, setConfirmCleanOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
@@ -599,6 +603,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       status,
       favorite,
       notInterested,
+      lostInterestMessage.trim(),
       nextPlayedSessions,
       playedOn,
       preReleaseAccess,
@@ -628,6 +633,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       status,
       favorite,
       notInterested,
+      lostInterestMessage: lostInterestMessage.trim(),
       playedOn,
       preReleaseAccess,
     }, playAgain, now);
@@ -657,6 +663,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       "Want To Play",
       false,
       false,
+      "",
       [],
       [],
       null,
@@ -686,6 +693,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
 
   const clearNotInterested = () => {
     setNotInterested(false);
+    setLostInterestMessage("");
     if (status === "Not Interested" || status === "Lost Interest") {
       setStatus("Want To Play");
     }
@@ -699,12 +707,7 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
       return;
     }
 
-    if (rating !== null) {
-      setConfirmNotInterestedOpen(true);
-      return;
-    }
-
-    applyNotInterested();
+    setConfirmNotInterestedOpen(true);
   };
 
   const handleClearRating = () => {
@@ -1966,18 +1969,47 @@ export default function GameTrackingModal(props: GameTrackingModalProps) {
             </AnimatePresence>
 
             {/* CONFIRM TO SET GAME AS NOT INTERESTED */}
-            <ConfirmModal
-              open={confirmNotInterestedOpen}
-              title="Are you sure?"
-              message="Marking this game as Lost Interest means this game did not click with you. Doing so will clear your rating for this game."
-              confirmText="Yes, Clear"
-              cancelText="Cancel"
-              onCancel={() => setConfirmNotInterestedOpen(false)}
-              onConfirm={() => {
-                applyNotInterested();
-                setConfirmNotInterestedOpen(false);
-              }}
-            />
+            <AnimatePresence>
+              {confirmNotInterestedOpen && (
+                <>
+                  <motion.button
+                    type="button"
+                    aria-label="Close lost interest dialog"
+                    className="theme-modal-backdrop fixed inset-0 z-[10000]"
+                    initial={{ opacity: 0 }} animate={{ opacity: 0.7 }} exit={{ opacity: 0 }}
+                    onClick={() => setConfirmNotInterestedOpen(false)}
+                  />
+                  <motion.div
+                    role="dialog" aria-modal="true" aria-labelledby="lost-interest-title"
+                    initial={{ opacity: 0, y: 18, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 12, scale: 0.97 }}
+                    className="theme-panel-strong fixed left-1/2 top-1/2 z-[10001] w-[520px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-red-400/20 shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+                  >
+                    <div className="border-b border-white/10 bg-red-500/5 px-6 py-5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-red-300">Collection note</p>
+                      <h2 id="lost-interest-title" className="mt-1 text-xl font-bold theme-text">Lost interest?</h2>
+                      <p className="mt-2 text-sm leading-relaxed theme-text-muted">You can leave a short reason for the card. Your rating will be cleared.</p>
+                    </div>
+                    <div className="space-y-4 px-6 py-5">
+                      <label className="block">
+                        <span className="mb-2 flex justify-between text-xs theme-text-muted"><span>Why did it lose you? (optional)</span><span>{lostInterestMessage.length}/90</span></span>
+                        <textarea
+                          autoFocus maxLength={90} rows={3} value={lostInterestMessage}
+                          onChange={(event) => setLostInterestMessage(event.target.value)}
+                          placeholder="Too repetitive, not my kind of combat..."
+                          className="w-full resize-none rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm theme-text outline-none transition focus:border-red-400/50 focus:ring-4 focus:ring-red-500/10"
+                        />
+                      </label>
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <button type="button" onClick={() => { setLostInterestMessage(""); applyNotInterested(); setConfirmNotInterestedOpen(false); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold theme-text-muted transition hover:bg-white/5 hover:theme-text">Skip</button>
+                        <button type="button" onClick={() => { applyNotInterested(); setConfirmNotInterestedOpen(false); }} className="rounded-xl border border-red-400/30 bg-red-500/15 px-5 py-2.5 text-sm font-semibold text-red-100 transition hover:bg-red-500/25">Save message</button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
             {/* DELETE GAME ENTRY */}
             <ConfirmModal

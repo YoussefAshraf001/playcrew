@@ -19,7 +19,9 @@ export type RefreshableGame = {
     name?: string;
     cover?: string;
     genres?: unknown;
+    franchises?: unknown;
     rating?: number | null;
+    totalRatingCount?: number | null;
     platforms?: unknown;
     releaseDate?: unknown;
     earlyAccessDate?: unknown;
@@ -153,7 +155,10 @@ export async function refreshGameData(
   game: RefreshableGame,
   fields: Record<string, boolean>,
   firestoreDocId: string,
-  options?: { overrideBlockedFields?: boolean },
+  options?: {
+    overrideBlockedFields?: boolean;
+    preserveLastUpdated?: boolean;
+  },
 ) {
   const blockedFields = getBlockedRefreshFields(game);
   const effectiveFields = Object.fromEntries(
@@ -179,7 +184,9 @@ export async function refreshGameData(
     name?: string;
     cover?: string;
     genres?: unknown;
+    franchises?: unknown;
     rating?: number | null;
+    totalRatingCount?: number | null;
     platforms?: unknown;
     releaseDate?: number | null;
     earlyAccessDate?: number | null;
@@ -241,6 +248,15 @@ export async function refreshGameData(
   if (effectiveFields.genres) {
     maybeUpdate("igdb.genres", igdb.genres, game.igdb.genres);
   }
+
+  // Insight metadata comes back in the same IGDB request, so keeping it fresh
+  // does not add another API call or create a user-facing update message.
+  maybeUpdate("igdb.franchises", igdb.franchises, game.igdb.franchises);
+  maybeUpdate(
+    "igdb.totalRatingCount",
+    igdb.totalRatingCount,
+    game.igdb.totalRatingCount,
+  );
 
   if (effectiveFields.rating) {
     // IGDB commonly omits ratings for unreleased or sparsely rated games.
@@ -386,7 +402,11 @@ export async function refreshGameData(
   }
 
   const platformChange = diff["igdb.platforms"];
-  if (platformChange && Array.isArray(platformChange.old)) {
+  if (
+    platformChange &&
+    Array.isArray(platformChange.old) &&
+    platformChange.old.length > 0
+  ) {
     const previousPlatforms = new Set(
       getStringArray(platformChange.old).map((platform) =>
         platform.toLocaleLowerCase(),
@@ -423,6 +443,8 @@ export async function refreshGameData(
 
   const summary = messages.join(" ") || "Game information was refreshed.";
   const shouldTouchLastUpdated =
+    options?.preserveLastUpdated !== true &&
+    messages.length > 0 &&
     typeof game.status === "string" &&
     game.status.trim().toLowerCase() === "want to play";
 

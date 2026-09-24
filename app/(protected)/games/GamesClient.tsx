@@ -199,6 +199,7 @@ interface UserProfile {
   creationTime?: Date;
   lastSignInTime?: Date;
   unlockedBadgeIds?: string[];
+  badgeUnlockedAt?: Record<string, unknown>;
   privacy?: { profile?: "public" | "friends" | "private" };
 }
 
@@ -1376,6 +1377,7 @@ export default function GamesPage() {
     status: string,
     favorite: boolean,
     notInterested: boolean,
+    lostInterestMessage: string,
     playedSessions: NonNullable<TrackedGame["playedSessions"]>,
     playedOn: TrackedGame["playedOn"],
     preReleaseAccess: TrackedGame["preReleaseAccess"],
@@ -1412,6 +1414,7 @@ export default function GamesPage() {
         (prev.favorite ?? false) === favorite &&
         (prev.playAgain ?? null) === (playAgain ?? null) &&
         (prev.notInterested ?? false) === notInterested &&
+        (prev.lostInterestMessage ?? "") === lostInterestMessage &&
         (prev.review?.text ?? "") === review.text &&
         (prev.review?.sticker ?? null) === review.sticker &&
         JSON.stringify(prev.playedSessions ?? []) ===
@@ -1462,6 +1465,7 @@ export default function GamesPage() {
           status,
           favorite,
           notInterested,
+          lostInterestMessage: notInterested ? lostInterestMessage : "",
           review: reviewForSave,
           playedSessions,
           playedOn,
@@ -2447,7 +2451,7 @@ export default function GamesPage() {
 
                                 router.push(`/game/${g.igdb.id}`);
                               }}
-                              className="flex items-center gap-2 rounded-xl py-2 cursor-pointer group theme-hover-surface transition-all duration-300 shadow-sm hover:shadow-md"
+                              className="group relative flex cursor-pointer items-center gap-2 overflow-hidden rounded-xl py-2 theme-hover-surface shadow-sm transition-all duration-300 hover:shadow-md"
                             >
                               <img
                                 className="w-12 h-16 object-cover rounded-md shadow-sm group-hover:scale-105 transition-transform duration-300"
@@ -2492,12 +2496,18 @@ export default function GamesPage() {
                                   </span>
                                 </div>
                               </div>
-                              <div
-                                className="theme-text-muted cursor-grab active:cursor-grabbing px-2"
-                                onPointerDown={(e) => e.stopPropagation()}
+                              <button
+                                type="button"
+                                aria-label={`Reorder ${g.name}`}
+                                title="Drag this row to reorder"
+                                className="theme-text-muted absolute right-2 grid h-9 w-9 translate-x-12 place-items-center rounded-xl border border-white/10 bg-black/70 opacity-0 shadow-lg backdrop-blur-md transition-all duration-300 ease-out hover:border-white/20 hover:text-white group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }}
                               >
-                                ☰
-                              </div>
+                                <RiDraggable className="h-5 w-5" />
+                              </button>
                             </div>
                           </Reorder.Item>
                         ))}
@@ -3098,11 +3108,11 @@ export default function GamesPage() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setRecentVisibleCount((prev) => prev + 15);
+                              setRecentVisibleCount((prev) => prev + 50);
                             }}
                             className="rounded-xl border border-cyan-400/30 px-6 py-3 text-sm font-semibold transition-all duration-200 hover:border-cyan-400 hover:bg-cyan-500 hover:text-black"
                           >
-                            Load 15 More Activities
+                            Load 50 More Activities
                           </button>
 
                           <span className="text-xs text-zinc-500">
@@ -3134,6 +3144,34 @@ export default function GamesPage() {
               type="button"
               aria-label="Close game-card menu"
               onClick={() => setCardSteamMenu(null)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+
+                // Let a second right-click pass through to the card beneath
+                // the dismiss layer so the menu can move directly to it.
+                const dismissLayer = event.currentTarget;
+                dismissLayer.style.pointerEvents = "none";
+                const target = document.elementFromPoint(
+                  event.clientX,
+                  event.clientY,
+                );
+                dismissLayer.style.pointerEvents = "";
+
+                if (target) {
+                  target.dispatchEvent(
+                    new globalThis.MouseEvent("contextmenu", {
+                      bubbles: true,
+                      cancelable: true,
+                      clientX: event.clientX,
+                      clientY: event.clientY,
+                      button: 2,
+                      buttons: 2,
+                    }),
+                  );
+                } else {
+                  setCardSteamMenu(null);
+                }
+              }}
               className="fixed inset-0 z-[10040] cursor-default"
             />
             <motion.div
@@ -3188,8 +3226,7 @@ export default function GamesPage() {
           userId={user.uid}
           game={{
             ...devEditorGame,
-            _docId:
-              devEditorGame._docId ?? devEditorGame.igdb.id.toString(),
+            _docId: devEditorGame._docId ?? devEditorGame.igdb.id.toString(),
           }}
           onClose={() => setDevEditorGame(null)}
         />

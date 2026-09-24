@@ -388,6 +388,11 @@ export default function GameCard({
                     <h3 className="mt-5 text-lg font-semibold text-white">
                       Lost Interest
                     </h3>
+                    {game.lostInterestMessage?.trim() && (
+                      <p className="mt-2 line-clamp-3 max-w-[180px] text-sm leading-relaxed text-zinc-300">
+                        “{game.lostInterestMessage.trim()}”
+                      </p>
+                    )}
                   </div>
                 ) : showComingSoonOverlay ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FiCheck, FiSearch, FiUpload, FiX } from "react-icons/fi";
-import { doc, updateDoc, deleteField } from "firebase/firestore";
+import { collection, doc, getDocs, updateDoc, deleteField } from "firebase/firestore";
 import { db } from "@/app/lib/firebase";
 import toast from "react-hot-toast";
 import { AnimatePresence, motion } from "framer-motion";
@@ -40,6 +40,11 @@ import CropModal from "@/app/components/CropModal";
 import DesktopDownload from "@/app/components/DesktopDownload";
 import DesktopSettings from "@/app/components/DesktopSettings";
 import IdleWallpaperOverlay from "@/app/components/IdleWallpaperOverlay";
+import RefreshModal, { type RefreshField } from "@/app/components/RefreshModal";
+import {
+  refreshGameData,
+  type RefreshableGame,
+} from "@/app/utils/refreshGame";
 import { saveImageLocally, shouldSaveImageLocally, shouldUploadCloudCopy, toLocalPathSegment } from "@/app/lib/desktopImageStorage";
 
 type CropData = {
@@ -196,6 +201,13 @@ export default function SiteSettingsPage() {
   );
 
   const [wallpaperPreview, setWallpaperPreview] = useState(false);
+  const [libraryRefreshOpen, setLibraryRefreshOpen] = useState(false);
+  const [libraryRefreshProgress, setLibraryRefreshProgress] = useState<{
+    current: number;
+    total: number;
+    updated: number;
+    failed: number;
+  } | null>(null);
 
   const previewVariants = {
     visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
@@ -618,6 +630,66 @@ export default function SiteSettingsPage() {
     }
   };
 
+  const refreshEntireLibrary = async (
+    fields: Record<RefreshField, boolean>,
+  ) => {
+    if (!user) return false;
+
+    const snapshot = await getDocs(
+      collection(db, "users", user.uid, "games_igdb"),
+    );
+    const games = snapshot.docs
+      .map((gameDoc) => ({
+        id: gameDoc.id,
+        game: gameDoc.data() as RefreshableGame,
+      }))
+      .filter(({ game }) => typeof game.igdb?.id === "number");
+
+    setLibraryRefreshProgress({
+      current: 0,
+      total: games.length,
+      updated: 0,
+      failed: 0,
+    });
+
+    let updated = 0;
+    let failed = 0;
+    for (let index = 0; index < games.length; index += 1) {
+      const entry = games[index];
+      try {
+        const result = await refreshGameData(
+          user.uid,
+          entry.game,
+          fields,
+          entry.id,
+          { preserveLastUpdated: true },
+        );
+        if (Object.keys(result.update).length > 0) updated += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(`Failed to refresh ${entry.game.name ?? entry.id}`, error);
+      }
+
+      setLibraryRefreshProgress({
+        current: index + 1,
+        total: games.length,
+        updated,
+        failed,
+      });
+    }
+
+    if (failed) {
+      toast.error(
+        `Library refresh finished: ${updated} updated, ${failed} failed.`,
+      );
+    } else {
+      toast.success(
+        `Library refresh complete. ${updated} ${updated === 1 ? "game was" : "games were"} updated.`,
+      );
+    }
+    return true;
+  };
+
   /* ---------------- LOADING ---------------- */
 
   if (loading || !profile) {
@@ -1019,6 +1091,65 @@ export default function SiteSettingsPage() {
                       )}
                     </button>
                   )}
+                  <div className="mt-4 border-t border-[var(--theme-border)] pt-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="theme-text text-sm font-semibold">
+                          Refresh Entire Library
+                        </h3>
+                        <p className="theme-text-muted mt-1 text-xs leading-relaxed">
+                          Re-fetch selected IGDB metadata for every game while preserving Last Updated and recent activity.
+                        </p>
+                      </div>
+                      <span className="theme-accent-soft-bg shrink-0 rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-wider">
+                        Manual
+                      </span>
+                    </div>
+
+                    {libraryRefreshProgress && (
+                      <div className="theme-surface mt-3 rounded-xl border p-3">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="theme-text-muted">
+                            {libraryRefreshProgress.current < libraryRefreshProgress.total
+                              ? "Refreshing library"
+                              : "Last refresh"}
+                          </span>
+                          <span className="theme-text font-semibold">
+                            {libraryRefreshProgress.current}/{libraryRefreshProgress.total}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/30">
+                          <div
+                            className="theme-accent-bg h-full rounded-full transition-[width] duration-300"
+                            style={{
+                              width: `${libraryRefreshProgress.total ? (libraryRefreshProgress.current / libraryRefreshProgress.total) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="theme-text-muted mt-2 text-[10px]">
+                          {libraryRefreshProgress.updated} updated
+                          {libraryRefreshProgress.failed
+                            ? ` · ${libraryRefreshProgress.failed} failed`
+                            : ""}
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setLibraryRefreshOpen(true)}
+                      disabled={
+                        !!libraryRefreshProgress &&
+                        libraryRefreshProgress.current < libraryRefreshProgress.total
+                      }
+                      className="theme-accent-soft-bg mt-3 flex w-full items-center justify-center rounded-lg border px-3 py-2.5 text-xs font-semibold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-55"
+                    >
+                      {libraryRefreshProgress &&
+                      libraryRefreshProgress.current < libraryRefreshProgress.total
+                        ? `Refreshing ${libraryRefreshProgress.current}/${libraryRefreshProgress.total}`
+                        : "Choose fields and refresh"}
+                    </button>
+                  </div>
                   {!wallpaperPreview && <DesktopSettings isAdmin={isAdmin} />}
                 </div>
               </div>
@@ -1677,6 +1808,15 @@ export default function SiteSettingsPage() {
           />
         )}
       </AnimatePresence>
+
+      <RefreshModal
+        open={libraryRefreshOpen}
+        title="Refresh Entire Library"
+        description="Choose the IGDB fields to refresh for every game. Per-game refresh locks are respected, and Last Updated plus recent activity will not change."
+        onClose={() => setLibraryRefreshOpen(false)}
+        onConfirm={refreshEntireLibrary}
+        progress={libraryRefreshProgress}
+      />
 
       <AnimatePresence>
         {cropType && selectedFile && (

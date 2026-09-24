@@ -1785,7 +1785,7 @@ export default function ScreenshotFolderPage() {
       <AnimatePresence>
         {deleteConfirm && (
           <motion.div
-            className="fixed inset-0 z-70 flex items-center justify-center bg-black/80 p-4"
+            className="fixed inset-0 z-[1700] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -2003,28 +2003,28 @@ export default function ScreenshotFolderPage() {
                     {viewerIndex !== null ? viewerIndex + 1 : 0} of {sortedShots.length}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setWallpaperConfirm(viewerShot)}
                   disabled={wallpaperSavingId !== null}
                   aria-label="Set screenshot as site wallpaper"
                   title="Set as site wallpaper"
-                  className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-cyan-300/35 bg-cyan-500/15 px-2.5 text-xs font-semibold text-cyan-100 transition-[max-width,background-color] duration-200 hover:max-w-28 hover:bg-cyan-500/25 focus-visible:max-w-28 disabled:opacity-45"
+                  className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-cyan-300/35 bg-cyan-500/15 px-2.5 text-xs font-semibold text-cyan-100 transition-[max-width,background-color] duration-200 hover:max-w-32 hover:bg-cyan-500/25 focus-visible:max-w-32 disabled:opacity-45"
                 >
                   {wallpaperSavingId === viewerShot.id ? (
                     <span className="loading loading-spinner loading-xs" />
                   ) : (
                     <FaImage size={11} className="shrink-0" aria-hidden="true" />
                   )}
-                  <span className="ml-1.5 translate-x-1 whitespace-nowrap opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                  <span className="ml-2 translate-x-1 whitespace-nowrap pr-1 opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
                     Wallpaper
                   </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => toggleShotFavorite(viewerShot)}
-                  className={`group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border px-2.5 text-xs font-semibold transition-[max-width,background-color] duration-200 hover:max-w-24 focus-visible:max-w-24 ${
+                  className={`group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border px-2.5 text-xs font-semibold transition-[max-width,background-color] duration-200 hover:max-w-28 focus-visible:max-w-28 ${
                     viewerShot.favorite
                       ? "border-amber-300/35 bg-amber-500/15 text-amber-100 hover:bg-amber-500/25"
                       : "border-white/50 bg-black text-zinc-100 hover:bg-black/75"
@@ -2035,7 +2035,7 @@ export default function ScreenshotFolderPage() {
                   ) : (
                     <FaRegStar size={11} className="shrink-0" />
                   )}
-                  <span className="ml-1.5 translate-x-1 whitespace-nowrap opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                  <span className="ml-2 translate-x-1 whitespace-nowrap pr-1 opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
                     {viewerShot.favorite ? "Favorited" : "Favorite"}
                   </span>
                 </button>
@@ -2044,10 +2044,10 @@ export default function ScreenshotFolderPage() {
                   onClick={() =>
                     setDeleteConfirm({ mode: "single", shot: viewerShot })
                   }
-                  className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-red-300/35 bg-red-500/15 px-2.5 text-xs font-semibold text-red-200 transition-[max-width,background-color] duration-200 hover:max-w-20 hover:bg-red-500/25 focus-visible:max-w-20"
+                  className="group/control inline-flex h-9 max-w-9 items-center overflow-hidden rounded-lg border border-red-300/35 bg-red-500/15 px-2.5 text-xs font-semibold text-red-200 transition-[max-width,background-color] duration-200 hover:max-w-24 hover:bg-red-500/25 focus-visible:max-w-24"
                 >
                   <FaTrashAlt size={11} className="shrink-0" />
-                  <span className="ml-1.5 translate-x-1 whitespace-nowrap opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
+                  <span className="ml-2 translate-x-1 whitespace-nowrap pr-1 opacity-0 transition-[opacity,transform] duration-200 group-hover/control:translate-x-0 group-hover/control:opacity-100 group-focus-visible/control:translate-x-0 group-focus-visible/control:opacity-100">
                     Delete
                   </span>
                 </button>

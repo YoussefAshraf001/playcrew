@@ -15,12 +15,21 @@ const FAMILY_POSITION = {
   completed: "0% 50%",
   playtime: "50% 50%",
   reviews: "100% 50%",
+  collection: "0% 50%",
+  replays: "50% 50%",
+  ratings: "100% 50%",
+  perfected: "0% 50%",
+  genres: "50% 50%",
+  platforms: "100% 50%",
+  sessions: "50% 50%",
 } as const;
 
 const AchievementImage = ({
+  badgeId,
   family,
   className = "",
 }: {
+  badgeId: string;
   family: keyof typeof FAMILY_POSITION;
   className?: string;
 }) => (
@@ -29,9 +38,10 @@ const AchievementImage = ({
     aria-label={`${family} achievement artwork`}
     className={`bg-no-repeat ${className}`}
     style={{
-      backgroundImage: "url('/achievements/achievement-families.png')",
-      backgroundSize: "300% 100%",
-      backgroundPosition: FAMILY_POSITION[family],
+      backgroundImage: `url('/achievements/icons/${badgeId}.png'), url('/achievements/achievement-families.png')`,
+      backgroundSize: "cover, 300% 100%",
+      backgroundPosition: `center, ${FAMILY_POSITION[family]}`,
+      backgroundRepeat: "no-repeat, no-repeat",
     }}
   />
 );
@@ -41,8 +51,7 @@ const TIER_STYLES = {
     "border-[#cd7f32]/70 bg-[#cd7f32]/12 shadow-[inset_0_1px_0_rgba(205,127,50,0.18)]",
   silver:
     "border-[#c0c0c0]/65 bg-[#c0c0c0]/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]",
-  gold:
-    "border-[#ffd700]/70 bg-[#ffd700]/10 shadow-[inset_0_1px_0_rgba(255,215,0,0.2)]",
+  gold: "border-[#ffd700]/70 bg-[#ffd700]/10 shadow-[inset_0_1px_0_rgba(255,215,0,0.2)]",
   platinum:
     "border-[#67e8f9]/65 bg-[#67e8f9]/10 shadow-[inset_0_1px_0_rgba(103,232,249,0.18)]",
   diamond:
@@ -60,10 +69,12 @@ const TIER_COLORS = {
 export default function BadgeCabinet({
   games,
   unlockedBadgeIds = [],
+  badgeUnlockedAt = {},
   compact = false,
 }: {
   games: BadgeGame[];
   unlockedBadgeIds?: string[];
+  badgeUnlockedAt?: Record<string, unknown>;
   compact?: boolean;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -78,6 +89,18 @@ export default function BadgeCabinet({
       (badge) => badge.id,
     ),
   ]);
+  const formatUnlockDate = (badgeId: string) => {
+    const value = badgeUnlockedAt[badgeId];
+    const raw =
+      value && typeof value === "object" && "toDate" in value
+        ? (value as { toDate: () => Date }).toDate()
+        : value && typeof value === "object" && "seconds" in value
+          ? new Date((value as { seconds: number }).seconds * 1000)
+          : new Date(value as string | number | Date);
+    return Number.isNaN(raw.getTime())
+      ? "Unlocked before date tracking"
+      : `Unlocked ${raw.toLocaleString()}`;
+  };
 
   useEffect(() => {
     if (!compact || modalOpen) return;
@@ -176,6 +199,7 @@ export default function BadgeCabinet({
                 className="absolute inset-0 flex flex-col"
               >
                 <AchievementImage
+                  badgeId={achievement.id}
                   family={achievement.family}
                   className={`min-h-0 flex-1 bg-cover transition duration-300 group-hover:scale-[1.025] ${
                     isUnlocked ? "" : "grayscale brightness-[0.35]"
@@ -214,7 +238,8 @@ export default function BadgeCabinet({
                     />
                   </div>
                   <p className="mt-1 text-right text-[10px] text-white/60">
-                    {Math.min(progress.value, achievement.threshold)} / {achievement.threshold}
+                    {Math.min(progress.value, achievement.threshold)} /{" "}
+                    {achievement.threshold}
                     {achievement.family === "playtime" ? "h" : ""}
                   </p>
                 </div>
@@ -309,6 +334,7 @@ export default function BadgeCabinet({
                           }`}
                         >
                           <AchievementImage
+                            badgeId={item.id}
                             family={item.family}
                             className={`aspect-[16/9] w-full bg-cover ${
                               itemUnlocked ? "" : "grayscale brightness-[0.3]"
@@ -343,9 +369,15 @@ export default function BadgeCabinet({
                               />
                             </div>
                             <p className="mt-1 text-right text-[10px] text-zinc-400">
-                              {Math.min(itemProgress.value, item.threshold)} / {item.threshold}
+                              {Math.min(itemProgress.value, item.threshold)} /{" "}
+                              {item.threshold}
                               {item.family === "playtime" ? "h" : ""}
                             </p>
+                            {itemUnlocked && (
+                              <p className="mt-2 text-[10px] text-white/55">
+                                {formatUnlockDate(item.id)}
+                              </p>
+                            )}
                           </div>
                         </article>
                       );
@@ -410,7 +442,7 @@ export default function BadgeCabinet({
           return (
             <article
               key={badge.id}
-              className={`relative w-[280px] shrink-0 snap-start overflow-hidden rounded-2xl border p-4 transition sm:w-[320px] ${
+              className={`relative w-[280px] shrink-0 snap-start overflow-hidden rounded-2xl border p-3 transition sm:w-[320px] ${
                 isUnlocked
                   ? TIER_STYLES[badge.tier]
                   : "border-white/8 bg-white/[0.02] opacity-55"
@@ -418,8 +450,9 @@ export default function BadgeCabinet({
             >
               <div className="flex items-start gap-3">
                 <AchievementImage
+                  badgeId={badge.id}
                   family={badge.family}
-                  className={`h-12 w-12 shrink-0 rounded-2xl bg-cover ${
+                  className={`h-12 w-12 shrink-0 rounded-sm bg-cover ${
                     isUnlocked ? "" : "grayscale brightness-[0.35]"
                   }`}
                 />
@@ -443,13 +476,6 @@ export default function BadgeCabinet({
                 </div>
               </div>
               <div className="mt-4">
-                <div className="mb-1 flex justify-between text-[11px] text-zinc-400">
-                  <span>{isUnlocked ? "Unlocked" : "Progress"}</span>
-                  <span>
-                    {Math.min(progress.value, badge.threshold)} / {badge.threshold}
-                    {badge.family === "playtime" ? "h" : ""}
-                  </span>
-                </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-black/30">
                   <div
                     className="h-full rounded-full transition-all"
@@ -461,6 +487,11 @@ export default function BadgeCabinet({
                     }}
                   />
                 </div>
+                {isUnlocked && (
+                  <p className="mt-2 text-[10px] text-white/55">
+                    {formatUnlockDate(badge.id)}
+                  </p>
+                )}
               </div>
             </article>
           );

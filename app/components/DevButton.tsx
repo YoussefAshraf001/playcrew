@@ -6,12 +6,15 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { RiShieldKeyholeFill } from "react-icons/ri";
+import { SiSteam } from "react-icons/si";
+import { FaBan, FaHeart } from "react-icons/fa";
 
 import { db } from "@/app/lib/firebase";
 import { GAME_STICKERS } from "../lib/gameStickers";
@@ -21,6 +24,7 @@ import type {
   RefreshBlockField,
 } from "@/app/types/trackedGame";
 import type { ReleaseDatePrecision } from "@/app/lib/releaseDates";
+import SteamAssetsModal, { type SteamAsset } from "./SteamAssetsModal";
 
 interface Props {
   userId: string;
@@ -48,6 +52,7 @@ interface GameData {
   favoriteAllTime?: boolean;
   wantToPlayOrder?: number | null;
   notInterested?: boolean;
+  lostInterestMessage?: string;
   review?: {
     text?: string;
     sticker?: string | null;
@@ -56,6 +61,13 @@ interface GameData {
   playedSessions?: PlaySession[];
   recentActionSummary?: string;
   preReleaseAccess?: PreReleaseAccess | null;
+  customReleaseTime?: {
+    releasesAt: unknown;
+    timeZone: string;
+    sourceTimeZone?: string;
+  } | null;
+  customReleaseNotificationFor?: number | null;
+  customReleaseNotificationDocumentFor?: number | null;
   refreshExcluded?: boolean;
   refreshBlockedFields?: Partial<Record<RefreshBlockField, boolean>>;
   protectCustomCoverFromRefresh?: boolean;
@@ -100,6 +112,11 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
   const [genresInput, setGenresInput] = useState("");
   const [platformsInput, setPlatformsInput] = useState("");
   const [sessionPage, setSessionPage] = useState(0);
+  const [posterMenuPosition, setPosterMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [steamAssetsOpen, setSteamAssetsOpen] = useState(false);
   const sessionsTopRef = useRef<HTMLDivElement | null>(null);
 
   const requestClose = useCallback(() => {
@@ -199,6 +216,21 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     setGameData((p) => (p ? { ...p, igdb: { ...p.igdb, [key]: value } } : p));
   };
 
+  const openPosterMenu = (event: MouseEvent<HTMLImageElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setPosterMenuPosition({
+      x: Math.min(event.clientX, window.innerWidth - 230),
+      y: Math.min(event.clientY, window.innerHeight - 70),
+    });
+  };
+
+  const useSteamAssetAsCover = (asset: SteamAsset) => {
+    updateIGDB("cover", asset.url);
+    updateField("protectCustomCoverFromRefresh", true);
+    toast.success(`${asset.label} selected. Save changes to apply it.`);
+  };
+
   const parseNumber = (value: string, fallback = 0) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -293,6 +325,23 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     updateField("lastUpdated", value ? new Date(value) : null);
   };
 
+  const setCustomReleaseTimeFromInput = (value: string) => {
+    updateField("customReleaseNotificationFor", null);
+    updateField("customReleaseNotificationDocumentFor", null);
+    if (!value) {
+      updateField("customReleaseTime", null);
+      return;
+    }
+
+    const current = gameData?.customReleaseTime;
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    updateField("customReleaseTime", {
+      releasesAt: new Date(value),
+      timeZone: current?.timeZone || browserTimeZone,
+      sourceTimeZone: current?.sourceTimeZone || browserTimeZone,
+    });
+  };
+
   const preserveTimestampType = (original: unknown, date: Date) => {
     if (
       typeof original === "object" &&
@@ -379,6 +428,9 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
     try {
       await updateDoc(doc(db, "users", userId, "games_igdb", game._docId), {
         ...gameData,
+        lostInterestMessage: gameData.notInterested
+          ? (gameData.lostInterestMessage ?? "").trim()
+          : "",
         playedSessions: gameData.playedSessions ?? [],
         igdb: {
           ...gameData.igdb,
@@ -427,7 +479,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
           transition={{ duration: 0.22 }}
         >
           <motion.div
-            className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-5xl h-[88vh] overflow-hidden shadow-2xl"
+            className="relative h-[92dvh] w-full max-w-6xl overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[#090b10] shadow-[0_35px_120px_rgba(0,0,0,0.72),0_0_50px_rgba(6,182,212,0.06)]"
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.96, opacity: 0 }}
@@ -559,30 +611,39 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
             {unlocked && gameData && (
               <div className="h-full flex flex-col">
-                <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">
-                      Developer Editor
-                    </h3>
-                    <p className="text-xs text-zinc-400">{gameData.name}</p>
+                <div className="relative overflow-hidden border-b border-white/10 px-5 py-4 sm:px-7">
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(6,182,212,0.16),transparent_42%)]" />
+                  <div className="relative flex items-center justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10">
+                      <RiShieldKeyholeFill className="text-xl text-cyan-300" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-300">Game editor</p>
+                      <h3 className="truncate text-lg font-bold text-white">{gameData.name}</h3>
+                    </div>
                   </div>
                   <button
                     onClick={requestClose}
-                    className="text-zinc-400 hover:text-white text-xl transition"
+                    aria-label="Close developer editor"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-400 transition hover:border-white/20 hover:bg-white/10 hover:text-white"
                     disabled={saving}
                   >
-                    x
+                    ×
                   </button>
+                  </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                  <section className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
-                    <div className="bg-zinc-800 rounded-xl overflow-hidden border border-white/10 min-h-[280px]">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-6 [scrollbar-color:rgba(6,182,212,.35)_transparent]">
+                  <section className="grid grid-cols-1 gap-5 rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-5 lg:grid-cols-[280px_1fr]">
+                    <div className="aspect-[2/3] w-full self-start overflow-hidden rounded-2xl border border-white/10 bg-zinc-800 shadow-2xl">
                       {gameData.igdb.cover ? (
                         <img
                           src={gameData.igdb.cover}
                           alt={gameData.igdb.name || gameData.name}
-                          className="w-full h-full object-cover"
+                          onContextMenu={openPosterMenu}
+                          title="Right-click for SteamDB cover options"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
                         <div className="h-full flex items-center justify-center text-zinc-500">
@@ -684,58 +745,80 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                         </div>
                       </label>
 
-                      <div className="grid grid-cols-2 gap-3 md:col-span-2 sm:grid-cols-4">
-                        {[
-                          ["favorite", "Favorite"],
-                          ["favoriteAllTime", "All-time favorite"],
-                          ["notInterested", "Not interested"],
-                        ].map(([key, label]) => (
-                          <label
-                            key={key}
-                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-800/70 p-2.5 text-sm text-zinc-300"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!!gameData[key as keyof GameData]}
-                              onChange={(e) =>
-                                updateField(
-                                  key as
-                                    | "favorite"
-                                    | "favoriteAllTime"
-                                    | "notInterested",
-                                  e.target.checked,
-                                )
-                              }
-                              className="checkbox checkbox-sm"
-                            />
-                            {label}
-                          </label>
-                        ))}
+                      <div className="grid gap-3 md:col-span-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          aria-pressed={!!gameData.favorite}
+                          onClick={() => updateField("favorite", !gameData.favorite)}
+                          className={`group flex items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
+                            gameData.favorite
+                              ? "border-rose-400/35 bg-rose-500/12 text-rose-100 shadow-[0_0_24px_rgba(244,63,94,0.08)]"
+                              : "border-white/10 bg-white/[0.035] text-zinc-300 hover:border-rose-400/25 hover:bg-rose-500/5"
+                          }`}
+                        >
+                          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition ${gameData.favorite ? "bg-rose-500 text-white" : "bg-white/5 text-zinc-500 group-hover:text-rose-300"}`}>
+                            <FaHeart size={16} />
+                          </span>
+                          <span>
+                            <span className="block text-sm font-semibold">Favorite</span>
+                            <span className="mt-0.5 block text-[11px] opacity-55">Keep this game in your favorites</span>
+                          </span>
+                          <span className={`ml-auto h-2.5 w-2.5 rounded-full ${gameData.favorite ? "bg-rose-400" : "bg-zinc-700"}`} />
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-pressed={!!gameData.notInterested}
+                          onClick={() => {
+                            const next = !gameData.notInterested;
+                            updateField("notInterested", next);
+                            if (!next) updateField("lostInterestMessage", "");
+                          }}
+                          className={`group flex items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
+                            gameData.notInterested
+                              ? "border-red-400/35 bg-red-500/12 text-red-100 shadow-[0_0_24px_rgba(239,68,68,0.08)]"
+                              : "border-white/10 bg-white/[0.035] text-zinc-300 hover:border-red-400/25 hover:bg-red-500/5"
+                          }`}
+                        >
+                          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition ${gameData.notInterested ? "bg-red-500 text-white" : "bg-white/5 text-zinc-500 group-hover:text-red-300"}`}>
+                            <FaBan size={16} />
+                          </span>
+                          <span>
+                            <span className="block text-sm font-semibold">Lost interest</span>
+                            <span className="mt-0.5 block text-[11px] opacity-55">Mark this game as no longer for you</span>
+                          </span>
+                          <span className={`ml-auto h-2.5 w-2.5 rounded-full ${gameData.notInterested ? "bg-red-400" : "bg-zinc-700"}`} />
+                        </button>
                       </div>
 
-                      {[
-                        ["favoriteOrder", "Favorite order"],
-                        ["wantToPlayOrder", "Want-to-play order"],
-                      ].map(([key, label]) => (
-                        <label key={key} className="flex flex-col gap-1">
-                          <span className="text-xs text-zinc-400">{label}</span>
-                          <input
-                            type="number"
-                            className="bg-zinc-800 p-2.5 rounded border border-white/10"
-                            value={
-                              (gameData[key as keyof GameData] as number) ?? ""
-                            }
-                            onChange={(e) =>
-                              updateField(
-                                key as "favoriteOrder" | "wantToPlayOrder",
-                                e.target.value === ""
-                                  ? null
-                                  : parseNumber(e.target.value),
-                              )
-                            }
-                          />
-                        </label>
-                      ))}
+                      <label className="flex flex-col gap-1 md:col-span-2">
+                        <span className="flex justify-between text-xs text-zinc-400"><span>Lost-interest message</span><span>{(gameData.lostInterestMessage ?? "").length}/90</span></span>
+                        <input
+                          maxLength={90}
+                          disabled={!gameData.notInterested}
+                          className="rounded-xl border border-white/10 bg-zinc-800 p-2.5 disabled:cursor-not-allowed disabled:opacity-40"
+                          value={gameData.lostInterestMessage ?? ""}
+                          onChange={(e) => updateField("lostInterestMessage", e.target.value)}
+                          placeholder="Optional reason shown on the game card"
+                        />
+                      </label>
+
+                      <label className="flex flex-col gap-1 md:col-span-2">
+                        <span className="text-xs text-zinc-400">Favorite order</span>
+                        <input
+                          type="number"
+                          className="rounded border border-white/10 bg-zinc-800 p-2.5"
+                          value={gameData.favoriteOrder ?? ""}
+                          onChange={(e) =>
+                            updateField(
+                              "favoriteOrder",
+                              e.target.value === ""
+                                ? null
+                                : parseNumber(e.target.value),
+                            )
+                          }
+                        />
+                      </label>
 
                       <label className="flex flex-col gap-1 md:col-span-2">
                         <span className="text-xs text-zinc-400">
@@ -750,10 +833,62 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                           }
                         />
                       </label>
+
+                      <div className="space-y-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/5 p-4 md:col-span-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-cyan-200">Custom release time</p>
+                            <p className="mt-1 text-[11px] text-zinc-500">Overrides the official release date and countdown for this entry.</p>
+                          </div>
+                          {gameData.customReleaseTime && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateField("customReleaseTime", null);
+                                updateField("customReleaseNotificationFor", null);
+                                updateField("customReleaseNotificationDocumentFor", null);
+                              }}
+                              className="rounded-lg border border-red-400/20 px-2.5 py-1.5 text-[11px] font-semibold text-red-300 transition hover:bg-red-500/10"
+                            >
+                              Clear override
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="flex flex-col gap-1">
+                            <span className="text-xs text-zinc-400">Date and time</span>
+                            <input
+                              type="datetime-local"
+                              className="rounded-xl border border-white/10 bg-zinc-800 p-2.5"
+                              value={toLocalDateTimeInput(
+                                gameData.customReleaseTime?.releasesAt ??
+                                  gameData.igdb.releaseDate,
+                              )}
+                              onChange={(e) => setCustomReleaseTimeFromInput(e.target.value)}
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1">
+                            <span className="text-xs text-zinc-400">Announced timezone</span>
+                            <input
+                              disabled={!gameData.customReleaseTime}
+                              className="rounded-xl border border-white/10 bg-zinc-800 p-2.5 disabled:opacity-40"
+                              value={gameData.customReleaseTime?.sourceTimeZone ?? ""}
+                              onChange={(e) =>
+                                gameData.customReleaseTime &&
+                                updateField("customReleaseTime", {
+                                  ...gameData.customReleaseTime,
+                                  sourceTimeZone: e.target.value,
+                                })
+                              }
+                              placeholder="e.g. America/New_York"
+                            />
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </section>
 
-                  <section className="space-y-4">
+                  <section className="space-y-4 rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h4 className="text-sm font-semibold text-zinc-200 uppercase tracking-wide">
@@ -961,7 +1096,7 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
 
                   <section
                     ref={sessionsTopRef}
-                    className="scroll-mt-4 space-y-4"
+                    className="scroll-mt-4 space-y-4 rounded-3xl border border-white/8 bg-white/[0.025] p-4 sm:p-5"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -1329,7 +1464,9 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                   </section>
                 </div>
 
-                <div className="px-5 py-4 border-t border-white/10 flex justify-end gap-3">
+                <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-black/25 px-5 py-4 sm:px-7">
+                  <p className="hidden text-xs text-zinc-500 sm:block">Changes are written directly to this library entry.</p>
+                  <div className="ml-auto flex gap-3">
                   <button
                     onClick={requestClose}
                     disabled={saving}
@@ -1348,7 +1485,49 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
                       "Save Changes"
                     )}
                   </button>
+                  </div>
                 </div>
+
+                <AnimatePresence>
+                  {posterMenuPosition && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Close poster menu"
+                        onClick={() => setPosterMenuPosition(null)}
+                        className="fixed inset-0 z-[10040] cursor-default"
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        style={{ left: posterMenuPosition.x, top: posterMenuPosition.y }}
+                        className="fixed z-[10050] w-56 overflow-hidden rounded-xl border border-white/15 bg-zinc-950 p-1.5 shadow-2xl"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPosterMenuPosition(null);
+                            setSteamAssetsOpen(true);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-white/10"
+                        >
+                          <SiSteam className="text-lg text-[#66c0f4]" />
+                          Use SteamDB images
+                        </button>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+
+                <SteamAssetsModal
+                  open={steamAssetsOpen}
+                  igdbId={gameData.igdb.id}
+                  gameName={gameData.name}
+                  currentCoverUrl={gameData.igdb.cover}
+                  onClose={() => setSteamAssetsOpen(false)}
+                  onUseAsset={useSteamAssetAsCover}
+                />
               </div>
             )}
           </motion.div>

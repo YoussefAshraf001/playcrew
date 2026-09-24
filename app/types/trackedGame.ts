@@ -117,6 +117,7 @@ export interface TrackedGame {
   favoriteAllTime?: boolean;
   wantToPlayOrder?: number;
   notInterested?: boolean;
+  lostInterestMessage?: string;
   playedSessions?: PlaySession[];
   playedOn?: PlayedOnPlatform | PlayedOnPlatform[] | null;
   lastUpdated?: any;
@@ -136,12 +137,15 @@ export interface TrackedGame {
     cover?: string;
     rating?: number;
     genres?: string[];
+    franchises?: string[];
     releaseDate?: Date;
+    totalRatingCount?: number;
     earlyAccessDate?: Date | null;
     earlyAccessDatePrecision?: ReleaseDatePrecision | null;
     fullReleaseDate?: Date | null;
     fullReleaseDatePrecision?: ReleaseDatePrecision | null;
     releaseDateKind?: IgdbReleaseDateKind | null;
     releaseDatePrecision?: ReleaseDatePrecision | null;
+    platforms?: string[];
   };
 }

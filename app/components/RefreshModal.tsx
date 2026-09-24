@@ -18,6 +18,7 @@ interface Props {
   description?: string;
   itemName?: string | null;
   count?: number | null;
+  progress?: { current: number; total: number } | null;
   onClose: () => void;
   onConfirm: (
     fields: Record<RefreshField, boolean>,
@@ -39,6 +40,7 @@ export default function RefreshModal({
   description,
   itemName = null,
   count = null,
+  progress = null,
   onClose,
   onConfirm,
 }: Props) {
@@ -64,6 +66,9 @@ export default function RefreshModal({
     });
 
   const [processing, setProcessing] = useState(false);
+  const progressPercent = progress?.total
+    ? Math.min(100, Math.round((progress.current / progress.total) * 100))
+    : 0;
 
   const handleConfirm = async () => {
     if (selectedCount === 0) return;
@@ -178,7 +183,9 @@ export default function RefreshModal({
             className="inline-flex h-10 min-w-28 items-center justify-center rounded-lg bg-linear-to-r from-cyan-200 to-cyan-400 px-4 py-2 text-sm font-semibold text-black shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-55"
           >
             {processing ? (
-              <span className="loading loading-dots loading-md" />
+              <span className="tabular-nums" aria-live="polite">
+                {progressPercent}%
+              </span>
             ) : (
               "Refresh"
             )}

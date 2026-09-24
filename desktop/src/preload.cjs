@@ -24,6 +24,7 @@ if (process.isMainFrame) {
   }
 
   contextBridge.exposeInMainWorld('playcrewDesktop', {
+    getVersion: () => ipcRenderer.invoke('playcrew:version'),
     getCloseBehavior: () => ipcRenderer.invoke('playcrew:close-behavior'),
     setCloseBehavior: (value) => ipcRenderer.invoke('playcrew:close-behavior', value),
     getImageStorageSettings: () => ipcRenderer.invoke('playcrew:image-storage-settings'),
@@ -32,6 +33,12 @@ if (process.isMainFrame) {
     setCloudCopySettings: (value) => ipcRenderer.invoke('playcrew:cloud-copy-settings', value),
     checkForUpdate: () => ipcRenderer.invoke('playcrew:check-for-update'),
     openUpdateDownload: (url) => ipcRenderer.invoke('playcrew:open-update-download', url),
+    installUpdate: (update) => ipcRenderer.invoke('playcrew:install-update', update),
+    onUpdateProgress: (listener) => {
+      const handler = (_event, progress) => listener(progress);
+      ipcRenderer.on('playcrew:update-progress', handler);
+      return () => ipcRenderer.removeListener('playcrew:update-progress', handler);
+    },
     openLocalImagesFolder: () => ipcRenderer.invoke('playcrew:open-local-images'),
     saveLocalImage: (category, key, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image', category, key, dataUrl),
     saveLocalImageToPath: (category, pathSegments, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image-to-path', category, pathSegments, dataUrl),

@@ -46,6 +46,7 @@ import FriendsModal from "./FriendsModal";
 import { useSync } from "../context/SyncContext";
 import { FiRefreshCw } from "react-icons/fi";
 import DesktopDownload from "./DesktopDownload";
+import { DesktopUpdateMenuButton } from "./DesktopUpdateModal";
 
 export default function Navbar() {
   const router = useRouter();
@@ -638,6 +639,10 @@ export default function Navbar() {
                               </span>
                             </Link>
 
+                            <DesktopUpdateMenuButton
+                              onClick={() => setAccountOpen(false)}
+                            />
+
                             <button
                               type="button"
                               onClick={() => {
@@ -1144,6 +1149,10 @@ export default function Navbar() {
                               </span>
                             </Link>
 
+                            <DesktopUpdateMenuButton
+                              onClick={() => setAccountOpen(false)}
+                            />
+
                             <button
                               type="button"
                               onClick={() => {
@@ -1551,7 +1560,7 @@ export default function Navbar() {
 
               <div className="mt-3">
                 {profile ? (
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     <Link
                       href={`/profile/${profile.username}`}
                       onClick={() => setMobileMenuOpen(false)}
@@ -1569,6 +1578,11 @@ export default function Navbar() {
                       <FaCog size={12} />
                       Site Settings
                     </Link>
+
+                    <DesktopUpdateMenuButton
+                      compact
+                      onClick={() => setMobileMenuOpen(false)}
+                    />
 
                     <button
                       type="button"

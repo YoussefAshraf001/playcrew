@@ -5,7 +5,9 @@ type CanonicalIgdbGame = {
   name?: string;
   cover?: string | null;
   genres?: string[];
+  franchises?: string[];
   rating?: number | null;
+  totalRatingCount?: number | null;
   platforms?: string[];
   releaseDate?: number | null;
   earlyAccessDate?: number | null;
@@ -41,7 +43,9 @@ export async function buildCanonicalTrackedGamePayload(
       cover: game.cover || "/placeholder-game.jpg",
       rating: game.rating ?? 0,
       genres: Array.isArray(game.genres) ? game.genres : [],
+      franchises: Array.isArray(game.franchises) ? game.franchises : [],
       platforms: Array.isArray(game.platforms) ? game.platforms : [],
+      totalRatingCount: game.totalRatingCount ?? 0,
       releaseDate: fromUnixSeconds(game.releaseDate),
       earlyAccessDate: fromUnixSeconds(game.earlyAccessDate),
       earlyAccessDatePrecision: game.earlyAccessDatePrecision ?? null,
@@ -60,6 +64,7 @@ export async function buildCanonicalTrackedGamePayload(
     status: "Want To Play",
     favorite: false,
     notInterested: false,
+    lostInterestMessage: "",
     playedSessions: [],
     playedOn: [],
     preReleaseAccess: null,

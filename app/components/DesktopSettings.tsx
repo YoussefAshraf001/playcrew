@@ -8,6 +8,7 @@ import {
   type DesktopImageCategory,
   type DesktopImageStorageSettings,
 } from "@/app/lib/desktopImageStorage";
+import { openDesktopUpdateModal } from "@/app/components/DesktopUpdateModal";
 
 type CloseBehavior = "tray" | "quit";
 type UpdateInfo = {
@@ -102,13 +103,7 @@ export default function DesktopSettings({ isAdmin = false }: { isAdmin?: boolean
             {updateInfo?.updateAvailable && (
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    await window.playcrewDesktop!.openUpdateDownload(updateInfo.downloadUrl);
-                  } catch {
-                    setError("Could not open the desktop update download.");
-                  }
-                }}
+                onClick={openDesktopUpdateModal}
                 className="theme-accent-bg inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold"
               >
                 <FiDownload /> Update now
