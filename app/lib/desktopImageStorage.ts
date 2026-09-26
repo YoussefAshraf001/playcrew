@@ -30,21 +30,23 @@ declare global {
       setImageStorageSettings: (value: DesktopImageStorageSettings) => Promise<DesktopImageStorageSettings>;
       getCloudCopySettings: () => Promise<DesktopImageStorageSettings>;
       setCloudCopySettings: (value: DesktopImageStorageSettings) => Promise<DesktopImageStorageSettings>;
-      checkForUpdate: () => Promise<{
+      checkForUpdate?: () => Promise<{
         currentVersion: string;
         latestVersion: string;
         updateAvailable: boolean;
         downloadUrl: string;
       }>;
-      openUpdateDownload: (url: string) => Promise<boolean>;
-      installUpdate: (update: { downloadUrl: string; version: string }) => Promise<boolean>;
-      onUpdateProgress: (listener: (progress: {
+      openUpdateDownload?: (url: string) => Promise<boolean>;
+      installUpdate?: (update: { downloadUrl: string; version: string }) => Promise<boolean>;
+      onUpdateProgress?: (listener: (progress: {
         status: "downloading" | "installing" | "error";
         percent?: number | null;
         transferred?: number;
         total?: number;
         message?: string;
       }) => void) => () => void;
+      takePlaytimeEvent: () => Promise<DesktopPlaytimeEvent | null>;
+      onPlaytimeLogged: (listener: (event: DesktopPlaytimeEvent) => void) => () => void;
       openLocalImagesFolder: () => Promise<void>;
       saveLocalImage: (category: DesktopImageCategory, key: string, dataUrl: string) => Promise<string>;
       saveLocalImageToPath?: (category: DesktopImageCategory, pathSegments: string[], dataUrl: string) => Promise<string>;
@@ -52,6 +54,13 @@ declare global {
     };
   }
 }
+
+export type DesktopPlaytimeEvent = {
+  gameName: string;
+  gameId: string;
+  eventId: string;
+  elapsedSeconds: number;
+};
 
 export const fileToDataUrl = (file: Blob) =>
   new Promise<string>((resolve, reject) => {

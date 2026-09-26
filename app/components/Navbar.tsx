@@ -1435,23 +1435,26 @@ export default function Navbar() {
                   )}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setWhatsNewOpen(true)}
-                className="theme-surface theme-hover-surface theme-text mt-3 inline-flex h-12 w-full items-center gap-3 rounded-lg border px-4 text-sm font-semibold transition justify-center"
-              >
-                <span className="theme-accent-soft-bg flex h-7 w-7 items-center justify-center rounded-md border">
-                  !
-                </span>
-
-                <div className="flex flex-col items-start">
-                  <span>What's New</span>
-                  <span className="theme-text-muted text-[10px] font-normal">
-                    Latest updates and changes
+              <div className="px-3">
+                <button
+                  type="button"
+                  onClick={() => setWhatsNewOpen(true)}
+                  className="theme-surface theme-hover-surface theme-text mt-3 inline-flex h-12 w-full items-center justify-center gap-3 rounded-lg border px-4 text-sm font-semibold transition"
+                >
+                  <span className="theme-accent-soft-bg flex h-7 w-7 items-center justify-center rounded-md border">
+                    !
                   </span>
-                </div>
-              </button>
-              <div className="theme-surface mt-3 rounded-xl border p-3">
+
+                  <div className="flex flex-col items-start">
+                    <span>What's New</span>
+                    <span className="theme-text-muted text-[10px] font-normal">
+                      Latest updates and changes
+                    </span>
+                  </div>
+                </button>
+              </div>
+              <div className="px-3">
+                <div className="theme-surface mt-3 rounded-xl border p-3">
                 <div className="flex items-center gap-3">
                   {currentTrack?.cover ? (
                     <img
@@ -1556,27 +1559,30 @@ export default function Navbar() {
                     />
                   </div>
                 </div>
+                </div>
               </div>
 
               <div className="mt-3">
                 {profile ? (
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-2 px-3 pb-3">
                     <Link
                       href={`/profile/${profile.username}`}
                       onClick={() => setMobileMenuOpen(false)}
-                      className="theme-surface theme-hover-surface theme-text inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition"
+                      aria-label="Profile"
+                      title="Profile"
+                      className="theme-surface theme-hover-surface theme-text inline-flex h-9 w-full items-center justify-center rounded-lg border transition"
                     >
-                      <FaUser size={12} />
-                      Profile
+                      <FaUser size={15} />
                     </Link>
 
                     <Link
                       href={`/settings`}
                       onClick={() => setMobileMenuOpen(false)}
-                      className="theme-surface theme-hover-surface theme-text inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition"
+                      aria-label="Site Settings"
+                      title="Site Settings"
+                      className="theme-surface theme-hover-surface theme-text inline-flex h-9 w-full items-center justify-center rounded-lg border transition"
                     >
-                      <FaCog size={12} />
-                      Site Settings
+                      <FaCog size={15} />
                     </Link>
 
                     <DesktopUpdateMenuButton
@@ -1586,14 +1592,15 @@ export default function Navbar() {
 
                     <button
                       type="button"
+                      aria-label="Logout"
+                      title="Logout"
                       onClick={() => {
                         setMobileMenuOpen(false);
                         setShowLogoutModal(true);
                       }}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-300/35 bg-red-500/10 px-3 text-xs font-semibold text-red-200 transition hover:bg-red-500/20"
+                      className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-red-300/35 bg-red-500/10 text-red-200 transition hover:bg-red-500/20"
                     >
-                      <FaSignOutAlt size={12} />
-                      Logout
+                      <FaSignOutAlt size={15} />
                     </button>
                   </div>
                 ) : (

@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const { once } = require('node:events');
 const { spawn } = require('node:child_process');
 const { APP_URL, isAppUrl, isExternalUrl, canGrantPermission } = require('./policy.cjs');
+const { findPlaytimeUrl } = require('./playnite-integration.cjs');
+const { desktopReleaseTagPattern, parseDesktopReleaseVersion } = require('./desktop-update.cjs');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'playcrew-local', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 
@@ -33,9 +35,10 @@ const localImagesRoot = path.join(app.getPath('userData'), 'images');
 const imageStorageDefaults = { profileImage: false, wallpaper: false, customGameCovers: false, screenshots: false };
 const cloudCopyDefaults = { profileImage: true, wallpaper: true, customGameCovers: true, screenshots: true };
 const desktopReleasesUrl = 'https://api.github.com/repos/YoussefAshraf001/playcrew/releases?per_page=20';
-const desktopReleaseTagPattern = /^desktop-v(\d+\.\d+\.\d+)$/;
 const trustedUpdateHosts = new Set(['github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com']);
 let updateDownloadActive = false;
+const pendingPlaytimeEvents = [];
+const deliveredPlaytimeEventIds = new Set();
 const compareVersions = (left, right) => {
   const a = left.split('.').map(Number);
   const b = right.split('.').map(Number);
@@ -66,6 +69,21 @@ function showMainWindow() {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+}
+
+function queuePlaytimeEvent(payload) {
+  if (!payload) return;
+  const dedupeKey = payload.eventId || `${payload.gameId}:${payload.gameName}:${payload.elapsedSeconds}`;
+  if (deliveredPlaytimeEventIds.has(dedupeKey)) return;
+  deliveredPlaytimeEventIds.add(dedupeKey);
+  if (deliveredPlaytimeEventIds.size > 100) deliveredPlaytimeEventIds.delete(deliveredPlaytimeEventIds.values().next().value);
+  pendingPlaytimeEvents.push(payload);
+  if (pendingPlaytimeEvents.length > 20) pendingPlaytimeEvents.shift();
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+    // Keep the event queued until the renderer explicitly consumes it. IPC
+    // messages sent while React is mounting have no delivery acknowledgement.
+    mainWindow.webContents.send('playcrew:playtime-logged', payload);
+  }
 }
 
 function createTray() {
@@ -197,6 +215,25 @@ function createWindow() {
   loadApp();
 }
 
+if (process.platform === 'win32') {
+  // Register before checking the single-instance lock. This lets a newly
+  // launched development process repair a stale handler even when an older
+  // PlayCrew/Electron instance is still running.
+  if (process.defaultApp && process.argv[1]) {
+    const appEntry = path.resolve(process.argv[1]);
+    // Electron considers the executable alone to be a different registration
+    // from the executable + app entry, so explicitly remove the old form.
+    app.removeAsDefaultProtocolClient('playcrew', process.execPath, []);
+    if (!app.setAsDefaultProtocolClient('playcrew', process.execPath, [appEntry])) {
+      console.error('Could not register the playcrew:// development protocol handler');
+    }
+  } else {
+    if (!app.setAsDefaultProtocolClient('playcrew')) {
+      console.error('Could not register the playcrew:// protocol handler');
+    }
+  }
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -205,8 +242,16 @@ if (!app.requestSingleInstanceLock()) {
     clearTimeout(startupTimer);
   });
   app.on('will-quit', () => { if (tray && !tray.isDestroyed()) tray.destroy(); });
-  app.on('second-instance', showMainWindow);
+  app.on('second-instance', (_event, argv) => {
+    const payload = findPlaytimeUrl(argv);
+    if (!app.isPackaged) console.log('[PlayCrew Playnite] protocol received:', payload || argv.find((value) => typeof value === 'string' && value.startsWith('playcrew:')) || 'no URL');
+    queuePlaytimeEvent(payload);
+    showMainWindow();
+  });
   app.whenReady().then(() => {
+    const startupPayload = findPlaytimeUrl(process.argv);
+    if (!app.isPackaged && process.argv.some((value) => typeof value === 'string' && value.startsWith('playcrew:'))) console.log('[PlayCrew Playnite] startup protocol:', startupPayload || 'rejected');
+    queuePlaytimeEvent(startupPayload);
     protocol.handle('playcrew-local', (request) => {
       const parsed = new URL(request.url);
       const relative = decodeURIComponent(`${parsed.hostname}${parsed.pathname}`).replace(/^[/\\]+/, '');
@@ -236,6 +281,10 @@ if (!app.requestSingleInstanceLock()) {
         sendWindowState();
       }
       return closeBehavior;
+    });
+    ipcMain.handle('playcrew:take-playtime-event', (event) => {
+      if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame || !isAppUrl(event.senderFrame.url)) throw new Error('Untrusted integration request');
+      return pendingPlaytimeEvents.shift() || null;
     });
     const assertTrusted = (event) => {
       if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== event.sender.mainFrame || !isAppUrl(event.senderFrame.url)) throw new Error('Untrusted settings request');
@@ -271,7 +320,7 @@ if (!app.requestSingleInstanceLock()) {
         ? releases.find((item) => !item?.draft && !item?.prerelease && desktopReleaseTagPattern.test(item?.tag_name || ''))
         : null;
       if (!release) throw new Error('No PlayCrew Desktop release was found');
-      const latestVersion = desktopReleaseTagPattern.exec(release.tag_name)?.[1];
+      const latestVersion = parseDesktopReleaseVersion(release.tag_name);
       if (!latestVersion) throw new Error('Invalid PlayCrew Desktop release tag');
       const installer = Array.isArray(release.assets)
         ? release.assets.find((asset) => /^PlayCrew-Setup-.*-x64\.exe$/i.test(asset?.name || ''))

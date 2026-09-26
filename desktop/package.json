@@ -1,7 +1,7 @@
 {
   "name": "playcrew-desktop",
   "productName": "PlayCrew",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "PlayCrew for Windows",
   "author": "PlayCrew",
   "private": true,

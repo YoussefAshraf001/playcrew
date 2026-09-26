@@ -51,25 +51,29 @@ export function DesktopUpdateMenuButton({
   return (
     <button
       type="button"
+      aria-label={compact ? `PlayCrew Desktop v${version}` : undefined}
+      title={compact ? `Desktop v${version}` : undefined}
       onClick={() => {
         onClick?.();
         openDesktopUpdateModal();
       }}
       className={
         compact
-          ? "theme-surface theme-hover-surface theme-text inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition"
+          ? "theme-surface theme-hover-surface theme-text inline-flex h-9 w-full items-center justify-center rounded-lg border p-0 transition"
           : "theme-hover-accent theme-text mt-0.5 flex w-full items-center gap-2 rounded-xl border border-transparent px-2.5 py-2 text-left transition-all duration-150"
       }
     >
-      <span className="theme-accent-soft-bg inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border">
+      <span className={compact ? "inline-flex h-7 w-7 items-center justify-center" : "theme-accent-soft-bg inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"}>
         <Image src="/logo.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" />
       </span>
-      <span className={compact ? "" : "min-w-0 font-semibold tracking-wide"}>
-        Desktop
-        <span className={compact ? "ml-1 text-[9px] opacity-60" : "theme-text-muted block text-[10px] font-normal"}>
-          v{version}
+      {!compact && (
+        <span className="min-w-0 font-semibold tracking-wide">
+          Desktop
+          <span className="theme-text-muted block text-[10px] font-normal">
+            v{version}
+          </span>
         </span>
-      </span>
+      )}
     </button>
   );
 }
@@ -78,6 +82,7 @@ export default function DesktopUpdateModal() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null);
   const [info, setInfo] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
   const [error, setError] = useState("");
@@ -86,16 +91,25 @@ export default function DesktopUpdateModal() {
   const check = useCallback(async (showModal: boolean) => {
     const desktop = window.playcrewDesktop;
     if (!desktop) return;
+    if (showModal) setOpen(true);
     setChecking(true);
     setError("");
     try {
+      const currentVersion = await desktop.getVersion();
+      setInstalledVersion(currentVersion);
+      if (!desktop.checkForUpdate) {
+        throw new Error("This desktop build does not support automatic update checks.");
+      }
       const result = await desktop.checkForUpdate();
       setInfo(result);
       if (showModal || result.updateAvailable) setOpen(true);
-    } catch {
+    } catch (error) {
       if (showModal) {
-        setOpen(true);
-        setError("Could not check GitHub for desktop updates.");
+        setError(
+          error instanceof Error && error.message.includes("does not support")
+            ? error.message
+            : "Could not check GitHub for desktop updates. Check your connection and try again.",
+        );
       }
     } finally {
       setChecking(false);
@@ -108,10 +122,10 @@ export default function DesktopUpdateModal() {
     if (!desktop) return;
     const openModal = () => void check(true);
     window.addEventListener("playcrew:open-update-modal", openModal);
-    const unsubscribe = desktop.onUpdateProgress((next) => {
+    const unsubscribe = desktop.onUpdateProgress?.((next) => {
       setProgress(next);
       if (next.status === "error") setError(next.message ?? "The update failed.");
-    });
+    }) ?? (() => {});
     void check(false);
     return () => {
       window.removeEventListener("playcrew:open-update-modal", openModal);
@@ -120,11 +134,15 @@ export default function DesktopUpdateModal() {
   }, [check]);
 
   const install = async () => {
-    if (!info?.updateAvailable || !window.playcrewDesktop) return;
+    const installUpdate = window.playcrewDesktop?.installUpdate;
+    if (!info?.updateAvailable || !installUpdate) {
+      setError("This desktop build cannot install updates automatically. Download the latest installer manually.");
+      return;
+    }
     setError("");
     setProgress({ status: "downloading", percent: 0, transferred: 0, total: 0 });
     try {
-      await window.playcrewDesktop.installUpdate({
+      await installUpdate({
         downloadUrl: info.downloadUrl,
         version: info.latestVersion,
       });
@@ -180,7 +198,9 @@ export default function DesktopUpdateModal() {
                     ? "Checking for updates"
                     : info?.updateAvailable
                       ? "A new version is ready"
-                      : "You’re up to date"}
+                      : error
+                        ? "Update check unavailable"
+                        : "You’re up to date"}
                 </h2>
                 <p className="theme-text-muted mt-2 max-w-sm text-sm leading-relaxed">
                   {busy
@@ -189,19 +209,27 @@ export default function DesktopUpdateModal() {
                       : "Keep PlayCrew open while the new version downloads."
                     : info?.updateAvailable
                       ? "Update without leaving the app. Your settings and local data will be preserved."
-                      : "You’re running the newest available PlayCrew Desktop build."}
+                      : error
+                        ? "Your installed version is shown below, but the latest release could not be verified."
+                        : "You’re running the newest available PlayCrew Desktop build."}
                 </p>
               </div>
 
               <div className="mt-6 flex items-center justify-center gap-3 rounded-2xl border border-white/10 bg-black/20 p-4">
                 <div className="text-center">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Installed</p>
-                  <p className="mt-1 font-black text-white">v{info?.currentVersion ?? "—"}</p>
+                  <p className="mt-1 font-black text-white">
+                    {installedVersion ?? info?.currentVersion
+                      ? `v${installedVersion ?? info?.currentVersion}`
+                      : "Unknown"}
+                  </p>
                 </div>
                 <FiArrowRight className="text-cyan-300" />
                 <div className="text-center">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Latest</p>
-                  <p className="mt-1 font-black text-cyan-200">v{info?.latestVersion ?? "—"}</p>
+                  <p className="mt-1 font-black text-cyan-200">
+                    {checking ? "Checking…" : info?.latestVersion ? `v${info.latestVersion}` : "Unavailable"}
+                  </p>
                 </div>
               </div>
 

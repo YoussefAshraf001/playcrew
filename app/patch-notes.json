@@ -1,9 +1,45 @@
 [
   {
+    "version": "2.1.9",
+    "title": "Playnite Integration & Desktop Downloads",
+    "date": "2026-09-26",
+    "featured": true,
+    "changes": [
+      {
+        "category": "Playnite Integration",
+        "items": [
+          "Added an optional Playnite extension that automatically opens PlayCrew and logs completed game sessions",
+          "Playnite sessions now update total playtime and create dated session-history entries for uniquely matched Library games",
+          "Added an animated playtime confirmation modal with the matched game poster, name, and logged duration",
+          "PlayCrew now opens directly to the Library when a Playnite session is received",
+          "Added PlayCrew branding, author information, website, and GitHub links to the Playnite extension"
+        ]
+      },
+      {
+        "category": "Desktop App",
+        "items": [
+          "Added secure playcrew:// protocol handling with reliable queued delivery during startup and navigation",
+          "Fixed development protocol registration and normalized Windows deep-link formats",
+          "Fixed desktop update detection for the release tag format used on GitHub",
+          "Improved the update modal with accurate loading, unavailable, installed-version, and compatibility states",
+          "Developer game editing now receives live play-session updates"
+        ]
+      },
+      {
+        "category": "Downloads & Navigation",
+        "items": [
+          "Replaced direct Windows downloads with a polished modal linking to the latest GitHub release",
+          "Added the optional Playnite extension download and installation guidance to the Windows download modal",
+          "Refined the mobile account, music, and What's New sections with evenly sized icon actions and consistent spacing"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2.1.8",
     "title": "Achievements & Profile Experience",
     "date": "2026-09-24",
-    "featured": true,
+    "featured": false,
     "changes": [
       {
         "category": "Achievements",

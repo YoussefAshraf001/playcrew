@@ -39,6 +39,12 @@ if (process.isMainFrame) {
       ipcRenderer.on('playcrew:update-progress', handler);
       return () => ipcRenderer.removeListener('playcrew:update-progress', handler);
     },
+    takePlaytimeEvent: () => ipcRenderer.invoke('playcrew:take-playtime-event'),
+    onPlaytimeLogged: (listener) => {
+      const handler = (_event, payload) => listener(payload);
+      ipcRenderer.on('playcrew:playtime-logged', handler);
+      return () => ipcRenderer.removeListener('playcrew:playtime-logged', handler);
+    },
     openLocalImagesFolder: () => ipcRenderer.invoke('playcrew:open-local-images'),
     saveLocalImage: (category, key, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image', category, key, dataUrl),
     saveLocalImageToPath: (category, pathSegments, dataUrl) => ipcRenderer.invoke('playcrew:save-local-image-to-path', category, pathSegments, dataUrl),

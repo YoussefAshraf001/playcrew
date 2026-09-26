@@ -1,0 +1,12 @@
+Id: PlayCrew_Playnite_8f47792d-18e1-4ba0-942c-89423a83dc55
+Name: PlayCrew Playtime Sync
+Author: Youssef Ashraf
+Version: 1.0.1
+Module: PlayCrewPlaytime.psm1
+Type: Script
+Icon: icon.png
+Links:
+    - Name: Website
+      Url: https://playcrew.vercel.app
+    - Name: GitHub
+      Url: https://github.com/YoussefAshraf001/playcrew

@@ -9,7 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { doc, getDoc, Timestamp, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, Timestamp, updateDoc } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { RiShieldKeyholeFill } from "react-icons/ri";
@@ -145,15 +145,17 @@ export default function DevGameEditor({ userId, game, onClose }: Props) {
   useEffect(() => {
     if (!unlocked) return;
 
-    (async () => {
-      const snap = await getDoc(
-        doc(db, "users", userId, "games_igdb", game._docId),
-      );
-      if (snap.exists()) {
-        setGameData(snap.data() as GameData);
-      }
-      setLoading(false);
-    })();
+    return onSnapshot(
+      doc(db, "users", userId, "games_igdb", game._docId),
+      (snap) => {
+        setGameData(snap.exists() ? (snap.data() as GameData) : null);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Could not refresh developer game data", error);
+        setLoading(false);
+      },
+    );
   }, [unlocked, userId, game._docId]);
 
   useEffect(() => {

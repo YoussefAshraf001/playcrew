@@ -12,7 +12,7 @@ npm run desktop:test
 npm run desktop:dist
 ```
 
-Installer: `desktop/dist/PlayCrew-Setup-0.1.3-x64.exe`.
+Installer: `desktop/dist/PlayCrew-Setup-<version>-x64.exe`.
 
 For a local desktop preview against the live site: `npm run desktop:dev`.
 To preview unpublished React changes, start `npm run dev` in one terminal, then run the following in a second PowerShell terminal:
@@ -35,6 +35,7 @@ Run `npm --prefix desktop run smoke` after packaging to test the actual executab
 - Existing file pickers, downloads, and music playback use Chromium's native capabilities.
 - Reconnect screen and retry when the site cannot be reached.
 - Single running instance, remembered window size, and keyboard navigation.
+- `playcrew://playtime` integration links that restore the app and securely pass completed Playnite sessions to the signed-in website.
 - Press **Alt** for the app menu; **Alt+Left/Right** to navigate, **Ctrl+R** to reload, **F11** for fullscreen.
 
 The desktop shell has no access to server credentials. Only `src`, the icon, and package metadata are packaged. Remote content has Node integration disabled, context isolation enabled, and sandboxing enabled. The isolated preload owns the desktop-only controls; its limited window-control messages validate the sending window, frame, and origin. No Electron API is exposed to website JavaScript.
